@@ -35,6 +35,8 @@
     "verify:resources": "node scripts/verify-resources.mjs",
     "package:dir": "pnpm build && electron-builder --config electron-builder.unsigned.yml --win dir --x64",
     "package:unsigned": "pnpm build && electron-builder --config electron-builder.unsigned.yml --win nsis portable --x64",
+    "package:mac": "pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip",
+    "package:mac:dir": "pnpm build && electron-builder --config electron-builder.macos.yml --mac dir",
     "package:store": "pnpm build && electron-builder --config electron-builder.store.cjs --win appx --x64",
     "package": "pnpm build && electron-builder --win nsis portable --x64 && pnpm verify:signatures",
     "verify:signatures": "powershell -NoProfile -NonInteractive -File scripts/verify-windows-signatures.ps1",

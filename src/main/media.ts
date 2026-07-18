@@ -5,7 +5,6 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
 import { type BpmDetectionResult, type MediaCapabilities, type StemType } from '@shared/domain.js'
-import toolManifest from '../../resources/tool-manifest.json' with { type: 'json' }
 import { detectBpmFromSamples, type BpmAnalysis } from './bpm-detection.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
@@ -13,6 +12,7 @@ import { runProcess, spawnSafe } from './process.js'
 import type { Logger } from './logger.js'
 import { mediaResponseHeaders, parseByteRange } from './media-range.js'
 import { decodeNcmFile } from './ncm.js'
+import { currentToolTarget, toolFile } from './platform-tools.js'
 
 export interface AudioProbe {
   durationMs: number
@@ -33,9 +33,10 @@ const mimeTypes: Record<string, string> = {
   '.json': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'
 }
 
+const TOOL_TARGET = currentToolTarget()
 const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
-  toolManifest.files
-    .filter((file) => file.archive === 'ffmpeg' && /\.(?:exe|dll)$/i.test(file.output))
+  TOOL_TARGET.files
+    .filter((file) => ['ffmpeg', 'ffprobe', 'ffmpegDependency'].includes(file.role))
     .map((file) => [file.output, file.sha256])
 )
 
@@ -70,7 +71,7 @@ export class MediaService {
   capabilities(): MediaCapabilities {
     return {
       ffmpegReady: this.verifiedToolRoot !== null,
-      ffmpegVersion: '8.1.2',
+      ffmpegVersion: TOOL_TARGET.ffmpegVersion,
       protocolVersion: 1,
       supportedInputFormats: ['mp3', 'wav', 'flac', 'm4a', 'aac'],
       supportedExportFormats: ['wav', 'flac', 'mp3'],
@@ -82,7 +83,7 @@ export class MediaService {
 
   tool(name: 'ffmpeg' | 'ffprobe'): string | null {
     if (!this.verifiedToolRoot) return null
-    return path.join(this.verifiedToolRoot, `${name}.exe`)
+    return path.join(this.verifiedToolRoot, toolFile(TOOL_TARGET, name).output)
   }
 
   toolsReady(): boolean {

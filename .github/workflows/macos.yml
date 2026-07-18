@@ -1,0 +1,102 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Verify native runner architecture
+        shell: bash
+        run: test "$(uname -m)" = "${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '11.9.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch verified native desktop tools
+        run: pnpm tools:fetch
+
+      - name: Validate and test
+        run: |
+          python -m py_compile python/worker/worker.py
+          pnpm test
+
+      - name: Package unsigned macOS builds
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm package:mac
+
+      - name: Verify packaged application and native tools
+        shell: bash
+        run: |
+          app_path="$(find release-macos -maxdepth 2 -type d -name BandBuddy.app | head -n 1)"
+          test -n "$app_path"
+          test -x "$app_path/Contents/MacOS/BandBuddy"
+          test -x "$app_path/Contents/Resources/bin/uv"
+          test -x "$app_path/Contents/Resources/bin/ffmpeg"
+          test -x "$app_path/Contents/Resources/bin/ffprobe"
+          file "$app_path/Contents/MacOS/BandBuddy" | grep -q "${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}"
+          "$app_path/Contents/Resources/bin/uv" --version
+          "$app_path/Contents/Resources/bin/ffmpeg" -version
+          "$app_path/Contents/Resources/bin/ffprobe" -version
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip)
+          test "${#files[@]}" -eq 2
+          shasum -a 256 "${files[@]}" | sed 's#release-macos/##' > "release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: BandBuddy-macos-${{ matrix.arch }}-${{ github.sha }}
+          path: |
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip
+            release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt
+          if-no-files-found: error
+          retention-days: 14

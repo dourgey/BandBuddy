@@ -21,7 +21,9 @@ export class AppPaths {
     this.dataRoot = app.getPath('userData')
     this.localRoot = developmentTestRoot
       ? path.join(developmentTestRoot, 'local')
-      : path.join(process.env.LOCALAPPDATA ?? app.getPath('userData'), 'BandBuddy')
+      : process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA ?? app.getPath('userData'), 'BandBuddy')
+        : app.getPath('userData')
     this.databasePath = path.join(this.dataRoot, 'bandbuddy.db')
     this.backupRoot = path.join(this.dataRoot, 'backups')
     this.cacheRoot = path.join(this.localRoot, 'cache')

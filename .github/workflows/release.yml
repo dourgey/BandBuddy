@@ -92,7 +92,7 @@ jobs:
           $version = $tag.TrimStart('v')
           $assets = @(Get-ChildItem "$env:PACKAGE_DIR/BandBuddy-*.exe" | Sort-Object Name | ForEach-Object FullName)
           $assets += (Resolve-Path "$env:PACKAGE_DIR/SHA256SUMS.txt").Path
-          $notes = "Windows 10/11 x64 · $env:SIGNING_STATE.`n`n如果这是未签名构建，Windows SmartScreen 可能显示未知发布者；请使用随附的 SHA256SUMS.txt 校验文件。"
+          $notes = "Windows 10/11 x64 · $env:SIGNING_STATE.`nmacOS x64 / arm64 · unsigned and not notarized.`n`n请使用随附的 SHA-256 文件校验下载；macOS 构建会在 Windows Release 创建后自动附加。"
           $versionNotes = "docs/release-notes/$tag.md"
           $notesFile = Join-Path $env:RUNNER_TEMP "BandBuddy-$tag-release-notes.md"
 
@@ -111,3 +111,88 @@ jobs:
               gh release create $tag @assets --verify-tag --title "BandBuddy $version" --generate-notes --notes $notes --repo $env:GITHUB_REPOSITORY
             }
           }
+
+  macos-release:
+    name: macOS ${{ matrix.arch }} release
+    needs: windows-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Verify tag, version, and native architecture
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_NAME" = "v$version"
+          test "$(uname -m)" = "${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '11.9.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch verified native desktop tools
+        run: pnpm tools:fetch
+
+      - name: Validate and test
+        run: |
+          python -m py_compile python/worker/worker.py
+          pnpm test
+
+      - name: Package unsigned macOS release
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm package:mac
+
+      - name: Verify package and generate checksum
+        shell: bash
+        run: |
+          app_path="$(find release-macos -maxdepth 2 -type d -name BandBuddy.app | head -n 1)"
+          test -n "$app_path"
+          test -x "$app_path/Contents/Resources/bin/uv"
+          test -x "$app_path/Contents/Resources/bin/ffmpeg"
+          test -x "$app_path/Contents/Resources/bin/ffprobe"
+          "$app_path/Contents/Resources/bin/uv" --version
+          "$app_path/Contents/Resources/bin/ffmpeg" -version
+          shopt -s nullglob
+          files=(release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip)
+          test "${#files[@]}" -eq 2
+          shasum -a 256 "${files[@]}" | sed 's#release-macos/##' > "release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt"
+
+      - name: Upload macOS assets to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=(
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip
+            release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt
+          )
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"

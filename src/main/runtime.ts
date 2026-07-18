@@ -1,8 +1,9 @@
 import AdmZip from 'adm-zip'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { net } from 'electron'
 import type { ComputeDevice, GpuInfo, RuntimeInfo } from '@shared/domain.js'
 import type { BandBuddyDatabase } from './database.js'
@@ -11,17 +12,40 @@ import { isManagedPath, type AppPaths } from './paths.js'
 import { runProcess, spawnSafe } from './process.js'
 import { selectComputeDevice } from './runtime-device.js'
 import { PYTHON_RUNTIME_REQUIREMENTS, PYTHON_RUNTIME_VERSIONS } from './runtime-dependencies.js'
+import { currentToolTarget, toolFile } from './platform-tools.js'
+
+const TOOL_TARGET = currentToolTarget()
+const UV_FILE = toolFile(TOOL_TARGET, 'uv')
+const UV_SOURCE = TOOL_TARGET.sources[UV_FILE.source]!
+const FFMPEG_FILE = toolFile(TOOL_TARGET, 'ffmpeg')
 
 export const RUNTIME_VERSIONS = {
-  uv: '0.11.29',
+  uv: UV_SOURCE.version,
   python: '3.12',
   ...PYTHON_RUNTIME_VERSIONS,
   modelRevision: 'htdemucs_6s:5c90dfd2-34c22ccb'
 } as const
 
-const UV_ZIP_SHA256 = 'a047d55651bc3e0ca24595b25ec4cfcb10f9dca9fb56514e661269b37d4fae68'
-const UV_EXE_SHA256 = '6d40479cd1d0d5db7fc0fe68ad703fc8acbd84bba50d864bb97461f6af9d9561'
-const UV_DOWNLOAD = `https://releases.astral.sh/github/uv/releases/download/${RUNTIME_VERSIONS.uv}/uv-x86_64-pc-windows-msvc.zip`
+const UV_ARCHIVE_SHA256 = UV_SOURCE.sha256
+const UV_BINARY_SHA256 = UV_FILE.sha256
+const UV_DOWNLOAD = UV_SOURCE.url
+
+function tarFile(bytes: Buffer, entrySuffix: string, fallbackEntry?: string): Buffer | null {
+  for (let offset = 0; offset + 512 <= bytes.length;) {
+    const header = bytes.subarray(offset, offset + 512)
+    if (header.every((value) => value === 0)) break
+    const text = (start: number, length: number): string => header.subarray(start, start + length).toString('utf8').replace(/\0.*$/s, '')
+    const name = [text(345, 155), text(0, 100)].filter(Boolean).join('/')
+    const size = Number.parseInt(text(124, 12).trim(), 8) || 0
+    const type = text(156, 1)
+    const dataStart = offset + 512
+    if ((type === '' || type === '0') && (name.endsWith(entrySuffix) || name === fallbackEntry)) {
+      return bytes.subarray(dataStart, dataStart + size)
+    }
+    offset = dataStart + Math.ceil(size / 512) * 512
+  }
+  return null
+}
 
 type RuntimeListener = (info: RuntimeInfo) => void
 
@@ -92,7 +116,7 @@ export class RuntimeManager {
     }
     const packagedBin = this.paths.packagedResource('bin')
     const developmentBin = path.join(process.cwd(), 'resources', 'bin')
-    const toolBin = existsSync(path.join(packagedBin, 'ffmpeg.exe')) ? packagedBin : developmentBin
+    const toolBin = existsSync(path.join(packagedBin, FFMPEG_FILE.output)) ? packagedBin : developmentBin
     env.PATH = `${toolBin}${path.delimiter}${env.PATH ?? ''}`
     const network = settings.network
     if (network.proxyMode === 'manual' && network.proxyUrl) {
@@ -316,19 +340,19 @@ export class RuntimeManager {
   }
 
   private async ensureUv(signal: AbortSignal): Promise<string> {
-    const packaged = this.paths.packagedResource('bin', 'uv.exe')
+    const packaged = this.paths.packagedResource('bin', UV_FILE.output)
     if (existsSync(packaged)) {
-      if (await this.fileSha256(packaged) !== UV_EXE_SHA256) throw new Error('UV_HASH_MISMATCH')
+      if (await this.fileSha256(packaged) !== UV_BINARY_SHA256) throw new Error('UV_HASH_MISMATCH')
       return packaged
     }
     const destinationRoot = path.join(this.paths.toolsRoot, 'uv')
-    const destination = path.join(destinationRoot, 'uv.exe')
+    const destination = path.join(destinationRoot, UV_FILE.output)
     if (existsSync(destination)) {
-      if (await this.fileSha256(destination) === UV_EXE_SHA256) return destination
+      if (await this.fileSha256(destination) === UV_BINARY_SHA256) return destination
       await rm(destination, { force: true })
     }
     mkdirSync(destinationRoot, { recursive: true })
-    const archive = path.join(this.paths.downloadRoot, `uv-${RUNTIME_VERSIONS.uv}-windows-x64.zip`)
+    const archive = path.join(this.paths.downloadRoot, UV_SOURCE.archive)
     const temporary = `${archive}.part`
     this.update({ status: 'installing', stage: `下载 uv ${RUNTIME_VERSIONS.uv}`, progress: 0.04 })
     const response = await net.fetch(UV_DOWNLOAD, { signal })
@@ -336,21 +360,24 @@ export class RuntimeManager {
     const bytes = Buffer.from(await response.arrayBuffer())
     await writeFile(temporary, bytes)
     const digest = createHash('sha256').update(bytes).digest('hex')
-    if (digest !== UV_ZIP_SHA256) {
+    if (digest !== UV_ARCHIVE_SHA256) {
       await rm(temporary, { force: true })
       throw new Error('UV_HASH_MISMATCH')
     }
     await rename(temporary, archive)
-    const zip = new AdmZip(archive)
-    const entry = zip.getEntries().find((candidate) => candidate.entryName.endsWith('/uv.exe') || candidate.entryName === 'uv.exe')
-    if (!entry) throw new Error('UV_ARCHIVE_INVALID')
-    zip.extractEntryTo(entry, destinationRoot, false, true)
-    if (!existsSync(destination)) {
-      const extracted = path.join(destinationRoot, path.basename(entry.entryName))
-      if (existsSync(extracted) && extracted !== destination) await rename(extracted, destination)
+    let binary: Buffer | null = null
+    if (UV_SOURCE.format === 'zip') {
+      const zip = new AdmZip(archive)
+      const entry = zip.getEntries().find((candidate) => candidate.entryName.endsWith(UV_FILE.entrySuffix ?? '') || candidate.entryName === UV_FILE.fallbackEntry)
+      if (entry && !entry.isDirectory) binary = entry.getData()
+    } else if (UV_SOURCE.format === 'tar.gz') {
+      binary = tarFile(gunzipSync(await readFile(archive)), UV_FILE.entrySuffix ?? '', UV_FILE.fallbackEntry)
     }
+    if (!binary) throw new Error('UV_ARCHIVE_INVALID')
+    await writeFile(destination, binary)
+    if (process.platform !== 'win32') await chmod(destination, 0o755)
     if (!existsSync(destination)) throw new Error('UV_EXTRACT_FAILED')
-    if (await this.fileSha256(destination) !== UV_EXE_SHA256) throw new Error('UV_HASH_MISMATCH')
+    if (await this.fileSha256(destination) !== UV_BINARY_SHA256) throw new Error('UV_HASH_MISMATCH')
     return destination
   }
 

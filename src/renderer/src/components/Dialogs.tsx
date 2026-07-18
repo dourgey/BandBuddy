@@ -245,10 +245,10 @@ export function SongActionsDialog({
     <p className="dialog-lead">管理本地曲目、原始文件与分离版本。</p>
     <div className="song-action-list">
       <button onClick={() => { onOpenChange(false); onOpen() }}><FileAudio /><span><b>打开练习室</b><small>继续当前保存的混音与循环设置</small></span></button>
-      <button onClick={() => { onOpenChange(false); onReveal() }}><FolderOpen /><span><b>在资源管理器中显示</b><small>打开 UUID 管理目录，不暴露给网页内容</small></span></button>
+      <button onClick={() => { onOpenChange(false); onReveal() }}><FolderOpen /><span><b>在文件管理器中显示</b><small>打开 UUID 管理目录，不暴露给网页内容</small></span></button>
       <button disabled={song?.status !== 'ready'} onClick={() => { onOpenChange(false); onReseparate() }}><RefreshCw /><span><b>重新分轨</b><small>成功前继续使用当前分轨版本</small></span></button>
-      <button className="danger" onClick={() => setConfirmDelete(true)}><Trash2 /><span><b>删除歌曲</b><small>受管目录会移入 Windows 回收站</small></span></button>
+      <button className="danger" onClick={() => setConfirmDelete(true)}><Trash2 /><span><b>删除歌曲</b><small>受管目录会移入系统废纸篓 / 回收站</small></span></button>
     </div>
-    {confirmDelete && <div className="inline-warning danger"><AlertTriangle /><span><b>确认删除“{song?.title}”？</b><small>播放会停止，相关任务会取消；文件可从回收站恢复。</small></span><button onClick={() => { onOpenChange(false); onDelete() }}>确认删除</button><button onClick={() => setConfirmDelete(false)}>取消</button></div>}
+    {confirmDelete && <div className="inline-warning danger"><AlertTriangle /><span><b>确认删除“{song?.title}”？</b><small>播放会停止，相关任务会取消；文件可从系统废纸篓 / 回收站恢复。</small></span><button onClick={() => { onOpenChange(false); onDelete() }}>确认删除</button><button onClick={() => setConfirmDelete(false)}>取消</button></div>}
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }

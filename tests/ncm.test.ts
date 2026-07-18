@@ -106,7 +106,8 @@ describe('source decoding', () => {
     expect(AUDIO_EXTENSIONS.has('.ncm')).toBe(false)
   })
 
-  it.skipIf(!existsSync(path.join(process.cwd(), 'resources', 'bin', 'ffmpeg.exe')))('creates a playable 320 kbps MP3', async () => {
+  const ffmpegName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  it.skipIf(!existsSync(path.join(process.cwd(), 'resources', 'bin', ffmpegName)))('creates a playable 320 kbps MP3', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'bandbuddy-convert-'))
     directories.push(directory)
     const input = path.join(directory, 'input.ncm')
