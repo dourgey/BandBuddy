@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "uv": {
+    "version": "0.11.29",
+    "url": "https://releases.astral.sh/github/uv/releases/download/0.11.29/uv-x86_64-pc-windows-msvc.zip",
+    "archive": "uv-0.11.29-windows-x64.zip",
+    "archiveSha256": "a047d55651bc3e0ca24595b25ec4cfcb10f9dca9fb56514e661269b37d4fae68"
+  },
+  "ffmpeg": {
+    "version": "n8.1.2-22-g94138f6973-20260717",
+    "license": "LGPL-shared",
+    "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip",
+    "archive": "ffmpeg-n8.1-win64-lgpl-shared.zip",
+    "archiveSha256": "a36ac6386c041367ea8a76cb8ad108070427f0f97ad10ca93462c7ad37316d3c"
+  },
+  "files": [
+    { "archive": "uv", "entrySuffix": "/uv.exe", "fallbackEntry": "uv.exe", "output": "uv.exe", "sha256": "6d40479cd1d0d5db7fc0fe68ad703fc8acbd84bba50d864bb97461f6af9d9561" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/ffmpeg.exe", "output": "ffmpeg.exe", "sha256": "f649fa542dd9db20378f333ac79111e6fb45aa6c06d8f58e4fa6b5388c4a7531" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/ffprobe.exe", "output": "ffprobe.exe", "sha256": "1b04364f0a4998b65bd7fd68a0eb10efaa4a82a3d741367dc4f2d13878f2d806" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/avcodec-62.dll", "output": "avcodec-62.dll", "sha256": "50f1d41de623ab01fea020101138c4797db11c76f528ea7ddc94a06b8b0e3563" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/avdevice-62.dll", "output": "avdevice-62.dll", "sha256": "f97ea88956c0f0e72427135ab52d4b0668443369a1846aba3f937acd9a406a15" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/avfilter-11.dll", "output": "avfilter-11.dll", "sha256": "036cad46905f66c455eb514ff0ff516b4546bc5b16f4ebc4f47589c3ee392faf" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/avformat-62.dll", "output": "avformat-62.dll", "sha256": "71f286e26276bfd4b1f49e1d9331babdf418c5e0886a7d89ead3e64bb6cee45a" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/avutil-60.dll", "output": "avutil-60.dll", "sha256": "2ce8d54e68329f5154fa3ec4b12dd011e237febebb447a119737ecba7439d6e4" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/swresample-6.dll", "output": "swresample-6.dll", "sha256": "560b7cf7c51415079ba45c30e105e4af5400f6f7f3c07f21638a6ec4a3b703ea" },
+    { "archive": "ffmpeg", "entrySuffix": "/bin/swscale-9.dll", "output": "swscale-9.dll", "sha256": "4225e59d19833c81cd9e85c240cafa45431f41c92703d626c9d38e113bd654ec" },
+    { "archive": "ffmpeg", "entrySuffix": "/LICENSE.txt", "output": "FFmpeg-LICENSE.txt", "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768" }
+  ]
+}

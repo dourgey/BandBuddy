@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-release:
+    runs-on: windows-2025
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $expected = "v$version"
+          if ($env:GITHUB_REF_NAME -ne $expected) {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $version (expected $expected)"
+          }
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '11.9.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch verified desktop tools
+        run: pnpm tools:fetch
+
+      - name: Validate and test
+        run: |
+          python -m py_compile python/worker/worker.py
+          pnpm test
+
+      - name: Package Windows release
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK) -or [string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) {
+            pnpm package:unsigned
+            "PACKAGE_DIR=release-unsigned" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+            "SIGNING_STATE=unsigned community build" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            pnpm package
+            "PACKAGE_DIR=release" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+            "SIGNING_STATE=Authenticode signed build" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "$env:PACKAGE_DIR/BandBuddy-*.exe" | Sort-Object Name
+          if ($files.Count -ne 2) { throw "Expected installer and portable executables, found $($files.Count)" }
+          $lines = $files | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          }
+          $lines | Out-File "$env:PACKAGE_DIR/SHA256SUMS.txt" -Encoding ascii
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.TrimStart('v')
+          $assets = @(Get-ChildItem "$env:PACKAGE_DIR/BandBuddy-*.exe" | Sort-Object Name | ForEach-Object FullName)
+          $assets += (Resolve-Path "$env:PACKAGE_DIR/SHA256SUMS.txt").Path
+          $notes = "Windows 10/11 x64 · $env:SIGNING_STATE.`n`n如果这是未签名构建，Windows SmartScreen 可能显示未知发布者；请使用随附的 SHA256SUMS.txt 校验文件。"
+          $versionNotes = "docs/release-notes/$tag.md"
+          $notesFile = Join-Path $env:RUNNER_TEMP "BandBuddy-$tag-release-notes.md"
+
+          $notes | Out-File $notesFile -Encoding utf8
+          if (Test-Path $versionNotes) {
+            Get-Content $versionNotes -Raw | Add-Content $notesFile -Encoding utf8
+          }
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber --repo $env:GITHUB_REPOSITORY
+          } else {
+            if (Test-Path $versionNotes) {
+              gh release create $tag @assets --verify-tag --title "BandBuddy $version" --notes-file $notesFile --repo $env:GITHUB_REPOSITORY
+            } else {
+              gh release create $tag @assets --verify-tag --title "BandBuddy $version" --generate-notes --notes $notes --repo $env:GITHUB_REPOSITORY
+            }
+          }

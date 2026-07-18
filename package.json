@@ -1,0 +1,75 @@
+{
+  "name": "bandbuddy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A local-first stem practice player for musicians",
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "dourgey",
+    "url": "https://github.com/dourgey"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/dourgey/BandBuddy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dourgey/BandBuddy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dourgey/BandBuddy/issues"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm native:electron && electron-vite dev",
+    "dev:renderer": "vite --config vite.renderer.config.ts",
+    "build": "pnpm verify:resources && pnpm typecheck && electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "native:electron": "electron-builder install-app-deps",
+    "tools:fetch": "node scripts/fetch-tools.mjs",
+    "verify:resources": "node scripts/verify-resources.mjs",
+    "package:dir": "pnpm build && electron-builder --config electron-builder.unsigned.yml --win dir --x64",
+    "package:unsigned": "pnpm build && electron-builder --config electron-builder.unsigned.yml --win nsis portable --x64",
+    "package:store": "pnpm build && electron-builder --config electron-builder.store.cjs --win appx --x64",
+    "package": "pnpm build && electron-builder --win nsis portable --x64 && pnpm verify:signatures",
+    "verify:signatures": "powershell -NoProfile -NonInteractive -File scripts/verify-windows-signatures.ps1",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "adm-zip": "0.5.16",
+    "@radix-ui/react-dialog": "1.1.19",
+    "@tanstack/react-query": "5.101.2",
+    "better-sqlite3": "12.11.1",
+    "drizzle-orm": "0.45.2",
+    "lucide-react": "1.25.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "wavesurfer.js": "7.12.11",
+    "zod": "4.4.3",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/adm-zip": "0.5.7",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "jsdom": "29.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  }
+}

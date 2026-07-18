@@ -1,0 +1,59 @@
+appId: com.bandbuddy.desktop
+productName: BandBuddy
+copyright: Copyright © 2026 BandBuddy
+forceCodeSigning: true
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - build/icon.png
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+extraResources:
+  - from: python/worker
+    to: worker
+    filter:
+      - "*.py"
+  - from: resources/bin
+    to: bin
+  - from: build/icon.png
+    to: icon.png
+    filter:
+      - "**/*"
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+win:
+  icon: build/icon.ico
+  executableName: BandBuddy
+  signExts:
+    - .exe
+    - .dll
+    - .node
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
+    rfc3161TimeStampServer: https://timestamp.digicert.com
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  artifactName: "BandBuddy-${version}-${arch}.${ext}"
+  requestedExecutionLevel: asInvoker
+  legalTrademarks: BandBuddy
+nsis:
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: "BandBuddy-${version}-${arch}-portable.${ext}"
+publish: null

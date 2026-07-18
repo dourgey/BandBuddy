@@ -1,0 +1,75 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    runs-on: windows-2025
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '11.9.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch verified desktop tools
+        run: pnpm tools:fetch
+
+      - name: Validate Python worker
+        run: python -m py_compile python/worker/worker.py
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Package unsigned Windows builds
+        run: pnpm package:unsigned
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem 'release-unsigned/BandBuddy-*.exe' | Sort-Object Name
+          if ($files.Count -ne 2) { throw "Expected installer and portable executables, found $($files.Count)" }
+          $lines = $files | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          }
+          $lines | Out-File 'release-unsigned/SHA256SUMS.txt' -Encoding ascii
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: BandBuddy-windows-x64-${{ github.sha }}
+          path: |
+            release-unsigned/BandBuddy-*.exe
+            release-unsigned/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
