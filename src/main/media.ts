@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
 import { type BpmDetectionResult, type MediaCapabilities, type StemType } from '@shared/domain.js'
+import toolManifest from '../../resources/tool-manifest.json' with { type: 'json' }
 import { detectBpmFromSamples, type BpmAnalysis } from './bpm-detection.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
@@ -32,17 +33,11 @@ const mimeTypes: Record<string, string> = {
   '.json': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'
 }
 
-const FFMPEG_FILE_HASHES: Record<string, string> = {
-  'ffmpeg.exe': 'f649fa542dd9db20378f333ac79111e6fb45aa6c06d8f58e4fa6b5388c4a7531',
-  'ffprobe.exe': '1b04364f0a4998b65bd7fd68a0eb10efaa4a82a3d741367dc4f2d13878f2d806',
-  'avcodec-62.dll': '50f1d41de623ab01fea020101138c4797db11c76f528ea7ddc94a06b8b0e3563',
-  'avdevice-62.dll': 'f97ea88956c0f0e72427135ab52d4b0668443369a1846aba3f937acd9a406a15',
-  'avfilter-11.dll': '036cad46905f66c455eb514ff0ff516b4546bc5b16f4ebc4f47589c3ee392faf',
-  'avformat-62.dll': '71f286e26276bfd4b1f49e1d9331babdf418c5e0886a7d89ead3e64bb6cee45a',
-  'avutil-60.dll': '2ce8d54e68329f5154fa3ec4b12dd011e237febebb447a119737ecba7439d6e4',
-  'swresample-6.dll': '560b7cf7c51415079ba45c30e105e4af5400f6f7f3c07f21638a6ec4a3b703ea',
-  'swscale-9.dll': '4225e59d19833c81cd9e85c240cafa45431f41c92703d626c9d38e113bd654ec'
-}
+const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
+  toolManifest.files
+    .filter((file) => file.archive === 'ffmpeg' && /\.(?:exe|dll)$/i.test(file.output))
+    .map((file) => [file.output, file.sha256])
+)
 
 export class MediaService {
   private readonly verifiedToolRoot: string | null
