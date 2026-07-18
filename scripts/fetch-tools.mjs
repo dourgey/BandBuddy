@@ -13,6 +13,28 @@ mkdirSync(downloads, { recursive: true })
 mkdirSync(bin, { recursive: true })
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+async function downloadArchive(name, definition) {
+  let lastError
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(definition.url, { redirect: 'follow' })
+      if (!response.ok) {
+        const error = new Error(`${name} download failed: HTTP ${response.status}`)
+        error.retryable = response.status === 408 || response.status === 429 || response.status >= 500
+        throw error
+      }
+      return Buffer.from(await response.arrayBuffer())
+    } catch (error) {
+      lastError = error
+      if (error?.retryable === false || attempt === 3) throw error
+      console.warn(`${name} download attempt ${attempt} failed; retrying...`)
+      await wait(attempt * 1_000)
+    }
+  }
+  throw lastError
+}
 
 async function archiveFor(name) {
   const definition = manifest[name]
@@ -23,9 +45,7 @@ async function archiveFor(name) {
     rmSync(target, { force: true })
   }
   console.log(`Downloading ${name} ${definition.version}...`)
-  const response = await fetch(definition.url, { redirect: 'follow' })
-  if (!response.ok) throw new Error(`${name} download failed: HTTP ${response.status}`)
-  const bytes = Buffer.from(await response.arrayBuffer())
+  const bytes = await downloadArchive(name, definition)
   if (sha256(bytes) !== definition.archiveSha256) throw new Error(`${name} archive SHA-256 mismatch; upstream asset changed`)
   const temporary = `${target}.part`
   writeFileSync(temporary, bytes)
