@@ -179,3 +179,14 @@ macOS 包必须在对应架构的 Mac 上构建，以便 Electron、`better-sqli
 ## 许可与音频权利
 
 BandBuddy 源码使用 [Apache License 2.0](./LICENSE)。第三方工具、库和模型保留各自许可。BandBuddy 不附带音乐；请只导入、处理和导出你拥有或已获授权使用的音频。
+
+## 支持 BandBuddy
+
+如果 BandBuddy 对你的练习有所帮助，并且你刚好有余力，欢迎请作者喝杯咖啡，支持项目继续维护和改进。赞助完全自愿，不会影响任何功能的使用。
+
+如果希望在赞助名单中留名，请在付款时备注希望展示的名字或 GitHub 用户名；未备注的赞助将默认匿名。感谢你的支持！
+
+<p align="center">
+  <img src="./docs/images/wechat-pay.jpg" alt="微信收款码" width="280">
+  <img src="./docs/images/alipay-pay.jpg" alt="支付宝收款码" width="280">
+</p>
