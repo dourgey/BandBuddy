@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Download official Demucs v4 model files without Hugging Face.
+"""Download pinned Demucs v4 model files without Hugging Face.
 
 The file names and bag definitions below are pinned to facebookresearch/demucs:
 https://github.com/facebookresearch/demucs/tree/main/demucs/remote
-The weights themselves are served from the official URL used by Demucs.
+The default URL is the official Demucs source; configured mirrors must serve
+the exact same bytes and are checked before installation.
 """
 
 from __future__ import annotations
@@ -54,6 +55,12 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     ),
 }
 
+PINNED_MODEL_SHA256 = {
+    "5c90dfd2-34c22ccb.th": (
+        "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd"
+    ),
+}
+
 ProgressCallback = Callable[[float, str], None]
 
 
@@ -66,8 +73,10 @@ def sha256_file(path: Path) -> str:
 
 
 def expected_checksum(filename: str) -> str:
-    """Return the SHA-256 prefix embedded by Demucs in an official file name."""
-    return Path(filename).stem.rsplit("-", 1)[1].lower()
+    """Return a pinned SHA-256, or Demucs' embedded prefix for legacy models."""
+    return PINNED_MODEL_SHA256.get(
+        filename, Path(filename).stem.rsplit("-", 1)[1].lower()
+    )
 
 
 def verify_weight(path: Path) -> str:

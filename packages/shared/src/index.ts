@@ -1,4 +1,6 @@
 export * from './domain.js'
+export * from './rehearsal.js'
+export * from './lyrics.js'
 export * from './channels.js'
 export * from './ipc.js'
 export * from './bridge.js'

@@ -77,10 +77,12 @@ jobs:
           test -x "$app_path/Contents/Resources/bin/uv"
           test -x "$app_path/Contents/Resources/bin/ffmpeg"
           test -x "$app_path/Contents/Resources/bin/ffprobe"
+          test -x "$app_path/Contents/Resources/audio-host/${{ matrix.arch == 'x64' && 'darwin-x64' || 'darwin-arm64' }}/bandbuddy-audio-host"
           file "$app_path/Contents/MacOS/BandBuddy" | grep -q "${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}"
           "$app_path/Contents/Resources/bin/uv" --version
           "$app_path/Contents/Resources/bin/ffmpeg" -version
           "$app_path/Contents/Resources/bin/ffprobe" -version
+          "$app_path/Contents/Resources/audio-host/${{ matrix.arch == 'x64' && 'darwin-x64' || 'darwin-arm64' }}/bandbuddy-audio-host" --self-test
 
       - name: Generate checksums
         shell: bash

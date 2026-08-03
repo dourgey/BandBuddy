@@ -39,6 +39,7 @@ def command_ensure_model(args: argparse.Namespace) -> None:
     target = download_model(
         MODEL_NAME,
         model_root,
+        base_url=args.model_base_url,
         progress=lambda progress, message: emit(
             "progress", stage="downloadingModel", progress=progress, message=message
         ),
@@ -179,6 +180,10 @@ def parser() -> argparse.ArgumentParser:
 
     ensure = commands.add_parser("ensure-model")
     ensure.add_argument("--model-root", required=True)
+    ensure.add_argument(
+        "--model-base-url",
+        default="https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/",
+    )
 
     separate = commands.add_parser("separate")
     separate.add_argument("--input", required=True)

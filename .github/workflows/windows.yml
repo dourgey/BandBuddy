@@ -54,6 +54,10 @@ jobs:
       - name: Package unsigned Windows builds
         run: pnpm package:unsigned
 
+      - name: Verify native audio host
+        shell: pwsh
+        run: '& resources/audio-host/win32-x64/bandbuddy-audio-host.exe --self-test'
+
       - name: Generate checksums
         shell: pwsh
         run: |

@@ -10,7 +10,29 @@ BandBuddy bundles or installs the following third-party software. The applicatio
 - uv 0.11.29 — Apache-2.0 OR MIT — https://github.com/astral-sh/uv
 - CPython 3.12 — Python Software Foundation License — installed on demand by uv.
 - PyTorch and torchaudio — BSD-3-Clause — installed on demand into the private runtime. Windows x64 and macOS arm64 use 2.11.0; macOS x64 uses the matching 2.2.2 pair that still provides Intel CPython 3.12 wheels.
-- Demucs 4.1.0 — MIT License — installed on demand into the private runtime.
-- HTDemucs model weights — downloaded only after user confirmation from the official Demucs CDN with pinned checksums; their repository license applies.
+- Demucs 4.1.0 — MIT License — installed on demand into the private runtime. Its copyright and license notice are reproduced below.
+- HTDemucs model weights — not included in BandBuddy installers or source distributions. After user confirmation, the application downloads them directly from the official Demucs CDN and verifies them with pinned checksums. The upstream Demucs repository licenses the software under MIT but does not publish a separate explicit license for the pretrained weights. Users must determine whether their intended use of the weights, particularly commercial use or redistribution, is permitted.
 
 The generated dependency lockfile is the authoritative list of JavaScript packages. Redistribution must retain the applicable license texts and attributions.
+
+## Demucs MIT License
+
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

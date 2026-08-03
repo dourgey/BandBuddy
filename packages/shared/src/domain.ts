@@ -30,6 +30,8 @@ export type JobStatus =
 
 export type SongStatus = 'blockedRuntime' | 'queued' | 'processing' | 'ready' | 'failed'
 export type ExportFormat = 'wav' | 'flac' | 'mp3'
+export type AudioBackend = 'auto' | 'asio' | 'wasapi-exclusive' | 'wasapi-shared' | 'coreaudio'
+export type RecordingPhase = 'idle' | 'preparing' | 'armed' | 'countIn' | 'recording' | 'stopping' | 'finalizing' | 'testing' | 'failed'
 
 export interface StemMeta {
   label: string
@@ -54,6 +56,65 @@ export interface TrackState {
   solo: boolean
 }
 
+export type TrackOrderKey = `stem:${StemType}` | `recording:${string}`
+
+export function stemTrackOrderKey(stemType: StemType): TrackOrderKey {
+  return `stem:${stemType}`
+}
+
+export function recordingTrackOrderKey(recordingTrackId: string): TrackOrderKey {
+  return `recording:${recordingTrackId}`
+}
+
+export function getStemTypeFromTrackOrderKey(key: string): StemType | null {
+  if (!key.startsWith('stem:')) return null
+  const stemType = key.slice('stem:'.length) as StemType
+  return STEM_ORDER.includes(stemType) ? stemType : null
+}
+
+export function isTrackOrderKey(value: unknown): value is TrackOrderKey {
+  if (typeof value !== 'string') return false
+  if (getStemTypeFromTrackOrderKey(value)) return true
+  return /^recording:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+export function normalizeTrackOrder(
+  savedOrder: readonly string[] | null | undefined,
+  recordingTrackIds: readonly string[]
+): TrackOrderKey[] {
+  const available = [
+    ...STEM_ORDER.map(stemTrackOrderKey),
+    ...recordingTrackIds.map(recordingTrackOrderKey)
+  ]
+  const availableKeys = new Set<TrackOrderKey>(available)
+  const seen = new Set<TrackOrderKey>()
+  const normalized: TrackOrderKey[] = []
+  for (const key of savedOrder ?? []) {
+    if (!isTrackOrderKey(key) || !availableKeys.has(key) || seen.has(key)) continue
+    seen.add(key)
+    normalized.push(key)
+  }
+  for (const key of available) {
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(key)
+  }
+  return normalized
+}
+
+export function moveTrackOrder(
+  order: readonly TrackOrderKey[],
+  movingKey: TrackOrderKey,
+  targetKey: TrackOrderKey,
+  placement: 'before' | 'after'
+): TrackOrderKey[] {
+  if (movingKey === targetKey || !order.includes(movingKey) || !order.includes(targetKey)) return [...order]
+  const next = order.filter((key) => key !== movingKey)
+  const targetIndex = next.indexOf(targetKey)
+  next.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, movingKey)
+  return next
+}
+
 export interface PracticeState {
   songId: string
   positionMs: number
@@ -62,6 +123,7 @@ export interface PracticeState {
   metronomeEnabled: boolean
   metronomeBpm: number
   metronomeOffsetMs: number
+  desktopLyricsEnabled: boolean
   countInBeats: 0 | 4 | 8
   loopStartMs: number | null
   loopEndMs: number | null
@@ -70,6 +132,7 @@ export interface PracticeState {
   scroll: number
   selectedStem: StemType | null
   tracks: TrackState[]
+  trackOrder: TrackOrderKey[]
   updatedAt: string
 }
 
@@ -101,6 +164,28 @@ export interface SongSummary {
   lastPracticedAt: string | null
 }
 
+export interface LyricCue {
+  timeMs: number
+  lines: string[]
+}
+
+export interface LyricsDocument {
+  fileName: string
+  title: string | null
+  artist: string | null
+  album: string | null
+  cues: LyricCue[]
+}
+
+export interface DesktopLyricsPayload {
+  title: string
+  artist: string
+  currentLines: string[]
+  nextLines: string[]
+  progress: number
+  playing: boolean
+}
+
 export interface SongDetail extends SongSummary {
   bpm: number | null
   beatOffsetMs: number
@@ -109,7 +194,117 @@ export interface SongDetail extends SongSummary {
   sourceFormat: string | null
   sampleRate: number | null
   channels: number | null
+  lyrics: LyricsDocument | null
   stems: StemRecord[]
+  practice: PracticeState
+  recordingTakes: RecordingTake[]
+  recordingTracks: RecordingTrackState[]
+}
+
+export interface RecordingTake {
+  id: string
+  songId: string
+  recordingTrackId: string
+  name: string
+  durationMs: number
+  startPositionMs: number
+  endPositionMs: number
+  playbackRate: number
+  sampleRate: number
+  channels: number
+  alignmentOffsetMs: number
+  backend: Exclude<AudioBackend, 'auto'>
+  inputDeviceName: string
+  inputChannels: number[]
+  deviceSnapshot: RecordingDeviceSnapshot
+  sourceMediaUrl: string
+  previewMediaUrl: string
+  peaksUrl: string | null
+  interrupted: boolean
+  createdAt: string
+}
+
+export interface RecordingDeviceSnapshot {
+  backend: Exclude<AudioBackend, 'auto'>
+  inputDeviceId: string
+  inputDeviceName: string
+  outputDeviceId: string
+  outputDeviceName: string
+  inputChannels: number[]
+  sampleRate: number
+  bufferFrames: number
+  latencyMs: number
+  splitDevices: boolean
+  softwareMonitoring: boolean
+}
+
+export interface RecordingTrackState {
+  id: string
+  songId: string
+  name: string
+  activeTakeId: string | null
+  gainDb: number
+  muted: boolean
+  solo: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RecordingDeviceInfo {
+  id: string
+  backend: Exclude<AudioBackend, 'auto'>
+  name: string
+  inputChannels: number
+  outputChannels: number
+  duplexChannels: number
+  sampleRates: number[]
+  preferredSampleRate: number
+  defaultInput: boolean
+  defaultOutput: boolean
+}
+
+export interface RecordingAudioSettings {
+  backend: AudioBackend
+  inputDeviceId: string
+  outputDeviceId: string
+  inputChannelMode: 'mono' | 'stereo'
+  inputChannels: number[]
+  sampleRate: number
+  bufferFrames: number
+  alignmentOffsetMs: number
+  deviceAlignmentOffsets: Record<string, number>
+}
+
+export interface RecordingState {
+  target: 'song'
+  phase: RecordingPhase
+  sessionId: string | null
+  songId: string | null
+  recordingTrackId: string | null
+  sourcePositionMs: number
+  countInRemaining: number
+  sampleRate: number
+  bufferFrames: number
+  latencyMs: number
+  xruns: number
+  splitDevices: boolean
+  message: string
+  error: string | null
+}
+
+export interface RecordingMeter {
+  peak: number[]
+  rms: number[]
+  clipped: boolean
+  sourcePositionMs: number
+  recording: boolean
+}
+
+export interface RecordingStartRequest {
+  songId: string
+  recordingTrackId: string
+  positionMs: number
   practice: PracticeState
 }
 
@@ -172,8 +367,10 @@ export interface BpmDetectionResult {
 export interface NetworkSettings {
   proxyMode: 'system' | 'manual' | 'none'
   proxyUrl: string
+  pythonInstallMirror: string
   pythonIndexUrl: string
   pytorchIndexUrl: string
+  modelBaseUrl: string
 }
 
 export interface AppSettings {
@@ -183,6 +380,7 @@ export interface AppSettings {
   preferredDevice: ComputeDevice
   audioOutputDeviceId: string
   latencyMode: 'interactive' | 'balanced' | 'playback'
+  recordingAudio: RecordingAudioSettings
   keepSource: boolean
   closeToTrayWhileWorking: boolean
   network: NetworkSettings
@@ -248,6 +446,7 @@ export interface ExportRequest {
   loopStartMs: number | null
   loopEndMs: number | null
   overwriteMode: 'ask' | 'overwrite' | 'rename'
+  includeActiveTake: boolean
 }
 
 export interface ExportResult {
@@ -264,6 +463,7 @@ export function createDefaultPracticeState(songId: string): PracticeState {
     metronomeEnabled: false,
     metronomeBpm: 120,
     metronomeOffsetMs: 0,
+    desktopLyricsEnabled: false,
     countInBeats: 0,
     loopStartMs: null,
     loopEndMs: null,
@@ -272,7 +472,43 @@ export function createDefaultPracticeState(songId: string): PracticeState {
     scroll: 0,
     selectedStem: 'vocals',
     tracks: STEM_ORDER.map((stemType) => ({ stemType, gainDb: 0, muted: false, solo: false })),
+    trackOrder: STEM_ORDER.map(stemTrackOrderKey),
     updatedAt: new Date(0).toISOString()
+  }
+}
+
+export function createDefaultRecordingTrackState(
+  songId: string,
+  id: string,
+  name = '录音轨 1',
+  sortOrder = 0
+): RecordingTrackState {
+  const timestamp = new Date(0).toISOString()
+  return {
+    id,
+    songId,
+    name,
+    activeTakeId: null,
+    gainDb: 0,
+    muted: false,
+    solo: false,
+    sortOrder,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  }
+}
+
+export function createDefaultRecordingAudioSettings(): RecordingAudioSettings {
+  return {
+    backend: 'auto',
+    inputDeviceId: '',
+    outputDeviceId: '',
+    inputChannelMode: 'mono',
+    inputChannels: [0],
+    sampleRate: 0,
+    bufferFrames: 0,
+    alignmentOffsetMs: 0,
+    deviceAlignmentOffsets: {}
   }
 }
 

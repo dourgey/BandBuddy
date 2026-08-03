@@ -4,7 +4,6 @@ import path from 'node:path'
 import { dialog } from 'electron'
 import {
   STEM_META,
-  isTrackAudible,
   type ExportFormat,
   type ExportRequest,
   type ExportResult
@@ -56,8 +55,22 @@ export class ExportService {
     if (!song || !song.stems.length) throw new Error('NO_STEMS_TO_EXPORT')
     if (!request.outputPath) throw new Error('EXPORT_PATH_REQUIRED')
     if (request.kind === 'mix') {
+      const activeRecordings = song.recordingTracks.flatMap((track) => {
+        const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
+        return take ? [{ track, take }] : []
+      })
+      if (request.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
+      const hasSolo = song.practice.tracks.some((track) => track.solo && !track.muted)
+        || (request.includeActiveTake && activeRecordings.some(({ track }) => track.solo && !track.muted))
       const states = song.practice.tracks.filter((track) => request.stemTypes.includes(track.stemType))
-      if (!states.some((track) => isTrackAudible(track, song.practice.tracks))) throw new Error('NO_AUDIBLE_TRACKS')
+      const audibleStems = states.some((track) => !track.muted && (!hasSolo || track.solo))
+      const audibleRecordings = request.includeActiveTake
+        ? activeRecordings.filter(({ track }) => !track.muted && (!hasSolo || track.solo))
+        : []
+      if (audibleRecordings.some(({ take }) => !request.applyPlaybackRate || Math.abs(request.playbackRate - take.playbackRate) > 0.0001)) {
+        throw new Error('RECORDING_TAKE_SPEED_MISMATCH')
+      }
+      if (!audibleStems && audibleRecordings.length === 0) throw new Error('NO_AUDIBLE_TRACKS')
     }
     const outputPaths = await this.planOutputPaths(request, song.title)
     const jobId = this.database.createJob('export', request.songId, 'queued', '等待导出', { request, outputPaths })
@@ -112,7 +125,7 @@ export class ExportService {
     if (!song) throw new Error('SONG_NOT_FOUND')
     const allFiles = this.database.getActiveStemFiles(request.songId)
     const files = request.stemTypes.map((type) => allFiles.find((file) => file.type === type)).filter((file) => file !== undefined)
-    if (!files.length) throw new Error('NO_STEMS_TO_EXPORT')
+    if (!files.length && request.kind === 'stems') throw new Error('NO_STEMS_TO_EXPORT')
 
     if (request.kind === 'stems') {
       for (let index = 0; index < files.length; index += 1) {
@@ -132,25 +145,53 @@ export class ExportService {
       return
     }
 
+    const activeRecordings = request.includeActiveTake
+      ? song.recordingTracks.flatMap((track) => {
+        const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
+        return take ? [{ track, take }] : []
+      })
+      : []
+    if (request.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
+    const hasSolo = song.practice.tracks.some((track) => track.solo && !track.muted)
+      || (request.includeActiveTake && activeRecordings.some(({ track }) => track.solo && !track.muted))
     const audibleStates = song.practice.tracks.filter((state) =>
-      request.stemTypes.includes(state.stemType) && isTrackAudible(state, song.practice.tracks)
+      request.stemTypes.includes(state.stemType) && !state.muted && (!hasSolo || state.solo)
     )
-    if (!audibleStates.length) throw new Error('NO_AUDIBLE_TRACKS')
+    const audibleRecordings = activeRecordings.filter(({ track }) => !track.muted && (!hasSolo || track.solo))
+    if (audibleRecordings.some(({ take }) => !request.applyPlaybackRate || Math.abs(request.playbackRate - take.playbackRate) > 0.0001)) {
+      throw new Error('RECORDING_TAKE_SPEED_MISMATCH')
+    }
+    if (!audibleStates.length && !audibleRecordings.length) throw new Error('NO_AUDIBLE_TRACKS')
     const inputFiles = audibleStates.map((state) => ({ state, file: files.find((candidate) => candidate.type === state.stemType) })).filter((entry) => entry.file !== undefined)
-    if (!inputFiles.length) throw new Error('NO_AUDIBLE_TRACKS')
+    if (!inputFiles.length && !audibleRecordings.length) throw new Error('NO_AUDIBLE_TRACKS')
     const output = outputPaths[0]!
     mkdirSync(path.dirname(output), { recursive: true })
     const temporary = path.join(path.dirname(output), `${path.basename(output, path.extname(output))}.part${path.extname(output)}`)
     const inputs = inputFiles.flatMap(({ file }) => ['-i', this.paths.resolveLibraryPath(settings.libraryRoot, file!.relPath)])
+    const recordingInputs = audibleRecordings.map(({ track, take }, index) => {
+      const takeFile = this.database.getRecordingTakeFile(take.id)
+      if (!takeFile) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
+      inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, takeFile.sourceRelPath))
+      return { track, take, inputIndex: inputFiles.length + index }
+    })
     const filter = buildMixFilter({
       tracks: inputFiles.map(({ state }, inputIndex) => ({ inputIndex, state })),
+      takes: recordingInputs.map(({ track, take, inputIndex }) => ({
+        inputIndex,
+        gainDb: track.gainDb,
+        startPositionMs: take.startPositionMs,
+        playbackRate: take.playbackRate,
+        alignmentOffsetMs: take.alignmentOffsetMs
+      })),
       masterGainDb: song.practice.masterGainDb,
       playbackRate: request.applyPlaybackRate ? request.playbackRate : null,
       loopStartMs: request.applyLoopRange ? request.loopStartMs : null,
-      loopEndMs: request.applyLoopRange ? request.loopEndMs : null
+      loopEndMs: request.applyLoopRange ? request.loopEndMs : null,
+      sourceDurationMs: song.durationMs
     })
     const expectedMs = request.applyLoopRange && request.loopStartMs !== null && request.loopEndMs !== null
-      ? request.loopEndMs - request.loopStartMs : song.durationMs
+      ? (request.loopEndMs - request.loopStartMs) / (request.applyPlaybackRate ? request.playbackRate : 1)
+      : song.durationMs / (request.applyPlaybackRate ? request.playbackRate : 1)
     const result = await runProcess(ffmpeg, [
       '-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-map_metadata', '-1',
       ...outputArgs(request.format), '-progress', 'pipe:1', '-nostats', temporary

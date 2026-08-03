@@ -19,6 +19,7 @@ interface PlayerStore {
   playing: boolean
   selectedStem: StemType
   loadSong(song: SongDetail): void
+  updateSongDetails(song: SongDetail): void
   unload(): void
   setPlaying(playing: boolean): void
   setCurrentMs(currentMs: number): void
@@ -46,6 +47,9 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
     selectedStem: song.practice.selectedStem ?? 'vocals',
     playing: false
   }),
+  updateSongDetails: (song) => set((state) => state.song?.id === song.id
+    ? { song: { ...song, practice: state.practice ?? song.practice } }
+    : state),
   unload: () => set({ song: null, practice: null, currentMs: 0, playing: false }),
   setPlaying: (playing) => set({ playing }),
   setCurrentMs: (currentMs) => set({ currentMs }),

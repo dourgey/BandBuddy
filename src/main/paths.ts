@@ -79,6 +79,11 @@ export class AppPaths {
     return this.assertInside(libraryRoot, path.join(libraryRoot, songId))
   }
 
+  rehearsalDirectory(libraryRoot: string, rehearsalId: string): string {
+    if (!/^[0-9a-f-]{36}$/i.test(rehearsalId)) throw new Error('INVALID_REHEARSAL_ID')
+    return this.assertInside(libraryRoot, path.join(libraryRoot, '_rehearsals', rehearsalId))
+  }
+
   jobDirectory(jobId: string): string {
     if (!/^[0-9a-f-]{36}$/i.test(jobId)) throw new Error('INVALID_JOB_ID')
     return this.assertInside(this.jobsRoot, path.join(this.jobsRoot, jobId))
@@ -86,6 +91,15 @@ export class AppPaths {
 
   packagedResource(...segments: string[]): string {
     return path.join(process.resourcesPath, ...segments)
+  }
+
+  audioHostExecutable(): string {
+    if (process.env.BANDBUDDY_AUDIO_HOST) return path.resolve(process.env.BANDBUDDY_AUDIO_HOST)
+    const target = `${process.platform}-${process.arch}`
+    const executable = process.platform === 'win32' ? 'bandbuddy-audio-host.exe' : 'bandbuddy-audio-host'
+    return app.isPackaged
+      ? this.packagedResource('audio-host', target, executable)
+      : path.join(process.cwd(), 'resources', 'audio-host', target, executable)
   }
 }
 

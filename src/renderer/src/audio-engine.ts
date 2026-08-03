@@ -1,9 +1,15 @@
-import { STEM_ORDER, dbToGain, isTrackAudible, type PracticeState, type SongDetail, type StemType } from '@shared/domain.js'
+import { STEM_ORDER, dbToGain, type PracticeState, type RecordingTake, type SongDetail, type StemType } from '@shared/domain.js'
 
 export interface NextMetronomeBeat {
   beatIndex: number
   delaySeconds: number
   intervalSeconds: number
+}
+
+export const TAKE_PREVIEW_PLAYBACK_RATE = 1
+
+export function takePreviewTimeSeconds(songPositionMs: number, recordedPlaybackRate: number): number {
+  return songPositionMs / recordedPlaybackRate / 1000
 }
 
 export function nextMetronomeBeat(
@@ -30,11 +36,38 @@ interface TrackAudio {
   gain: GainNode
 }
 
+interface RecordingTrackAudio extends TrackAudio {
+  take: RecordingTake
+}
+
+interface AudioContextSinkSelector {
+  setSinkId?: (deviceId: string) => Promise<void>
+}
+
+/**
+ * Select the output for the whole Web Audio graph.  Every stem and the
+ * metronome are connected to the AudioContext, so changing an individual
+ * HTMLAudioElement sink leaves the actual mix on the context's default sink.
+ */
+export async function setAudioContextOutputDevice(
+  context: object | null,
+  deviceId: string
+): Promise<void> {
+  if (!context) return
+  const sinkSelector = context as AudioContextSinkSelector
+  if (typeof sinkSelector.setSinkId !== 'function') {
+    if (deviceId) throw new Error('AUDIO_OUTPUT_DEVICE_SELECTION_UNSUPPORTED')
+    return
+  }
+  await sinkSelector.setSinkId(deviceId)
+}
+
 export class MultiTrackAudioEngine {
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private compressor: DynamicsCompressorNode | null = null
   private tracks = new Map<StemType, TrackAudio>()
+  private recordings = new Map<string, RecordingTrackAudio>()
   private song: SongDetail | null = null
   private practice: PracticeState | null = null
   private frame = 0
@@ -58,6 +91,7 @@ export class MultiTrackAudioEngine {
     this.song = song
     this.practice = song.practice
     await this.ensureContext(latencyMode)
+    await this.setOutputDevice(outputDeviceId)
     const stemByType = new Map(song.stems.map((stem) => [stem.type, stem]))
     for (const type of STEM_ORDER) {
       const element = new Audio()
@@ -71,11 +105,28 @@ export class MultiTrackAudioEngine {
       if (stem) element.src = stem.mediaUrl
       element.playbackRate = song.practice.playbackRate
       element.currentTime = song.practice.positionMs / 1000
-      if (outputDeviceId && element.setSinkId) await element.setSinkId(outputDeviceId).catch(() => undefined)
       const source = this.context!.createMediaElementSource(element)
       const gain = this.context!.createGain()
       source.connect(gain).connect(this.master!)
       this.tracks.set(type, { element, source, gain })
+    }
+    for (const recordingTrack of song.recordingTracks) {
+      const take = song.recordingTakes.find((candidate) => candidate.id === recordingTrack.activeTakeId)
+      if (!take) continue
+      const element = new Audio()
+      element.preload = 'auto'
+      element.crossOrigin = 'anonymous'
+      element.preservesPitch = true
+      element.src = take.previewMediaUrl
+      // The preview is already laid out in recording (wall-clock) time. A take
+      // captured at 0.5x is therefore twice as long as the song timeline and
+      // must advance at 1x while stems advance at 0.5x.
+      element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
+      element.currentTime = takePreviewTimeSeconds(song.practice.positionMs, take.playbackRate)
+      const source = this.context!.createMediaElementSource(element)
+      const gain = this.context!.createGain()
+      source.connect(gain).connect(this.master!)
+      this.recordings.set(recordingTrack.id, { element, source, gain, take })
     }
     this.applyPractice(song.practice, true)
   }
@@ -87,7 +138,7 @@ export class MultiTrackAudioEngine {
     if (this.context!.state === 'suspended') await this.context!.resume()
     if (generation !== this.playbackGeneration) return false
     this.stopMetronome()
-    if (this.practice.metronomeEnabled && countInBeats > 0) {
+    if (countInBeats > 0) {
       this.countInListener = onCountIn ?? null
       const beatDurationMs = 60_000 / this.practice.metronomeBpm / this.practice.playbackRate
       for (let beat = 0; beat < countInBeats; beat += 1) {
@@ -105,6 +156,11 @@ export class MultiTrackAudioEngine {
     if (!anchor) throw new Error('AUDIO_SOURCE_MISSING')
     const time = anchor.currentTime
     for (const { element } of active) if (Math.abs(element.currentTime - time) > 0.01) element.currentTime = time
+    for (const recording of this.recordings.values()) {
+      if (!this.takeMatchesRate(recording.take)) continue
+      recording.element.currentTime = takePreviewTimeSeconds(time * 1000, recording.take.playbackRate)
+      active.push(recording)
+    }
     const results = await Promise.allSettled(active.map(({ element }) => element.play()))
     if (generation !== this.playbackGeneration) {
       for (const { element } of active) element.pause()
@@ -133,12 +189,16 @@ export class MultiTrackAudioEngine {
     this.countInListener = null
     this.stopMetronome()
     for (const { element } of this.tracks.values()) element.pause()
+    for (const { element } of this.recordings.values()) element.pause()
   }
 
   seek(milliseconds: number): void {
     const seconds = Math.max(0, Math.min(milliseconds, this.song?.durationMs ?? milliseconds) / 1000)
     const mediaPlaying = Boolean(this.anchor() && !this.anchor()!.paused)
     for (const { element } of this.tracks.values()) if (element.src) element.currentTime = seconds
+    for (const recording of this.recordings.values()) {
+      recording.element.currentTime = takePreviewTimeSeconds(seconds * 1000, recording.take.playbackRate)
+    }
     if (mediaPlaying && this.practice?.metronomeEnabled) this.startMetronome()
     this.timeListener?.(seconds * 1000)
   }
@@ -157,15 +217,37 @@ export class MultiTrackAudioEngine {
       this.master.gain.setValueAtTime(this.master.gain.value, now)
       this.master.gain.linearRampToValueAtTime(dbToGain(practice.masterGainDb), now + ramp)
     }
+    const recordingStates = this.song?.recordingTracks ?? []
+    const hasSolo = practice.tracks.some((state) => state.solo && !state.muted)
+      || recordingStates.some((state) => this.recordings.has(state.id) && state.solo && !state.muted)
     for (const state of practice.tracks) {
       const track = this.tracks.get(state.stemType)
       if (!track) continue
-      const gain = isTrackAudible(state, practice.tracks) ? dbToGain(state.gainDb) : 0
+      const gain = !state.muted && (!hasSolo || state.solo) ? dbToGain(state.gainDb) : 0
       track.gain.gain.cancelScheduledValues(now)
       track.gain.gain.setValueAtTime(track.gain.gain.value, now)
       track.gain.gain.linearRampToValueAtTime(gain, now + ramp)
       track.element.playbackRate = practice.playbackRate
       track.element.preservesPitch = true
+    }
+    for (const recordingState of recordingStates) {
+      const recording = this.recordings.get(recordingState.id)
+      if (!recording) continue
+      const matchesRate = this.takeMatchesRate(recording.take)
+      const audible = !recordingState.muted && (!hasSolo || recordingState.solo) && matchesRate
+      recording.gain.gain.cancelScheduledValues(now)
+      recording.gain.gain.setValueAtTime(recording.gain.gain.value, now)
+      recording.gain.gain.linearRampToValueAtTime(audible ? dbToGain(recordingState.gainDb) : 0, now + ramp)
+      recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
+      recording.element.preservesPitch = true
+      if (!matchesRate) recording.element.pause()
+      else if (mediaPlaying && recording.element.paused) {
+        const anchor = this.anchor()
+        if (anchor) {
+          recording.element.currentTime = takePreviewTimeSeconds(anchor.currentTime * 1000, recording.take.playbackRate)
+          void recording.element.play().catch(() => undefined)
+        }
+      }
     }
     if (metronomeChanged && mediaPlaying) {
       if (practice.metronomeEnabled) this.startMetronome()
@@ -174,9 +256,7 @@ export class MultiTrackAudioEngine {
   }
 
   async setOutputDevice(deviceId: string): Promise<void> {
-    await Promise.all([...this.tracks.values()].map(async ({ element }) => {
-      if (element.setSinkId) await element.setSinkId(deviceId).catch(() => undefined)
-    }))
+    await setAudioContextOutputDevice(this.context, deviceId)
   }
 
   private async ensureContext(latencyHint: AudioContextLatencyCategory = 'balanced'): Promise<void> {
@@ -296,6 +376,13 @@ export class MultiTrackAudioEngine {
       else if (Math.abs(drift) > 0.012) element.playbackRate = (practice?.playbackRate ?? 1) * (drift > 0 ? 0.985 : 1.015)
       else element.playbackRate = practice?.playbackRate ?? 1
     }
+    for (const recording of this.recordings.values()) {
+      if (!this.takeMatchesRate(recording.take) || recording.element.paused) continue
+      const drift = recording.element.currentTime * recording.take.playbackRate - anchorTime
+      if (Math.abs(drift) > 0.03) recording.element.currentTime = takePreviewTimeSeconds(anchorTime * 1000, recording.take.playbackRate)
+      else if (Math.abs(drift) > 0.012) recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE * (drift > 0 ? 0.985 : 1.015)
+      else recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
+    }
     this.timeListener?.(anchorTime * 1000)
     this.frame = requestAnimationFrame(this.monitor)
   }
@@ -310,6 +397,18 @@ export class MultiTrackAudioEngine {
       gain.disconnect()
     }
     this.tracks.clear()
+    for (const recording of this.recordings.values()) {
+      recording.element.pause()
+      recording.element.removeAttribute('src')
+      recording.element.load()
+      recording.source.disconnect()
+      recording.gain.disconnect()
+    }
+    this.recordings.clear()
+  }
+
+  private takeMatchesRate(take: RecordingTake): boolean {
+    return Boolean(this.practice && Math.abs(take.playbackRate - this.practice.playbackRate) < 0.0001)
   }
 
   unload(): void {

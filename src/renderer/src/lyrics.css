@@ -1,0 +1,100 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+
+body {
+  padding: 4px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#lyrics-card {
+  --lyric-progress: 0%;
+  width: 100%;
+  height: 100%;
+  padding: 12px 28px 14px;
+  display: grid;
+  grid-template-rows: 16px minmax(44px, 1fr) 22px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(39,35,30,.84), rgba(10,9,8,.76));
+  box-shadow: inset 0 1px rgba(255,255,255,.08), 0 12px 35px rgba(0,0,0,.26);
+  backdrop-filter: blur(18px);
+}
+
+header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: rgba(235,226,214,.55);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+
+header i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #8d8377;
+  transition: background .18s, box-shadow .18s;
+}
+
+.is-playing header i {
+  background: #f1c55f;
+  box-shadow: 0 0 8px rgba(241,197,95,.9);
+}
+
+#song-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#current-lyric {
+  overflow: hidden;
+  text-align: center;
+  white-space: pre-line;
+  background: linear-gradient(
+    90deg,
+    #f5c95f 0,
+    #fff0a8 var(--lyric-progress),
+    #fffaf2 var(--lyric-progress),
+    #eee6da 100%
+  );
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.65));
+  font-size: clamp(21px, 2.25vw, 30px);
+  font-weight: 750;
+  line-height: 1.18;
+  letter-spacing: .015em;
+}
+
+#next-lyric {
+  overflow: hidden;
+  color: rgba(224,215,203,.55);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+#next-lyric[hidden] { visibility: hidden; }

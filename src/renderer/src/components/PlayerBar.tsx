@@ -14,12 +14,14 @@ function formatBpm(value: number): string {
 export function PlayerBar({
   practiceMode,
   countInRemaining,
+  locked,
   onToggle,
   onSeek,
   onPractice
 }: {
   practiceMode: boolean
   countInRemaining: number
+  locked: boolean
   onToggle(): void
   onSeek(milliseconds: number): void
   onPractice(): void
@@ -51,7 +53,7 @@ export function PlayerBar({
   const volume = muted ? 0 : Math.round(100 * 10 ** (practice.masterGainDb / 20))
   const volumeStyle = { '--volume': `${Math.min(100, volume / 1.5)}%` } as CSSProperties
   const playbackActive = playing || countInRemaining > 0
-  return <footer className={`player-bar ${practiceMode ? 'practice-player-bar' : ''}`}>
+  return <footer className={`player-bar ${practiceMode ? 'practice-player-bar' : ''} ${locked ? 'is-locked' : ''}`} aria-disabled={locked}>
     <div className={`player-main-row ${practiceMode ? 'has-practice-controls' : ''}`}>
       <button className={`now-playing ${practiceMode ? 'practice-vinyl-dock' : ''}`} onClick={onPractice}>
         <Vinyl size={practiceMode ? 'medium' : 'small'} artworkUrl={song.artworkUrl} spinning={playbackActive} />
@@ -100,6 +102,7 @@ function PracticeFooterControls({
   currentMs: number
   onSeek(milliseconds: number): void
 }): React.JSX.Element {
+  const song = usePlayerStore((state) => state.song)!
   const practice = usePlayerStore((state) => state.practice)!
   const patchPractice = usePlayerStore((state) => state.patchPractice)
   const [speedOpen, setSpeedOpen] = useState(false)
@@ -113,6 +116,7 @@ function PracticeFooterControls({
   const loopStart = practice.loopStartMs === null || songDurationMs <= 0 ? null : practice.loopStartMs / songDurationMs * 100
   const loopEnd = practice.loopEndMs === null || songDurationMs <= 0 ? null : practice.loopEndMs / songDurationMs * 100
   const hasLoopRange = practice.loopStartMs !== null && practice.loopEndMs !== null
+  const hasLyrics = Boolean(song.lyrics?.cues.length)
 
   useEffect(() => {
     if (!speedOpen && !metronomeOpen) return
@@ -241,6 +245,17 @@ function PracticeFooterControls({
           {([0, 4, 8] as const).map((beats) => <button key={beats} className={practice.countInBeats === beats ? 'active' : ''} onClick={() => patchPractice({ countInBeats: beats })}>{beats === 0 ? '关闭' : `${beats} 拍`}</button>)}
         </span></div>
       </div>}
+    </div>
+
+    <div className="footer-option desktop-lyrics-option">
+      <button
+        className={`metronome-icon-button desktop-lyrics-button ${practice.desktopLyricsEnabled ? 'is-enabled' : ''}`}
+        aria-label={practice.desktopLyricsEnabled ? '关闭桌面歌词' : '打开桌面歌词'}
+        aria-pressed={practice.desktopLyricsEnabled}
+        disabled={!hasLyrics}
+        title={hasLyrics ? (practice.desktopLyricsEnabled ? '关闭桌面歌词' : '打开桌面歌词') : '请先在“更多”中导入 LRC 歌词'}
+        onClick={() => patchPractice({ desktopLyricsEnabled: !practice.desktopLyricsEnabled })}
+      >词</button>
     </div>
   </div>
 }
