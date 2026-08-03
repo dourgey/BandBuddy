@@ -46,6 +46,7 @@ if (process.env.BANDBUDDY_SKIP_AUDIO_HOST !== '1') {
     '-S', path.join(root, 'native', 'audio-host'),
     '-B', buildRoot,
     '-DCMAKE_BUILD_TYPE=Release',
+    '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
     `-DCMAKE_INSTALL_PREFIX=${outputRoot}`
   ]
   if (process.env.BANDBUDDY_GITHUB_PROXY) {

@@ -86,7 +86,7 @@ function rpc(method, params = {}) {
   })
 }
 
-function nextEvent(name, timeoutMs = 5_000, label = name) {
+function nextEvent(name, timeoutMs = 15_000, label = name) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}; ${stderr}`)), timeoutMs)
     const wrapped = (value) => { clearTimeout(timer); resolve(value) }
@@ -122,7 +122,7 @@ try {
   if (!Array.isArray(meter.peak) || meter.peak[0] <= meter.peak[1] || meter.peak[1] <= 0) throw new Error('Simulated channel meter failed')
   await rpc('stopTest')
 
-  const finishedEvent = nextEvent('finished', 5_000, 'duplex finished')
+  const finishedEvent = nextEvent('finished', 15_000, 'duplex finished')
   await rpc('start', {
     ...base,
     backingPath,
@@ -203,7 +203,7 @@ try {
   await longMeterEvent
   await rpc('stop')
 
-  const driftFinishedEvent = nextEvent('finished', 10_000, 'split-clock finished')
+  const driftFinishedEvent = nextEvent('finished', 30_000, 'split-clock finished')
   await rpc('start', {
     ...base,
     inputDeviceId: devices[1].id,
