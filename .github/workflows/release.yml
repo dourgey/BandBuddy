@@ -73,6 +73,10 @@ jobs:
             "SIGNING_STATE=Authenticode signed build" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           }
 
+      - name: Verify native audio host
+        shell: pwsh
+        run: '& resources/audio-host/win32-x64/bandbuddy-audio-host.exe --self-test'
+
       - name: Generate checksums
         shell: pwsh
         run: |
@@ -178,8 +182,10 @@ jobs:
           test -x "$app_path/Contents/Resources/bin/uv"
           test -x "$app_path/Contents/Resources/bin/ffmpeg"
           test -x "$app_path/Contents/Resources/bin/ffprobe"
+          test -x "$app_path/Contents/Resources/audio-host/${{ matrix.arch == 'x64' && 'darwin-x64' || 'darwin-arm64' }}/bandbuddy-audio-host"
           "$app_path/Contents/Resources/bin/uv" --version
           "$app_path/Contents/Resources/bin/ffmpeg" -version
+          "$app_path/Contents/Resources/audio-host/${{ matrix.arch == 'x64' && 'darwin-x64' || 'darwin-arm64' }}/bandbuddy-audio-host" --self-test
           shopt -s nullglob
           files=(release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip)
           test "${#files[@]}" -eq 2

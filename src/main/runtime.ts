@@ -6,6 +6,7 @@ import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { net } from 'electron'
 import type { ComputeDevice, GpuInfo, RuntimeInfo } from '@shared/domain.js'
+import { resolvePytorchSourceUrl, selectPytorchBackend } from '@shared/runtime-sources.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { Logger } from './logger.js'
 import { isManagedPath, type AppPaths } from './paths.js'
@@ -103,12 +104,14 @@ export class RuntimeManager {
 
   private environment(): NodeJS.ProcessEnv {
     const settings = this.database.getSettings()
+    const network = settings.network
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       UV_CACHE_DIR: path.join(this.paths.cacheRoot, 'uv'),
       UV_PYTHON_INSTALL_DIR: path.join(settings.runtimeRoot, 'managed-python'),
       UV_PYTHON_NO_REGISTRY: '1',
       UV_NO_PROJECT: '1',
+      UV_REQUEST_TIMEOUT: '120',
       TORCH_HOME: path.join(settings.modelRoot, '.torch-cache'),
       PYTHONUTF8: '1',
       PYTHONIOENCODING: 'utf-8',
@@ -118,7 +121,8 @@ export class RuntimeManager {
     const developmentBin = path.join(process.cwd(), 'resources', 'bin')
     const toolBin = existsSync(path.join(packagedBin, FFMPEG_FILE.output)) ? packagedBin : developmentBin
     env.PATH = `${toolBin}${path.delimiter}${env.PATH ?? ''}`
-    const network = settings.network
+    if (network.pythonInstallMirror) env.UV_PYTHON_INSTALL_MIRROR = network.pythonInstallMirror
+    else delete env.UV_PYTHON_INSTALL_MIRROR
     if (network.proxyMode === 'manual' && network.proxyUrl) {
       env.HTTPS_PROXY = network.proxyUrl
       env.HTTP_PROXY = network.proxyUrl
@@ -148,6 +152,17 @@ export class RuntimeManager {
       if (result.code !== 0 || !result.stdout.trim()) return null
       const [name = '', driverVersion = '', memory = '0'] = result.stdout.trim().split(/\r?\n/)[0]!.split(',').map((part) => part.trim())
       return { name, driverVersion, memoryMb: Number(memory) || 0 }
+    } catch {
+      return null
+    }
+  }
+
+  private async detectCudaVersion(): Promise<string | null> {
+    if (process.platform !== 'win32') return null
+    try {
+      const result = await runProcess('nvidia-smi.exe', [])
+      if (result.code !== 0) return null
+      return /CUDA(?: UMD)? Version:\s*(\d+\.\d+)/i.exec(result.stdout)?.[1] ?? null
     } catch {
       return null
     }
@@ -234,16 +249,26 @@ export class RuntimeManager {
         '--python-preference', 'only-managed', '--clear', '--no-project'
       ], '创建 BandBuddy 私有环境', 0.2)
 
-      const installArgs = ['pip', 'install', '--python', this.pythonExecutable(), '--torch-backend', 'auto']
+      const installArgs = ['pip', 'install', '--python', this.pythonExecutable()]
       if (settings.network.pythonIndexUrl) installArgs.push('--default-index', settings.network.pythonIndexUrl)
-      if (settings.network.pytorchIndexUrl) installArgs.push('--index', settings.network.pytorchIndexUrl)
+      if (settings.network.pytorchIndexUrl.includes('{backend}')) {
+        const cudaVersion = await this.detectCudaVersion()
+        const backend = selectPytorchBackend(process.platform, cudaVersion, settings.preferredDevice)
+        installArgs.push('--find-links', resolvePytorchSourceUrl(settings.network.pytorchIndexUrl, backend))
+        this.logger.info('selected mirrored PyTorch backend', { backend, cudaVersion })
+      } else if (settings.network.pytorchIndexUrl) {
+        installArgs.push('--index', settings.network.pytorchIndexUrl)
+      } else {
+        const backend = settings.preferredDevice === 'cpu' || settings.preferredDevice === 'mps' ? 'cpu' : 'auto'
+        installArgs.push('--torch-backend', backend)
+      }
       installArgs.push(...PYTHON_RUNTIME_REQUIREMENTS)
       await run(installArgs, '安装 PyTorch 与 Demucs（下载可续传）', 0.32)
 
       this.update({ status: 'downloadingModel', stage: '下载并校验分轨模型', progress: 0.78 })
-      const model = await this.runWorker([
-        'ensure-model', '--model-root', settings.modelRoot
-      ], controller.signal, 0, (message) => {
+      const modelArgs = ['ensure-model', '--model-root', settings.modelRoot]
+      if (settings.network.modelBaseUrl) modelArgs.push('--model-base-url', settings.network.modelBaseUrl)
+      const model = await this.runWorker(modelArgs, controller.signal, 0, (message) => {
         if (typeof message.progress === 'number') this.update({ progress: 0.78 + message.progress * 0.14 })
         if (message.message) this.update({ stage: message.message })
       })

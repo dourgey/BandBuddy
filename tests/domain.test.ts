@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultPracticeState, dbToGain, isTrackAudible } from '@shared/domain.js'
+import {
+  createDefaultPracticeState,
+  dbToGain,
+  isTrackAudible,
+  moveTrackOrder,
+  normalizeTrackOrder,
+  recordingTrackOrderKey,
+  stemTrackOrderKey
+} from '@shared/domain.js'
 
 describe('track mix rules', () => {
   it('lets mute override solo and supports multiple solos', () => {
@@ -17,5 +25,19 @@ describe('track mix rules', () => {
     expect(dbToGain(6)).toBeCloseTo(1.995262, 5)
     expect(dbToGain(-6)).toBeCloseTo(0.501187, 5)
     expect(dbToGain(-60)).toBe(0)
+  })
+
+  it('normalizes and moves stem and recording tracks in one saved order', () => {
+    const recordingId = '11111111-1111-4111-8111-111111111111'
+    const order = normalizeTrackOrder(
+      [recordingTrackOrderKey(recordingId), stemTrackOrderKey('drums'), stemTrackOrderKey('drums')],
+      [recordingId]
+    )
+
+    expect(order[0]).toBe(recordingTrackOrderKey(recordingId))
+    expect(order[1]).toBe(stemTrackOrderKey('drums'))
+    expect(new Set(order).size).toBe(7)
+    expect(moveTrackOrder(order, stemTrackOrderKey('vocals'), recordingTrackOrderKey(recordingId), 'before')[0])
+      .toBe(stemTrackOrderKey('vocals'))
   })
 })

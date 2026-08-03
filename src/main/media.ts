@@ -330,6 +330,16 @@ export class MediaService {
   }
 
   private resolveProtocolPath(url: URL): string | null {
+    if (url.hostname === 'rehearsal') {
+      const [rehearsalId, kind, assetId] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+      if (!rehearsalId || !assetId || !/^[0-9a-f-]{36}$/i.test(rehearsalId) || !/^[0-9a-f-]{36}$/i.test(assetId)) return null
+      const take = this.database.getRehearsalRecordingTakeFile(assetId)
+      if (!take || take.rehearsalId !== rehearsalId) return null
+      const relative = kind === 'recording-source' ? take.sourceRelPath
+        : kind === 'recording-preview' ? take.previewRelPath
+          : null
+      return relative ? this.paths.resolveLibraryPath(this.database.getSettings().libraryRoot, relative) : null
+    }
     if (url.hostname !== 'song') return null
     const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     const [songId, kind, assetId] = parts
@@ -340,6 +350,14 @@ export class MediaService {
       return relative ? this.paths.resolveLibraryPath(settings.libraryRoot, relative) : null
     }
     if (!assetId || !/^[0-9a-f-]{36}$/i.test(assetId)) return null
+    if (kind.startsWith('recording-')) {
+      const take = this.database.getRecordingTakeFile(assetId)
+      if (!take || take.songId !== songId) return null
+      const relative = kind === 'recording-source' ? take.sourceRelPath
+        : kind === 'recording-preview' ? take.previewRelPath
+          : kind === 'recording-peaks' ? take.peaksRelPath : null
+      return relative ? this.paths.resolveLibraryPath(settings.libraryRoot, relative) : null
+    }
     const stem = this.database.getStemAsset(songId, assetId)
     if (!stem) return null
     const relative = kind === 'stem' ? stem.relPath : kind === 'peaks' ? stem.peaksRelPath : null

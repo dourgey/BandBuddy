@@ -17,6 +17,11 @@ import { JobScheduler } from './jobs.js'
 import { Logger } from './logger.js'
 import { MediaService } from './media.js'
 import { AppPaths } from './paths.js'
+import { AudioHostClient } from './audio-host.js'
+import { RecordingService } from './recording.js'
+import { RehearsalService } from './rehearsals.js'
+import { RehearsalRecordingService } from './rehearsal-recording.js'
+import { DesktopLyricsWindow } from './desktop-lyrics.js'
 import { RuntimeManager } from './runtime.js'
 import { isTrustedRendererUrl } from './security.js'
 
@@ -33,12 +38,17 @@ if (process.platform === 'win32') app.setAppUserModelId('com.bandbuddy.desktop')
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url))
 const rendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/index.html')).href
+const lyricsRendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/lyrics.html')).href
 const trustedRendererUrl = (url: string): boolean => isTrustedRendererUrl(url, process.env.ELECTRON_RENDERER_URL, rendererFileUrl)
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false
 let database: BandBuddyDatabase | null = null
 let scheduler: JobScheduler | null = null
+let recording: RecordingService | null = null
+let rehearsalRecording: RehearsalRecordingService | null = null
+let desktopLyrics: DesktopLyricsWindow | null = null
+let quitAfterRecording = false
 
 function emit(channel: string, payload?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
@@ -62,6 +72,7 @@ function createWindow(paths: AppPaths): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      backgroundThrottling: false,
       spellcheck: false
     }
   })
@@ -74,6 +85,14 @@ function createWindow(paths: AppPaths): BrowserWindow {
   window.on('hide', () => emit(IPC.eventWindowHidden))
   window.on('close', (event) => {
     if (quitting) return
+    if (recording?.isActive() || rehearsalRecording?.isActive()) {
+      event.preventDefault()
+      const finish = rehearsalRecording?.isActive()
+        ? rehearsalRecording.stop()
+        : recording?.finishForTransition()
+      void finish?.then(() => window.close()).catch(() => window.show())
+      return
+    }
     const shouldStay = Boolean(database?.hasActiveJobs() && database.getSettings().closeToTrayWhileWorking)
     if (shouldStay) {
       event.preventDefault()
@@ -94,17 +113,25 @@ function createWindow(paths: AppPaths): BrowserWindow {
     window.webContents.once('did-finish-load', () => {
       void window.webContents.executeJavaScript(`(() => {
         if (!window.bandbuddy) return { apiType: typeof window.bandbuddy, body: document.body.innerText.slice(0, 300) }
-        return Promise.all([
-          window.bandbuddy.library.list(),
-          window.bandbuddy.runtime.get(),
-          window.bandbuddy.media.capabilities()
-        ]).then(([songs, runtime, media]) => ({
-          apiType: typeof window.bandbuddy,
-          namespaces: Object.keys(window.bandbuddy).sort(),
-          songs: songs.length,
-          runtime: runtime.status,
-          ffmpegReady: media.ffmpegReady
-        }))
+         return Promise.all([
+           window.bandbuddy.library.list(),
+           window.bandbuddy.runtime.get(),
+           window.bandbuddy.media.capabilities(),
+           window.bandbuddy.desktopLyrics.setVisible(true).then(() => {
+             window.bandbuddy.desktopLyrics.update({
+               title: 'Smoke test', artist: 'BandBuddy', currentLines: ['桌面歌词'], nextLines: ['同步正常'],
+               progress: 0.5, playing: true
+             })
+             return window.bandbuddy.desktopLyrics.setVisible(false)
+           }).then(() => true)
+         ]).then(([songs, runtime, media, desktopLyrics]) => ({
+           apiType: typeof window.bandbuddy,
+           namespaces: Object.keys(window.bandbuddy).sort(),
+           songs: songs.length,
+           runtime: runtime.status,
+           ffmpegReady: media.ffmpegReady,
+           desktopLyrics
+         }))
       })()`).then((result: { apiType?: string }) => {
         process.stdout.write(`BAND_BUDDY_SMOKE ${JSON.stringify(result)}\n`)
         if (result.apiType !== 'object') process.exitCode = 1
@@ -154,16 +181,47 @@ else {
     media.registerProtocol()
     const runtime = new RuntimeManager(paths, database, logger)
     mainWindow = createWindow(paths)
+    const developmentLyricsUrl = process.env.ELECTRON_RENDERER_URL
+      ? new URL('lyrics.html', process.env.ELECTRON_RENDERER_URL.endsWith('/') ? process.env.ELECTRON_RENDERER_URL : `${process.env.ELECTRON_RENDERER_URL}/`).href
+      : null
+    desktopLyrics = new DesktopLyricsWindow({
+      preloadPath: join(currentDirectory, '../preload/lyrics.cjs'),
+      rendererUrl: developmentLyricsUrl ?? lyricsRendererFileUrl
+    })
     createTray(paths)
 
     const emitLibrary = (): void => emit(IPC.eventLibraryChanged)
     const emitTasks = (): void => emit(IPC.eventTasksChanged)
     const emitSettings = (): void => emit(IPC.eventSettingsChanged, database?.getSettings())
     const emitMedia = (): void => emit(IPC.eventMediaChanged, media.capabilities())
+    const emitRehearsals = (): void => emit(IPC.eventRehearsalsChanged)
     scheduler = new JobScheduler(paths, database, runtime, media, logger, emitTasks, emitLibrary)
     const exporter = new ExportService(paths, database, media, logger, emitTasks, () => scheduler?.kick())
     scheduler.setExporter(exporter)
     const imports = new ImportService(paths, database, media, runtime, logger, () => { emitLibrary(); emitTasks() }, () => scheduler?.kick())
+    const audioHost = new AudioHostClient(paths, logger)
+    recording = new RecordingService(
+      paths,
+      database,
+      media,
+      audioHost,
+      logger,
+      (state) => emit(IPC.eventRecordingState, state),
+      (meter) => emit(IPC.eventRecordingMeter, meter),
+      emitLibrary
+    )
+    const rehearsals = new RehearsalService(paths, database, emitRehearsals)
+    rehearsalRecording = new RehearsalRecordingService(
+      paths,
+      database,
+      media,
+      audioHost,
+      logger,
+      () => recording?.isActive() ?? false,
+      (state) => emit(IPC.eventRehearsalRecordingState, state),
+      (meter) => emit(IPC.eventRehearsalRecordingMeter, meter),
+      emitRehearsals
+    )
 
     registerIpc({
       getWindow: () => mainWindow,
@@ -173,6 +231,10 @@ else {
       runtime,
       media,
       exporter,
+      recording,
+      rehearsals,
+      rehearsalRecording,
+      desktopLyrics,
       isTrustedUrl: trustedRendererUrl,
       emitSettings,
       emitLibrary,
@@ -182,6 +244,8 @@ else {
     runtime.onChange((info) => emit(IPC.eventRuntimeChanged, info))
     void runtime.detect()
     scheduler.kick()
+    void recording.recoverInterruptedSessions()
+    void rehearsalRecording.recoverInterruptedSessions()
     logger.info('application ready', { version: app.getVersion(), packaged: app.isPackaged })
   })
 }
@@ -197,12 +261,31 @@ app.on('window-all-closed', () => {
   if (!database?.hasActiveJobs() || !database.getSettings().closeToTrayWhileWorking) app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  desktopLyrics?.destroy()
+  if (!quitAfterRecording && (recording?.isActive() || rehearsalRecording?.isActive())) {
+    event.preventDefault()
+    const finish = rehearsalRecording?.isActive()
+      ? rehearsalRecording.stop()
+      : recording?.finishForTransition()
+    void finish?.finally(() => {
+      quitAfterRecording = true
+      quitting = true
+      app.quit()
+    })
+    return
+  }
   quitting = true
   scheduler?.interruptForExit()
 })
 
 app.on('will-quit', () => {
+  void rehearsalRecording?.shutdown(false)
+  rehearsalRecording = null
+  void recording?.shutdown(false)
+  recording = null
+  desktopLyrics?.destroy()
+  desktopLyrics = null
   database?.close()
   database = null
   tray?.destroy()

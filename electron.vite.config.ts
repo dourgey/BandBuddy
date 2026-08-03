@@ -17,6 +17,10 @@ export default defineConfig({
     build: {
       sourcemap: true,
       rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          lyrics: resolve('src/preload/lyrics.ts')
+        },
         external: ['electron'],
         output: { format: 'cjs', entryFileNames: '[name].cjs' }
       }
@@ -25,6 +29,14 @@ export default defineConfig({
   renderer: {
     resolve: { alias: { '@shared': sharedAlias } },
     plugins: [react(), tailwindcss()],
-    build: { sourcemap: true }
+    build: {
+      sourcemap: true,
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          lyrics: resolve('src/renderer/lyrics.html')
+        }
+      }
+    }
   }
 })

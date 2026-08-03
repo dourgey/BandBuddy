@@ -14,7 +14,7 @@
 
 BandBuddy 的核心不是“把人声去掉”，而是让一首歌真正变得**可练**：听清目标声部、放慢困难小节、循环到肌肉记住、跟着准确节拍进入，再在下一次打开时从原来的位置继续。
 
-> [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · 当前版本 `1.0.0` · Windows x64 正式发布，macOS x64 / Apple Silicon 持续构建
+> [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · 当前版本 `1.1.0` · Windows x64 / macOS x64 / Apple Silicon
 
 ## 从听歌到练琴
 
@@ -24,8 +24,9 @@ flowchart LR
   B --> C["听清：Mute / Solo / 增益"]
   C --> D["拆练：变速 / A–B 循环"]
   D --> E["练准：BPM / 节拍器 / 预备拍"]
-  E --> F["自动保存，下次继续"]
-  F --> G["导出分轨或练习混音"]
+  E --> F["录下：多轨 Take / 整场排练"]
+  F --> G["自动保存，下次继续"]
+  G --> H["导出分轨或练习混音"]
 ```
 
 BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分轨 → 聚焦 → 慢练 → 循环 → 合奏**。账号、云曲库和联网播放器都不是这条路径的前提；音乐、模型、练习状态和导出结果都留在你的电脑上。
@@ -62,6 +63,24 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 - 内置节拍器支持拍点提前/延后微调，并随播放速度同步。
 - 支持关闭、4 拍或 8 拍预备拍，让手和乐器先准备好再进入歌曲。
 
+### 录下练习并比较 Take
+
+- 在练习室创建多条录音轨，从任意播放位置开始录制；每条轨可保留多个 Take，并独立选择、命名、Mute、Solo 和调节增益。
+- 支持 Windows WASAPI、macOS CoreAudio，以及系统可用时的 ASIO；可以选择输入/输出设备、单声道或立体声通道、采样率与 Buffer，并先做输入电平测试。
+- 预备拍不会写入 Take；可按设备保存对齐偏移，分离输入/输出设备时会做时钟校正并显示 xrun 计数。
+- 导出当前练习混音时，可以把所有启用的录音轨一起混入，并保持录制时的练习速度与位置关系。
+
+### 编排和录制整场排练
+
+- 创建多份排练编排单，把曲库歌曲和可调时长的空白衔接拖入队列并重新排序。
+- 按每首歌保存的速度、预备拍、节拍器与混音状态连续播放整条时间线，也可以随时进入单曲练习后返回原排练位置。
+- 为整场排练建立多条录音轨，从当前时间线位置连续叠录、暂停或继续；每个 Take 绑定当时的编排修订，后续改动不会让旧录音失去上下文。
+
+### 跟着时间轴歌词练习
+
+- 为歌曲导入或替换标准 `.lrc` 时间轴歌词。
+- 在独立的置顶桌面歌词窗口显示当前句、下一句和歌曲进度；排练连续播放时会随当前歌曲自动切换。
+
 ### 管理自己的练习曲库
 
 - 导入 `MP3 / WAV / FLAC / M4A / AAC`，并兼容用户有权使用的本地 `.ncm` 文件。
@@ -97,28 +116,41 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 首次使用 AI 分轨前，需要在设置中安装本地环境。请预留约 **8–15 GB** 空间；安装会下载私有 Python、Torch 与约 1 GB 模型，支持取消和从缓存续传。只导入现有分轨时不需要安装 Demucs 环境。
 
+### 中国大陆与受限网络
+
+应用默认启用“中国大陆镜像”环境源，也可以在“设置 → 高级网络 → 环境下载源”切换为官方源或逐项填写自定义 HTTPS 地址：
+
+| 内容 | 大陆下载源 | 完整性与回退 |
+| --- | --- | --- |
+| uv 管理的 CPython | npmmirror 的 `python-build-standalone` 镜像 | uv 使用其固定发行清单；下载可缓存重试 |
+| Demucs 与常规 Python 包 | 阿里云 PyPI | 直接依赖保持固定版本 |
+| PyTorch / Torchaudio | 阿里云 PyTorch wheels | 根据 NVIDIA 驱动选择 `cu126`–`cu130`，不支持时安装 CPU 版 |
+| HTDemucs 6s 权重 | ModelScope 固定 revision | 与上游文件相同的完整 SHA-256：`34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd` |
+
+大陆源不可用时，可先切换另一下载源再点“修复环境”；已完成的缓存和模型 `.part` 文件会继续使用。公司网络还可以选择系统代理或填写手动 HTTP(S) 代理。镜像只改变下载地址，uv、FFmpeg 与模型原有的校验不会关闭。
+
 ## 安装 Windows 版
 
 前往 [Releases](https://github.com/dourgey/BandBuddy/releases/latest)，按需要下载：
 
-- `BandBuddy-1.0.0-x64.exe`：安装版，可选择安装位置并创建桌面/开始菜单快捷方式。
-- `BandBuddy-1.0.0-x64-portable.exe`：便携版，不写入安装目录。
+- `BandBuddy-1.1.0-x64.exe`：安装版，可选择安装位置并创建桌面/开始菜单快捷方式。
+- `BandBuddy-1.1.0-x64-portable.exe`：便携版，不写入安装目录。
 - `SHA256SUMS.txt`：用于校验下载文件完整性。
 
 开源 CI 在没有 Authenticode 证书时会发布**未签名**构建，Windows SmartScreen 可能显示“未知发布者”。Release 说明会标明该版本是否已签名；如果你不接受未签名程序，可从源码构建，或等待 Microsoft Store / 已签名版本。
 
-## 安装 macOS 持续构建
+## 安装 macOS 版
 
-[macOS CI](./.github/workflows/macos.yml) 会分别在 Intel 与 Apple Silicon 原生 runner 上生成 `DMG` 和 `ZIP`：
+[Releases](https://github.com/dourgey/BandBuddy/releases/latest) 同时提供 Intel 与 Apple Silicon 原生 `DMG` 和 `ZIP`：
 
-- `BandBuddy-1.0.0-macos-x64.dmg` / `.zip`：Intel Mac。
-- `BandBuddy-1.0.0-macos-arm64.dmg` / `.zip`：Apple Silicon Mac。
+- `BandBuddy-1.1.0-macos-x64.dmg` / `.zip`：Intel Mac。
+- `BandBuddy-1.1.0-macos-arm64.dmg` / `.zip`：Apple Silicon Mac。
 
-在对应的 Actions 运行页下载 artifact。当前 macOS 构建尚未使用 Apple Developer ID 签名或公证，Gatekeeper 会提示开发者身份无法验证；请先核对同一 artifact 内的 SHA-256 文件。后续推送新版本标签时，Release workflow 也会自动附加两个架构的 macOS 包。
+当前 macOS 构建尚未使用 Apple Developer ID 签名或公证，Gatekeeper 会提示开发者身份无法验证；请先核对 Release 中对应架构的 SHA-256 文件。
 
 ## 从源码运行
 
-需要 Windows 10/11 x64 或 macOS（Intel / Apple Silicon）、Node.js 24+ 与 pnpm 11+。系统无需预装 Python、Torch、CUDA Toolkit 或 FFmpeg。
+需要 Windows 10/11 x64 或 macOS（Intel / Apple Silicon）、Node.js 24+、pnpm 11+、CMake 3.24+ 与 C++20 编译器。Windows 可从微软的 [C++ Build Tools 指引](https://learn.microsoft.com/zh-cn/cpp/build/building-on-the-command-line?view=msvc-170) 安装 Visual Studio 2022，并勾选“使用 C++ 的桌面开发”和 CMake 工具；构建脚本会自动查找其自带的 `cmake.exe`，也可通过 `CMAKE_EXECUTABLE` 指定。macOS 使用 Xcode Command Line Tools。系统无需预装 Python、Torch、CUDA Toolkit 或 FFmpeg。
 
 ```powershell
 git clone https://github.com/dourgey/BandBuddy.git
@@ -130,6 +162,24 @@ pnpm dev
 ```
 
 `pnpm tools:fetch` 会下载并逐文件校验固定版本的 uv 与 FFmpeg。只查看界面时可运行 `pnpm dev:renderer`，然后打开 `http://localhost:5173/?fixtures=1`；fixture 模式只在开发环境启用，不会进入正式构建。
+
+中国大陆可使用下面的流程；镜像配置只对当前命令生效，不会改写用户的全局 `.npmrc`：
+
+```powershell
+# GitHub 无法直连时，可通过第三方代理克隆；有条件时仍优先使用上面的官方地址
+git clone https://ghfast.top/https://github.com/dourgey/BandBuddy.git
+cd BandBuddy
+
+# 如果尚未安装 pnpm
+npm install --global pnpm@11.9.0 --registry=https://registry.npmmirror.com
+
+pnpm install:cn
+pnpm tools:fetch:cn
+pnpm test
+pnpm dev:cn
+```
+
+`install:cn` 使用 npmmirror 获取 npm、Electron、electron-builder 和 `better-sqlite3` 的 Node 预构建文件；Electron ABI 没有对应预构建时，会使用前述 C++ 工具在本地重建。`tools:fetch:cn` 会依次尝试多个 GitHub 代理，原生音频依赖默认使用 `ghfast.top`；两者都保留断点或构建缓存，并在失败时尝试官方地址。所有固定桌面工具仍按 `resources/tool-manifest.json` 校验 SHA-256。若需要使用自建 GitHub 代理，可在运行前设置 `BANDBUDDY_GITHUB_PROXY`（其格式为可直接前置到完整 GitHub URL 的 HTTPS 前缀）。第三方代理不等同于 GitHub 官方服务，请结合可信渠道核对源码 commit。
 
 ### 构建 Windows 包
 
@@ -165,6 +215,7 @@ macOS 包必须在对应架构的 Mac 上构建，以便 Electron、`better-sqli
 | `src/main` | Electron 主进程、SQLite、任务队列、导入/导出与安全边界 |
 | `src/preload` | 经过约束的 renderer ↔ main IPC 桥 |
 | `src/renderer` | React 曲库、练习室、多轨播放器与波形界面 |
+| `native/audio-host` | RtAudio / PortAudio 原生录音宿主与设备时钟协议 |
 | `python/worker` | 本地 Demucs 工作进程及模型下载协议 |
 | `packages/shared` | 领域类型、Zod schema 与 IPC 合约 |
 | `resources` / `scripts` | 固定桌面工具清单、下载和验证脚本 |
@@ -174,11 +225,13 @@ macOS 包必须在对应架构的 Mac 上构建，以便 Electron、`better-sqli
 
 ## 当前边界
 
-`1.0.0` 的正式 Release 目前只包含 Windows x64；macOS x64 / arm64 先通过 CI 提供未签名预览，后续版本标签会自动加入 Release。目前不包含账号/云同步、Web 端、录音、变调、歌单、歌词或自动更新；Piano 分轨仍为实验性功能。欢迎通过 [Issues](https://github.com/dourgey/BandBuddy/issues) 提交可复现的问题和练琴场景建议。
+`1.1.0` 同时提供 Windows x64、macOS x64 与 macOS arm64 构建。当前不包含账号/云同步、Web 端、实时变调或自动更新；录音时建议使用声卡的硬件直通监听，Piano 分轨仍为实验性功能。欢迎通过 [Issues](https://github.com/dourgey/BandBuddy/issues) 提交可复现的问题和练琴场景建议。
 
 ## 许可与音频权利
 
-BandBuddy 源码使用 [Apache License 2.0](./LICENSE)。第三方工具、库和模型保留各自许可。BandBuddy 不附带音乐；请只导入、处理和导出你拥有或已获授权使用的音频。
+BandBuddy 源码使用 [Apache License 2.0](./LICENSE)。分轨功能使用 Demucs 4.1.0 代码；其 MIT 许可与 Meta 版权声明收录在 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。BandBuddy 安装包不包含 HTDemucs 预训练权重；用户确认后，应用才会从所选官方或镜像源下载固定权重，并校验与上游一致的完整 SHA-256。Demucs 上游明确以 MIT 许可发布软件代码，但未对预训练权重单独公布明确许可；商业使用或再分发权重前，请自行确认相应权利。
+
+其他第三方工具、库和模型保留各自许可。BandBuddy 不附带音乐；请只导入、处理和导出你拥有或已获授权使用的音频。
 
 ## 支持 BandBuddy
 

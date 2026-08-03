@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'none'; connect-src 'none'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BandBuddy 桌面歌词</title>
+  </head>
+  <body>
+    <main id="lyrics-card" aria-live="polite">
+      <header><i aria-hidden="true"></i><span id="song-meta">BandBuddy</span></header>
+      <div id="current-lyric">桌面歌词</div>
+      <div id="next-lyric"></div>
+    </main>
+    <script type="module" src="/src/lyrics.ts"></script>
+  </body>
+</html>

@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
-import type { StemType } from '@shared/domain.js'
+import type { RecordingMeter, StemType } from '@shared/domain.js'
 import { clamp } from '../utils.js'
 
 interface PeaksData { min: number[]; max: number[] }
+interface LivePeak { positionMs: number; amplitude: number }
+
+export interface LiveWaveformInput {
+  sessionId: string | null
+  active: boolean
+  meter: RecordingMeter
+}
 
 function isPeaksData(value: unknown): value is PeaksData {
   if (!value || typeof value !== 'object') return false
@@ -21,11 +28,12 @@ export function Waveform({
   zoom,
   scroll,
   disabled,
+  live,
   onSeek,
   onRange,
   onViewChange
 }: {
-  stemType: StemType
+  stemType: StemType | 'recording'
   peaksUrl: string | null
   color: string
   durationMs: number
@@ -35,11 +43,15 @@ export function Waveform({
   zoom: number
   scroll: number
   disabled?: boolean
+  live?: LiveWaveformInput
   onSeek(milliseconds: number): void
   onRange(startMs: number, endMs: number): void
   onViewChange(zoom: number, scroll: number): void
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null)
+  const liveCanvas = useRef<HTMLCanvasElement>(null)
+  const livePeaks = useRef<LivePeak[]>([])
+  const liveSessionId = useRef<string | null>(null)
   const wave = useRef<WaveSurfer | null>(null)
   const dragStart = useRef<number | null>(null)
   const zoomRef = useRef(zoom)
@@ -50,6 +62,77 @@ export function Waveform({
   zoomRef.current = zoom
   scrollRef.current = scroll
   onViewChangeRef.current = onViewChange
+
+  const drawLiveWaveform = useCallback((): void => {
+    const canvas = liveCanvas.current
+    const viewport = container.current
+    if (!canvas || !viewport) return
+    const width = Math.max(1, viewport.clientWidth)
+    const height = Math.max(1, viewport.clientHeight)
+    const scale = Math.max(1, window.devicePixelRatio || 1)
+    if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
+      canvas.width = Math.round(width * scale)
+      canvas.height = Math.round(height * scale)
+    }
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.setTransform(scale, 0, 0, scale, 0, 0)
+    context.clearRect(0, 0, width, height)
+    if (durationMs <= 0 || livePeaks.current.length === 0) return
+    const visibleSpan = 1 / Math.max(1, zoom)
+    const visibleStart = clamp(scroll, 0, 1) * (1 - visibleSpan)
+    const columns = new Float32Array(Math.ceil(width) + 1)
+    for (const point of livePeaks.current) {
+      const screen = ((point.positionMs / durationMs - visibleStart) / visibleSpan) * width
+      if (screen < 0 || screen > width) continue
+      const column = Math.min(columns.length - 1, Math.max(0, Math.round(screen)))
+      columns[column] = Math.max(columns[column] ?? 0, point.amplitude)
+    }
+    context.strokeStyle = color
+    context.globalAlpha = 0.82
+    context.lineWidth = 1
+    context.beginPath()
+    const middle = height / 2
+    for (let column = 0; column < columns.length; column += 1) {
+      const amplitude = columns[column] ?? 0
+      if (amplitude <= 0) continue
+      const halfHeight = Math.max(1, Math.min(height * 0.48, amplitude * height * 0.48))
+      context.moveTo(column + 0.5, middle - halfHeight)
+      context.lineTo(column + 0.5, middle + halfHeight)
+    }
+    context.stroke()
+    context.globalAlpha = 1
+  }, [color, durationMs, scroll, zoom])
+
+  useEffect(() => {
+    if (!live) {
+      if (liveSessionId.current) {
+        liveSessionId.current = null
+        livePeaks.current = []
+        drawLiveWaveform()
+      }
+      return
+    }
+    if (live.sessionId && liveSessionId.current !== live.sessionId) {
+      liveSessionId.current = live.sessionId
+      livePeaks.current = []
+    }
+    if (live.active && live.meter.recording && Number.isFinite(live.meter.sourcePositionMs)) {
+      const amplitude = Math.max(...live.meter.peak, ...live.meter.rms, 0)
+      const positionMs = clamp(live.meter.sourcePositionMs, 0, durationMs)
+      const last = livePeaks.current.at(-1)
+      if (last && Math.abs(last.positionMs - positionMs) < 12) last.amplitude = Math.max(last.amplitude, amplitude)
+      else livePeaks.current.push({ positionMs, amplitude })
+    }
+    drawLiveWaveform()
+  }, [drawLiveWaveform, durationMs, live])
+
+  useEffect(() => {
+    if (peaksUrl && !live?.active) {
+      livePeaks.current = []
+      drawLiveWaveform()
+    }
+  }, [drawLiveWaveform, live?.active, peaksUrl])
 
   useEffect(() => {
     const viewport = container.current
@@ -128,6 +211,15 @@ export function Waveform({
   }, [durationMs, zoom])
 
   useEffect(() => {
+    drawLiveWaveform()
+    const viewport = container.current
+    if (!viewport) return
+    const observer = new ResizeObserver(drawLiveWaveform)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [drawLiveWaveform])
+
+  useEffect(() => {
     if (!wave.current || durationMs <= 0) return
     const start = clamp(scroll, 0, 1) * Math.max(0, 1 - 1 / zoom)
     wave.current.setScrollTime(start * durationMs / 1000)
@@ -164,6 +256,7 @@ export function Waveform({
     }}
   >
     {(!peaksUrl || loadFailed) && <div className="waveform-placeholder">{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 19) % 35)}%` }} />)}</div>}
+    <canvas ref={liveCanvas} className="live-waveform" aria-hidden="true" />
     {rangeLeft !== null && rangeRight !== null && rangeRight >= 0 && rangeLeft <= 100 && <div className="wave-range" style={{ left: `${clamp(rangeLeft, 0, 100)}%`, width: `${clamp(rangeRight, 0, 100) - clamp(rangeLeft, 0, 100)}%` }} />}
     {position >= 0 && position <= 100 && <div className="wave-cursor" style={{ left: `${position}%` }} />}
   </div>
