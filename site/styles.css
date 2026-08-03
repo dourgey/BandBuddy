@@ -369,9 +369,9 @@ a:focus-visible {
 .feature-strip {
   min-height: 134px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  padding: 22px min(18vw, 260px);
+  padding: 22px min(7vw, 110px);
 }
 
 .feature {
