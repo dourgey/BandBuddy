@@ -14,7 +14,7 @@
 
 BandBuddy 的核心不是“把人声去掉”，而是让一首歌真正变得**可练**：听清目标声部、放慢困难小节、循环到肌肉记住、跟着准确节拍进入，再在下一次打开时从原来的位置继续。
 
-> [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · 当前版本 `1.1.0` · Windows x64 / macOS x64 / Apple Silicon
+> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 当前版本 `1.1.0` · Windows x64 / macOS x64 / Apple Silicon
 
 ## 从听歌到练琴
 
