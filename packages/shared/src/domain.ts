@@ -1,3 +1,4 @@
+import type { TrackEffects, EffectChainSnapshot } from './arsenal.js'
 export const LEGACY_STEM_ORDER = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'] as const
 export const GUITAR_SPLIT_STEMS = ['acoustic_guitar', 'lead_guitar', 'rhythm_guitar'] as const
 export const STEM_ORDER = [
@@ -355,6 +356,7 @@ export interface SongDetail extends SongSummary {
 }
 
 export interface RecordingTake {
+  effectsSnapshot?: EffectChainSnapshot | null
   id: string
   songId: string
   recordingTrackId: string
@@ -393,6 +395,7 @@ export interface RecordingDeviceSnapshot {
 }
 
 export interface RecordingTrackState {
+  effects?: TrackEffects | null
   id: string
   songId: string
   name: string

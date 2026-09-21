@@ -6,6 +6,7 @@ BandBuddy bundles or installs the following third-party software. The applicatio
 - React 19.2.7 — MIT License — https://github.com/facebook/react
 - Signalsmith Stretch 1.3.2 — MIT License — https://github.com/Signalsmith-Audio/signalsmith-stretch
 - Signalsmith Linear 0.3.1 — MIT License — https://github.com/Signalsmith-Audio/linear
+- NeuralAmpModelerCore v0.5.4 — MIT License — https://github.com/sdatkinson/NeuralAmpModelerCore. BandBuddy uses its A2-capable DSP core for local NAM model inference; user-imported `.nam` and IR files are not bundled.
 - better-sqlite3 / SQLite — MIT / Public Domain — https://github.com/WiseLibs/better-sqlite3
 - FFmpeg n8.1.2 Windows x64 LGPL shared build — LGPL 2.1 or later — https://ffmpeg.org and https://github.com/BtbN/FFmpeg-Builds. The full build license is installed as `resources/bin/FFmpeg-LICENSE.txt`; the build deliberately uses shared libraries.
 - FFmpeg/FFprobe macOS arm64 static builds from `ffmpeg-static` release `b6.1.1` — GPL 3.0 or later — https://ffmpeg.org and https://github.com/eugeneware/ffmpeg-static. Each macOS package includes the upstream build README and license in its `Resources/bin` directory; corresponding source and build provenance are linked from those files and the upstream release.

@@ -127,6 +127,7 @@ interface RecordingTakeRow {
 }
 
 interface RecordingTrackRow {
+  effects_json?: string | null
   id: string
   song_id: string
   name: string
@@ -524,7 +525,11 @@ export const DATABASE_MIGRATIONS = [
   `
     ALTER TABLE songs ADD COLUMN video_rel_path TEXT;
   `,
-  `ALTER TABLE stems ADD COLUMN name TEXT;`
+  `ALTER TABLE stems ADD COLUMN name TEXT;`,
+  `CREATE TABLE tone_assets(id TEXT PRIMARY KEY,json TEXT NOT NULL,created_at TEXT NOT NULL);
+   CREATE TABLE arsenal_presets(id TEXT PRIMARY KEY,json TEXT NOT NULL,updated_at TEXT NOT NULL);
+   ALTER TABLE recording_tracks ADD COLUMN effects_json TEXT;
+   ALTER TABLE recording_takes ADD COLUMN effects_snapshot_json TEXT;`
 ]
 
 function parseKeyAnalysis(value: string | null): MusicalKeyAnalysis | null {
@@ -1312,6 +1317,7 @@ export class BandBuddyDatabase {
   })
 
   private recordingTrackRowToRecord = (row: RecordingTrackRow): RecordingTrackState => ({
+    effects: row.effects_json ? JSON.parse(row.effects_json) : null,
     id: row.id,
     songId: row.song_id,
     name: row.name,

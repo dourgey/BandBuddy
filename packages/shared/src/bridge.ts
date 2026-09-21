@@ -1,3 +1,4 @@
+import type { ArsenalApi } from './arsenal.js'
 import type {
   ImportStemsOptions,
   LanStatus,
@@ -39,6 +40,7 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  arsenal: ArsenalApi
   library: {
     list(input?: { query?: string; filter?: 'all' | 'favorite' | 'processing' | 'recent' }): Promise<SongSummary[]>
     get(songId: string): Promise<SongDetail | null>

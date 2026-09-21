@@ -3,6 +3,7 @@ import type { BandBuddyApi } from '@shared/bridge.js'
 import { createDefaultRecordingAudioSettings, createDefaultRecordingTrackState } from '@shared/domain.js'
 import type { RehearsalRecordingState, RehearsalSetDetail } from '@shared/rehearsal.js'
 import { fixtureDetail, fixtureRehearsal, fixtureSongs } from './fixtures.js'
+import { defaultEffectChain, type ArsenalApi } from '@shared/arsenal.js'
 
 const noop = (): (() => void) => () => undefined
 
@@ -40,6 +41,18 @@ export function installFixtureBridge(): void {
     bufferFrames: 0, latencyMs: 0, xruns: 0, splitDevices: false, message: '', error: null
   })
   const api: BandBuddyApi = {
+    arsenal: {
+      list: async () => ({ assets: [], presets: [{ id: '99999999-9999-4999-8999-999999999999', name: '干净起点', chain: defaultEffectChain(), revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] }),
+      importAsset: async () => null,
+      deleteAsset: async () => undefined,
+      savePreset: async (input) => ({ id: input.id ?? crypto.randomUUID(), name: input.name, chain: input.chain, revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
+      deletePreset: async () => undefined,
+      setTrack: async () => undefined,
+      prepare: async (chain) => ({ chain, model: null, modelRate: 48000, ir: null, irRate: 48000 }),
+      monitor: async ({ mode }) => ({ active: mode !== 'off', mode, sampleRate: 48000, bufferFrames: 128, latencyMs: 5.3, peak: [0, 0], outputPeak: 0, xruns: 0, error: null }),
+      monitorState: async () => ({ active: false, mode: 'off', sampleRate: 0, bufferFrames: 0, latencyMs: 0, peak: [], outputPeak: 0, xruns: 0, error: null }),
+      onMonitor: noop
+    } satisfies ArsenalApi,
     library: {
       list: async () => fixtureSongs,
       get: async (id) => { const song = fixtureSongs.find((item) => item.id === id); return song ? fixtureDetail(song) : null },

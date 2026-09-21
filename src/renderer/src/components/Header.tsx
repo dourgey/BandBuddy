@@ -1,4 +1,4 @@
-import { AudioLines, ClipboardList, Copy as RestoreIcon, Library, ListMusic, Minus, Music2, Settings, Square, X } from 'lucide-react'
+import { AudioLines, ClipboardList, Copy as RestoreIcon, Library, ListMusic, Minus, Music2, Settings, Square, X, PackageOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export function Header({
@@ -9,8 +9,8 @@ export function Header({
   onSettings,
   locked = false
 }: {
-  view: 'library' | 'practice' | 'rehearsal'
-  onView(view: 'library' | 'practice' | 'rehearsal'): void
+  view: 'library' | 'practice' | 'rehearsal' | 'arsenal'
+  onView(view: 'library' | 'practice' | 'rehearsal' | 'arsenal'): void
   taskCount: number
   onTasks(): void
   onSettings(): void
@@ -34,6 +34,7 @@ export function Header({
       <button disabled={locked} className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}><Library size={19} />曲库</button>
       <button disabled={locked} className={view === 'practice' ? 'active' : ''} onClick={() => onView('practice')}><Music2 size={20} />练习室</button>
       <button disabled={locked} className={view === 'rehearsal' ? 'active' : ''} onClick={() => onView('rehearsal')}><ListMusic size={20} />排练房</button>
+      <button disabled={locked} className={view === 'arsenal' ? 'active' : ''} onClick={() => onView('arsenal')}><PackageOpen size={19} />军火库</button>
     </nav>
     <div className="title-actions no-drag">
       <button className="quiet-button" disabled={locked} onClick={onTasks}><ClipboardList size={18} />任务{taskCount > 0 && <i className="count-badge">{taskCount}</i>}</button>

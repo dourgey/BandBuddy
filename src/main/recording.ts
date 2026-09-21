@@ -1,3 +1,4 @@
+import type { ArsenalService } from './arsenal.js'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
@@ -109,6 +110,13 @@ export function calculateTakeAlignmentOffset(
 }
 
 export class RecordingService {
+  arsenal?: ArsenalService
+  async arsenalDeviceConfiguration(): Promise<Record<string, unknown>> {
+    await this.ensureInputPermission()
+    const device=await this.resolveDeviceConfiguration()
+    if(device.splitDevices) throw new Error('实时监听需要同一声卡输入与输出')
+    return this.hostParameters(device)
+  }
   private state = idleState()
   private active: ActiveSession | null = null
   private recovering = false
@@ -188,6 +196,7 @@ export class RecordingService {
   }
 
   async startTest(): Promise<void> {
+    await this.arsenal?.stopMonitor()
     if (this.isActive()) throw new Error('RECORDING_SESSION_BUSY')
     this.startingTest = true
     this.patchState({ phase: 'preparing', message: '正在打开音频输入', error: null })
@@ -222,6 +231,7 @@ export class RecordingService {
   }
 
   async start(request: RecordingStartRequest): Promise<{ sessionId: string }> {
+    await this.arsenal?.stopMonitor()
     if (this.isActive()) throw new Error('RECORDING_SESSION_BUSY')
     const song = this.database.getSong(request.songId)
     if (!song || !song.stems.length) throw new Error('SONG_NOT_READY')
@@ -281,6 +291,7 @@ export class RecordingService {
         ...this.hostParameters(device),
         backingPath,
         capturePath,
+        ...(recordingTrack.effects ? { effects: await this.arsenal?.prepare(recordingTrack.effects.chain), monitorMode: recordingTrack.effects.monitorMode === 'off' || device.splitDevices ? 0 : recordingTrack.effects.monitorMode === 'dry' || !recordingTrack.effects.enabled ? 1 : 2, monitorGainDb: 0 } : {}),
         playbackRate: request.practice.playbackRate,
         startPositionMs,
         endPositionMs,
@@ -583,9 +594,10 @@ export class RecordingService {
         labels.push(`[${label}]`)
         inputIndex += 1
       })
+      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,file}) => this.arsenal?.render(this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath),track.effects,signal) ?? this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath)))
       audibleRecordings.forEach(({ track, file }, recordingIndex) => {
         const label = `recorded${recordingIndex}`
-        inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file.previewRelPath))
+        inputs.push('-i', wetRecordings[recordingIndex]!)
         filters.push(`[${inputIndex}:a]atrim=start=${(startPositionMs / request.practice.playbackRate / 1000).toFixed(6)}:end=${(endPositionMs / request.practice.playbackRate / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${dbToGain(track.gainDb).toFixed(8)}[${label}]`)
         labels.push(`[${label}]`)
         inputIndex += 1

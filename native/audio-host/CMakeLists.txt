@@ -83,7 +83,9 @@ if(APPLE)
   target_compile_definitions(rtaudio PRIVATE UNICODE _UNICODE)
 endif()
 
+add_subdirectory(../effects effects)
 add_executable(bandbuddy-audio-host src/main.cpp)
+target_link_libraries(bandbuddy-audio-host PRIVATE bandbuddy_effects)
 target_link_libraries(bandbuddy-audio-host PRIVATE rtaudio nlohmann_json::nlohmann_json signalsmith-stretch)
 target_compile_definitions(bandbuddy-audio-host PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)
 

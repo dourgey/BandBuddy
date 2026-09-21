@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "loopback-output.h"
+#include "effects.h"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -478,7 +479,12 @@ struct Session {
   double beatOffsetMs = 0;
   unsigned countInBeats = 0;
   bool metronome = false;
-  bool monitor = false;
+  std::atomic<bool> monitor{false};
+  std::atomic<int> monitorMode{0};
+  bb::Effects* effects = nullptr;
+  std::atomic<bb::Effects*> pendingEffects{nullptr}, retiredEffects{nullptr};
+  std::vector<float> effectsScratch;
+  std::atomic<float> outputPeak{0};
   float monitorGain = 0;
   bool testing = false;
   bool splitDevices = false;
@@ -522,6 +528,7 @@ struct Session {
     try { if (inputAudio && inputAudio->isStreamRunning()) inputAudio->abortStream(); } catch (...) {}
     if (simulator.joinable()) simulator.join();
     if (writer) writer->close();
+    delete effects; delete pendingEffects.load(); delete retiredEffects.load();
   }
   std::uint64_t countInFrames() const {
     return countInBeats > 0 ? static_cast<std::uint64_t>(std::llround(countInBeats * 60.0 / bpm / playbackRate * sampleRate)) : 0;
@@ -534,6 +541,13 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
   auto* input = static_cast<float*>(inputBuffer);
   if (output) std::fill(output, output + static_cast<std::size_t>(nFrames) * s.outputChannels, 0.0f);
   if (status) s.xruns.fetch_add(1, std::memory_order_relaxed);
+  if (auto* next = s.pendingEffects.exchange(nullptr)) { s.retiredEffects.store(s.effects); s.effects = next; }
+  const int mode = s.monitorMode.load();
+  if (input && output && mode && !s.splitDevices && nFrames * 2 <= s.effectsScratch.size()) {
+    if (mode == 2 && s.effects) s.effects->process(input, s.effectsScratch.data(), nFrames, s.inputChannels);
+    else for(unsigned i=0;i<nFrames;++i) for(unsigned c=0;c<2;++c) s.effectsScratch[i*2+c]=input[i*s.inputChannels+std::min(c,s.inputChannels-1)];
+    for(unsigned i=0;i<nFrames*2;++i) { output[i]=s.effectsScratch[i]*s.monitorGain; storeMaximum(s.outputPeak,std::abs(output[i])); }
+  }
   if (s.testing) {
     if (input) {
       for (unsigned ch = 0; ch < std::min(2u, s.inputChannels); ++ch) {
@@ -590,7 +604,7 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
 
   for (unsigned i = 0; i < nFrames; ++i) {
     const auto absolute = initial + i;
-    if (output && input && s.monitor && !s.splitDevices) {
+    if (output && input && s.monitor && !mode && !s.splitDevices) {
       for (unsigned ch = 0; ch < 2; ++ch) output[i * 2 + ch] += input[i * s.inputChannels + std::min(ch, s.inputChannels - 1)] * s.monitorGain;
     }
     if (absolute < countIn) {
@@ -611,14 +625,14 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
         const auto streamFrame = static_cast<std::size_t>(i - transportStartInBuffer);
         if ((streamFrame + 1) * backingChannels <= streamedSamples) {
           for (unsigned ch = 0; ch < 2; ++ch) {
-            output[i * 2 + ch] = s.backingScratch[
+            output[i * 2 + ch] += s.backingScratch[
               streamFrame * backingChannels + std::min(ch, backingChannels - 1)
             ];
           }
         }
       } else {
         for (unsigned ch = 0; ch < 2; ++ch) {
-          output[i * 2 + ch] = s.backing.samples[
+          output[i * 2 + ch] += s.backing.samples[
             transportFrame * s.backing.channels + std::min(ch, s.backing.channels - 1)
           ];
         }
@@ -980,6 +994,9 @@ class Host {
     }
 #endif
     session->monitor = params.value("softwareMonitoring", false) && !session->splitDevices;
+    session->effectsScratch.resize(262144 * 2);
+    session->monitorMode.store(params.value("monitorMode", 0));
+    if (params.contains("effects")) session->effects = new bb::Effects(params["effects"], session->sampleRate);
     session->monitorGain = std::pow(10.0f, params.value("monitorGainDb", -6.0f) / 20.0f);
     session->playbackRate = params.value("playbackRate", 1.0);
     session->startPositionMs = params.value("startPositionMs", 0.0);
@@ -1227,6 +1244,27 @@ class Host {
     return result;
   }
 
+  json updateEffects(const json& params) {
+    std::lock_guard lock(sessionMutex_);
+    if(!session_) throw std::runtime_error("NO_AUDIO_SESSION");
+    auto& s=*session_;
+    if(params.contains("mode")) {
+      const int mode=params.at("mode");
+      if(mode && s.splitDevices) throw std::runtime_error("监听需要同一声卡输入输出");
+      s.monitorMode.store(mode);
+    }
+    delete s.retiredEffects.exchange(nullptr);
+    if(params.contains("prepared")) {
+      auto next=std::make_unique<bb::Effects>(params["prepared"],s.sampleRate);
+      delete s.pendingEffects.exchange(next.release());
+    } else if(params.contains("chain")) {
+      // The control thread owns replacement; update only the acknowledged instance.
+      if(s.pendingEffects.load()) throw std::runtime_error("EFFECT_CHAIN_LOADING");
+      if(s.effects) s.effects->update(params["chain"]);
+    }
+    return true;
+  }
+
   json pauseSession() {
     std::lock_guard lock(sessionMutex_);
     if (!session_ || session_->testing) return false;
@@ -1262,7 +1300,7 @@ class Host {
             {"rms", {session_->rms[0].exchange(0), session_->rms[1].exchange(0)}}, {"clipped", session_->clipped.exchange(false)},
             {"sourcePositionMs", sourcePosition}, {"countInRemaining", remainingFrames ? static_cast<unsigned>((remainingFrames + beatFrames - 1) / beatFrames) : 0},
             {"recording", session_->recording.load()}, {"paused", session_->paused.load()},
-            {"captureFrames", session_->inputFrames.load()}, {"xruns", session_->xruns.load()}
+            {"captureFrames", session_->inputFrames.load()}, {"outputPeak", session_->outputPeak.exchange(0)}, {"xruns", session_->xruns.load()}
           }}};
           finished = session_->finished.load();
           errorType = session_->errorType.load();
@@ -1298,6 +1336,22 @@ class Host {
 } // namespace
 
 int main(int argc, char** argv) {
+  if(argc == 3 && std::string(argv[1]) == "--render-effects") {
+    try {
+      std::ifstream manifest(argv[2]); json job; manifest >> job;
+      auto input=readFloatWaveFile(job.at("input").get<std::string>());
+      bb::Effects effects(job.at("prepared"),input.sampleRate);
+      const size_t frames=input.samples.size()/input.channels;
+      const size_t tail=size_t(job.value("tailSeconds",0.)*input.sampleRate);
+      const size_t latency=effects.latency();
+      WaveData result{input.sampleRate,2,std::vector<float>((frames+tail+latency)*2)};
+      effects.process(input.samples.data(),result.samples.data(),static_cast<unsigned>(frames),input.channels);
+      effects.process(nullptr,result.samples.data()+frames*2,static_cast<unsigned>(tail+latency),input.channels);
+      result.samples.erase(result.samples.begin(),result.samples.begin()+latency*2);
+      writeFloatWaveFile(job.at("output").get<std::string>(),result);
+      return 0;
+    } catch(const std::exception& e) {std::cerr<<e.what()<<std::endl;return 1;}
+  }
   if (argc > 1 && std::string(argv[1]) == "--pitch") {
     json result;
     try {
@@ -1395,6 +1449,7 @@ int main(int argc, char** argv) {
       else if (method == "start") result = host.start(params, false);
       else if (method == "prepareOutputDevice") result = simulate ? false : prepareLoopbackOutput(params.at("deviceName"));
       else if (method == "startTest") result = host.start(params, true);
+      else if (method == "effects") result = host.updateEffects(params);
       else if (method == "pause") result = host.pauseSession();
       else if (method == "resume") result = host.resumeSession();
       else if (method == "stop" || method == "stopTest" || method == "cancel") result = host.stopSession(false);

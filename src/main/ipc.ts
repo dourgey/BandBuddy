@@ -1,3 +1,5 @@
+import { ARSENAL_CHANNEL, effectChainSchema, trackEffectsSchema } from '@shared/arsenal.js'
+import type { ArsenalService } from './arsenal.js'
 import { mkdirSync } from 'node:fs'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { dialog, ipcMain, shell } from 'electron'
@@ -36,6 +38,7 @@ import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
+  arsenal: ArsenalService
   getWindow: () => BrowserWindow | null
   database: BandBuddyDatabase
   lan: LanService
@@ -71,6 +74,23 @@ export function registerIpc(services: IpcServices): void {
       }
     })
   }
+
+  handle(ARSENAL_CHANNEL, async (_event, input) => {
+    const i = z.object({op:z.string()}).passthrough().parse(input)
+    const arsenal=services.arsenal
+    switch(i.op) {
+      case 'list': return arsenal.list()
+      case 'state': return arsenal.monitorState()
+      case 'import': return arsenal.importAsset(z.enum(['nam','ir']).parse(i.kind),z.number().min(8000).max(192000).optional().parse(i.sampleRate))
+      case 'save': return arsenal.savePreset(z.object({id:z.string().uuid().optional(),name:z.string().trim().min(1).max(100),chain:effectChainSchema}).parse(i))
+      case 'delete': return arsenal.deletePreset(uuidSchema.parse(i.id))
+      case 'deleteAsset': return arsenal.deleteAsset(z.string().regex(/^[a-f0-9]{64}$/).parse(i.id))
+      case 'prepare': return arsenal.prepare(effectChainSchema.parse(i.chain))
+      case 'track': return arsenal.setTrack(uuidSchema.parse(i.trackId),trackEffectsSchema.parse(i.effects))
+      case 'monitor': return arsenal.monitor(z.enum(['off','dry','wet']).parse(i.mode),effectChainSchema.parse(i.chain))
+      default: throw new Error('UNKNOWN_ARSENAL_OPERATION')
+    }
+  })
 
   handle(IPC.libraryList, (_event, input) => {
     const parsed = listSongsSchema.parse(input ?? {})

@@ -1,3 +1,4 @@
+import type { ArsenalService } from './arsenal.js'
 import { existsSync, mkdirSync } from 'node:fs'
 import { access, mkdtemp, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -34,6 +35,7 @@ export function exportedStemPitchSemitones(request: Pick<ExportRequest, 'applyPi
 }
 
 export class ExportService {
+  arsenal?: ArsenalService
   constructor(
     private readonly paths: AppPaths,
     private readonly database: BandBuddyDatabase,
@@ -278,11 +280,17 @@ export class ExportService {
         inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file!.relPath))
         mixTracks.push({ inputIndex, state })
       })
+      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,take}) => {
+        const file=this.database.getRecordingTakeFile(take.id)
+        if(!file) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
+        const source=this.paths.resolveLibraryPath(settings.libraryRoot,file.sourceRelPath)
+        return this.arsenal?.render(source,track.effects,signal,request.applyLoopRange?0:10) ?? source
+      }))
       const recordingInputs = audibleRecordings.map(({ track, take }) => {
         const takeFile = this.database.getRecordingTakeFile(take.id)
         if (!takeFile) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
         const inputIndex = inputs.length / 2
-        inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, takeFile.sourceRelPath))
+        inputs.push('-i', wetRecordings[audibleRecordings.findIndex(entry => entry.take.id === take.id)]!)
         return { track, take, inputIndex }
       })
       const filter = buildMixFilter({

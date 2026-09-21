@@ -28,6 +28,7 @@ import { usePlayerStore } from './player-store.js'
 import { LibraryPage } from './pages/LibraryPage.js'
 import { PracticeRoom } from './pages/PracticeRoom.js'
 import { RehearsalRoom } from './pages/RehearsalRoom.js'
+import { ArsenalPage } from './pages/ArsenalPage.js'
 import { loadStartupAudioSettings } from './startup-audio-devices.js'
 import { clamp, isCancellationError, silenceToggle, toUserErrorMessage } from './utils.js'
 import './playback-media.css'
@@ -39,7 +40,7 @@ const fixtureGuitarPreview = import.meta.env.DEV ? previewParams.get('guitarSpli
 export default function App(): React.JSX.Element {
   const client = useQueryClient()
   const engine = useRef<MultiTrackAudioEngine>(new MultiTrackAudioEngine())
-  const [view, setView] = useState<'library' | 'practice' | 'rehearsal'>('library')
+  const [view, setView] = useState<'library' | 'practice' | 'rehearsal' | 'arsenal'>('library')
   const [activeRehearsalId, setActiveRehearsalId] = useState<string | null>(null)
   const [rehearsalReturn, setRehearsalReturn] = useState<{
     rehearsalId: string
@@ -553,7 +554,7 @@ export default function App(): React.JSX.Element {
     rehearsalReturn && rehearsalReturn.rehearsalId === rehearsalInitialId
   )
 
-  const changeView = async (next: 'library' | 'practice' | 'rehearsal'): Promise<void> => {
+  const changeView = async (next: 'library' | 'practice' | 'rehearsal' | 'arsenal'): Promise<void> => {
     if (rehearsalRecordingLocked || next === view) return
     if (view === 'practice') {
       if (recordingLocked) await stopRecording()
@@ -562,7 +563,7 @@ export default function App(): React.JSX.Element {
       setCountInRemaining(0)
       await saveNow()
     }
-    if (next === 'library' || next === 'practice') setRehearsalReturn(null)
+    if (next === 'library' || next === 'practice' || next === 'arsenal') setRehearsalReturn(null)
     setView(next)
   }
 
@@ -589,7 +590,7 @@ export default function App(): React.JSX.Element {
       onTasks={() => setTasksOpen(true)}
       onSettings={() => setSettingsOpen(true)}
     />
-    {view === 'library' ? <LibraryPage
+    {view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
       songs={songs} loading={songsQuery.isLoading} query={query} filter={filter} layout={layout}
       onQuery={setQuery} onFilter={setFilter} onLayout={setLayout} onImport={() => setImportOpen(true)}
       onOpen={(selected) => { setRehearsalReturn(null); void openSong(selected) }} onPlay={(selected) => { setRehearsalReturn(null); void openSong(selected, true) }}

@@ -31,6 +31,7 @@ export interface AudioHostStopResult {
 }
 
 export interface AudioHostMeterEvent {
+  outputPeak?: number
   peak: number[]
   rms: number[]
   clipped: boolean
@@ -101,6 +102,8 @@ export class AudioHostClient {
   async stopTest(): Promise<AudioHostStopResult | null> {
     return await this.request<AudioHostStopResult | null>('stopTest', {}, 15_000)
   }
+
+  async setEffects(params: Record<string, unknown>): Promise<void> { await this.request('effects', params, 30000) }
 
   async pause(): Promise<boolean> {
     return await this.request<boolean>('pause', {}, 5_000)

@@ -1,3 +1,5 @@
+import { ArsenalService } from './arsenal.js'
+import { ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -248,6 +250,9 @@ else {
       (meter) => emit(IPC.eventRecordingMeter, meter),
       emitLibrary
     )
+    const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => emit(ARSENAL_MONITOR_EVENT, state), emitLibrary, () => rehearsalRecording?.isActive() ?? false)
+    recording.arsenal = arsenal
+    exporter.arsenal = arsenal
     const rehearsals = new RehearsalService(paths, database, emitRehearsals)
     rehearsalRecording = new RehearsalRecordingService(
       paths,
@@ -263,6 +268,7 @@ else {
 
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     registerIpc({
+      arsenal,
       lan,
       getWindow: () => mainWindow,
       database,

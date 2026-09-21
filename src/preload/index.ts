@@ -1,3 +1,4 @@
+import { ARSENAL_CHANNEL, ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import { IPC } from '@shared/channels.js'
@@ -9,6 +10,18 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 }
 
 const api: BandBuddyApi = {
+  arsenal: {
+    list: () => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'list' }),
+    importAsset: (kind, sampleRate) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'import', kind, sampleRate }),
+    deleteAsset: (id) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'deleteAsset', id }),
+    savePreset: (input) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'save', ...input }),
+    deletePreset: (id) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'delete', id }),
+    setTrack: (input) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'track', ...input }),
+    prepare: (chain) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'prepare', chain }),
+    monitor: (input) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'monitor', ...input }),
+    monitorState: () => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'state' }),
+    onMonitor: (callback) => subscribe(ARSENAL_MONITOR_EVENT, callback)
+  },
   library: {
     list: (input = {}) => ipcRenderer.invoke(IPC.libraryList, input),
     get: (songId) => ipcRenderer.invoke(IPC.libraryGet, songId),
