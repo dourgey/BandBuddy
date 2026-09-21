@@ -39,7 +39,17 @@ export class ArsenalService {
     this.root=path.join(paths.dataRoot,'arsenal')
     host.onEvent(e=>{if(!this.state.active)return;if(e.event==='meter'){this.state={...this.state,peak:e.data.peak,outputPeak:e.data.outputPeak??0,xruns:e.data.xruns};this.emit(this.state)}else if(e.event==='error'||e.event==='crashed'){this.state={...this.state,active:false,mode:'off',error:e.data.error};this.emit(this.state)}})
   }
-  list(): ArsenalState {return {assets:this.db.sqlite.prepare('SELECT json FROM tone_assets ORDER BY created_at DESC').all().map((r:any)=>JSON.parse(r.json)),presets:this.db.sqlite.prepare('SELECT json FROM arsenal_presets ORDER BY updated_at DESC').all().map((r:any)=>JSON.parse(r.json))}}
+  list(): ArsenalState {
+    const assets = this.db.sqlite.prepare('SELECT json FROM tone_assets ORDER BY created_at DESC').all() as { json: string }[]
+    const presets = this.db.sqlite.prepare('SELECT json FROM arsenal_presets ORDER BY updated_at DESC').all() as { json: string }[]
+    return {
+      assets: assets.map(row => JSON.parse(row.json)),
+      presets: presets.map(row => {
+        const preset = JSON.parse(row.json) as ArsenalPreset
+        return { ...preset, chain: effectChainSchema.parse(preset.chain) }
+      })
+    }
+  }
   private asset(id:string):ToneAsset {const row=this.db.sqlite.prepare('SELECT json FROM tone_assets WHERE id=?').get(id) as {json:string}|undefined;if(!row)throw new Error(`音色资源缺失：${id}`);return JSON.parse(row.json)}
   private file(a:ToneAsset):string {return path.join(this.root,`${a.id}.${a.kind==='nam'?'nam':'wav'}`)}
   async importAsset(kind:'nam'|'ir',sampleRate?:number):Promise<ToneAsset|null> {
@@ -93,15 +103,16 @@ export class ArsenalService {
     const next=this.busy.catch(()=>undefined).then(async()=>{
       if(mode==='off'){await this.stopMonitor();return this.state}
       if(this.recording.isActive()||this.occupied())throw new Error('录音或设备测试进行中，请使用录音轨监听控制')
-      const prepared=await this.prepare(chain),structure=effectStructureKey(chain)
-      if(this.state.active) {await this.host.setEffects({mode:mode==='dry'?1:2,...(structure===this.structure?{chain}:{prepared})});this.state={...this.state,mode}}
-      else {const config=await this.recording.arsenalDeviceConfiguration();const result=await this.host.startTest({...config,monitorMode:mode==='dry'?1:2,monitorGainDb:0,effects:prepared});this.state={...this.state,...result,active:true,mode,error:null}}
+      chain=effectChainSchema.parse(chain);this.validateReferences(chain)
+      const structure=effectStructureKey(chain)
+      if(this.state.active) {await this.host.setEffects({mode:mode==='dry'?1:2,...(structure===this.structure?{chain}:{prepared:await this.prepare(chain)})});this.state={...this.state,mode}}
+      else {const config=await this.recording.arsenalDeviceConfiguration();const result=await this.host.startTest({...config,monitorMode:mode==='dry'?1:2,monitorGainDb:0,effects:await this.prepare(chain)});this.state={...this.state,...result,active:true,mode,error:null}}
       this.structure=structure;this.emit(this.state);return this.state
     });this.busy=next;return next
   }
   async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0):Promise<string> {
     if(!effects?.enabled)return source
-    const prepared=await this.prepare(effects.chain),sourceHash=hash(await readFile(source)),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,'bb-dsp-1-nam-0.5.4']))
+    const prepared=await this.prepare(effects.chain),sourceHash=hash(await readFile(source)),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,'bb-dsp-2-whitebox-1-nam-0.5.4']))
     const root=path.join(this.paths.cacheRoot,'arsenal');await mkdir(root,{recursive:true});const target=path.join(root,`${key}.wav`)
     try{await stat(target);return target}catch{}
     const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`

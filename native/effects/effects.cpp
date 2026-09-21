@@ -1,4 +1,5 @@
 #include "effects.h"
+#include "whitebox.h"
 #include <NAM/get_dsp.h>
 #include <NAM/slimmable.h>
 #include <algorithm>
@@ -64,21 +65,39 @@ struct DelayLine {
   float read(double frames) const { frames=std::clamp(frames,1.,double(data.size()-2)); double p=pos+data.size()-frames;size_t i=size_t(p)%data.size();double f=p-std::floor(p);return float(data[i]*(1-f)+data[(i+1)%data.size()]*f); }
   void push(float x) { data[pos]=x;pos=(pos+1)%data.size(); }
 };
-struct Params { float in=1,out=1,eqGain=1,cabGain=1,delayMs=350,feedback=.3,mix=.2,tone=6000,decay=2.5,pre=20,damping=.5,revMix=.2;bool amp=false,cab=false,eq=false,delay=false,reverb=false; std::array<float,7> bands{};float low=20,high=20000; };
+struct Params { whitebox::Controls drive; float in=1,out=1,eqGain=1,cabGain=1,delayMs=350,feedback=.3,mix=.2,tone=6000,decay=2.5,pre=20,damping=.5,revMix=.2;bool amp=false,cab=false,eq=false,delay=false,reverb=false; std::array<float,7> bands{};float low=20,high=20000; };
 Params parse(const nlohmann::json& j) {
-  Params p;p.in=gain(j.at("inputGainDb"));p.out=gain(j.at("outputGainDb"));p.amp=j["amp"]["enabled"];p.cab=j["cab"]["enabled"];p.cabGain=gain(j["cab"]["gainDb"]);p.low=j["cab"]["lowCut"];p.high=j["cab"]["highCut"];p.eq=j["eq"]["enabled"];p.eqGain=gain(j["eq"]["gainDb"]);p.bands=j["eq"]["bands"].get<std::array<float,7>>();auto d=j["delay"];p.delay=d["enabled"];p.delayMs=d["timeMs"];if(d["sync"].get<bool>()) {std::string div=d["division"];p.delayMs=float(std::clamp(60000.0/d["bpm"].get<double>()*(div=="1/4"?1.0:div=="1/8d"?.75:div=="1/8"?.5:.25),1.0,2000.0));}p.feedback=d["feedback"];p.mix=d["mix"];p.tone=d["tone"];auto r=j["reverb"];p.reverb=r["enabled"];p.decay=r["decay"];p.pre=r["preDelayMs"];p.damping=r["damping"];p.revMix=r["mix"];return p;
+  Params p;
+  if(j.contains("drive")) {
+    const auto& d=j.at("drive"); const auto device=d.at("device").get<std::string>();
+    if(device!="ts808" && device!="sd1" && device!="rat") throw std::runtime_error("WHITEBOX_UNKNOWN_DEVICE");
+    if(d.at("revision").get<int>()!=1) throw std::runtime_error("WHITEBOX_UNSUPPORTED_REVISION");
+    p.drive.device=device=="ts808"?whitebox::Device::TS808:device=="sd1"?whitebox::Device::SD1:whitebox::Device::RAT;
+    p.drive.enabled=d.at("enabled");p.drive.drive=d.at("drive");p.drive.tone=d.at("tone");p.drive.level=d.at("level");p.drive.inputVolts=d.at("inputVolts");p.drive.oversampling=d.at("oversampling");
+    for(double value:{p.drive.drive,p.drive.tone,p.drive.level}) if(!std::isfinite(value)||value<0||value>1) throw std::runtime_error("WHITEBOX_INVALID_CONTROL");
+    if(!std::isfinite(p.drive.inputVolts)||p.drive.inputVolts<.1||p.drive.inputVolts>10||(p.drive.oversampling!=2&&p.drive.oversampling!=4)) throw std::runtime_error("WHITEBOX_INVALID_CALIBRATION_OR_QUALITY");
+  }
+  p.in=gain(j.at("inputGainDb"));p.out=gain(j.at("outputGainDb"));p.amp=j["amp"]["enabled"];p.cab=j["cab"]["enabled"];p.cabGain=gain(j["cab"]["gainDb"]);p.low=j["cab"]["lowCut"];p.high=j["cab"]["highCut"];p.eq=j["eq"]["enabled"];p.eqGain=gain(j["eq"]["gainDb"]);p.bands=j["eq"]["bands"].get<std::array<float,7>>();auto d=j["delay"];p.delay=d["enabled"];p.delayMs=d["timeMs"];if(d["sync"].get<bool>()) {std::string div=d["division"];p.delayMs=float(std::clamp(60000.0/d["bpm"].get<double>()*(div=="1/4"?1.0:div=="1/8d"?.75:div=="1/8"?.5:.25),1.0,2000.0));}p.feedback=d["feedback"];p.mix=d["mix"];p.tone=d["tone"];auto r=j["reverb"];p.reverb=r["enabled"];p.decay=r["decay"];p.pre=r["preDelayMs"];p.damping=r["damping"];p.revMix=r["mix"];return p;
 }
 }
 struct Effects::Impl {
-  unsigned rate; Params target,current; std::array<Params,64> updates{}; std::atomic<unsigned> updateWrite{0},updateRead{0}; std::array<int,4> order{};
+  unsigned rate; Params target,current; std::array<Params,64> updates{}; std::atomic<unsigned> updateWrite{0},updateRead{0}; std::array<int,5> order{};
+  std::unique_ptr<whitebox::Drive> drives[2];
   std::unique_ptr<nam::DSP> models[2]; Resampler up[2],down[2]; bool convert=false;
   std::array<float,4096> modelIn[2],modelOut[2],converted[2],fifo[2]; size_t write[2]{},read[2]{};
   Convolver cab[2]; Biquad eq[2][7],cut[2][2]; DelayLine delay[2],pre[2],comb[2][8]; float damp[2][8]{},delayTone[2]{};
   std::array<float,B> input[2]{},output[2]{}; unsigned index=0; float fade=0;
   Impl(const nlohmann::json& prepared,unsigned sr):rate(sr) {
-    const auto& chain=prepared.at("chain"); target=current=parse(chain);int i=0;for(auto& s:chain["order"]) {std::string v=s;order[i++]=v=="amp"?0:v=="eq"?1:v=="delay"?2:3;}
+    const auto& chain=prepared.at("chain"); target=current=parse(chain);
+    current.mix=target.delay?target.mix:0;current.revMix=target.reverb?target.revMix:0;
+    std::vector<std::string> blocks=chain.at("order").get<std::vector<std::string>>();
+    if(blocks.size()==4 && std::find(blocks.begin(),blocks.end(),"drive")==blocks.end()) blocks.insert(blocks.begin(),"drive");
+    if(blocks.size()!=5) throw std::runtime_error("INVALID_EFFECT_ORDER");
+    std::array<bool,5> seen{};int i=0;
+    for(const auto& v:blocks) {int id=v=="amp"?0:v=="eq"?1:v=="delay"?2:v=="reverb"?3:v=="drive"?4:-1;if(id<0||seen[id]) throw std::runtime_error("INVALID_EFFECT_ORDER");seen[id]=true;order[i++]=id;}
+    for(auto& drive:drives) drive=std::make_unique<whitebox::Drive>(sr,target.drive);
     double modelRate=prepared.value("modelRate",double(sr));if(modelRate<=0) modelRate=sr;
-    convert=modelRate!=sr;
+    convert=!prepared["model"].is_null() && modelRate!=sr;
     if(!prepared["model"].is_null()) {auto model=nlohmann::json::parse(prepared["model"].get<std::string>()); for(int c=0;c<2;++c) {models[c]=nam::get_dsp(model);if(models[c]->NumInputChannels()!=1 || models[c]->NumOutputChannels()!=1) throw std::runtime_error("NAM_REQUIRES_MONO_MODEL");if(auto* slim=dynamic_cast<nam::SlimmableModel*>(models[c].get())) slim->SetSlimmableSize(chain["amp"]["quality"]=="lite"?0:1);models[c]->Reset(modelRate,4096);up[c].init(sr,modelRate);down[c].init(modelRate,sr); if(convert) write[c]=64;}}
     for(int c=0;c<2;++c) {
       delay[c].init(sr*2+4);pre[c].init(sr/5+4);
@@ -91,7 +110,9 @@ struct Effects::Impl {
     current.in+=(target.in-current.in)*.3f;current.out+=(target.out-current.out)*.3f;
     for(int c=0;c<2;++c) for(int i=0;i<B;++i) output[c][i]=input[c][i]*current.in;
     for(int effect:order) {
-      if(effect==0) {
+      if(effect==4) {
+        for(int c=0;c<2;++c) {drives[c]->update(target.drive);for(auto& x:output[c]) x=drives[c]->tick(x);}
+      } else if(effect==0) {
         if(target.amp) for(int c=0;c<2;++c) if(models[c]) {
           if(convert) {int n=up[c].push(output[c].data(),B,modelIn[c].data());float* in=modelIn[c].data();float* out=modelOut[c].data();if(n) models[c]->process(&in,&out,n);int m=down[c].push(out,n,converted[c].data());for(int k=0;k<m;++k) fifo[c][write[c]++%4096]=converted[c][k];for(int k=0;k<B;++k) output[c][k]=read[c]<write[c]?fifo[c][read[c]++%4096]:0;}
           else {float* in=output[c].data();float* out=modelOut[c].data();models[c]->process(&in,&out,B);std::copy_n(out,B,output[c].data());}
@@ -115,8 +136,8 @@ struct Effects::Impl {
 };
 Effects::Effects(const nlohmann::json& p,unsigned r):impl(std::make_unique<Impl>(p,r)) {}
 Effects::~Effects()=default;
-void Effects::update(const nlohmann::json& j) {auto p=parse(j);auto w=impl->updateWrite.load();if(w-impl->updateRead.load(std::memory_order_acquire)>=64) return;impl->updates[w%64]=p;impl->updateWrite.store(w+1,std::memory_order_release);}
-unsigned Effects::latency() const {return B+(impl->convert?64:0);}
+void Effects::update(const nlohmann::json& j) {auto p=parse(j);if(p.drive.device!=impl->current.drive.device||p.drive.oversampling!=impl->current.drive.oversampling) throw std::runtime_error("WHITEBOX_REBUILD_REQUIRED");auto w=impl->updateWrite.load();if(w-impl->updateRead.load(std::memory_order_acquire)>=64) return;impl->updates[w%64]=p;impl->updateWrite.store(w+1,std::memory_order_release);}
+unsigned Effects::latency() const {return B+whitebox::Drive::latencyFrames+(impl->convert?64:0);}
 void Effects::process(const float* in,float* out,unsigned frames,unsigned channels) {
   for(unsigned i=0;i<frames;++i) {for(int c=0;c<2;++c) {impl->input[c][impl->index]=in?in[i*channels+std::min(unsigned(c),channels-1)]:0;out[i*2+c]=impl->output[c][impl->index];} if(++impl->index==B) {impl->block();impl->index=0;} }
 }

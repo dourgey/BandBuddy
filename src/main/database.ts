@@ -1,3 +1,4 @@
+import { trackEffectsSchema } from '@shared/arsenal.js'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
@@ -1317,7 +1318,7 @@ export class BandBuddyDatabase {
   })
 
   private recordingTrackRowToRecord = (row: RecordingTrackRow): RecordingTrackState => ({
-    effects: row.effects_json ? JSON.parse(row.effects_json) : null,
+    effects: row.effects_json ? trackEffectsSchema.parse(JSON.parse(row.effects_json)) : null,
     id: row.id,
     songId: row.song_id,
     name: row.name,

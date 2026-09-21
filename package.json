@@ -29,6 +29,8 @@
     "build": "pnpm verify:resources && pnpm typecheck && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "test:whitebox": "node scripts/test-whitebox.mjs",
+    "build:effects:wasm": "node scripts/build-effects.mjs",
     "test:msr-mvp": "python -m unittest discover -s python/msr_mvp/tests -p test_*.py",
     "test:guitar-hq": "python -m unittest discover -s python/guitar_separator_hq/tests -p test_*.py",
     "test:model-bundle": "python -m unittest discover -s python/worker/tests -p test_*.py",

@@ -533,7 +533,7 @@ export default function App(): React.JSX.Element {
   }
 
   const recordingLocked = !['idle', 'failed'].includes(recordingState.phase)
-  useKeyboardShortcuts({ song, practice, currentMs, selectedStem, seek, togglePlayback, restartPlayback, cycleLoop, patchPractice, patchTrack, setSelectedStem, enabled: view !== 'rehearsal' && !recordingLocked })
+  useKeyboardShortcuts({ song, practice, currentMs, selectedStem, seek, togglePlayback, restartPlayback, cycleLoop, patchPractice, patchTrack, setSelectedStem, enabled: view !== 'rehearsal' && view !== 'arsenal' && !recordingLocked })
 
   const tasks = tasksQuery.data ?? []
   const activeTaskCount = tasks.filter((job) => !['completed', 'cancelled', 'failed', 'interrupted'].includes(job.status)).length
@@ -626,7 +626,7 @@ export default function App(): React.JSX.Element {
       onDeleteTake={(takeId) => void deleteTake(takeId)} onRecordingTrack={(recordingTrackId, patch) => void updateRecordingTrack(recordingTrackId, patch)}
       onUseTakePractice={(rate, pitchSemitones) => patchPractice({ playbackRate: rate, pitchSemitones })}
     /> : <NoSongPractice onLibrary={() => setView('library')} onImport={() => setImportOpen(true)} />}
-    {view !== 'rehearsal' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')

@@ -1,13 +1,32 @@
 import { z } from 'zod'
 
-export const EFFECT_BLOCKS = ['amp', 'eq', 'delay', 'reverb'] as const
+export const EFFECT_BLOCKS = ['drive', 'amp', 'eq', 'delay', 'reverb'] as const
+export const WHITEBOX_DEVICES = [
+  { id: 'ts808', name: 'TS808 · 反馈过载', description: '对称反馈削波，Drive 调整反馈电阻；适合放在 NAM 前推动箱头。' },
+  { id: 'sd1', name: 'SD-1 · 不对称过载', description: '1:2 二极管反馈削波，独立增益范围、线性 Drive 和音调网络。' },
+  { id: 'rat', name: 'RAT · 对地失真', description: '双 RC 增益支路、有限带宽和转换速率；Filter 越大越暗。' }
+] as const
+export const whiteboxSchema = z.object({
+  enabled: z.boolean(), device: z.enum(['ts808', 'sd1', 'rat']), revision: z.literal(1),
+  drive: z.number().finite().min(0).max(1), tone: z.number().finite().min(0).max(1),
+  level: z.number().finite().min(0).max(1),
+  inputVolts: z.number().finite().min(.1).max(10),
+  oversampling: z.union([z.literal(2), z.literal(4)])
+})
+export type WhiteboxSettings = z.infer<typeof whiteboxSchema>
+export function defaultWhitebox(): WhiteboxSettings {
+  return { enabled: false, device: 'ts808', revision: 1, drive: .4, tone: .5, level: .7, inputVolts: 1, oversampling: 4 }
+}
 export type EffectBlock = typeof EFFECT_BLOCKS[number]
 export type MonitorMode = 'off' | 'dry' | 'wet'
 const db = z.number().finite().min(-60).max(24)
 const asset = z.string().regex(/^[a-f0-9]{64}$/).nullable()
 export const effectChainSchema = z.object({
   version: z.literal(1),
-  order: z.array(z.enum(EFFECT_BLOCKS)).length(4).refine(v => new Set(v).size === 4),
+  order: z.array(z.enum(EFFECT_BLOCKS)).refine(v =>
+    new Set(v).size === v.length && (v.length === 5 || (v.length === 4 && !v.includes('drive')))
+  ).transform(v => v.includes('drive') ? v : ['drive' as const, ...v]),
+  drive: whiteboxSchema.default(defaultWhitebox),
   inputGainDb: db, outputGainDb: db,
   amp: z.object({ enabled: z.boolean(), assetId: asset, quality: z.enum(['full', 'lite']) }),
   cab: z.object({ enabled: z.boolean(), assetId: asset, gainDb: db, lowCut: z.number().min(20).max(500), highCut: z.number().min(1000).max(20000) }),
@@ -37,6 +56,7 @@ export interface ArsenalApi {
 }
 export function defaultEffectChain(): EffectChainSnapshot {
   return { version: 1, order: [...EFFECT_BLOCKS], inputGainDb: 0, outputGainDb: -6,
+    drive: defaultWhitebox(),
     amp: { enabled: false, assetId: null, quality: 'full' },
     cab: { enabled: false, assetId: null, gainDb: 0, lowCut: 20, highCut: 20000 },
     eq: { enabled: false, bands: [0,0,0,0,0,0,0], gainDb: 0 },
@@ -44,7 +64,7 @@ export function defaultEffectChain(): EffectChainSnapshot {
     reverb: { enabled: false, decay: 2.5, preDelayMs: 20, damping: .5, mix: .2 } }
 }
 export function effectStructureKey(chain: EffectChainSnapshot): string {
-  return JSON.stringify([chain.order, chain.amp.assetId, chain.amp.quality, chain.cab.assetId])
+  return JSON.stringify([chain.order, chain.amp.assetId, chain.amp.quality, chain.cab.assetId, chain.drive?.device, chain.drive?.revision, chain.drive?.oversampling])
 }
 export const ARSENAL_CHANNEL = 'arsenal:request'
 export const ARSENAL_MONITOR_EVENT = 'arsenal:monitor'
