@@ -87,6 +87,7 @@ export const practiceStateSchema = z.object({
   metronomeEnabled: z.boolean(),
   metronomeBpm: z.number().min(20).max(400),
   metronomeOffsetMs: z.number().min(METRONOME_OFFSET_MIN_MS).max(METRONOME_OFFSET_MAX_MS),
+  metronomeGainDb: z.number().min(-60).max(6),
   desktopLyricsEnabled: z.boolean(),
   guitarSplitEnabled: z.boolean(),
   countInBeats: z.union([z.literal(0), z.literal(4), z.literal(8)]),

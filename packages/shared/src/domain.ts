@@ -46,6 +46,9 @@ export function normalizePitchSemitones(value: number | null | undefined): numbe
 
 export const METRONOME_OFFSET_MIN_MS = -3000
 export const METRONOME_OFFSET_MAX_MS = 3000
+
+/** Symmetric: unity sits mid-track. */
+export const METRONOME_GAIN_LIMIT_DB = 6
 export const DEFAULT_OUTPUT_CHANNEL_PAIR = 1
 export const MAX_ROUTABLE_OUTPUT_CHANNELS = 32
 
@@ -269,6 +272,7 @@ export interface PracticeState {
   metronomeEnabled: boolean
   metronomeBpm: number
   metronomeOffsetMs: number
+  metronomeGainDb: number
   desktopLyricsEnabled: boolean
   guitarSplitEnabled: boolean
   countInBeats: 0 | 4 | 8
@@ -619,6 +623,7 @@ export function createDefaultPracticeState(songId: string): PracticeState {
     metronomeEnabled: false,
     metronomeBpm: 120,
     metronomeOffsetMs: 0,
+    metronomeGainDb: 0,
     desktopLyricsEnabled: false,
     guitarSplitEnabled: false,
     countInBeats: 0,

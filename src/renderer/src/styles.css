@@ -343,6 +343,21 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
 .metronome-switch-row > span, .count-in-row > span:first-child { display: grid; gap: 2px; }
 .metronome-switch-row b, .count-in-row b { font-size: 10px; }
 .metronome-switch-row small, .count-in-row small { color: #8f877d; font-size: 8px; }
+/* Metronome level: track-level look, slider across the panel. */
+.metronome-volume-row { min-height: 40px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.metronome-volume-row > span:first-child { display: grid; gap: 2px; }
+.metronome-volume-row b { font-size: 10px; }
+.metronome-volume-row small { color: #8f877d; font-size: 8px; }
+.metronome-volume-row .level-readout, .metronome-volume-row .level-editor { flex: 0 0 auto; width: 78px; }
+.metronome-volume-row .level-readout { color: #cfc6bb; }
+.metronome-volume-row .level-readout:hover:not(:disabled) { color: #fff2c5; background: rgba(255,255,255,.06); border-color: rgba(237,194,99,.32); }
+.metronome-volume-row .level-editor { color: #f4ede2; background: rgba(255,255,255,.07); border-color: rgba(237,194,99,.5); box-shadow: 0 0 0 2px rgba(237,194,99,.16); }
+/* The global range style paints the left 44% dark; repeat type+attribute to outrank it. */
+.metronome-volume-slider { width: 100%; margin: 2px 0 6px; }
+input[type="range"].metronome-volume-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, #cfc7ba 0 var(--fill-from, 50%), #d6a849 var(--fill-from, 50%) var(--fill-to, 50%), #cfc7ba var(--fill-to, 50%) 100%); }
+input[type="range"].metronome-volume-slider::-webkit-slider-thumb { background: #f0cb72; box-shadow: 0 0 0 2px rgba(23,21,19,.9); }
+input[type="range"].beat-alignment-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, #cfc7ba 0 var(--fill-from, 50%), #d6a849 var(--fill-from, 50%) var(--fill-to, 50%), #cfc7ba var(--fill-to, 50%) 100%); }
+input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: #f0cb72; box-shadow: 0 0 0 2px rgba(23,21,19,.9); }
 .metronome-switch { width: 34px; height: 19px; flex: 0 0 auto; padding: 2px; border-radius: 11px; background: #504a43; transition: background .15s; }
 .metronome-switch i { display: block; width: 15px; height: 15px; border-radius: 50%; background: #c8c0b6; transition: transform .15s, background .15s; }
 .metronome-switch.active { background: #b9802e; }
@@ -435,6 +450,10 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
 .footer-volume input { width: clamp(68px, 8vw, 112px); }
 .footer-volume input::-webkit-slider-runnable-track { background: linear-gradient(90deg, #f4eee5 0 var(--volume), #403b35 var(--volume) 100%); }
 .footer-volume input::-webkit-slider-thumb { background: #f5efe6; box-shadow: none; }
+/* Width follows the text so long values are never clipped. */
+.footer-volume .level-readout { flex: 0 0 auto; width: auto; min-width: 0; color: #cfc6bb; }
+.footer-volume .level-editor { flex: 0 0 auto; width: 62px; color: #f4ede2; background: rgba(255,255,255,.08); border-color: rgba(237,194,99,.5); box-shadow: 0 0 0 2px rgba(237,194,99,.16); }
+.footer-volume .level-readout:hover:not(:disabled) { color: #fff2c5; background: rgba(255,255,255,.08); border-color: rgba(237,194,99,.3); }
 .queue-button { width: 28px; height: 28px; display: grid; place-items: center; color: #c7beb3; background: transparent; }
 
 .dialog-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(27,24,20,.38); backdrop-filter: blur(5px); animation: fade-in .15s ease-out; }

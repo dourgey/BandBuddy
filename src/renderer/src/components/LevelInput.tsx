@@ -12,18 +12,20 @@ export function formatGainDb(db: number): string {
   return `${rounded > 0 ? '+' : ''}${rounded}`
 }
 
-export function parseGainDb(text: string): number | null {
+export function parseGainDb(text: string, min = MIN_GAIN_DB, max = MAX_GAIN_DB): number | null {
   const cleaned = text.trim().replace(/d\s*b$/i, '').trim()
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(cleaned)) return null
-  return clamp(Number(cleaned), MIN_GAIN_DB, MAX_GAIN_DB)
+  return clamp(Number(cleaned), min, max)
 }
 
 // Plain readout that becomes an editor only on double click. Readout and editor share the exact
 // box metrics, so opening the editor never moves the neighbouring OUT column.
-export function LevelInput({ value, disabled, label, onChange }: {
+export function LevelInput({ value, disabled, label, min = MIN_GAIN_DB, max = MAX_GAIN_DB, onChange }: {
   value: number
   disabled?: boolean
   label: string
+  min?: number
+  max?: number
   onChange(gainDb: number): void
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
@@ -49,13 +51,13 @@ export function LevelInput({ value, disabled, label, onChange }: {
     cancelled.current = false
     setEditing(false)
     if (abandon) return
-    const parsed = parseGainDb(draft)
+    const parsed = parseGainDb(draft, min, max)
     if (parsed !== null && parsed !== value) onChange(parsed)
   }
 
   const step = (delta: number): void => {
-    const base = parseGainDb(draft) ?? value
-    const next = clamp(Math.round((base + delta) * 10) / 10, MIN_GAIN_DB, MAX_GAIN_DB)
+    const base = parseGainDb(draft, min, max) ?? value
+    const next = clamp(Math.round((base + delta) * 10) / 10, min, max)
     setDraft(formatGainDb(next))
     if (next !== value) onChange(next)
   }
