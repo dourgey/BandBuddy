@@ -140,6 +140,11 @@ export function Waveform({
     if (!viewport || disabled) return
     const handleWheel = (event: WheelEvent): void => {
       event.preventDefault()
+      // Shift + wheel scrolls the view; a bare wheel keeps zooming around the pointer.
+      if (event.shiftKey) {
+        onViewChangeRef.current(zoomRef.current, clamp(scrollRef.current + (event.deltaY + event.deltaX) * 0.0016, 0, 1))
+        return
+      }
       const currentZoom = zoomRef.current
       const visibleSpan = 1 / Math.max(1, currentZoom)
       const visibleStart = clamp(scrollRef.current, 0, 1) * (1 - visibleSpan)

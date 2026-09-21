@@ -90,6 +90,15 @@ describe('IPC schemas', () => {
     expect(practiceStateSchema.safeParse({ ...practice, countInBeats: 6 }).success).toBe(false)
   })
 
+  it('bounds the metronome level like a track level, defaulting to unity', () => {
+    const practice = createDefaultPracticeState(songId)
+    expect(practice.metronomeGainDb).toBe(0)
+    expect(practiceStateSchema.safeParse({ ...practice, metronomeGainDb: -60 }).success).toBe(true)
+    expect(practiceStateSchema.safeParse({ ...practice, metronomeGainDb: 6 }).success).toBe(true)
+    expect(practiceStateSchema.safeParse({ ...practice, metronomeGainDb: -61 }).success).toBe(false)
+    expect(practiceStateSchema.safeParse({ ...practice, metronomeGainDb: 7 }).success).toBe(false)
+  })
+
   it('bounds desktop lyric updates sent to the overlay window', () => {
     const payload = {
       title: 'Song',

@@ -1,6 +1,7 @@
 import { ArrowUpDown, ListMusic, LoaderCircle, Pause, Play, RotateCcw, RotateCw, SkipBack, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import {
+  METRONOME_GAIN_LIMIT_DB,
   PITCH_SEMITONES_MAX,
   PITCH_SEMITONES_MIN,
   PITCH_SEMITONES_STEP,
@@ -14,6 +15,7 @@ import { Vinyl } from './Vinyl.js'
 import { LoopButton } from './LoopButton.js'
 import { activeLoopRange } from '@shared/playback.js'
 import { clamp, formatTime } from '../utils.js'
+import { LevelInput } from './LevelInput.js'
 
 const PLAYBACK_RATES = [0.5, 0.8, 1, 1.2, 1.5] as const
 
@@ -86,6 +88,11 @@ export function PlayerBar({
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
+        <LevelInput
+          label="主音量增益"
+          value={practice.masterGainDb}
+          onChange={(masterGainDb) => patchPractice({ masterGainDb })}
+        />
         <button
           className={`volume-toggle ${muted ? 'is-muted' : ''}`}
           aria-label={muted ? '取消静音' : '静音'}
@@ -99,6 +106,7 @@ export function PlayerBar({
           max="150"
           value={Math.min(150, volume)}
           style={volumeStyle}
+          onDoubleClick={() => patchPractice({ masterGainDb: 0 })}
           onChange={(event) => {
             const value = Number(event.target.value)
             patchPractice({ masterGainDb: value === 0 ? -60 : Math.min(6, 20 * Math.log10(value / 100)) })
@@ -313,6 +321,26 @@ function PracticeFooterControls({
           <span><b>播放时发声</b><small>预备拍结束后继续打拍</small></span>
           <button className={`metronome-switch ${practice.metronomeEnabled ? 'active' : ''}`} role="switch" aria-checked={practice.metronomeEnabled} onClick={() => patchPractice({ metronomeEnabled: !practice.metronomeEnabled })}><i /></button>
         </div>
+        <div className="metronome-volume-row">
+          <span><b>音量</b><small>独立音量 · 不受主音量及静音影响</small></span>
+          <LevelInput label="节拍器音量" value={practice.metronomeGainDb} min={-METRONOME_GAIN_LIMIT_DB} max={METRONOME_GAIN_LIMIT_DB} onChange={(metronomeGainDb) => patchPractice({ metronomeGainDb })} />
+        </div>
+        <input
+          className="metronome-volume-slider"
+          aria-label="节拍器音量滑块"
+          type="range"
+          min={-METRONOME_GAIN_LIMIT_DB}
+          max={METRONOME_GAIN_LIMIT_DB}
+          step="0.5"
+          value={practice.metronomeGainDb}
+          // The fill starts at unity (the middle of the symmetric range) so 0 dB is the visible origin.
+          style={{
+            '--fill-from': `${Math.min(50, ((practice.metronomeGainDb + METRONOME_GAIN_LIMIT_DB) / (METRONOME_GAIN_LIMIT_DB * 2)) * 100)}%`,
+            '--fill-to': `${Math.max(50, ((practice.metronomeGainDb + METRONOME_GAIN_LIMIT_DB) / (METRONOME_GAIN_LIMIT_DB * 2)) * 100)}%`
+          } as CSSProperties}
+          onDoubleClick={() => patchPractice({ metronomeGainDb: 0 })}
+          onChange={(event) => patchPractice({ metronomeGainDb: Number(event.target.value) })}
+        />
         <div className="metronome-bpm-row"><span>BPM</span><MetronomeBpmInput value={practice.metronomeBpm} onChange={saveBpm} /></div>
         <button className="detect-bpm-button" disabled={detectingBpm} onClick={() => void detectBpm()}>{detectingBpm ? <LoaderCircle className="spin" size={15} /> : <MetronomeIcon />}<span><b>{detectingBpm ? '正在检测…' : '检测当前歌曲 BPM'}</b><small>优先分析鼓轨，结果自动保存</small></span></button>
         {bpmMessage && <p className={bpmMessage.includes('失败') || bpmMessage.includes('未检测') || bpmMessage.includes('不可用') ? 'error' : ''}>{bpmMessage}</p>}
@@ -324,11 +352,17 @@ function PracticeFooterControls({
           <button aria-label="拍点提前 10 毫秒" onClick={() => saveBeatOffset(practice.metronomeOffsetMs - 10)}>−10</button>
           <input
             aria-label="节拍时间微调"
+            className="beat-alignment-slider"
             type="range"
             min={-Math.round(30_000 / practice.metronomeBpm)}
             max={Math.round(30_000 / practice.metronomeBpm)}
             step="1"
             value={Math.round(normalizeBeatOffsetMs(practice.metronomeOffsetMs, practice.metronomeBpm))}
+            // Aligned (0 ms) is the origin, so the fill grows out of the middle like the level slider.
+            style={{
+              '--fill-from': `${Math.min(50, 50 + (Math.round(normalizeBeatOffsetMs(practice.metronomeOffsetMs, practice.metronomeBpm)) / Math.round(30_000 / practice.metronomeBpm)) * 50)}%`,
+              '--fill-to': `${Math.max(50, 50 + (Math.round(normalizeBeatOffsetMs(practice.metronomeOffsetMs, practice.metronomeBpm)) / Math.round(30_000 / practice.metronomeBpm)) * 50)}%`
+            } as CSSProperties}
             onChange={(event) => saveBeatOffset(Number(event.target.value))}
           />
           <button aria-label="拍点延后 10 毫秒" onClick={() => saveBeatOffset(practice.metronomeOffsetMs + 10)}>+10</button>

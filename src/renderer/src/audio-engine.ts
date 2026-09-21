@@ -167,6 +167,7 @@ export class MultiTrackAudioEngine {
   private auxiliaryDelay: DelayNode | null = null
   private auxiliaryOutputSplitter: ChannelSplitterNode | null = null
   private outputMerger: ChannelMergerNode | null = null
+  private metronomeMerger: ChannelMergerNode | null = null
   private outputConnections: OutputConnection[] = []
   private outputRouteTransitionTimer: number | null = null
   private outputRouteGeneration = 0
@@ -643,6 +644,7 @@ export class MultiTrackAudioEngine {
     if (!context || !this.master || !this.compressor) return
     this.disconnectOutputRoutes()
     this.outputMerger?.disconnect()
+    this.metronomeMerger?.disconnect()
     this.master.disconnect()
     this.compressor.disconnect()
 
@@ -653,14 +655,18 @@ export class MultiTrackAudioEngine {
     this.routableOutputChannels = Number.isFinite(activeChannelCount) && activeChannelCount >= 2
       ? Math.max(2, Math.min(requestedChannelCount, Math.floor(activeChannelCount / 2) * 2))
       : 2
+    this.metronomeMerger = context.createChannelMerger(2)
     this.outputMerger = context.createChannelMerger(this.routableOutputChannels)
     this.master.channelInterpretation = 'discrete'
     this.outputMerger.connect(this.master)
     if (this.routableOutputChannels === 2) {
       this.master.connect(this.compressor).connect(context.destination)
+      // Keeps the 1-2 pair and the limiter, but skips the master gain.
+      this.metronomeMerger.connect(this.compressor)
     } else {
       // DynamicsCompressorNode is limited to stereo by the Web Audio spec.
       this.master.connect(context.destination)
+      this.metronomeMerger.connect(context.destination)
     }
     this.rebuildOutputRoutes()
   }
@@ -685,15 +691,15 @@ export class MultiTrackAudioEngine {
       }
     }
     if (this.auxiliaryOutputSplitter) {
-      this.connectOutputRoute(this.auxiliaryOutputSplitter, 0, 0)
-      this.connectOutputRoute(this.auxiliaryOutputSplitter, 1, 1)
+      this.connectOutputRoute(this.auxiliaryOutputSplitter, 0, 0, this.metronomeMerger)
+      this.connectOutputRoute(this.auxiliaryOutputSplitter, 1, 1, this.metronomeMerger)
     }
   }
 
-  private connectOutputRoute(source: AudioNode, output: number, input: number): void {
-    if (!this.outputMerger) return
-    source.connect(this.outputMerger, output, input)
-    this.outputConnections.push({ source, destination: this.outputMerger, output, input })
+  private connectOutputRoute(source: AudioNode, output: number, input: number, destination: AudioNode | null = this.outputMerger): void {
+    if (!destination) return
+    source.connect(destination, output, input)
+    this.outputConnections.push({ source, destination, output, input })
   }
 
   private disconnectOutputRoutes(): void {
@@ -778,8 +784,10 @@ export class MultiTrackAudioEngine {
     const gain = this.context.createGain()
     oscillator.type = 'sine'
     oscillator.frequency.setValueAtTime(accented ? 1560 : 1080, at)
+    // Own level only; exponential ramps cannot target 0.
+    const peak = Math.max(0.0001, (accented ? 0.28 : 0.18) * dbToGain(this.practice?.metronomeGainDb ?? 0))
     gain.gain.setValueAtTime(0.0001, at)
-    gain.gain.exponentialRampToValueAtTime(accented ? 0.28 : 0.18, at + 0.003)
+    gain.gain.exponentialRampToValueAtTime(peak, at + 0.003)
     gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.055)
     oscillator.connect(gain).connect(this.auxiliaryBus)
     oscillator.onended = () => {

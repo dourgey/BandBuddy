@@ -1,0 +1,2 @@
+# Model configuration hashes are byte-exact; preserve LF on Windows checkouts.
+python/guitar_separator_hq/configs/*.yaml text eol=lf
