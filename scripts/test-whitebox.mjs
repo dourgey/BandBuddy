@@ -41,15 +41,26 @@ try {
   const input=path.join(dir,'input.f32'),manifest=path.join(dir,'chain.json'),out=path.join(dir,'output.f32')
   await writeFile(input, new Uint8Array(source.buffer))
   const hash = createHash('sha256').update(new Uint8Array(source.buffer)).digest('hex')
-  for (const device of ['ts808','sd1','rat']) for (const oversampling of [2,4]) {
+  const variants = ['ts808','sd1','rat','microamp','distortion-plus','fuzzface'].flatMap(device => [2,4].map(oversampling => ({device,oversampling})))
+  for (const [index,mod] of ['phase90','optical-tremolo','chorus','flanger','wah','ota-compressor'].entries())
+    variants.push({device:'ts808',oversampling:4,classic:index,mod})
+  for (const variant of variants) {
+    const {device,oversampling}=variant
     const chain = {version:1, order:['drive','amp','eq','delay','reverb'],inputGainDb:0,outputGainDb:-6,
       drive:{enabled:true,device,revision:1,drive:.7,tone:.4,level:.8,inputVolts:1,oversampling},
       amp:{enabled:false,assetId:null,quality:'full'},cab:{enabled:true,assetId:null,gainDb:0,lowCut:40,highCut:16000},
       eq:{enabled:true,bands:[0,1,0,-2,1,0,0],gainDb:0},
       delay:{enabled:true,timeMs:10,feedback:.3,mix:.15,tone:6000,sync:false,division:'1/4',bpm:120},
       reverb:{enabled:true,decay:.4,preDelayMs:0,damping:.4,mix:.1}}
+    if(variant.classic!==undefined) {
+      chain.order=['drive','mod','amp','eq','delay','reverb']
+      chain.amp={...chain.amp,enabled:true,engine:'classic',classic:{device:variant.classic%2?'2203-pre':'ab763-pre',gain:.7,bass:.4,middle:.6,treble:.8,master:.8,inputVolts:1}}
+      chain.cab={...chain.cab,engine:'physical',physical:{device:['open112','open212','sealed412'][variant.classic%3],volumeLitres:100,distanceMetres:.5,micAngle:25}}
+      chain.mod={enabled:true,device:variant.mod,rateHz:1.7,depth:.8,mix:.6,feedback:.4,manual:.7}
+    }
     const prepared = {chain,model:null,modelRate:48000,ir:[[1,0,.1],[.8,0,-.1]],irRate:48000}
-    if (device === 'rat' && oversampling === 4) {
+    if ((device === 'rat' && oversampling === 4) || variant.classic===0) {
+      const latency=variant.classic===undefined?160:192
       // Exercise an actual native WAV export, including latency compensation and a 100 ms tail.
       const header=Buffer.alloc(44)
       header.write('RIFF');header.writeUInt32LE(36+source.byteLength,4);header.write('WAVEfmt ',8)
@@ -65,10 +76,10 @@ try {
       const wave=await readFile(wavOut);let data
       for(let p=12;p+8<=wave.length;) {const size=wave.readUInt32LE(p+4);if(wave.toString('ascii',p,p+4)==='data')data=wave.subarray(p+8,p+8+size);p+=8+size+(size%2)}
       if(!data || data.length!==(frames+4800)*8)throw new Error('Offline tail length incorrect')
-      const padding=new Float32Array((frames+4800+160)*2);padding.set(source)
+      const padding=new Float32Array((frames+4800+latency)*2);padding.set(source)
       const padded=path.join(dir,'padded.f32');await writeFile(padded,new Uint8Array(padding.buffer));await writeFile(manifest,JSON.stringify(prepared))
       run([manifest,padded,out,'128']);const raw=await readFile(out)
-      const compensated=raw.subarray(160*8)
+      const compensated=raw.subarray(latency*8)
       if(!data.equals(compensated))throw new Error('Offline DSP latency compensation differs from streaming')
       // A nonlinear pedal after the other modules must not render the same as before them.
       prepared.chain.order=['amp','eq','delay','reverb','drive']
@@ -92,7 +103,7 @@ try {
       if(error>1e-4) throw new Error(`${device}/${oversampling} native/WASM relative RMS ${error}`)
       const captured = new Uint8Array(m.HEAPF32.slice(inPtr/4,inPtr/4+source.length).buffer)
       if(createHash('sha256').update(captured).digest('hex')!==hash)throw new Error('Dry capture altered')
-      results.push({device,oversampling,relativeRms:error})
+      results.push({device,oversampling,classic:variant.classic,mod:variant.mod,relativeRms:error})
     } finally {m._bb_destroy(processor);m._free(inPtr);m._free(outPtr)}
   }
   console.log(JSON.stringify({passed:true,rate:48000,frames,results},null,2))

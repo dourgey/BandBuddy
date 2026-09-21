@@ -82,10 +82,10 @@ export class ArsenalService {
     if(refs.some(r=>r.includes(id))||this.state.active)throw new Error('资源正在被预设、录音或监听引用，不能删除')
     this.db.sqlite.prepare('DELETE FROM tone_assets WHERE id=?').run(id);await rm(this.file(asset),{force:true})
   }
-  private validateReferences(chain:EffectChainSnapshot):void {for(const [type,id] of [['nam',chain.amp.assetId],['ir',chain.cab.assetId]] as const)if(id&&this.asset(id).kind!==type)throw new Error('音色资源类型不匹配');if(chain.amp.enabled&&!chain.amp.assetId)throw new Error('请先选择 NAM 模型');if(chain.cab.enabled&&!chain.cab.assetId)throw new Error('请先选择箱体 IR')}
+  private validateReferences(chain:EffectChainSnapshot):void {for(const [type,id] of [['nam',chain.amp.assetId],['ir',chain.cab.assetId]] as const)if(id&&this.asset(id).kind!==type)throw new Error('音色资源类型不匹配');if(chain.amp.enabled&&chain.amp.engine==='nam'&&!chain.amp.assetId)throw new Error('请先选择 NAM 模型');if(chain.cab.enabled&&chain.cab.engine==='ir'&&!chain.cab.assetId)throw new Error('请先选择箱体 IR')}
   async prepare(input:EffectChainSnapshot):Promise<PreparedEffects> {
     const chain=effectChainSchema.parse(input);this.validateReferences(chain)
-    const model=chain.amp.assetId?this.asset(chain.amp.assetId):null,ir=chain.cab.assetId?this.asset(chain.cab.assetId):null
+    const model=chain.amp.engine==='nam'&&chain.amp.assetId?this.asset(chain.amp.assetId):null,ir=chain.cab.engine==='ir'&&chain.cab.assetId?this.asset(chain.cab.assetId):null
     return {chain,model:model?await readFile(this.file(model),'utf8'):null,modelRate:model?.sampleRate??48000,ir:ir?decodeIr(await readFile(this.file(ir))).channels:null,irRate:ir?.sampleRate??48000}
   }
   async setTrack(trackId:string,input:TrackEffects):Promise<void> {
@@ -112,7 +112,7 @@ export class ArsenalService {
   }
   async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0):Promise<string> {
     if(!effects?.enabled)return source
-    const prepared=await this.prepare(effects.chain),sourceHash=hash(await readFile(source)),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,'bb-dsp-2-whitebox-1-nam-0.5.4']))
+    const prepared=await this.prepare(effects.chain),sourceHash=hash(await readFile(source)),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,'bb-dsp-3-classic-1-nam-0.5.4']))
     const root=path.join(this.paths.cacheRoot,'arsenal');await mkdir(root,{recursive:true});const target=path.join(root,`${key}.wav`)
     try{await stat(target);return target}catch{}
     const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`

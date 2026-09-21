@@ -1,9 +1,10 @@
 #pragma once
 #include <array>
+#include "fuzz.h"
 
 namespace bb::whitebox {
 // Revision 1: documented reduced circuits, not measured replicas of a serial-numbered unit.
-enum class Device { TS808, SD1, RAT };
+enum class Device { TS808, SD1, RAT, MicroAmp, DistortionPlus, FuzzFace };
 struct Controls {
   bool enabled = false;
   Device device = Device::TS808;
@@ -27,7 +28,7 @@ struct Lowpass {
 struct DiodePort {
   double voltage = 0, residual = 0;
   unsigned fallbacks = 0;
-  double solve(double conductance, double current, unsigned negativeDiodes = 1);
+  double solve(double conductance, double current, unsigned negativeDiodes = 1, double saturation = 2.52e-9, double thermalVoltage = 1.752 * .02585);
 };
 
 class Drive {
@@ -47,7 +48,8 @@ class Drive {
   Lowpass inputCoupling, ground1, ground2, feedbackFilter, bandwidth, outputCoupling, ratFilter;
   Lowpass toneC1, toneC2, sdPost, finalCoupling;
   DiodePort feedback, shunt;
-  double feedbackHistory = 0, slew = 0;
+  FuzzCircuit fuzz;
+  double feedbackHistory = 0, slew = 0, shuntHistory = 0;
   double circuit(double input);
   double toneNetwork(double input);
 };

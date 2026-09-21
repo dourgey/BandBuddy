@@ -35,6 +35,11 @@ int main(int argc, char** argv) {
     std::ofstream result(argv[3],std::ios::binary);result.write(reinterpret_cast<const char*>(output.data()),output.size()*sizeof(float));
     std::cout<<"latency="<<processor.latency()<<"\n";return 0;
   }
+  for(unsigned sr:{16000u,48000u,192000u,768000u}) {
+    FuzzCircuit f;f.init(sr);double total=0;
+    for(unsigned n=0;n<20000;++n){const double y=f.tick(20*std::sin(n*.1),n%512<256?0:1);total+=y*y;check(std::isfinite(y)&&std::abs(y)<10,"Fuzz unbounded output");}
+    check(f.failedSteps()==0&&f.residual()<1e-8&&total>0,"Fuzz coupled-transistor solver failed");
+  }
   // Independent KCL residual over nominal dynamic port currents, including abrupt reversals.
   for(unsigned count:{1u,2u}) {
     DiodePort port;
@@ -65,9 +70,9 @@ int main(int argc, char** argv) {
     Controls c;c.oversampling=factor;Drive bypass(48000,c);
     std::vector<float> input(2000);for(size_t i=0;i<input.size();++i)input[i]=float(std::sin(i*.12));
     for(size_t i=0;i<input.size();++i)check(bypass.tick(input[i])==(i<32?0:input[i-32]),"Bypass must be an exact delayed dry sample");
-    for(auto device:{Device::TS808,Device::SD1,Device::RAT}) for(unsigned sr:{44100u,48000u,96000u,192000u}) render(device,sr,factor);
+    for(auto device:{Device::TS808,Device::SD1,Device::RAT,Device::MicroAmp,Device::DistortionPlus,Device::FuzzFace}) for(unsigned sr:{44100u,48000u,96000u,192000u}) render(device,sr,factor);
   }
-  for(auto device:{Device::TS808,Device::SD1,Device::RAT}) {
+  for(auto device:{Device::TS808,Device::SD1,Device::RAT,Device::MicroAmp,Device::DistortionPlus,Device::FuzzFace}) {
     Controls c;c.enabled=true;c.device=device;Drive changing(48000,c);
     for(unsigned n=0;n<48000;++n) {
       if(n%128==0) {c.drive=(n%256)?0:1;c.tone=1-c.drive;c.level=c.drive;c.inputVolts=c.drive?10:.1;changing.update(c);}

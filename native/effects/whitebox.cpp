@@ -6,10 +6,8 @@
 namespace bb::whitebox {
 namespace {
 constexpr double pi = 3.14159265358979323846;
-constexpr double saturationCurrent = 2.52e-9;
-constexpr double nVt = 1.752 * .02585; // nominal silicon diode, 25 C; not a fitted device
 struct Evaluation { double residual, derivative; };
-Evaluation evaluate(double v, double g, double current, unsigned negative) {
+Evaluation evaluate(double v, double g, double current, unsigned negative, double saturationCurrent, double nVt) {
   const double p = std::exp(v / nVt), n = std::exp(-v / (nVt * negative));
   return {g * v + saturationCurrent * (p - n) - current,
           g + saturationCurrent / nVt * (p + n / negative)};
@@ -17,11 +15,11 @@ Evaluation evaluate(double v, double g, double current, unsigned negative) {
 double pot(double x) { return (std::pow(10., 2 * x) - 1) / 99; }
 }
 
-double DiodePort::solve(double g, double current, unsigned negative) {
+double DiodePort::solve(double g, double current, unsigned negative, double saturation, double thermalVoltage) {
   // At the allowed signal levels, the root is always inside +/-4 V.
   double lo = -4, hi = 4, v = std::clamp(voltage, lo, hi);
   for (unsigned k = 0; k < 12; ++k) {
-    const auto e = evaluate(v, g, current, negative);
+    const auto e = evaluate(v, g, current, negative, saturation, thermalVoltage);
     if (std::abs(e.residual) < 1e-11) { residual = e.residual; return voltage = v; }
     if (e.residual > 0) hi = v; else lo = v;
     const double next = v - e.residual / e.derivative;
@@ -30,9 +28,9 @@ double DiodePort::solve(double g, double current, unsigned negative) {
   ++fallbacks;
   for (unsigned k = 0; k < 32; ++k) {
     v = (lo + hi) * .5;
-    if (evaluate(v, g, current, negative).residual > 0) hi = v; else lo = v;
+    if (evaluate(v, g, current, negative, saturation, thermalVoltage).residual > 0) hi = v; else lo = v;
   }
-  residual = evaluate(v, g, current, negative).residual;
+  residual = evaluate(v, g, current, negative, saturation, thermalVoltage).residual;
   return voltage = v;
 }
 
@@ -52,6 +50,7 @@ Drive::Drive(unsigned sr, const Controls& c)
     sum += kernel[k];
   }
   for (auto& k : kernel) k /= sum;
+  if(c.device==Device::FuzzFace)fuzz.init(rate,c.drive);
 }
 
 void Drive::update(const Controls& c) {
@@ -85,6 +84,29 @@ double Drive::toneNetwork(double input) {
 }
 
 double Drive::circuit(double input) {
+  if(target.device==Device::FuzzFace)return fuzz.tick(input,drive)*pot(level);
+  if(target.device==Device::MicroAmp||target.device==Device::DistortionPlus) {
+    const bool boost=target.device==Device::MicroAmp;
+    const double u=input-inputCoupling.tick(input,1/(2*rate*(boost?10e6*.1e-6:676000*10e-9)));
+    const double rg=(boost?2700:4700)+(boost?500000:1e6)*pot(1-drive),rf=boost?56000:1e6;
+    const double i=(u-ground1.tick(u,1/(2*rate*rg*(boost?4.7e-6:47e-9))))/rg;
+    double amplified=u+(boost?feedbackFilter.tick(rf*i,1/(2*rate*rf*47e-12)):rf*i);
+    const double bw=1e6/(1+rf/rg);
+    amplified=bandwidth.tick(amplified,std::tan(pi*std::min(rate*.4,bw)/rate));
+    const double slewPerSample=(boost?3.5e6:500000)/rate;
+    slew+=std::clamp(std::clamp(amplified,-4.,4.)-slew,-slewPerSample,slewPerSample);
+    double output;
+    if(boost) {
+      output=(slew-outputCoupling.tick(slew,1/(2*rate*10470*15e-6)))*(10000./10470);
+    } else {
+      const double gc=2*rate*1e-6,eqR=10000+1/gc,clipG=2*rate*1e-9;
+      // Nominal germanium Shockley port, with coupling and shunt capacitance solved together.
+      output=shunt.solve(1/eqR+1/10000.+clipG,(slew-outputCoupling.state)/eqR+clipG*shuntHistory,1,50e-9,1.5*.02585);
+      const double capV=outputCoupling.state+(slew-output-outputCoupling.state)/(eqR*gc);
+      outputCoupling.state=2*capV-outputCoupling.state;shuntHistory=2*output-shuntHistory;
+    }
+    return output*pot(level); // Micro Amp Level is explicitly a software trim, not a hardware knob.
+  }
   const bool rat = target.device == Device::RAT;
   // Buffered source after the ADC: these filters do not claim to restore pickup loading.
   const double u = input - inputCoupling.tick(input, 1 / (2 * rate * (rat ? 1e6 * 22e-9 : 510e3 * 20e-9)));

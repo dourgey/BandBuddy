@@ -12,11 +12,11 @@ export function WhiteboxControls({ value, onChange }: {
         {WHITEBOX_DEVICES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
       </select></label>
       <p>{device.description}</p>
-      <small>电路削波核心 + 简化运放与音调网络；尚未通过实机对照校准。</small>
+      <small>{value.device === 'fuzzface' ? '双晶体管电路；不含锗管漏电、击穿和电池内阻；尚未通过实机校准。' : '电路削波核心 + 简化运放与音调网络；尚未通过实机对照校准。'}</small>
     </div>
     <div className="whitebox-parameters">
-      {(['drive', 'tone', 'level'] as const).map(key => {
-        const label = key === 'drive' ? (value.device === 'rat' ? 'Distortion' : 'Drive') : key === 'tone' ? (value.device === 'rat' ? 'Filter · 越大越暗' : 'Tone') : 'Level'
+      {(['drive', 'tone', 'level'] as const).filter(key => key !== 'tone' || !['microamp', 'distortion-plus', 'fuzzface'].includes(value.device)).map(key => {
+        const label = key === 'drive' ? (value.device === 'fuzzface' ? 'Fuzz' : value.device === 'microamp' ? 'Boost' : ['rat', 'distortion-plus'].includes(value.device) ? 'Distortion' : 'Drive') : key === 'tone' ? (value.device === 'rat' ? 'Filter · 越大越暗' : 'Tone') : value.device === 'microamp' ? '软件电平' : 'Level'
         return <label key={key} className="whitebox-parameter"><span>{label}</span>
           <input aria-label={label} type="range" min={0} max={100} step={1} value={Math.round(value[key] * 100)} onChange={e => patch({ [key]: Number(e.target.value) / 100 })} />
           <input aria-label={`${label} 数值`} type="number" min={0} max={100} step={1} value={Math.round(value[key] * 100)} onChange={e => { const v = e.target.valueAsNumber; if (Number.isFinite(v)) patch({ [key]: Math.min(100, Math.max(0, v)) / 100 }) }} />

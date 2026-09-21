@@ -6,7 +6,7 @@ describe('whitebox snapshots', () => {
     const { drive: _, ...legacy } = defaultEffectChain()
     legacy.order = ['delay', 'amp', 'reverb', 'eq']
     const upgraded = effectChainSchema.parse(legacy)
-    expect(upgraded.order).toEqual(['drive', ...legacy.order])
+    expect(upgraded.order).toEqual(['drive', 'mod', ...legacy.order])
     expect(upgraded.drive.enabled).toBe(false)
     expect(effectChainSchema.parse(upgraded)).toEqual(upgraded)
   })
