@@ -582,11 +582,11 @@ export class RehearsalRecordingService {
         : []
     })
     const hasSolo = song.practice.tracks.some((track) =>
-      isStemVisible(track.stemType, song.practice.guitarSplitEnabled) && track.solo && !track.muted
+      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && track.solo && !track.muted
     )
       || activeRecordings.some(({ track }) => track.solo && !track.muted)
     const audibleStems = song.practice.tracks
-      .filter((track) => isStemVisible(track.stemType, song.practice.guitarSplitEnabled) && !track.muted && (!hasSolo || track.solo))
+      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
       .map((state) => ({ state, file: files.find((file) => file.type === state.stemType) }))
       .filter((entry): entry is { state: TrackState; file: NonNullable<typeof entry.file> } => Boolean(entry.file))
     const audibleRecordings = activeRecordings

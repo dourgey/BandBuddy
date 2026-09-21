@@ -66,6 +66,43 @@ describe('library dialogs', () => {
     expect((screen.getByRole('button', { name: '导入并处理' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('imports existing stems with preset and custom names and confirms padding without a runtime prompt', async () => {
+    vi.spyOn(window.bandbuddy.library, 'chooseStems').mockResolvedValue([
+      { path: '/music/vocals.wav', name: 'vocals.wav', inferredTitle: 'vocals' },
+      { path: '/music/guitar.wav', name: 'guitar.wav', inferredTitle: 'guitar' }
+    ])
+    const imported = vi.spyOn(window.bandbuddy.library, 'importStems')
+      .mockResolvedValueOnce({ songId: null, jobId: null, duplicate: null, needsPadding: true, durationDifferenceMs: 1200 })
+      .mockResolvedValueOnce({ songId: 'new-song', jobId: 'job', duplicate: null })
+    const onImported = vi.fn(); const onNeedsRuntime = vi.fn()
+    render(<ImportDialog open onOpenChange={vi.fn()} onImported={onImported} onOpenDuplicate={vi.fn()} onNeedsRuntime={onNeedsRuntime} />)
+    fireEvent.click(screen.getByRole('button', { name: '已分轨数据' }))
+    fireEvent.click(screen.getByRole('button', { name: '选择分轨文件' }))
+    await screen.findByLabelText('轨道 1 名称')
+    fireEvent.change(screen.getByLabelText('轨道 1 预设名称'), { target: { value: 'piano' } })
+    expect((screen.getByLabelText('轨道 1 名称') as HTMLInputElement).value).toBe('钢琴')
+    fireEvent.change(screen.getByLabelText('轨道 2 名称'), { target: { value: '我的节奏吉他' } })
+    fireEvent.click(screen.getByRole('button', { name: '导入并处理' }))
+    await screen.findByRole('button', { name: '补静音并导入' })
+    expect(onImported).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '补静音并导入' }))
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith('new-song'))
+    expect(imported).toHaveBeenLastCalledWith(expect.objectContaining({ files: [
+      expect.objectContaining({ name: '钢琴' }), expect.objectContaining({ name: '我的节奏吉他' })
+    ], padMismatched: true }))
+    expect(onNeedsRuntime).not.toHaveBeenCalled()
+  })
+
+  it('starts LAN mode immediately and displays the actual fallback port', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    const enabled = vi.spyOn(window.bandbuddy.lan, 'setEnabled').mockResolvedValue({ enabled: true, port: 60233, urls: ['http://192.168.1.20:60233/s/session/'], error: null })
+    render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: /开启局域网练琴与同步/ }))
+    await waitFor(() => expect(enabled).toHaveBeenCalledWith(true))
+    expect((await screen.findByLabelText('局域网访问地址') as HTMLInputElement).value).toBe('http://192.168.1.20:60233/s/session/')
+  })
+
   it('saves desktop lyric font size', async () => {
     const settings = await window.bandbuddy.settings.get()
     const runtime = await window.bandbuddy.runtime.get()

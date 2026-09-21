@@ -47,6 +47,19 @@ describe('practice track button rules', () => {
     usePlayerStore.getState().unload()
   })
 
+  it('keeps imported guitar tracks independently selectable and soloable', () => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    song.sourceFormat = 'existing-stems'
+    song.practice.selectedStem = 'lead_guitar'
+    usePlayerStore.getState().loadSong(song)
+    usePlayerStore.getState().patchPractice({ loopStartMs: 1000 })
+    expect(usePlayerStore.getState().selectedStem).toBe('lead_guitar')
+    usePlayerStore.getState().patchTrack('lead_guitar', { solo: true })
+    usePlayerStore.getState().patchTrack('guitar', { solo: true })
+    expect(usePlayerStore.getState().practice!.tracks.filter((track) => track.solo).map((track) => track.stemType)).toEqual(['guitar'])
+    usePlayerStore.getState().unload()
+  })
+
   it('uses the editable song BPM as the metronome value when loading a song', () => {
     const song = fixtureDetail(fixtureSongs[1]!)
     song.practice.metronomeBpm = 120

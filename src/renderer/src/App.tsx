@@ -476,7 +476,7 @@ export default function App(): React.JSX.Element {
       setSelectedStem(nextSelected)
       return
     }
-    if (!state.song.sourceFormat) {
+    if (!state.song.sourceFormat || state.song.sourceFormat === 'existing-stems') {
       setToast('这首歌没有原始音频，无法生成吉他细分轨；现有音轨仍可继续播放和导出')
       return
     }
@@ -680,7 +680,7 @@ function useKeyboardShortcuts({
       const selected = practice.tracks.find((track) => track.stemType === selectedStem)
       const stemOrder = normalizeTrackOrder(practice.trackOrder, song.recordingTracks.map((track) => track.id))
         .map(getStemTypeFromTrackOrderKey)
-        .filter((stemType): stemType is StemType => stemType !== null && isStemVisible(stemType, practice.guitarSplitEnabled))
+        .filter((stemType): stemType is StemType => stemType !== null && (song.sourceFormat === 'existing-stems' ? song.stems.some((stem) => stem.type === stemType) : isStemVisible(stemType, practice.guitarSplitEnabled)))
       const index = stemOrder.indexOf(selectedStem)
       if (event.code === 'Space') { event.preventDefault(); void togglePlayback() }
       else if (event.key === 'Home') { event.preventDefault(); restartPlayback() }

@@ -9,6 +9,7 @@ import {
   desktopLyricsPayloadSchema,
   exportRequestSchema,
   importSourceSchema,
+  importStemsSchema,
   listSongsSchema,
   practiceStateSchema,
   rehearsalDuplicateSchema,
@@ -31,11 +32,13 @@ import type { RecordingService } from './recording.js'
 import type { DesktopLyricsWindow } from './desktop-lyrics.js'
 import type { RehearsalService } from './rehearsals.js'
 import type { RehearsalRecordingService } from './rehearsal-recording.js'
+import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
   getWindow: () => BrowserWindow | null
   database: BandBuddyDatabase
+  lan: LanService
   imports: ImportService
   jobs: JobScheduler
   runtime: RuntimeManager
@@ -74,6 +77,10 @@ export function registerIpc(services: IpcServices): void {
     return services.database.listSongs(parsed.query, parsed.filter)
   })
   handle(IPC.libraryGet, (_event, input) => services.database.getSong(uuidSchema.parse(input)))
+  handle(IPC.lanStatus, () => services.lan.status())
+  handle(IPC.lanSetEnabled, (_event, input) => services.lan.setEnabled(z.boolean().parse(input)))
+  handle(IPC.libraryChooseStems, (_event, input) => services.imports.chooseStems(z.enum(['files', 'folder']).default('files').parse(input)))
+  handle(IPC.libraryImportStems, (_event, input) => services.imports.importStems(importStemsSchema.parse(input)))
   handle(IPC.libraryChooseSource, () => services.imports.chooseSource())
   handle(IPC.libraryImportSource, (_event, input) => services.imports.importSource(importSourceSchema.parse(input)))
   handle(IPC.libraryImportLyrics, (_event, input) => services.imports.importLyrics(uuidSchema.parse(input)))
@@ -160,6 +167,8 @@ export function registerIpc(services: IpcServices): void {
   })
 
   handle(IPC.mediaCapabilities, () => services.media.capabilities())
+  handle(IPC.mediaPrepareOutputDevice, (_event, input) =>
+    services.recording.prepareOutputDevice(z.string().min(1).max(500).nullable().parse(input)))
   handle(IPC.mediaDetectBpm, (_event, input) => services.media.detectBpm(uuidSchema.parse(input)))
   handle(IPC.mediaDetectKey, async (_event, input) => {
     const result = await services.media.detectKey(uuidSchema.parse(input))

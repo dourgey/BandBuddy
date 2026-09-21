@@ -5,12 +5,13 @@ export function patchTrackStates(
   tracks: readonly TrackState[],
   stemType: StemType,
   patch: Partial<TrackState>,
-  guitarSplitEnabled = false
+  guitarSplitEnabled = false,
+  importedStems = false
 ): TrackState[] {
   const enablesSolo = patch.solo === true
   return tracks.map((track) => {
     if (track.stemType !== stemType) {
-      return enablesSolo && track.solo && isStemVisible(track.stemType, guitarSplitEnabled)
+      return enablesSolo && track.solo && (importedStems || isStemVisible(track.stemType, guitarSplitEnabled))
         ? { ...track, solo: false }
         : track
     }
@@ -45,7 +46,9 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   selectedStem: 'vocals',
   loadSong: (song) => set(() => {
     const guitarSplitEnabled = song.practice.guitarSplitEnabled ?? false
-    const selectedStem = normalizeSelectedStemForGuitarMode(
+    const selectedStem = song.sourceFormat === 'existing-stems'
+      ? song.practice.selectedStem ?? song.stems[0]?.type ?? 'vocals'
+      : normalizeSelectedStemForGuitarMode(
       song.practice.selectedStem ?? 'vocals',
       guitarSplitEnabled
     ) ?? 'vocals'
@@ -75,7 +78,9 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   patchPractice: (patch) => set((state) => {
     if (!state.practice) return state
     const guitarSplitEnabled = patch.guitarSplitEnabled ?? state.practice.guitarSplitEnabled
-    const selectedStem = normalizeSelectedStemForGuitarMode(
+    const selectedStem = state.song?.sourceFormat === 'existing-stems'
+      ? patch.selectedStem ?? state.selectedStem
+      : normalizeSelectedStemForGuitarMode(
       patch.selectedStem ?? state.selectedStem,
       guitarSplitEnabled
     ) ?? 'vocals'
@@ -93,7 +98,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   patchTrack: (stemType, patch) => set((state) => state.practice ? {
     practice: {
       ...state.practice,
-      tracks: patchTrackStates(state.practice.tracks, stemType, patch, state.practice.guitarSplitEnabled)
+      tracks: patchTrackStates(state.practice.tracks, stemType, patch, state.practice.guitarSplitEnabled, state.song?.sourceFormat === 'existing-stems')
     }
   } : state),
   setSelectedStem: (selectedStem) => set((state) => ({

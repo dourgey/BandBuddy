@@ -75,6 +75,7 @@ interface SongRow {
 }
 
 interface StemRow {
+  name: string | null
   id: string
   song_id: string
   separation_id: string
@@ -259,6 +260,7 @@ export interface CreateSongInput {
 }
 
 export interface StoredStemInput {
+  name?: string | null
   id?: string
   type: StemType
   relPath: string
@@ -521,7 +523,8 @@ export const DATABASE_MIGRATIONS = [
   `,
   `
     ALTER TABLE songs ADD COLUMN video_rel_path TEXT;
-  `
+  `,
+  `ALTER TABLE stems ADD COLUMN name TEXT;`
 ]
 
 function parseKeyAnalysis(value: string | null): MusicalKeyAnalysis | null {
@@ -719,7 +722,9 @@ export class BandBuddyDatabase {
       ...(row.bpm === null ? {} : { metronomeBpm: row.bpm }),
       metronomeOffsetMs: row.beat_offset_ms,
       guitarSplitEnabled,
-      selectedStem: normalizeSelectedStemForGuitarMode(savedPractice.selectedStem ?? defaults.selectedStem, guitarSplitEnabled),
+      selectedStem: row.source_format === 'existing-stems'
+        ? savedPractice.selectedStem ?? stems[0]?.type ?? defaults.selectedStem
+        : normalizeSelectedStemForGuitarMode(savedPractice.selectedStem ?? defaults.selectedStem, guitarSplitEnabled),
       tracks: normalizeTrackStates(savedPractice.tracks),
       trackOrder: normalizeTrackOrder(savedPractice.trackOrder, recordingTracks.map((track) => track.id))
     }
@@ -731,7 +736,7 @@ export class BandBuddyDatabase {
       musicalKeySource: row.musical_key_source,
       keyAnalysis: parseKeyAnalysis(row.key_analysis_json),
       timeSignature: row.time_signature,
-      sourceFormat: row.source_rel_path ? row.source_format : null,
+      sourceFormat: row.source_rel_path || row.source_format === 'existing-stems' ? row.source_format : null,
       videoUrl: row.video_rel_path ? `bandbuddy-media://song/${row.id}/video` : null,
       sampleRate: row.sample_rate,
       channels: row.channels,
@@ -749,7 +754,7 @@ export class BandBuddyDatabase {
 
   private songRowToSummary = (row: SongRow): SongSummary => {
     const stemRows = row.active_separation_id
-      ? this.sqlite.prepare('SELECT type FROM stems WHERE separation_id = ?').all(row.active_separation_id) as Array<{ type: StemType }>
+      ? this.sqlite.prepare('SELECT type, name FROM stems WHERE separation_id = ?').all(row.active_separation_id) as Array<{ type: StemType; name: string | null }>
       : []
     return {
       id: row.id,
@@ -762,6 +767,7 @@ export class BandBuddyDatabase {
       progress: row.progress,
       phase: row.phase,
       stemTypes: stemRows.map((stem) => stem.type),
+      stemNames: Object.fromEntries(stemRows.filter((stem) => stem.name).map((stem) => [stem.type, stem.name!])),
       guitarSplitStatus: this.guitarSplitStatus(row.id, stemRows.map((stem) => stem.type)),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -785,6 +791,7 @@ export class BandBuddyDatabase {
     id: row.id,
     songId: row.song_id,
     separationId: row.separation_id,
+    name: row.name,
     type: row.type,
     durationMs: row.duration_ms,
     sampleRate: row.sample_rate,
@@ -987,11 +994,11 @@ export class BandBuddyDatabase {
         VALUES (?, ?, 'bandbuddy-stems', ?, ?, 'completed', ?, ?)
       `).run(separationId, songId, modelRevision, device, now, now)
       const insert = this.sqlite.prepare(`
-        INSERT INTO stems(id, song_id, separation_id, type, rel_path, peaks_rel_path, duration_ms, sample_rate, channels)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO stems(id, song_id, separation_id, type, rel_path, peaks_rel_path, duration_ms, sample_rate, channels, name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       for (const stem of stems) {
-        insert.run(stem.id ?? randomUUID(), songId, separationId, stem.type, stem.relPath, stem.peaksRelPath, stem.durationMs, stem.sampleRate, stem.channels)
+        insert.run(stem.id ?? randomUUID(), songId, separationId, stem.type, stem.relPath, stem.peaksRelPath, stem.durationMs, stem.sampleRate, stem.channels, stem.name ?? null)
       }
       this.sqlite.prepare(`
         UPDATE songs SET active_separation_id = ?, status = 'ready', progress = 1,

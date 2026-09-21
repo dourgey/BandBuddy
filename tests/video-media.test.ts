@@ -261,7 +261,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     const song = database.getSong(imported.songId!)!
     expect(song.stems).toHaveLength(9)
     expect(song.guitarSplitStatus).toBe('ready')
-    expect(guitarCompleted).toHaveBeenCalledWith(song.id)
+    await vi.waitFor(() => expect(guitarCompleted).toHaveBeenCalledWith(song.id))
     expect(song.stems.every((stem) => stem.peaksUrl !== null)).toBe(true)
     for (const stem of song.stems) {
       const asset = database.getStemAsset(song.id, stem.id)
@@ -404,6 +404,29 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     expect(preserved.guitarSplitStatus).toBe('failed')
     expect(preserved.stems.map((stem) => stem.type).sort()).toEqual([...LEGACY_STEM_ORDER].sort())
     expect(preserved.practice.guitarSplitEnabled).toBe(false)
+  })
+
+  it('normalizes imported stems without a model and persists custom names through the database', async () => {
+    const first = path.join(root, 'import-lead.wav')
+    const second = path.join(root, 'import-vocals.wav')
+    for (const [file, duration] of [[first, '1.0'], [second, '1.8']] as const) {
+      const result = await runProcess(media.tool('ffmpeg')!, ['-y', '-v', 'error', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${duration}`, file])
+      expect(result.code, result.stderr).toBe(0)
+    }
+    const runtime = { onChange: vi.fn(), getInfo: () => ({ status: 'missing' }) }
+    const imports = new ImportService(paths, database, media, runtime as never, logger as never, () => undefined, () => undefined)
+    const options = { files: [{ path: first, type: 'lead_guitar' as const, name: '左吉他' }, { path: second, type: 'vocals' as const, name: '主唱' }], title: '自定义分轨测试' }
+    expect(await imports.importStems(options)).toMatchObject({ needsPadding: true })
+    const imported = await imports.importStems({ ...options, padMismatched: true })
+    const scheduler = new JobScheduler(paths, database, runtime as never, media, logger as never, () => undefined, () => undefined)
+    scheduler.kick()
+    await vi.waitFor(() => expect(database.getJob(imported.jobId!)?.status).toBe('completed'), { timeout: 10_000, interval: 25 })
+    const song = database.getSong(imported.songId!)!
+    expect(song.sourceFormat).toBe('existing-stems')
+    expect(song.status).toBe('ready')
+    expect(song.stems.map((stem) => stem.name)).toEqual(['左吉他', '主唱'])
+    expect(song.stems.every((stem) => Math.abs(stem.durationMs - 1800) < 10)).toBe(true)
+    expect(database.getSongRow(song.id)?.source_rel_path).toBeNull()
   })
 
   it('does not offer guitar reprocessing when a historical song has no source audio', () => {

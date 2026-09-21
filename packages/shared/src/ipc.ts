@@ -41,6 +41,17 @@ export const importSourceSchema = z.object({
   forceDuplicate: z.boolean().optional()
 })
 
+export const importStemsSchema = z.object({
+  files: z.array(z.object({
+    path: z.string().min(1),
+    type: stemTypeSchema,
+    name: z.string().trim().min(1).max(80)
+  })).min(2).max(STEM_ORDER.length),
+  title: z.string().trim().max(200).optional(),
+  artist: z.string().trim().max(200).optional(),
+  padMismatched: z.boolean().optional()
+}).refine((value) => new Set(value.files.map((file) => file.type)).size === value.files.length, '每个轨道类型只能导入一次')
+
 export const updateSongSchema = z.object({
   id: z.string().uuid(),
   patch: z.object({

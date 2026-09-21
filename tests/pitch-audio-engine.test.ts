@@ -30,6 +30,7 @@ class FakeAudioParam {
 
 class FakeAudioNode {
   channelCount = 2
+  channelCountMode: ChannelCountMode = 'max'
   channelInterpretation: ChannelInterpretation = 'speakers'
   readonly connections: Array<{ destination: unknown; output: number; input: number }> = []
   connect(destination: unknown, output = 0, input = 0): unknown {
@@ -144,6 +145,12 @@ describe('Signalsmith realtime pitch graph', () => {
     const outputMerger = context.mergers.at(-1)!
     const bypassDelay = context.delays[1]!
     const auxiliaryDelay = context.delays[2]!
+    for (const source of context.sources) {
+      expect(source.connections[0]!.destination).toMatchObject({
+        channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers'
+      })
+    }
+    expect(context.gains[4]).toMatchObject({ channelCount: 2, channelCountMode: 'explicit' })
     expect(stretchMock.create).toHaveBeenCalledTimes(1)
     expect((stretchMock.create as typeof stretchMock.create & { moduleUrl?: string }).moduleUrl)
       .toMatch(/SignalsmithStretch\.mjs$/)

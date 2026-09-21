@@ -676,3 +676,12 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
 
 .drop-zone.is-dragging { border-color: var(--accent, #b88936); background: rgba(184, 137, 54, .12); }
 .drop-zone[aria-disabled="true"] { cursor: wait; opacity: .65; }
+
+/* Imported stems and LAN settings reuse the app's paper palette. */
+.stem-import { max-height: 330px; overflow-y: auto; padding: 4px; }
+.stem-import p, .lan-addresses p, .lan-addresses small { color: var(--muted); line-height: 1.7; }
+.stem-import-row { display: grid; grid-template-columns: minmax(100px,1fr) 110px minmax(100px,1fr); gap: 10px; align-items: center; margin: 10px 0; }
+.stem-import-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-addresses > div { display: flex; gap: 8px; margin: 10px 0; }
+.lan-addresses input { min-width: 0; flex: 1; font-size: 12px; }
+.track-identity b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

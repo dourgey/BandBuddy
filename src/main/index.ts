@@ -13,6 +13,7 @@ import { IPC } from '@shared/channels.js'
 import { APP_ICON_DATA_URL } from './app-icon.js'
 import { BandBuddyDatabase } from './database.js'
 import { ExportService } from './exporter.js'
+import { LanService } from './lan.js'
 import { ImportService } from './imports.js'
 import { registerIpc } from './ipc.js'
 import { JobScheduler } from './jobs.js'
@@ -39,6 +40,8 @@ const developmentTestRoot = smokeMode || !app.isPackaged ? process.env.BANDBUDDY
 app.setPath('userData', developmentTestRoot ? join(developmentTestRoot, 'appdata') : join(app.getPath('appData'), 'BandBuddy'))
 if (process.platform === 'win32') app.setAppUserModelId('com.bandbuddy.desktop')
 
+let lan: LanService | null = null
+let stoppingLanForQuit = false
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url))
 const rendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/index.html')).href
 const lyricsRendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/lyrics.html')).href
@@ -258,7 +261,9 @@ else {
       emitRehearsals
     )
 
+    lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     registerIpc({
+      lan,
       getWindow: () => mainWindow,
       database,
       imports,
@@ -312,11 +317,21 @@ app.on('before-quit', (event) => {
     })
     return
   }
+  if (lan?.status().enabled) {
+    event.preventDefault()
+    if (!stoppingLanForQuit) {
+      stoppingLanForQuit = true
+      void lan.setEnabled(false).finally(() => app.quit())
+    }
+    return
+  }
   quitting = true
   scheduler?.interruptForExit()
 })
 
 app.on('will-quit', () => {
+  void lan?.stop()
+  lan = null
   void rehearsalRecording?.shutdown(false)
   rehearsalRecording = null
   void recording?.shutdown(false)

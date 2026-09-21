@@ -183,6 +183,10 @@ export class RecordingService {
     return await this.host.devices()
   }
 
+  async prepareOutputDevice(deviceName: string | null): Promise<boolean> {
+    return await this.host.prepareOutputDevice(deviceName)
+  }
+
   async startTest(): Promise<void> {
     if (this.isActive()) throw new Error('RECORDING_SESSION_BUSY')
     this.startingTest = true
@@ -513,11 +517,11 @@ export class RecordingService {
       return take ? [{ track, take }] : []
     })
     const hasSolo = request.practice.tracks.some((track) =>
-      isStemVisible(track.stemType, request.practice.guitarSplitEnabled) && track.solo && !track.muted
+      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled)) && track.solo && !track.muted
     )
       || activeRecordings.some(({ track }) => track.solo && !track.muted)
     const audibleStems = request.practice.tracks
-      .filter((track) => isStemVisible(track.stemType, request.practice.guitarSplitEnabled) && !track.muted && (!hasSolo || track.solo))
+      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
       .map((state) => ({ state, file: files.find((file) => file.type === state.stemType) }))
       .filter((entry): entry is { state: TrackState; file: NonNullable<typeof entry.file> } => Boolean(entry.file))
     const settings = this.database.getSettings()

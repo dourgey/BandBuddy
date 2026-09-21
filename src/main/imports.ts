@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync } from 'node:fs'
-import { copyFile, readFile, stat } from 'node:fs/promises'
+import { copyFile, readFile, stat, rm, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { dialog, shell } from 'electron'
 import {
@@ -8,6 +8,7 @@ import {
   normalizeSelectedStemForGuitarMode,
   stemStorageFormat,
   type ImportResult,
+  type ImportStemsOptions,
   type ImportSourceOptions,
   type SongDetail,
   type SourceChoice
@@ -68,6 +69,68 @@ export class ImportService {
     const filePath = result.filePaths[0]
     if (result.canceled || !filePath) return null
     return { path: filePath, name: path.basename(filePath), inferredTitle: path.basename(filePath, path.extname(filePath)) }
+  }
+
+  async chooseStems(mode: 'files' | 'folder' = 'files'): Promise<SourceChoice[]> {
+    const result = await dialog.showOpenDialog({
+      title: mode === 'folder' ? '选择已分轨文件夹' : '选择已分轨音频',
+      properties: mode === 'folder' ? ['openDirectory'] : ['openFile', 'multiSelections'],
+      filters: [{ name: '音频文件', extensions: [...AUDIO_EXTENSIONS].map((ext) => ext.slice(1)) }]
+    })
+    if (result.canceled) return []
+    let files = result.filePaths
+    if (mode === 'folder') {
+      const folder = files[0]
+      if (!folder) return []
+      files = (await readdir(folder, { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+        .map((entry) => path.join(folder, entry.name))
+      if (!files.length) throw new Error('文件夹中没有支持的音轨文件')
+    }
+    return files.map((file) => ({
+      path: file, name: path.basename(file), inferredTitle: path.basename(file, path.extname(file))
+    }))
+  }
+
+  async importStems(options: ImportStemsOptions): Promise<ImportResult> {
+    if (!this.media.toolsReady()) throw new Error('FFMPEG_MISSING')
+    for (const file of options.files) await this.validateAudioFile(file.path, AUDIO_EXTENSIONS)
+    const probes = await Promise.all(options.files.map((file) => this.media.probe(file.path)))
+    if (probes.some((probe) => !Number.isFinite(probe.durationMs) || probe.durationMs <= 0)) throw new Error('无效的音轨时长')
+    const durationMs = Math.max(...probes.map((probe) => probe.durationMs))
+    const difference = durationMs - Math.min(...probes.map((probe) => probe.durationMs))
+    if (difference > 500 && !options.padMismatched) {
+      return { ...this.emptyResult(), needsPadding: true, durationDifferenceMs: difference }
+    }
+    const songId = randomUUID()
+    const settings = this.database.getSettings()
+    const songRoot = this.paths.songDirectory(settings.libraryRoot, songId)
+    const rawRoot = path.join(songRoot, 'source-stems')
+    mkdirSync(rawRoot, { recursive: true })
+    try {
+      const files = []
+      for (const file of options.files) {
+        const destination = path.join(rawRoot, `${file.type}${path.extname(file.path).toLowerCase()}`)
+        await copyFile(file.path, destination)
+        files.push({ type: file.type, name: file.name.trim(), relPath: this.paths.toLibraryRelative(settings.libraryRoot, destination) })
+      }
+      this.database.createSong({
+        title: options.title?.trim() || path.basename(path.dirname(options.files[0]!.path)),
+        artist: options.artist?.trim() || '', sourceRelPath: null, sourceHash: null,
+        sourceFormat: 'existing-stems', durationMs, sampleRate: null, channels: null,
+        artworkRelPath: null, status: 'queued', phase: '等待标准化分轨'
+      }, songId)
+      const jobId = this.database.createJob('normalizeStems', songId, 'queued', '等待标准化分轨', {
+        files, targetDurationMs: durationMs, padMismatched: Boolean(options.padMismatched)
+      })
+      this.changed()
+      this.kickJobs()
+      return { songId, jobId, duplicate: null }
+    } catch (error) {
+      this.database.deleteSongRecord(songId)
+      await rm(songRoot, { recursive: true, force: true })
+      throw error
+    }
   }
 
   async importLyrics(songId: string): Promise<SongDetail | null> {

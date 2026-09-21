@@ -64,7 +64,7 @@ export class ExportService {
       ? {
           ...request,
           stemTypes: request.stemTypes.filter((type) =>
-            isStemVisible(type, song.practice.guitarSplitEnabled)
+            (song.sourceFormat === 'existing-stems' || isStemVisible(type, song.practice.guitarSplitEnabled))
           )
         }
       : request
@@ -75,7 +75,7 @@ export class ExportService {
       })
       if (effectiveRequest.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
       const hasSolo = song.practice.tracks.some((track) =>
-        isStemVisible(track.stemType, song.practice.guitarSplitEnabled) && track.solo && !track.muted
+        (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && track.solo && !track.muted
       ) || (effectiveRequest.includeActiveTake && activeRecordings.some(({ track }) => track.solo && !track.muted))
       const states = song.practice.tracks.filter((track) => effectiveRequest.stemTypes.includes(track.stemType))
       const audibleStems = states.some((track) => !track.muted && (!hasSolo || track.solo))
@@ -100,9 +100,14 @@ export class ExportService {
 
   private async planOutputPaths(request: ExportRequest, title: string): Promise<string[]> {
     if (!request.outputPath) return []
+    const names = this.database.getSong(request.songId)?.stems ?? []
     const proposed = request.kind === 'mix'
       ? [path.resolve(request.outputPath)]
-      : request.stemTypes.map((stem) => path.join(path.resolve(request.outputPath!), `${safeName(title)} - ${STEM_META[stem].shortLabel}.${request.format}`))
+      : request.stemTypes.map((stem, index) => {
+          const name = names.find((item) => item.type === stem)?.name
+          const label = name ? `${String(index + 1).padStart(2, '0')} ${safeName(name)}` : STEM_META[stem].shortLabel
+          return path.join(path.resolve(request.outputPath!), `${safeName(title)} - ${label}.${request.format}`)
+        })
     const outputs: string[] = []
     for (const file of proposed) {
       let output = file
@@ -144,7 +149,7 @@ export class ExportService {
     if (!song) throw new Error('SONG_NOT_FOUND')
     const allFiles = this.database.getActiveStemFiles(request.songId)
     const requestedStemTypes = request.kind === 'mix'
-      ? request.stemTypes.filter((type) => isStemVisible(type, song.practice.guitarSplitEnabled))
+      ? request.stemTypes.filter((type) => (song.sourceFormat === 'existing-stems' || isStemVisible(type, song.practice.guitarSplitEnabled)))
       : request.stemTypes
     const files = requestedStemTypes.map((type) => allFiles.find((file) => file.type === type)).filter((file) => file !== undefined)
     if (!files.length && request.kind === 'stems') throw new Error('NO_STEMS_TO_EXPORT')
@@ -203,12 +208,12 @@ export class ExportService {
       : []
     if (request.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
     const hasSolo = song.practice.tracks.some((track) =>
-      isStemVisible(track.stemType, song.practice.guitarSplitEnabled) && track.solo && !track.muted
+      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && track.solo && !track.muted
     )
       || (request.includeActiveTake && activeRecordings.some(({ track }) => track.solo && !track.muted))
     const audibleStates = song.practice.tracks.filter((state) =>
       requestedStemTypes.includes(state.stemType)
-      && isStemVisible(state.stemType, song.practice.guitarSplitEnabled)
+      && (song.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, song.practice.guitarSplitEnabled))
       && !state.muted
       && (!hasSolo || state.solo)
     )

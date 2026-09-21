@@ -13,6 +13,8 @@ const api: BandBuddyApi = {
     list: (input = {}) => ipcRenderer.invoke(IPC.libraryList, input),
     get: (songId) => ipcRenderer.invoke(IPC.libraryGet, songId),
     getPathForFile: (file) => webUtils.getPathForFile(file),
+    chooseStems: (mode) => ipcRenderer.invoke(IPC.libraryChooseStems, mode),
+    importStems: (options) => ipcRenderer.invoke(IPC.libraryImportStems, options),
     chooseSource: () => ipcRenderer.invoke(IPC.libraryChooseSource),
     importSource: (options) => ipcRenderer.invoke(IPC.libraryImportSource, options),
     importLyrics: (songId) => ipcRenderer.invoke(IPC.libraryImportLyrics, songId),
@@ -42,6 +44,10 @@ const api: BandBuddyApi = {
     clearModel: () => ipcRenderer.invoke(IPC.runtimeClearModel),
     onChanged: (callback) => subscribe(IPC.eventRuntimeChanged, callback)
   },
+  lan: {
+    status: () => ipcRenderer.invoke(IPC.lanStatus),
+    setEnabled: (enabled) => ipcRenderer.invoke(IPC.lanSetEnabled, enabled)
+  },
   settings: {
     get: () => ipcRenderer.invoke(IPC.settingsGet),
     chooseDataRoot: (currentLibraryRoot) => ipcRenderer.invoke(IPC.settingsChooseDataRoot, currentLibraryRoot),
@@ -51,6 +57,7 @@ const api: BandBuddyApi = {
     onChanged: (callback) => subscribe(IPC.eventSettingsChanged, callback)
   },
   media: {
+    prepareOutputDevice: (deviceName) => ipcRenderer.invoke(IPC.mediaPrepareOutputDevice, deviceName),
     capabilities: () => ipcRenderer.invoke(IPC.mediaCapabilities),
     detectBpm: (songId) => ipcRenderer.invoke(IPC.mediaDetectBpm, songId),
     detectKey: (songId) => ipcRenderer.invoke(IPC.mediaDetectKey, songId),

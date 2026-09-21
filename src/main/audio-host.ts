@@ -81,6 +81,11 @@ export class AudioHostClient {
     return await this.request<RecordingDeviceInfo[]>('devices', {}, 15_000)
   }
 
+  async prepareOutputDevice(deviceName: string | null): Promise<boolean> {
+    if (process.platform !== 'darwin') return false
+    return await this.request<boolean>('prepareOutputDevice', { deviceName }, 15_000)
+  }
+
   async start(params: Record<string, unknown>): Promise<AudioHostStartResult> {
     return await this.request<AudioHostStartResult>('start', params, 30_000)
   }

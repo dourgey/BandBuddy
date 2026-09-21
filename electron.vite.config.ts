@@ -34,7 +34,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          lyrics: resolve('src/renderer/lyrics.html')
+          lyrics: resolve('src/renderer/lyrics.html'),
+          lan: resolve('src/renderer/lan.html')
         }
       }
     }

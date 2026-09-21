@@ -487,7 +487,7 @@ export class MediaService {
     })
   }
 
-  private resolveProtocolPath(url: URL): string | null {
+  resolveProtocolPath(url: URL): string | null {
     if (url.hostname === 'rehearsal') {
       const [rehearsalId, kind, assetId] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
       if (!rehearsalId || !assetId || !/^[0-9a-f-]{36}$/i.test(rehearsalId) || !/^[0-9a-f-]{36}$/i.test(assetId)) return null

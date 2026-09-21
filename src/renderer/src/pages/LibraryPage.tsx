@@ -117,7 +117,7 @@ function SongCard({ song, onOpen, onPlay, onMenu }: { song: SongSummary; onOpen(
         <span><i style={{ width: `${song.progress * 100}%` }} /></span>
         <small className="card-scroll-text" title={phase} onMouseEnter={prepareCardTextScroll}><span>{phase}</span></small>
       </div> : <>
-        <div className="stem-pills">{song.stemTypes.slice(0, 4).map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{STEM_META[stem].shortLabel}</i>)}</div>
+        <div className="stem-pills">{song.stemTypes.slice(0, 4).map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</div>
         <button className="continue-button" onClick={onPlay}><Play size={15} fill="currentColor" />继续练习</button>
       </>}
     </div>
@@ -130,7 +130,7 @@ function SongTable({ songs, onOpen, onPlay, onFavorite, onMenu }: { songs: SongS
     {songs.map((song) => <div className="song-row" role="row" key={song.id} onDoubleClick={() => onOpen(song)}>
       <span className="song-cell"><button className={`heart ${song.favorite ? 'active' : ''}`} onClick={() => onFavorite(song)} aria-label="收藏"><Heart size={13} fill={song.favorite ? 'currentColor' : 'none'} /></button><Vinyl size="tiny" artworkUrl={song.artworkUrl} showFallbackText={false} /><b>{song.title}</b></span>
       <span>{song.artist || '—'}</span><span><Clock3 size={14} />{formatTime(song.durationMs)}</span>
-      <span className="stem-pills compact">{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{STEM_META[stem].shortLabel}</i>)}</span>
+      <span className="stem-pills compact">{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</span>
       <span className={`status-cell ${song.status}`}><CheckCircle2 size={16} />{statusLabel(song.status)}{song.status === 'processing' && ` ${Math.round(song.progress * 100)}%`}</span>
       <span>{formatDate(song.lastPracticedAt)}</span>
       <span className="row-actions"><button onClick={() => onPlay(song)}><Play size={15} fill="currentColor" /></button><button aria-label="歌曲菜单" onClick={() => onMenu(song)}><MoreHorizontal size={19} /></button></span>

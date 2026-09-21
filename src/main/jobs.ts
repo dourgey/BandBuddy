@@ -32,7 +32,7 @@ interface SeparationPayload {
 }
 
 interface NormalizePayload {
-  files: Array<{ type: StemType; relPath: string }>
+  files: Array<{ type: StemType; relPath: string; name?: string }>
   targetDurationMs: number
   padMismatched: boolean
 }
@@ -405,7 +405,7 @@ export class JobScheduler {
       const peakFile = path.join(preparedRoot, `${file.type}.peaks.json`)
       await this.media.generatePeaks(output, peakFile, probe.durationMs)
       stored.push({
-        id: randomUUID(), type: file.type, relPath: '', peaksRelPath: null,
+        id: randomUUID(), type: file.type, name: file.name, relPath: '', peaksRelPath: null,
         durationMs: probe.durationMs, sampleRate: probe.sampleRate ?? 44100, channels: probe.channels ?? 2
       })
     }

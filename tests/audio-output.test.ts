@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   resolveOutputChannelPair,
   routableOutputChannelCount,
@@ -7,6 +7,50 @@ import {
 } from '../src/renderer/src/audio-engine.js'
 
 describe('Web Audio output routing', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function loopbackBridge(changed: boolean): ReturnType<typeof vi.fn> {
+    const prepareOutputDevice = vi.fn().mockResolvedValue(changed)
+    vi.stubGlobal('window', { bandbuddy: { media: { prepareOutputDevice } } })
+    vi.stubGlobal('navigator', {
+      platform: 'MacIntel',
+      mediaDevices: { enumerateDevices: vi.fn().mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'loopback', label: 'BandBuddy Bus (Virtual)' }
+      ]) }
+    })
+    return prepareOutputDevice
+  }
+
+  it('repairs the selected virtual device before reopening its sink, without routing through speakers', async () => {
+    const prepare = loopbackBridge(true)
+    const setSinkId = vi.fn().mockResolvedValue(undefined)
+    await setAudioContextOutputDevice({ setSinkId }, 'loopback')
+    expect(prepare).toHaveBeenCalledWith('BandBuddy Bus')
+    expect(setSinkId.mock.calls).toEqual([[{ type: 'none' }], ['loopback']])
+    expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(setSinkId.mock.invocationCallOrder[0]!)
+  })
+
+  it('leaves configured layouts alone and resolves the system default in CoreAudio', async () => {
+    const prepare = loopbackBridge(false)
+    const setSinkId = vi.fn().mockResolvedValue(undefined)
+    await setAudioContextOutputDevice({ setSinkId }, '')
+    expect(prepare).toHaveBeenCalledWith(null)
+    expect(setSinkId.mock.calls).toEqual([['']])
+  })
+
+  it('does not prepare a different device if the remembered sink has disappeared', async () => {
+    const prepare = loopbackBridge(false)
+    const setSinkId = vi.fn().mockRejectedValue(new DOMException('Device not found', 'NotFoundError'))
+    await expect(setAudioContextOutputDevice({ setSinkId }, 'missing')).rejects.toThrow('Device not found')
+    expect(prepare).not.toHaveBeenCalled()
+  })
+
+  it('does not change the sink if native preparation fails', async () => {
+    loopbackBridge(false).mockRejectedValue(new Error('LOOPBACK_OUTPUT_LAYOUT_WRITE_FAILED'))
+    const setSinkId = vi.fn()
+    await expect(setAudioContextOutputDevice({ setSinkId }, 'loopback')).rejects.toThrow('LOOPBACK_OUTPUT_LAYOUT_WRITE_FAILED')
+    expect(setSinkId).not.toHaveBeenCalled()
+  })
   it('uses even stereo-pair capacity up to the Web Audio merger limit', () => {
     expect(routableOutputChannelCount({ maxChannelCount: 12, channelCount: 2 })).toBe(12)
     expect(routableOutputChannelCount({ maxChannelCount: 7 })).toBe(6)

@@ -283,6 +283,7 @@ export interface PracticeState {
 }
 
 export interface StemRecord {
+  name?: string | null
   id: string
   songId: string
   separationId: string
@@ -305,6 +306,7 @@ export interface SongSummary {
   progress: number
   phase: string | null
   stemTypes: StemType[]
+  stemNames?: Partial<Record<StemType, string>>
   guitarSplitStatus: GuitarSplitStatus
   createdAt: string
   updatedAt: string
@@ -547,6 +549,20 @@ export interface StoragePaths {
   modelRoot: string
 }
 
+export interface ImportStemsOptions {
+  files: Array<{ path: string; type: StemType; name: string }>
+  title?: string
+  artist?: string
+  padMismatched?: boolean
+}
+
+export interface LanStatus {
+  enabled: boolean
+  port: number | null
+  urls: string[]
+  error: string | null
+}
+
 export interface ImportSourceOptions {
   filePath?: string
   title?: string
@@ -564,6 +580,8 @@ export interface ImportResult {
   songId: string | null
   jobId: string | null
   duplicate: SongSummary | null
+  needsPadding?: boolean
+  durationDifferenceMs?: number
 }
 
 export interface ExportRequest {

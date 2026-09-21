@@ -1,4 +1,6 @@
 import type {
+  ImportStemsOptions,
+  LanStatus,
   AppSettings,
   BpmDetectionResult,
   DesktopLyricsPayload,
@@ -41,6 +43,8 @@ export interface BandBuddyApi {
     list(input?: { query?: string; filter?: 'all' | 'favorite' | 'processing' | 'recent' }): Promise<SongSummary[]>
     get(songId: string): Promise<SongDetail | null>
     getPathForFile(file: File): string
+    chooseStems(mode?: 'files' | 'folder'): Promise<SourceChoice[]>
+    importStems(options: ImportStemsOptions): Promise<ImportResult>
     chooseSource(): Promise<SourceChoice | null>
     importSource(options: ImportSourceOptions): Promise<ImportResult>
     importLyrics(songId: string): Promise<SongDetail | null>
@@ -70,6 +74,10 @@ export interface BandBuddyApi {
     clearModel(): Promise<void>
     onChanged(callback: (runtime: RuntimeInfo) => void): Unsubscribe
   }
+  lan: {
+    status(): Promise<LanStatus>
+    setEnabled(enabled: boolean): Promise<LanStatus>
+  }
   settings: {
     get(): Promise<AppSettings>
     chooseDataRoot(currentLibraryRoot?: string): Promise<StoragePaths | null>
@@ -79,6 +87,7 @@ export interface BandBuddyApi {
     onChanged(callback: (settings: AppSettings) => void): Unsubscribe
   }
   media: {
+    prepareOutputDevice(deviceName: string | null): Promise<boolean>
     capabilities(): Promise<MediaCapabilities>
     detectBpm(songId: string): Promise<BpmDetectionResult>
     detectKey(songId: string): Promise<MusicalKeyAnalysis>

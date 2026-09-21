@@ -53,6 +53,71 @@ function device(patch: Partial<RecordingDeviceInfo> = {}): RecordingDeviceInfo {
 }
 
 describe('startup audio device reconciliation', () => {
+  it('uses the changed computer hardware on the next launch instead of the previous device list', async () => {
+    let saved = appSettings()
+    saved.audioOutputDeviceId = 'old-usb-web'
+    saved.recordingAudio = {
+      ...saved.recordingAudio,
+      inputDeviceId: 'coreaudio:old-usb',
+      outputDeviceId: 'coreaudio:old-usb'
+    }
+    const oldUsb = device({ id: 'coreaudio:old-usb', backend: 'coreaudio', name: 'USB Interface' })
+    const builtIn = device({
+      id: 'coreaudio:speakers', backend: 'coreaudio', name: 'Built-in Speakers',
+      inputChannels: 0, defaultInput: false
+    })
+    const newVirtual = device({
+      id: 'coreaudio:new-virtual', backend: 'coreaudio', name: 'Loopback Audio',
+      inputChannels: 8, outputChannels: 8, defaultOutput: false
+    })
+    const recordingDevices = vi.fn()
+      .mockResolvedValueOnce([oldUsb])
+      .mockResolvedValueOnce([builtIn, newVirtual])
+    const playbackDevices = vi.fn()
+      .mockResolvedValueOnce([{ kind: 'audiooutput', deviceId: 'old-usb-web' }])
+      .mockResolvedValueOnce([
+        { kind: 'audiooutput', deviceId: 'built-in-web' },
+        { kind: 'audiooutput', deviceId: 'new-loopback-web' }
+      ])
+    const update = vi.fn(async (settings: AppSettings) => { saved = settings; return settings })
+    vi.stubGlobal('window', { bandbuddy: {
+      settings: { get: async () => saved, update }, recording: { devices: recordingDevices }
+    } })
+    vi.stubGlobal('navigator', { platform: 'MacIntel', mediaDevices: { enumerateDevices: playbackDevices } })
+
+    const firstLaunch = await loadStartupAudioSettings()
+    expect(firstLaunch.audioOutputDeviceId).toBe('old-usb-web')
+    expect(update).not.toHaveBeenCalled()
+
+    const secondLaunch = await loadStartupAudioSettings()
+    expect(playbackDevices).toHaveBeenCalledTimes(2)
+    expect(recordingDevices).toHaveBeenCalledTimes(2)
+    expect(secondLaunch.audioOutputDeviceId).toBe('')
+    expect(secondLaunch.recordingAudio.inputDeviceId).toBe('')
+    expect(secondLaunch.recordingAudio.outputDeviceId).toBe('')
+    expect(update).toHaveBeenCalledOnce()
+  })
+
+  it('does not force a newly discovered multichannel device over the system default', async () => {
+    const settings = appSettings()
+    const update = vi.fn()
+    vi.stubGlobal('window', { bandbuddy: {
+      settings: { get: async () => settings, update },
+      recording: { devices: async () => [
+        device({ backend: 'coreaudio' }),
+        device({ id: 'coreaudio:loopback', backend: 'coreaudio', name: 'Loopback Audio',
+          inputChannels: 16, outputChannels: 16, defaultInput: false, defaultOutput: false })
+      ] }
+    } })
+    vi.stubGlobal('navigator', { platform: 'MacIntel', mediaDevices: { enumerateDevices: async () => [
+      { kind: 'audiooutput', deviceId: 'default' },
+      { kind: 'audiooutput', deviceId: 'loopback-web' }
+    ] } })
+
+    expect(await loadStartupAudioSettings()).toBe(settings)
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it('takes a new hardware snapshot each time the app startup loader runs', async () => {
     const getSettings = vi.fn(() => Promise.resolve(appSettings()))
     const updateSettings = vi.fn((settings: AppSettings) => Promise.resolve(settings))

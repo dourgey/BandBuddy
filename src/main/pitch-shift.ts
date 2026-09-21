@@ -23,7 +23,7 @@ export async function runSignalsmithPitchShift(
   if (!existsSync(executable)) throw new Error(`AUDIO_HOST_MISSING:${executable}`)
   const result = await runProcess(executable, ['--pitch', inputPath, outputPath, String(semitones)], { signal })
   if (signal?.aborted) throw new Error('PITCH_SHIFT_CANCELLED')
-  if (result.code !== 0) throw new Error(`SIGNALSMITH_PITCH_SHIFT_FAILED:${result.stderr.slice(-800)}`)
+  if (result.code !== 0) throw new Error(`SIGNALSMITH_PITCH_SHIFT_FAILED:${(result.stderr || result.stdout).slice(-800)}`)
 }
 
 export async function renderPitchedStemBus(options: {

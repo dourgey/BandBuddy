@@ -11,6 +11,7 @@ import {
   type StemType
 } from '@shared/domain.js'
 import type { SignalsmithStretchNode } from 'signalsmith-stretch'
+import type { BandBuddyApi } from '@shared/bridge.js'
 import { activeLoopRange } from '@shared/playback.js'
 
 const SIGNALSMITH_WORKLET_MODULE_URL = new URL(
@@ -68,7 +69,7 @@ interface RecordingTrackAudio extends TrackAudio {
 }
 
 interface AudioContextSinkSelector {
-  setSinkId?: (deviceId: string) => Promise<void>
+  setSinkId?: (deviceId: string | { type: 'none' }) => Promise<void>
 }
 
 interface AudioDestinationCapabilities {
@@ -113,6 +114,25 @@ export async function setAudioContextOutputDevice(
   if (typeof sinkSelector.setSinkId !== 'function') {
     if (deviceId) throw new Error('AUDIO_OUTPUT_DEVICE_SELECTION_UNSUPPORTED')
     return
+  }
+  // Loopback can expose N hardware channels with every CoreAudio channel label
+  // set to Unknown. Chromium interprets that layout as stereo. Prepare only
+  // the selected device, before Chromium opens (or reopens) its output stream.
+  const prepare = typeof window !== 'undefined'
+    ? (window as unknown as { bandbuddy?: BandBuddyApi }).bandbuddy?.media?.prepareOutputDevice
+    : undefined
+  if (prepare && /Mac/i.test(navigator.platform)) {
+    let deviceName: string | null = null
+    if (deviceId && deviceId !== 'default') {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const selected = devices.find((device) => device.kind === 'audiooutput' && device.deviceId === deviceId)
+      deviceName = selected?.label.replace(/ \(Virtual\)$/, '') ?? ''
+    }
+    if (deviceName !== '' && await prepare(deviceName)) {
+      // setSinkId(sameId) is a no-op. A silent sink invalidates Chromium's old
+      // layout without briefly sending the mix to the system speakers.
+      await sinkSelector.setSinkId({ type: 'none' })
+    }
   }
   await sinkSelector.setSinkId(deviceId)
 }
@@ -207,6 +227,11 @@ export class MultiTrackAudioEngine {
       element.currentTime = song.practice.positionMs / 1000
       const source = this.context!.createMediaElementSource(element)
       const gain = this.context!.createGain()
+      // Expand mono stems to L/R before splitting; a splitter otherwise fills
+      // its second output with silence. Stereo sources retain their channels.
+      gain.channelCount = 2
+      gain.channelCountMode = 'explicit'
+      gain.channelInterpretation = 'speakers'
       if (type === 'drums') {
         source.connect(gain).connect(this.bypassDelay!)
         this.tracks.set(type, { element, source, gain, splitter: null })
@@ -373,13 +398,13 @@ export class MultiTrackAudioEngine {
     }
     const recordingStates = this.song?.recordingTracks ?? []
     const hasSolo = practice.tracks.some((state) =>
-      isStemVisible(state.stemType, practice.guitarSplitEnabled) && state.solo && !state.muted
+      (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled)) && state.solo && !state.muted
     )
       || recordingStates.some((state) => this.recordings.has(state.id) && state.solo && !state.muted)
     for (const state of practice.tracks) {
       const track = this.tracks.get(state.stemType)
       if (!track) continue
-      const visible = isStemVisible(state.stemType, practice.guitarSplitEnabled)
+      const visible = (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled))
       const gain = visible && !state.muted && (!hasSolo || state.solo) ? dbToGain(state.gainDb) : 0
       track.gain.gain.cancelScheduledValues(now)
       track.gain.gain.setValueAtTime(track.gain.gain.value, now)
@@ -585,6 +610,8 @@ export class MultiTrackAudioEngine {
     this.bypassDelay = this.context.createDelay(2)
     this.bypassOutputSplitter = this.context.createChannelSplitter(2)
     this.auxiliaryBus = this.context.createGain()
+    this.auxiliaryBus.channelCount = 2
+    this.auxiliaryBus.channelCountMode = 'explicit'
     this.auxiliaryDelay = this.context.createDelay(2)
     this.auxiliaryOutputSplitter = this.context.createChannelSplitter(2)
     this.dryGain.gain.value = 1
@@ -643,7 +670,7 @@ export class MultiTrackAudioEngine {
     const merger = this.outputMerger
     if (!merger) return
     for (const stemType of STEM_ORDER) {
-      if (!includeHidden && this.practice && !isStemVisible(stemType, this.practice.guitarSplitEnabled)) continue
+      if (!includeHidden && this.practice && this.song?.sourceFormat !== 'existing-stems' && !isStemVisible(stemType, this.practice.guitarSplitEnabled)) continue
       const requestedPair = this.practice?.tracks.find((track) => track.stemType === stemType)?.outputChannelPair
       const firstChannel = resolveOutputChannelPair(requestedPair, this.routableOutputChannels) - 1
       if (stemType === 'drums') {

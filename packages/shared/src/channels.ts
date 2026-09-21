@@ -1,4 +1,8 @@
 export const IPC = {
+  lanStatus: 'lan:status',
+  lanSetEnabled: 'lan:set-enabled',
+  libraryChooseStems: 'library:choose-stems',
+  libraryImportStems: 'library:import-stems',
   libraryList: 'library:list',
   libraryGet: 'library:get',
   libraryChooseSource: 'library:choose-source',
@@ -27,6 +31,7 @@ export const IPC = {
   settingsSetDebugMode: 'settings:set-debug-mode',
   settingsRevealDebugLog: 'settings:reveal-debug-log',
   mediaCapabilities: 'media:capabilities',
+  mediaPrepareOutputDevice: 'media:prepare-output-device',
   mediaDetectBpm: 'media:detect-bpm',
   mediaDetectKey: 'media:detect-key',
   exportStart: 'export:start',

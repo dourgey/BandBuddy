@@ -44,6 +44,8 @@ export function installFixtureBridge(): void {
       list: async () => fixtureSongs,
       get: async (id) => { const song = fixtureSongs.find((item) => item.id === id); return song ? fixtureDetail(song) : null },
       getPathForFile: () => '',
+      chooseStems: async () => [],
+      importStems: async () => ({ songId: null, jobId: null, duplicate: null }),
       chooseSource: async () => null,
       importSource: async () => ({ songId: null, jobId: null, duplicate: null }),
       requestGuitarSplit: async () => null,
@@ -54,6 +56,10 @@ export function installFixtureBridge(): void {
     },
     tasks: { list: async () => [], cancel: async () => undefined, retry: async () => undefined, clearFinished: async () => undefined, onChanged: noop },
     runtime: { get: async () => runtime, detect: async () => runtime, install: async () => runtime, cancel: async () => undefined, repair: async () => runtime, remove: async () => undefined, clearModel: async () => undefined, onChanged: noop },
+    lan: {
+      status: async () => ({ enabled: false, port: null, urls: [], error: null }),
+      setEnabled: async () => ({ enabled: false, port: null, urls: [], error: '预览模式无法启动服务，请在桌面 App 中使用' })
+    },
     settings: {
       get: async () => settings,
       chooseDataRoot: async () => ({ dataRoot: 'C:\\Users\\Musician\\BandBuddy', libraryRoot: settings.libraryRoot, runtimeRoot: settings.runtimeRoot, modelRoot: settings.modelRoot }),
@@ -63,6 +69,7 @@ export function installFixtureBridge(): void {
       onChanged: noop
     },
     media: {
+      prepareOutputDevice: async () => false,
       capabilities: async () => ({ ffmpegReady: true, ffmpegVersion: '8.1.2', protocolVersion: 1, supportedInputFormats: [...SOURCE_MEDIA_EXTENSIONS].map(extension => extension.slice(1)), supportedExportFormats: ['wav', 'flac', 'mp3'], internalSampleRate: 44100, internalChannels: 2, internalBitDepth: 24 }),
       detectBpm: async () => ({ bpm: 124, confidence: 0.9, beatOffsetMs: 0, analyzedStem: 'drums' }),
       detectKey: async () => ({

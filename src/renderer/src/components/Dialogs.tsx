@@ -1,3 +1,4 @@
+import { LanSettings } from './LanSettings.js'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   AlertTriangle,
@@ -78,6 +79,9 @@ export function ImportDialog({
   onOpenDuplicate(songId: string): void
   onNeedsRuntime(): void
 }): React.JSX.Element {
+  const [mode, setMode] = useState<'source' | 'stems'>('source')
+  const [stemFiles, setStemFiles] = useState<Array<{ path: string; type: StemType; name: string }>>([])
+  const [padding, setPadding] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const [source, setSource] = useState<{ path: string; name: string } | null>(null)
   const [title, setTitle] = useState('')
@@ -88,9 +92,26 @@ export function ImportDialog({
 
   useEffect(() => {
     if (!open) return
+    setMode('source'); setStemFiles([]); setPadding(null)
     setSource(null); setTitle(''); setArtist('')
     setError(''); setDuplicate(null); setDragging(false)
   }, [open])
+
+  const chooseStems = async (mode: 'files' | 'folder' = 'files'): Promise<void> => {
+    try {
+      const choices = await window.bandbuddy.library.chooseStems(mode)
+      if (!choices.length) return
+      if (choices.length > STEM_ORDER.length) { setError('每次最多导入 9 条音轨'); return }
+      const used = new Set<StemType>()
+      const files = choices.map((choice) => {
+        const inferred = STEM_ORDER.find((type) => !used.has(type) && (choice.inferredTitle.toLowerCase().includes(type) || choice.inferredTitle.includes(STEM_META[type].label)))
+        const type = inferred ?? STEM_ORDER.find((candidate) => !used.has(candidate))!
+        used.add(type)
+        return { path: choice.path, type, name: inferred ? STEM_META[type].label : choice.inferredTitle }
+      })
+      setStemFiles(files); setPadding(null); setError('')
+    } catch (reason) { setError(toUserErrorMessage(reason, '无法选择分轨文件')) }
+  }
 
   const chooseSource = async (): Promise<void> => {
     if (busy) return
@@ -121,38 +142,48 @@ export function ImportDialog({
     } catch (reason) { setError(toUserErrorMessage(reason, '无法读取拖入的文件')) }
   }
 
-  const submit = async (forceDuplicate = false): Promise<void> => {
+  const submit = async (forceDuplicate = false, padMismatched = false): Promise<void> => {
     setBusy(true); setError('')
     try {
-      if (!source) throw new Error('请先选择一首歌曲')
-      const result = await window.bandbuddy.library.importSource({ filePath: source.path, title, artist, forceDuplicate })
+      if (mode === 'source' && !source) throw new Error('请先选择一首歌曲')
+      const result = mode === 'stems'
+        ? await window.bandbuddy.library.importStems({ files: stemFiles, title, artist, padMismatched })
+        : await window.bandbuddy.library.importSource({ filePath: source!.path, title, artist, forceDuplicate })
+      if (result.needsPadding) { setPadding(result.durationDifferenceMs ?? 0); return }
       if (result.duplicate) { setDuplicate({ id: result.duplicate.id, title: result.duplicate.title }); return }
       if (result.songId) {
-        onOpenChange(false); onImported(result.songId); onNeedsRuntime()
+        onOpenChange(false); onImported(result.songId); if (mode === 'source') onNeedsRuntime()
       }
     } catch (reason) {
       setError(toUserErrorMessage(reason, '导入失败，请检查音频或视频文件后重试'))
     } finally { setBusy(false) }
   }
 
-  return <Dialog.Root open={open} onOpenChange={onOpenChange}>
+  return <Dialog.Root open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next) }}>
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay" data-dialog-open="true" />
       <Dialog.Content className="dialog-content import-dialog" data-dialog-open="true" aria-describedby={undefined}>
         <Dialog.Title>导入音乐</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close>
         <p className="dialog-lead">源文件会复制到受管曲库。视频会先提取音频再分轨，所有处理均在本机完成。</p>
-        <div className={`drop-zone ${source ? 'selected' : ''} ${dragging ? 'is-dragging' : ''}`} role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
+        <div className="dialog-tabs"><button disabled={busy} className={mode === 'source' ? 'active' : ''} onClick={() => { setMode('source'); setError(''); setPadding(null) }}>歌曲 / 视频</button><button disabled={busy} className={mode === 'stems' ? 'active' : ''} onClick={() => { setMode('stems'); setError(''); setDuplicate(null) }}>已分轨数据</button></div>
+        {mode === 'stems' ? <div className="stem-import"><button disabled={busy} className="outline-button" onClick={() => void chooseStems()}><FolderOpen size={16} />选择分轨文件</button> <button disabled={busy} className="outline-button" onClick={() => void chooseStems('folder')}><FolderOpen size={16} />选择文件夹</button><p>导入 2–9 条音轨，无需安装分离模型。选择预设名称或输入自定义名称。各轨从同一时间点开始，较短音轨将在末尾补静音。</p>
+          {stemFiles.map((file, index) => <div className="stem-import-row" key={file.path}><small title={file.path}>{file.path.split(/[\\/]/).pop()}</small><select disabled={busy} aria-label={`轨道 ${index + 1} 预设名称`} value={STEM_ORDER.find((type) => STEM_META[type].label === file.name) ?? 'custom'} onChange={(event) => {
+            const value = event.target.value
+            setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: value === 'custom' ? '' : STEM_META[value as StemType].label } : item)); setPadding(null)
+          }}><option value="custom">自定义名称</option>{STEM_ORDER.map((type) => <option value={type} key={type}>{STEM_META[type].label}</option>)}</select><input disabled={busy} aria-label={`轨道 ${index + 1} 名称`} maxLength={80} value={file.name} placeholder="输入轨道名称" onChange={(event) => { setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item)); setPadding(null) }} /></div>)}
+        </div> : <div className={`drop-zone ${source ? 'selected' : ''} ${dragging ? 'is-dragging' : ''}`} role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
           onClick={() => void chooseSource()}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void chooseSource() } }}
           onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = busy ? 'none' : 'copy'; if (!busy) setDragging(true) }}
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false) }}
           onDrop={dropSource}>
           <span>{source ? <Check size={25} /> : <Upload size={25} />}</span><b>{source?.name ?? '选择音频或视频文件'}</b><small>{source ? '点击重新选择，或拖入文件替换' : '可直接拖入文件 · 音频：MP3 / WAV / FLAC / M4A / AAC / OGG / OPUS / AIFF / WMA 等 · 视频：MP4 / MOV / MKV / WebM / AVI / WMV / FLV / TS 等'}</small>
-        </div>
+        </div>}
         <div className="form-row"><label>歌曲标题<input maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="可选，默认使用文件名" /></label><label>艺术家<input maxLength={200} value={artist} onChange={(event) => setArtist(event.target.value)} placeholder="可选" /></label></div>
         {duplicate && <div className="inline-warning"><AlertTriangle /><span><b>曲库已有“{duplicate.title}”</b><small>可打开已有歌曲，或仍然创建一份副本。</small></span><button onClick={() => { onOpenChange(false); onOpenDuplicate(duplicate.id) }}>打开已有</button><button onClick={() => void submit(true)}>仍创建副本</button></div>}
+        {padding !== null && <div className="inline-warning"><span>各轨时长相差 {(padding / 1000).toFixed(1)} 秒。保持起点不变，在短轨末尾补静音后导入。</span><button disabled={busy} onClick={() => void submit(false, true)}>补静音并导入</button></div>}
         {error && <p className="form-error"><AlertTriangle size={16} />{error}</p>}
-        <footer className="dialog-footer"><Dialog.Close className="outline-button">取消</Dialog.Close><button className="primary-button" disabled={busy || !source} onClick={() => void submit()}>{busy && <LoaderCircle className="spin" size={17} />}导入并处理</button></footer>
+        <footer className="dialog-footer"><Dialog.Close className="outline-button">取消</Dialog.Close><button className="primary-button" disabled={busy || (mode === 'source' ? !source : stemFiles.length < 2 || stemFiles.some((file) => !file.name.trim()))} onClick={() => void submit()}>{busy && <LoaderCircle className="spin" size={17} />}导入并处理</button></footer>
       </Dialog.Content>
     </Dialog.Portal>
   </Dialog.Root>
@@ -354,6 +385,7 @@ export function SettingsDrawer({
       <p className="security-note">仅在 Debug 模式开启期间追加详细日志；代理凭据、令牌和密码会自动脱敏。</p>
       {debugLogError && <p className="device-error">{debugLogError}</p>}
     </section>
+    <LanSettings />
     <section className="settings-section"><h3><ShieldCheck />高级网络</h3>
       <div className="settings-grid">
         <label>环境下载源<select value={runtimeSourcePreset} onChange={(event) => {
@@ -378,12 +410,12 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
   const [format, setFormat] = useState<ExportFormat>('flac')
   const allAvailable = useMemo(() => STEM_ORDER.filter((type) => song.stems.some((stem) => stem.type === type)), [song])
   const available = useMemo(
-    () => allAvailable.filter((type) => isStemVisible(type, practice.guitarSplitEnabled)),
-    [allAvailable, practice.guitarSplitEnabled]
+    () => allAvailable.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled)),
+    [allAvailable, practice.guitarSplitEnabled, song.sourceFormat]
   )
   const hiddenGuitarAlternatives = useMemo(
-    () => allAvailable.filter((type) => !isStemVisible(type, practice.guitarSplitEnabled)),
-    [allAvailable, practice.guitarSplitEnabled]
+    () => allAvailable.filter((type) => song.sourceFormat !== 'existing-stems' && !isStemVisible(type, practice.guitarSplitEnabled)),
+    [allAvailable, practice.guitarSplitEnabled, song.sourceFormat]
   )
   const [selected, setSelected] = useState<StemType[]>(available)
   const [includeHiddenGuitars, setIncludeHiddenGuitars] = useState(false)
@@ -415,7 +447,7 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
       if (!outputPath) return
       const requestedStems = kind === 'stems' && includeHiddenGuitars
         ? [...selected, ...hiddenGuitarAlternatives.filter((type) => !selected.includes(type))]
-        : selected.filter((type) => isStemVisible(type, practice.guitarSplitEnabled))
+        : selected.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled))
       const result = await window.bandbuddy.export.start({
         songId: song.id, kind, format, stemTypes: requestedStems, outputPath,
         applyPlaybackRate: kind === 'mix' && (applyRate || includeTake), playbackRate: practice.playbackRate,
@@ -432,7 +464,7 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="dialog-content export-dialog" data-dialog-open="true" aria-describedby={undefined}>
     <Dialog.Title>导出音频</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">导出会保留当前升降调；当前混音还会应用练习室的 Mute、Solo 与增益。</p>
     <div className="dialog-tabs"><button className={kind === 'mix' ? 'active' : ''} onClick={() => setKind('mix')}><SlidersHorizontal />导出当前混音</button><button className={kind === 'stems' ? 'active' : ''} onClick={() => setKind('stems')}><FileAudio />分别导出音轨</button></div>
-    <fieldset><legend>选择音轨</legend><div className="export-stems">{available.map((type) => <label key={type} style={{ '--track': STEM_META[type].color } as React.CSSProperties}><input type="checkbox" checked={selected.includes(type)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, type] : current.filter((item) => item !== type))} /><i /><span>{STEM_META[type].shortLabel}<small>{STEM_META[type].label}</small></span></label>)}</div></fieldset>
+    <fieldset><legend>选择音轨</legend><div className="export-stems">{available.map((type) => <label key={type} style={{ '--track': STEM_META[type].color } as React.CSSProperties}><input type="checkbox" checked={selected.includes(type)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, type] : current.filter((item) => item !== type))} /><i /><span>{song.stems.find((stem) => stem.type === type)?.name || STEM_META[type].shortLabel}<small>{STEM_META[type].label}</small></span></label>)}</div></fieldset>
     {kind === 'stems' && hiddenGuitarAlternatives.length > 0 && <label className="check-line"><input type="checkbox" checked={includeHiddenGuitars} onChange={(event) => setIncludeHiddenGuitars(event.target.checked)} /><span>包含隐藏吉他备选轨 <small>{hiddenGuitarAlternatives.map((type) => STEM_META[type].shortLabel).join(' / ')}</small></span></label>}
     <fieldset><legend>输出格式</legend><div className="format-options">{(['wav', 'flac', 'mp3'] as const).map((item) => <button className={format === item ? 'active' : ''} onClick={() => setFormat(item)} key={item}><b>{item.toUpperCase()}</b><small>{item === 'mp3' ? '320 kbps' : '44.1 kHz · 24-bit'}</small></button>)}</div></fieldset>
     <div className="export-pitch-note"><AudioLines size={17} /><span><b>{practice.pitchSemitones === 0 ? '按原调导出' : `导出当前 ${practice.pitchSemitones > 0 ? '+' : '−'}${Math.abs(practice.pitchSemitones)} 半音`}</b><small>Signalsmith 处理所有非鼓轨，鼓轨保持原音</small></span></div>

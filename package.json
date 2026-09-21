@@ -38,6 +38,7 @@
     "native:electron": "electron-builder install-app-deps",
     "native:audio": "node scripts/build-audio-host.mjs",
     "native:audio:test": "node scripts/test-audio-host.mjs",
+    "test:loopback": "node scripts/test-loopback-output.mjs",
     "install:cn": "node scripts/run-cn.mjs install",
     "dev:cn": "node scripts/run-cn.mjs dev",
     "tools:fetch": "node scripts/fetch-tools.mjs",

@@ -106,11 +106,11 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
   const trackOrder = normalizeTrackOrder(practice.trackOrder, song.recordingTracks.map((track) => track.id))
   const visibleTrackOrder = trackOrder.filter((key) => {
     const stemType = getStemTypeFromTrackOrderKey(key)
-    return stemType === null || isStemVisible(stemType, practice.guitarSplitEnabled)
+    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled))
   })
   // A soloed recording track silences the stems once its active take is loaded
   // (audio-engine.ts:222,377).
-  const soloActive = hasEffectiveSolo(
+  const soloActive = (song.sourceFormat === 'existing-stems' && practice.tracks.some((track) => stems.has(track.stemType) && track.solo && !track.muted)) || hasEffectiveSolo(
     practice.tracks,
     practice.guitarSplitEnabled,
     song.recordingTracks.some((track) => track.solo && !track.muted
@@ -215,7 +215,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
       <div className="guitar-split-control">
         <button
           className={`outline-button ${practice.guitarSplitEnabled ? 'active' : ''}`}
-          disabled={locked || guitarSplitPending}
+          disabled={locked || guitarSplitPending || song.sourceFormat === 'existing-stems'}
           aria-pressed={practice.guitarSplitEnabled}
           aria-describedby={guitarSplitPending ? `guitar-split-wait-${song.id}` : undefined}
           onClick={() => onGuitarSplit(!practice.guitarSplitEnabled)}
@@ -259,6 +259,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 key={key}
                 {...sharedDragProps}
                 type={type}
+                name={stem?.name ?? undefined}
                 state={state}
                 exists={Boolean(stem)}
                 showWaveform={!song.videoUrl}
@@ -369,6 +370,7 @@ function SortableTrackRow(props: SortableTrackRowProps): React.JSX.Element {
 }
 
 interface TrackRowProps extends TrackDragProps {
+  name?: string
   type: StemType
   state: TrackState
   exists: boolean
@@ -390,7 +392,7 @@ interface TrackRowProps extends TrackDragProps {
 
 function TrackRow(props: TrackRowProps): React.JSX.Element {
   const {
-    type, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs,
+    type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs,
     peaksUrl, durationMs, currentMs, practice,
     onSeek, onRange, onPatch, onSelected, onViewChange, ...dragProps
   } = props
@@ -403,13 +405,13 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
   const selectedPairAvailable = outputPairs.includes(selectedPair)
   return <SortableTrackRow
     {...dragProps}
-    label={STEM_META[type].label}
+    label={name || STEM_META[type].label}
     className={`track-row ${selected ? 'selected' : ''} ${exists ? '' : 'missing'}`}
     locked={locked}
     onClick={onSelected}
   >
     <span className="track-identity" style={{ '--track': STEM_META[type].color } as React.CSSProperties}>
-      <i><Icon size={22} /></i><b>{STEM_META[type].shortLabel}</b>{!exists && <small>未导入</small>}
+      <i><Icon size={22} /></i><b>{name || STEM_META[type].shortLabel}</b>{!exists && <small>未导入</small>}
     </span>
     <span className="ms-buttons">
       <button className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onPatch(silenceToggle(state)) }}>M</button>

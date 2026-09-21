@@ -29,6 +29,8 @@
 #include <thread>
 #include <vector>
 
+#include "loopback-output.h"
+
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
@@ -144,6 +146,16 @@ class WaveStream {
         channels_ = getU16(fmt.data() + 2);
         sampleRate_ = getU32(fmt.data() + 4);
         bits = getU16(fmt.data() + 14);
+        // FFmpeg writes stereo float WAV as WAVE_FORMAT_EXTENSIBLE. Accept
+        // its IEEE-float subtype as well as the classic format-3 header.
+        constexpr unsigned char floatSubtype[16] = {
+          3, 0, 0, 0, 0, 0, 16, 0, 128, 0, 0, 170, 0, 56, 155, 113
+        };
+        if (format == 0xfffe && fmt.size() >= 40 && getU16(fmt.data() + 16) >= 22
+            && getU16(fmt.data() + 18) == 32
+            && std::memcmp(fmt.data() + 24, floatSubtype, sizeof(floatSubtype)) == 0) {
+          format = 3;
+        }
       } else if (std::memcmp(chunk, "data", 4) == 0) {
         dataOffset = stream_.tellg();
         dataBytes = size;
@@ -1381,6 +1393,7 @@ int main(int argc, char** argv) {
       json result;
       if (method == "devices") result = host.devices();
       else if (method == "start") result = host.start(params, false);
+      else if (method == "prepareOutputDevice") result = simulate ? false : prepareLoopbackOutput(params.at("deviceName"));
       else if (method == "startTest") result = host.start(params, true);
       else if (method == "pause") result = host.pauseSession();
       else if (method == "resume") result = host.resumeSession();
