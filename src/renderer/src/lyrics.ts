@@ -1,3 +1,5 @@
+import { initializeAppearance } from './appearance.js'
+import './theme-tokens.css'
 import './lyrics.css'
 
 const card = document.querySelector<HTMLElement>('#lyrics-card')!
@@ -15,3 +17,5 @@ window.desktopLyrics.onUpdate((payload) => {
   card.classList.toggle('is-playing', payload.playing)
   card.style.setProperty('--lyric-progress', `${Math.round(payload.progress * 1000) / 10}%`)
 })
+
+void initializeAppearance(window.desktopLyrics.appearance)

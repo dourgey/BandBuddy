@@ -15,15 +15,17 @@ export interface WindowSizeLimits {
 const SAVE_DELAY_MS = 400
 
 /** Coerces a stored value into a usable size, or null when it cannot be trusted. */
-export function normalizeWindowSize(raw: unknown, limits: WindowSizeLimits): WindowSize | null {
+export function normalizeWindowSize(raw: unknown, limits: WindowSizeLimits, workArea?: WindowSizeLimits): WindowSize | null {
   if (!raw || typeof raw !== 'object') return null
   const candidate = raw as Partial<Record<keyof WindowSize, unknown>>
   const width = Math.round(Number(candidate.width))
   const height = Math.round(Number(candidate.height))
   if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+  const maximumWidth = workArea && Number.isFinite(workArea.width) && workArea.width > 0 ? Math.floor(workArea.width) : Infinity
+  const maximumHeight = workArea && Number.isFinite(workArea.height) && workArea.height > 0 ? Math.floor(workArea.height) : Infinity
   return {
-    width: Math.max(limits.width, width),
-    height: Math.max(limits.height, height),
+    width: Math.min(maximumWidth, Math.max(Math.min(limits.width, maximumWidth), width)),
+    height: Math.min(maximumHeight, Math.max(Math.min(limits.height, maximumHeight), height)),
     maximized: candidate.maximized === true
   }
 }
@@ -35,15 +37,17 @@ export class WindowState {
 
   constructor(
     private readonly filePath: string,
-    private readonly limits: WindowSizeLimits
+    private readonly limits: WindowSizeLimits,
+    private readonly workArea?: WindowSizeLimits
   ) {}
 
   /** Last saved size, or the fallback when nothing usable is stored. */
   restore(fallback: WindowSize): WindowSize {
     try {
-      return normalizeWindowSize(JSON.parse(readFileSync(this.filePath, 'utf8')), this.limits) ?? fallback
+      return normalizeWindowSize(JSON.parse(readFileSync(this.filePath, 'utf8')), this.limits, this.workArea)
+        ?? normalizeWindowSize(fallback, this.limits, this.workArea)!
     } catch {
-      return fallback
+      return normalizeWindowSize(fallback, this.limits, this.workArea)!
     }
   }
 

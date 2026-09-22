@@ -98,3 +98,11 @@ header i {
 }
 
 #next-lyric[hidden] { visibility: hidden; }
+
+/* Lyrics have their own transparent high-contrast surface in each theme. */
+:root[data-theme="warm"] #lyrics-card { background: linear-gradient(145deg, rgba(251,248,243,.94), rgba(235,226,211,.92)); border-color: var(--border); }
+:root[data-theme="warm"] #current-lyric { background-image: linear-gradient(90deg, #8b6526 0, #8b6526 var(--lyric-progress), #282119 var(--lyric-progress), #282119 100%); filter: none; }
+:root[data-theme="warm"] header, :root[data-theme="warm"] #next-lyric { color: #6c6151; }
+:root[data-theme="dark"] #lyrics-card { background: linear-gradient(145deg, rgba(39,35,30,.90), rgba(15,14,12,.88)); }
+:root[data-effects="reduced"] #lyrics-card { backdrop-filter: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

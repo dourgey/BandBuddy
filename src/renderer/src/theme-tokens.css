@@ -1,0 +1,133 @@
+/* Public skin contract: surfaces, typography, controls and music colors are semantic. */
+:root,
+:root[data-theme="warm"] {
+  color-scheme: light;
+  --paper: #f5f1ea;
+  --paper-2: #fbf8f3;
+  --surface: #fbf8f3;
+  --surface-raised: #fffdfa;
+  --surface-muted: #eee8df;
+  --surface-sunken: #e5ddd1;
+  --surface-rgb: 255, 253, 250;
+  --ink: #211d18;
+  --muted: #746c61;
+  --text-subtle: #796f61;
+  --border: #ddd5c9;
+  --border-soft: #e9e2d7;
+  --border-strong: #b9ad9b;
+  --accent: #86693f;
+  --accent-hover: #7b6039;
+  --accent-soft: #eee4d3;
+  --on-accent: #ffffff;
+  --inverse-surface: #211e19;
+  --inverse-text: #f6f0e6;
+  --inverse-muted: #c7bbab;
+  --focus: #8b6e43;
+  --success: #347459;
+  --success-soft: #e5f0e9;
+  --warning: #9c681f;
+  --warning-soft: #f7ecd8;
+  --danger: #ad453e;
+  --danger-soft: #f8e8e4;
+  --info: #3d708e;
+  --info-soft: #e4eef4;
+  --purple: #7a5a91;
+  --purple-soft: #eee6f3;
+  --shadow: 0 8px 24px rgb(42 31 18 / 7%);
+  --shadow-popup: 0 12px 36px rgb(42 31 18 / 16%);
+  --overlay: rgb(26 22 17 / 34%);
+  --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --serif: Georgia, "Songti SC", SimSun, serif;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --control-height: 36px;
+  --space-unit: 4px;
+  --card: var(--surface);
+  --line: var(--border);
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-heading: 24px;
+  --waveform-surface: color-mix(in srgb, var(--paper) 70%, var(--surface-raised));
+  --stem-vocals: #c76767;
+  --stem-drums: #5590ac;
+  --stem-bass: #78915e;
+  --stem-guitar: #b48b4f;
+  --stem-piano: #9175a5;
+  --stem-other: #838d97;
+  --stem-acoustic_guitar: #bd985c;
+  --stem-lead_guitar: #bd785b;
+  --stem-rhythm_guitar: #638c87;
+  --score-paper: #fffdfa;
+  --score-ink: #29231c;
+  --score-muted: #b8aea0;
+  --fretboard-surface: #e7cfac;
+  --fretboard-line: #8b7052;
+  --piano-white: #fffdfa;
+  --piano-black: #292723;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #191816;
+  --paper-2: #24221e;
+  --surface: #24221e;
+  --surface-raised: #2d2a25;
+  --surface-muted: #2b2823;
+  --surface-sunken: #343027;
+  --surface-rgb: 42, 39, 34;
+  --ink: #eee7dc;
+  --muted: #b6ac9e;
+  --text-subtle: #a49a8b;
+  --border: #494237;
+  --border-soft: #37322b;
+  --border-strong: #6c6050;
+  --accent: #c3a16a;
+  --accent-hover: #d7b77f;
+  --accent-soft: #3e3425;
+  --on-accent: #211a11;
+  --inverse-surface: #131210;
+  --inverse-text: #f4eee5;
+  --inverse-muted: #bbae9b;
+  --focus: #d8b879;
+  --success: #8ac5a6;
+  --success-soft: #253a2f;
+  --warning: #e4ba72;
+  --warning-soft: #45351f;
+  --danger: #ed9b91;
+  --danger-soft: #462c28;
+  --info: #91bed8;
+  --info-soft: #273945;
+  --purple: #c6a8dc;
+  --purple-soft: #3b2f46;
+  --shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  --shadow-popup: 0 12px 36px rgb(0 0 0 / 40%);
+  --overlay: rgb(0 0 0 / 54%);
+  --stem-vocals: #e38b88;
+  --stem-drums: #7db6d1;
+  --stem-bass: #a3bb86;
+  --stem-guitar: #d4af73;
+  --stem-piano: #b9a0cd;
+  --stem-other: #a8b3bf;
+  --stem-acoustic_guitar: #dbb87e;
+  --stem-lead_guitar: #dda084;
+  --stem-rhythm_guitar: #92bcb5;
+  --score-paper: #26231e;
+  --score-ink: #eee5d7;
+  --score-muted: #827565;
+  --fretboard-surface: #554633;
+  --fretboard-line: #b9a07e;
+  --piano-white: #ddd5c6;
+  --piano-black: #171512;
+}
+
+/* LAN HTML receives the mode before loading JS, including device-local system mode. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme-mode="system"]:not([data-theme]) { color-scheme: dark; background: #191816; color: #eee7dc; }
+}
+:root[data-theme-mode="dark"]:not([data-theme]) { color-scheme: dark; background: #191816; color: #eee7dc; }
+
+:root[data-effects="reduced"] *, :root[data-effects="reduced"] *::before, :root[data-effects="reduced"] *::after { animation: none !important; transition: none !important; backdrop-filter: none !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; backdrop-filter: none !important; scroll-behavior: auto !important; }
+}

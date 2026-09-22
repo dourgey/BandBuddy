@@ -1,6 +1,7 @@
+import { normalizeAppearance, type Appearance } from '@shared/appearance.js'
 import { randomBytes, createHash } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, stat, rename } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, rename, readFile } from 'node:fs/promises'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createSocket, type Socket } from 'node:dgram'
 import { networkInterfaces, tmpdir } from 'node:os'
@@ -17,6 +18,7 @@ import { runSignalsmithPitchShift } from './pitch-shift.js'
 
 export const LAN_PORT = 60232
 export const LAN_PROTOCOL = 'bandbuddy-lan'
+const publicAppearance = (value: unknown): Pick<Appearance, 'theme' | 'density' | 'effects'> => { const { theme, density, effects } = normalizeAppearance(value); return { theme, density, effects } }
 const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.wav': 'audio/wav', '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
 
 export function lanAddresses(): string[] {
@@ -33,6 +35,7 @@ export function isLocalAddress(address: string): boolean {
 
 /** Session-only opt-in. Disabling revokes URLs, stops downloads and aborts render work. */
 export class LanService {
+  private appearanceClients = new Set<ServerResponse>()
   private server: Server | null = null
   private udp: Socket | null = null
   private token = ''
@@ -53,6 +56,14 @@ export class LanService {
     private readonly rendererRoot: string,
     private readonly discoveryPort = LAN_PORT
   ) {}
+
+  appearanceChanged(appearance: Appearance): void {
+    const payload = `data: ${JSON.stringify(publicAppearance(appearance))}\n\n`
+    for (const client of this.appearanceClients) {
+      if (client.destroyed || client.writableLength > 16_384) { client.destroy(); this.appearanceClients.delete(client) }
+      else client.write(payload)
+    }
+  }
 
   status(): LanStatus {
     return { enabled: this.server !== null && this.port !== null, port: this.port,
@@ -107,6 +118,8 @@ export class LanService {
 
   async stop(): Promise<void> {
     this.controller.abort()
+    for (const client of this.appearanceClients) client.end()
+    this.appearanceClients.clear()
     const server = this.server
     this.server = null; this.port = null; this.token = ''; this.error = null
     this.udp?.close(); this.udp = null
@@ -157,10 +170,11 @@ export class LanService {
     if (url.pathname === '/api/v1/discovery' && request.method === 'GET') return this.json(response, 200, this.discovery())
     if (url.pathname === '/api/v1/handshake' && request.method === 'POST') {
       if (!request.headers['content-type']?.startsWith('application/json')) return this.json(response, 415, { error: 'JSON_REQUIRED' })
+      request.setEncoding('utf8')
       let body = ''
       for await (const chunk of request) {
         body += chunk.toString()
-        if (body.length > 4096) { this.json(response, 413, { error: 'BODY_TOO_LARGE' }); return }
+        if (Buffer.byteLength(body, 'utf8') > 4096) { this.json(response, 413, { error: 'BODY_TOO_LARGE' }); return }
       }
       let client: { service?: string; version?: number; platform?: string }
       try { client = JSON.parse(body) } catch { return this.json(response, 400, { error: 'INVALID_JSON' }) }
@@ -171,6 +185,17 @@ export class LanService {
     const prefix = `/s/${this.token}/`
     if (!this.token || !url.pathname.startsWith(prefix)) return this.json(response, 404, { error: 'NOT_FOUND' })
     const route = url.pathname.slice(prefix.length)
+    if (route === 'api/v1/appearance-events') {
+      if (request.method !== 'GET') return this.json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      if (this.appearanceClients.size >= 32) return this.json(response, 503, { error: 'CLIENT_LIMIT' })
+      response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Content-Type-Options': 'nosniff' })
+      this.appearanceClients.add(response)
+      response.write(`data: ${JSON.stringify(publicAppearance(this.database.getSettings().appearance))}\n\n`)
+      const heartbeat = setInterval(() => { if (!response.destroyed && response.writableLength < 16_384) response.write(': keepalive\n\n'); else response.destroy() }, 25_000)
+      heartbeat.unref()
+      response.on('close', () => { clearInterval(heartbeat); this.appearanceClients.delete(response) })
+      return
+    }
     if (route === 'api/v1/songs') {
       const songs = this.database.listSongs('', 'all').filter((song) => song.status === 'ready')
       return this.json(response, 200, { version: 1, songs: songs.map((song) => ({
@@ -199,7 +224,14 @@ export class LanService {
       return this.file(request, response, output)
     }
     // Serve only generated web assets, never arbitrary renderer or library paths.
-    if (route === '' || /^assets\/[a-zA-Z0-9_.-]+$/.test(route)) {
+    if (route === '') {
+      const { theme, density, effects } = publicAppearance(this.database.getSettings().appearance)
+      const html = (await readFile(path.join(this.rendererRoot, 'lan.html'), 'utf8')).replace(/<html(?=[\s>])/i, `<html data-theme-mode="${theme}" data-density="${density}" data-effects="${effects}"`)
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'", 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' })
+      response.end(request.method === 'HEAD' ? undefined : html)
+      return
+    }
+    if (/^assets\/[a-zA-Z0-9_.-]+$/.test(route)) {
       return this.file(request, response, path.join(this.rendererRoot, route || 'lan.html'))
     }
     this.json(response, 404, { error: 'NOT_FOUND' })
@@ -251,6 +283,7 @@ export class LanService {
     const signal = this.controller.signal
     const render = this.renderQueue.catch(() => undefined).then(async () => {
       if (signal.aborted) throw new Error('LAN_STOPPED')
+      await this.media.ready()
       const ffmpeg = this.media.tool('ffmpeg')
       if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const directory = path.join(root, key)

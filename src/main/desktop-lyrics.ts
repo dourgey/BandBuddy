@@ -1,3 +1,4 @@
+import { normalizeAppearance, type Appearance } from '@shared/appearance.js'
 import { BrowserWindow, screen } from 'electron'
 import type { DesktopLyricsPayload } from '@shared/domain.js'
 import { IPC } from '@shared/channels.js'
@@ -7,6 +8,7 @@ interface DesktopLyricsWindowOptions {
   preloadPath: string
   rendererUrl: string
   logger: Logger
+  appearance?: () => Appearance
 }
 
 export class DesktopLyricsWindow {
@@ -15,6 +17,7 @@ export class DesktopLyricsWindow {
   private latestPayload: DesktopLyricsPayload | null = null
   private shouldBeVisible = false
   private fontSize = 24
+  private latestAppearance = normalizeAppearance(null)
 
   setFontSize(size: number): void {
     this.fontSize = size
@@ -35,6 +38,7 @@ export class DesktopLyricsWindow {
     await this.loadPromise
     if (!this.shouldBeVisible || window.isDestroyed()) return
     this.position(window)
+    this.sendAppearance(window)
     if (this.latestPayload) window.webContents.send(IPC.eventDesktopLyricsUpdate, this.latestPayload)
     window.showInactive()
   }
@@ -48,6 +52,16 @@ export class DesktopLyricsWindow {
     if (!window || window.isDestroyed() || window.webContents.isLoading()) return
     if (layoutChanged) this.position(window)
     window.webContents.send(IPC.eventDesktopLyricsUpdate, payload)
+  }
+
+  setAppearance(appearance: Appearance): void {
+    this.latestAppearance = normalizeAppearance(appearance)
+    if (this.window && !this.window.isDestroyed() && !this.window.webContents.isLoading()) this.window.webContents.send(IPC.eventAppearanceChanged, this.latestAppearance)
+  }
+
+  private sendAppearance(window: BrowserWindow): void {
+    this.latestAppearance = normalizeAppearance(this.options.appearance?.() ?? this.latestAppearance)
+    window.webContents.send(IPC.eventAppearanceChanged, this.latestAppearance)
   }
 
   destroy(): void {
@@ -76,6 +90,7 @@ export class DesktopLyricsWindow {
       hasShadow: false,
       webPreferences: {
         preload: this.options.preloadPath,
+        additionalArguments: [`--bandbuddy-appearance=${encodeURIComponent(JSON.stringify(normalizeAppearance(this.options.appearance?.() ?? this.latestAppearance)))}`],
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
@@ -91,6 +106,9 @@ export class DesktopLyricsWindow {
     window.setIgnoreMouseEvents(true)
     window.setMenuBarVisibility(false)
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    window.webContents.on('did-finish-load', () => {
+      if (this.window === window && !window.isDestroyed()) this.sendAppearance(window)
+    })
     window.webContents.on('will-navigate', (event, url) => {
       if (url !== this.options.rendererUrl) event.preventDefault()
     })
@@ -124,12 +142,12 @@ export class DesktopLyricsWindow {
 
   private position(window: BrowserWindow): void {
     const display = window.isVisible() ? screen.getDisplayMatching(window.getBounds()) : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const width = Math.min(1000, Math.max(620, Math.round(display.workArea.width * 0.72)))
+    const width = Math.min(display.workArea.width, 1000, Math.max(620, Math.round(display.workArea.width * 0.72)))
     const lines = Math.max(1, this.latestPayload?.currentLines.length ?? 1)
-    const height = Math.max(142, Math.ceil(66 + this.fontSize * (1.18 * lines + 0.6)))
+    const height = Math.min(display.workArea.height, Math.max(142, Math.ceil(66 + this.fontSize * (1.18 * lines + 0.6))))
     window.setBounds({
       x: Math.round(display.workArea.x + (display.workArea.width - width) / 2),
-      y: display.workArea.y + display.workArea.height - height - 28,
+      y: Math.max(display.workArea.y, display.workArea.y + display.workArea.height - height - 28),
       width,
       height
     }, false)

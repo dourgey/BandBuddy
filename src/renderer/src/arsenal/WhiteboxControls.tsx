@@ -1,3 +1,4 @@
+import { Select } from '../components/ui/Select.js'
 import { WHITEBOX_DEVICES, type WhiteboxSettings } from '@shared/arsenal.js'
 
 export function WhiteboxControls({ value, onChange }: {
@@ -8,9 +9,9 @@ export function WhiteboxControls({ value, onChange }: {
   const patch = (change: Partial<WhiteboxSettings>): void => onChange({ ...value, ...change })
   return <div className="whitebox-controls">
     <div className="whitebox-device">
-      <label>经典设备<select aria-label="经典设备" value={value.device} onChange={e => patch({ device: e.target.value as WhiteboxSettings['device'] })}>
+      <label>经典设备<Select aria-label="经典设备" value={value.device} onChange={e => patch({ device: e.target.value as WhiteboxSettings['device'] })}>
         {WHITEBOX_DEVICES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-      </select></label>
+      </Select></label>
       <p>{device.description}</p>
       <small>{value.device === 'fuzzface' ? '双晶体管电路；不含锗管漏电、击穿和电池内阻；尚未通过实机校准。' : '电路削波核心 + 简化运放与音调网络；尚未通过实机对照校准。'}</small>
     </div>
@@ -25,7 +26,7 @@ export function WhiteboxControls({ value, onChange }: {
     </div>
     <div className="whitebox-calibration">
       <label>输入标定 · V / 满幅<input aria-label="输入标定" type="number" min={.1} max={10} step={.1} value={value.inputVolts} onChange={e => { const v = e.target.valueAsNumber; if (Number.isFinite(v) && v >= .1 && v <= 10) patch({ inputVolts: v }) }} /></label>
-      <label>过采样<select aria-label="过采样" value={value.oversampling} onChange={e => patch({ oversampling: Number(e.target.value) as 2 | 4 })}><option value={2}>2× · 较低负载</option><option value={4}>4× · 推荐</option></select></label>
+      <label>过采样<Select aria-label="过采样" value={value.oversampling} onChange={e => patch({ oversampling: Number(e.target.value) as 2 | 4 })}><option value={2}>2× · 较低负载</option><option value={4}>4× · 推荐</option></Select></label>
       <small>默认 1 V 是起点，请按声卡输入增益标定。设备和过采样切换会重新加载。</small>
     </div>
   </div>

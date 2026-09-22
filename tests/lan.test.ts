@@ -1,12 +1,13 @@
 import { createServer, request as httpRequest, type Server } from 'node:http'
 import { createSocket } from 'node:dgram'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest'
 import { LanService, LAN_PORT } from '../src/main/lan.js'
 import { createDefaultPracticeState } from '@shared/domain.js'
+import type { Appearance } from '@shared/appearance.js'
 
 const songId = '11111111-1111-4111-8111-111111111111'
 const stemId = '22222222-2222-4222-8222-222222222222'
@@ -19,6 +20,7 @@ describe('LAN HTTP and discovery integration', () => {
   let origin: string
   let session: string
   let discoveryPort: number
+  const appearance = { schemaVersion: 1, theme: 'dark', density: 'compact', effects: 'reduced', privateToken: 'must-not-be-exposed', libraryRoot: '/private/library' }
   const song = { id: songId, title: '测试曲目', artist: 'Band', durationMs: 12000, status: 'ready',
     updatedAt: '2026-09-22T00:00:00Z', stemTypes: ['lead_guitar'], sourceFormat: 'existing-stems',
     practice: createDefaultPracticeState(songId), lyrics: { fileName: 'song.lrc', title: null, artist: null, album: null, cues: [{ timeMs: 0, lines: ['第一句'] }] },
@@ -27,7 +29,7 @@ describe('LAN HTTP and discovery integration', () => {
   beforeAll(async () => {
     root = await mkdtemp(path.join(tmpdir(), 'lan-test-'))
     await mkdir(path.join(root, 'assets'))
-    await writeFile(path.join(root, 'lan.html'), '<html>practice</html>')
+    await writeFile(path.join(root, 'lan.html'), await readFile(path.resolve('src/renderer/lan.html'), 'utf8'))
     await writeFile(path.join(root, 'secret.txt'), 'never served')
     await writeFile(path.join(root, 'track.flac'), bytes)
     blocker = createServer()
@@ -40,6 +42,7 @@ describe('LAN HTTP and discovery integration', () => {
     discoveryPort = discoveryProbe.address().port
     await new Promise<void>((resolve) => discoveryProbe.close(resolve))
     service = new LanService({
+      getSettings: () => ({ appearance }),
       listSongs: () => [song, { ...song, id: 'pending', status: 'processing' }],
       getSong: (id: string) => id === songId ? song : null
     } as never, {
@@ -105,6 +108,55 @@ describe('LAN HTTP and discovery integration', () => {
     expect((await fetch(session + 'secret.txt')).status).toBe(404)
     expect((await fetch(session + 'assets/%2e%2e/secret.txt')).status).toBe(404)
     expect((await fetch(session)).status).toBe(200)
+  })
+  it('retains HTML security headers while injecting only the public appearance preferences', async () => {
+    const response = await fetch(session)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(response.headers.get('Content-Security-Policy')).toContain("script-src 'self'")
+    expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'")
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
+    const html = await response.text()
+    expect(html).toContain('data-theme-mode="dark"')
+    expect(html).toContain('data-density="compact"')
+    expect(html).toContain('data-effects="reduced"')
+    expect(html).toContain('lang="zh-CN"')
+    expect(html).not.toContain(appearance.privateToken)
+    expect(html).not.toContain(appearance.libraryRoot)
+    const head = await fetch(session, { method: 'HEAD' })
+    expect(head.headers.get('Content-Security-Policy')).toBe(response.headers.get('Content-Security-Policy'))
+    expect(await head.text()).toBe('')
+  })
+  it('streams current and changed whitelisted preferences only to authenticated same-origin clients', async () => {
+    const endpoint = session + 'api/v1/appearance-events'
+    expect((await fetch(endpoint, { headers: { Origin: 'https://foreign.invalid' } })).status).toBe(403)
+    expect((await fetch(`${origin}/s/invalid/api/v1/appearance-events`)).status).toBe(404)
+    expect((await fetch(endpoint, { method: 'HEAD' })).status).toBe(405)
+    const controller = new AbortController()
+    const response = await fetch(endpoint, { headers: { Origin: origin }, signal: controller.signal })
+    expect(response.headers.get('Content-Type')).toBe('text/event-stream')
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let pending = ''
+    const next = async (): Promise<unknown> => {
+      while (!pending.includes('\n\n')) {
+        const part = await reader.read()
+        if (part.done) throw new Error('SSE ended before appearance')
+        pending += decoder.decode(part.value, { stream: true })
+      }
+      const boundary = pending.indexOf('\n\n')
+      const event = pending.slice(0, boundary)
+      pending = pending.slice(boundary + 2)
+      return JSON.parse(event.slice('data: '.length))
+    }
+    try {
+      expect(await next()).toEqual({ theme: 'dark', density: 'compact', effects: 'reduced' })
+      service.appearanceChanged({ ...appearance, theme: 'system', density: 'normal', effects: 'standard' } as Appearance)
+      expect(await next()).toEqual({ theme: 'system', density: 'normal', effects: 'standard' })
+      service.appearanceChanged({ ...appearance, theme: 'warm' } as Appearance)
+      expect(await next()).toEqual({ theme: 'warm', density: 'compact', effects: 'reduced' })
+    } finally { controller.abort(); await reader.cancel().catch(() => undefined) }
   })
   it('revokes old URLs on stop/restart, including concurrent toggles', async () => {
     const oldPath = new URL(session).pathname

@@ -1,3 +1,4 @@
+import { Select } from '../components/ui/Select.js'
 import { CLASSIC_AMPS, CLASSIC_CABS, CLASSIC_MODS, type EffectChainSnapshot, type ModulationSettings, type ToneAsset } from '@shared/arsenal.js'
 
 function Parameter({ label, value, min = 0, max = 1, step = .01, onChange }: {
@@ -16,12 +17,12 @@ export function AmpCabControls({ chain, assets, update }: {
   const amp = chain.amp, cab = chain.cab
   return <div className="classic-rack">
     <section className="classic-module"><h3>箱头</h3>
-      <label>箱头引擎<select aria-label="箱头引擎" value={amp.engine} onChange={e => update({ amp: { ...amp, engine: e.target.value as typeof amp.engine } })}><option value="nam">NAM · 导入模型</option><option value="classic">白盒 · 前级电路</option></select></label>
+      <label>箱头引擎<Select aria-label="箱头引擎" value={amp.engine} onChange={e => update({ amp: { ...amp, engine: e.target.value as typeof amp.engine } })}><option value="nam">NAM · 导入模型</option><option value="classic">白盒 · 前级电路</option></Select></label>
       {amp.engine === 'nam' ? <>
-        <label>NAM 音色<select aria-label="NAM 音色" value={amp.assetId ?? ''} onChange={e => update({ amp: { ...amp, assetId: e.target.value || null } })}><option value="">请选择已导入音色</option>{assets.filter(a => a.kind === 'nam').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label>模型质量<select aria-label="模型质量" value={amp.quality} onChange={e => update({ amp: { ...amp, quality: e.target.value as 'full' | 'lite' } })}><option value="full">Full</option><option value="lite">Lite</option></select></label>
+        <label>NAM 音色<Select aria-label="NAM 音色" value={amp.assetId ?? ''} onChange={e => update({ amp: { ...amp, assetId: e.target.value || null } })}><option value="">请选择已导入音色</option>{assets.filter(a => a.kind === 'nam').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></label>
+        <label>模型质量<Select aria-label="模型质量" value={amp.quality} onChange={e => update({ amp: { ...amp, quality: e.target.value as 'full' | 'lite' } })}><option value="full">Full</option><option value="lite">Lite</option></Select></label>
       </> : <>
-        <label>前级电路<select aria-label="前级电路" value={amp.classic.device} onChange={e => update({ amp: { ...amp, classic: { ...amp.classic, device: e.target.value as typeof amp.classic.device } } })}>{CLASSIC_AMPS.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        <label>前级电路<Select aria-label="前级电路" value={amp.classic.device} onChange={e => update({ amp: { ...amp, classic: { ...amp.classic, device: e.target.value as typeof amp.classic.device } } })}>{CLASSIC_AMPS.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></label>
         <p>{CLASSIC_AMPS.find(a => a.id === amp.classic.device)?.description}</p>
         <small>降阶前级研究模型 · 4× 过采样 · 未经实机校准，不代表完整箱头。</small>
         <div className="classic-parameters">{(['gain', 'bass', 'middle', 'treble', 'master'] as const).map((key, i) => <Parameter key={key} label={['Gain', 'Bass', 'Middle', 'Treble', 'Master'][i]!} value={amp.classic[key]} onChange={v => update({ amp: { ...amp, classic: { ...amp.classic, [key]: v } } })} />)}
@@ -30,9 +31,9 @@ export function AmpCabControls({ chain, assets, update }: {
       </>}
     </section>
     <section className="classic-module"><h3>箱体 <label className="classic-switch"><input type="checkbox" checked={cab.enabled} onChange={e => update({ cab: { ...cab, enabled: e.target.checked } })} />箱体开启</label></h3>
-      <label>箱体引擎<select aria-label="箱体引擎" value={cab.engine} onChange={e => update({ cab: { ...cab, engine: e.target.value as typeof cab.engine } })}><option value="ir">IR · 导入脉冲响应</option><option value="physical">物理模型 · C12N</option></select></label>
-      {cab.engine === 'ir' ? <label>箱体 IR<select aria-label="箱体 IR" value={cab.assetId ?? ''} onChange={e => update({ cab: { ...cab, assetId: e.target.value || null } })}><option value="">请选择已导入 IR</option>{assets.filter(a => a.kind === 'ir').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label> : <>
-        <label>箱体结构<select aria-label="箱体结构" value={cab.physical.device} onChange={e => update({ cab: { ...cab, physical: { ...cab.physical, device: e.target.value as typeof cab.physical.device } } })}>{CLASSIC_CABS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <label>箱体引擎<Select aria-label="箱体引擎" value={cab.engine} onChange={e => update({ cab: { ...cab, engine: e.target.value as typeof cab.engine } })}><option value="ir">IR · 导入脉冲响应</option><option value="physical">物理模型 · C12N</option></Select></label>
+      {cab.engine === 'ir' ? <label>箱体 IR<Select aria-label="箱体 IR" value={cab.assetId ?? ''} onChange={e => update({ cab: { ...cab, assetId: e.target.value || null } })}><option value="">请选择已导入 IR</option>{assets.filter(a => a.kind === 'ir').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></label> : <>
+        <label>箱体结构<Select aria-label="箱体结构" value={cab.physical.device} onChange={e => update({ cab: { ...cab, physical: { ...cab.physical, device: e.target.value as typeof cab.physical.device } } })}>{CLASSIC_CABS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>
         <p>{CLASSIC_CABS.find(c => c.id === cab.physical.device)?.description}</p>
         <small>厂商 T/S 参数 + 线性活塞模型；高频纸盆分割振动、近场麦克风与功放负载反馈未建模。</small>
         <div className="classic-parameters">
@@ -54,7 +55,7 @@ export function AmpCabControls({ chain, assets, update }: {
 export function ModulationControls({ value, onChange }: { value: ModulationSettings; onChange(value: ModulationSettings): void }): React.JSX.Element {
   const patch = (v: Partial<ModulationSettings>): void => onChange({ ...value, ...v })
   const hasRate = !['wah', 'ota-compressor'].includes(value.device)
-  return <div className="classic-module"><label>调制与动态设备<select aria-label="调制与动态设备" value={value.device} onChange={e => patch({ device: e.target.value as ModulationSettings['device'] })}>{CLASSIC_MODS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
+  return <div className="classic-module"><label>调制与动态设备<Select aria-label="调制与动态设备" value={value.device} onChange={e => patch({ device: e.target.value as ModulationSettings['device'] })}>{CLASSIC_MODS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</Select></label>
     <p>{CLASSIC_MODS.find(m => m.id === value.device)?.description}</p>
     <div className="classic-parameters">
       {hasRate && <Parameter label="Rate Hz" min={.05} max={10} step={.05} value={value.rateHz} onChange={rateHz => patch({ rateHz })} />}
