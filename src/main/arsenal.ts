@@ -10,6 +10,7 @@ import type { MediaService } from './media.js'
 import type { AudioHostClient } from './audio-host.js'
 import type { RecordingService } from './recording.js'
 import { runProcess } from './process.js'
+import { decodeNam } from './nam.js'
 
 const hash = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex')
 export function decodeIr(bytes: Buffer): { channels: number[][]; sampleRate: number } {
@@ -53,16 +54,13 @@ export class ArsenalService {
   private asset(id:string):ToneAsset {const row=this.db.sqlite.prepare('SELECT json FROM tone_assets WHERE id=?').get(id) as {json:string}|undefined;if(!row)throw new Error(`音色资源缺失：${id}`);return JSON.parse(row.json)}
   private file(a:ToneAsset):string {return path.join(this.root,`${a.id}.${a.kind==='nam'?'nam':'wav'}`)}
   async importAsset(kind:'nam'|'ir',sampleRate?:number):Promise<ToneAsset|null> {
-    const result=await dialog.showOpenDialog({title:kind==='nam'?'导入 NAM 音色':'导入箱体 IR',properties:['openFile'],filters:[{name:kind==='nam'?'NAM':'WAV',extensions:[kind==='nam'?'nam':'wav']}]})
+    const result=await dialog.showOpenDialog({title:kind==='nam'?'导入 NAM 音色':'导入箱体 IR',properties:['openFile'],filters:[{name:kind==='nam'?'NAM':'WAV',extensions:kind==='nam'?['nam','nam2']:['wav']}]})
     if(result.canceled || !result.filePaths[0])return null
     const file=result.filePaths[0];if((await stat(file)).size>64*1024*1024)throw new Error('文件超过 64 MB 导入上限')
     const bytes=await readFile(file), id=hash(bytes),old=this.list().assets.find(a=>a.id===id);if(old)return old
     const item:ToneAsset={id,kind,name:path.basename(file,path.extname(file)),sampleRate:0,channels:1,durationMs:0,metadata:{},createdAt:new Date().toISOString()}
     if(kind==='nam') {
-      let model:any;try{model=JSON.parse(bytes.toString('utf8'))}catch{throw new Error('NAM 文件不是有效 JSON')}
-      if(!model || typeof model.architecture!=='string' || !Array.isArray(model.weights) || !model.weights.length || model.weights.some((x:unknown)=>typeof x!=='number'||!Number.isFinite(x)) || !model.config)throw new Error('NAM 模型结构无效')
-      item.sampleRate=Number(model.sample_rate || sampleRate);if(!Number.isFinite(item.sampleRate)||item.sampleRate<8000||item.sampleRate>192000)throw new Error('NAM 缺少训练采样率，请在导入旁选择正确的采样率后重试')
-      item.architecture=model.architecture;item.metadata=model.metadata??{};item.slimmable=model.architecture.toLowerCase().includes('slim') || Boolean(model.config?.slimmable)
+      Object.assign(item,decodeNam(bytes,sampleRate))
     }else {const ir=decodeIr(bytes);item.sampleRate=ir.sampleRate;item.channels=ir.channels.length;item.durationMs=ir.channels[0]!.length/ir.sampleRate*1000}
     await mkdir(this.root,{recursive:true});const destination=this.file(item);await writeFile(`${destination}.part`,bytes);await rename(`${destination}.part`,destination)
     this.db.sqlite.prepare('INSERT INTO tone_assets(id,json,created_at) VALUES(?,?,?)').run(id,JSON.stringify(item),item.createdAt)
