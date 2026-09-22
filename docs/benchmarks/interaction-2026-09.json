@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "date": "2026-09-22",
+  "scope": "Manual UI actions in Codex in-app Chromium browser, Vite DEV fixture preview, 800x500 CSS pixels, Apple M4/16GB. Includes navigation, sidebars, theme/effects, custom selects, piano preview, library search, and grid/list switching. Does not validate loaded multitrack recording, 10000-song interaction, OS DPI, or signed release builds. HMR was active during development.",
+  "method": "PerformanceObserver event entries with durationThreshold=16ms; maximum duration per nonzero interactionId, nearest-rank p95. Browser rounds durations; interactions below reporting threshold omitted. Tool round-trip times are not used.",
+  "count": 32,
+  "p95Ms": 88,
+  "maxMs": 88,
+  "durationsMs": [48,16,48,72,32,48,64,48,56,64,48,56,32,72,48,56,56,72,56,72,80,88,72,56,80,40,72,40,56,80,88,72],
+  "reproduce": "pnpm dev:renderer; open /?fixtures=1&perf=1 and use the controls. Read the hidden output#bandbuddy-interaction-metrics data attributes. Fixture diagnostics are excluded from production."
+}
