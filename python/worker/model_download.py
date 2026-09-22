@@ -114,7 +114,7 @@ def verify_file(path: Path, spec: BundleFile) -> str:
     return actual_hash
 
 
-def verify_bundle(model_root: Path, required_keys: tuple[str, ...] | None = None) -> Path:
+def verify_bundle(model_root: Path, required_keys: tuple[str, ...] | None = None, *, full: bool = True) -> Path:
     target = bundle_path(model_root)
     bag = target / f"{DEMUCS_MODEL_NAME}.yaml"
     if not bag.is_file() or bag.read_text("utf-8") != DEMUCS_BAG:
@@ -136,7 +136,11 @@ def verify_bundle(model_root: Path, required_keys: tuple[str, ...] | None = None
         if {spec.key for spec in selected} != requested:
             raise RuntimeError("MODEL_BUNDLE_KEY_UNKNOWN")
     for spec in selected:
-        verify_file(target / spec.filename, spec)
+        file = target / spec.filename
+        if full:
+            verify_file(file, spec)
+        elif not file.is_file() or file.stat().st_size != spec.size:
+            raise RuntimeError(f"MODEL_FILE_MISSING_OR_SIZE_CHANGED:{spec.key}")
     return target
 
 
@@ -170,9 +174,13 @@ def _download_once(
     if offset:
         headers["Range"] = f"bytes={offset}-"
     request = Request(f"{MODEL_BASE_URL}/{spec.filename}", headers=headers)
-    with urlopen(request, timeout=300, context=ssl.create_default_context()) as response:
+    with urlopen(request, timeout=45, context=ssl.create_default_context()) as response:
         status = getattr(response, "status", response.getcode())
         resumed = offset > 0 and status == 206
+        content_range = response.headers.get("Content-Range")
+        if resumed and content_range and not content_range.startswith(f"bytes {offset}-"):
+            partial.unlink(missing_ok=True)
+            raise OSError(f"MODEL_RANGE_MISMATCH:{spec.key}")
         if not resumed:
             offset = 0
         length = _content_length(response.headers)
@@ -241,7 +249,8 @@ def install_bundle(
 ) -> Path:
     target = bundle_path(model_root)
     target.mkdir(parents=True, exist_ok=True)
-    marker_path(model_root).unlink(missing_ok=True)
+    # A repair must not invalidate a working installation while downloading.
+    # The old marker is harmless: every inference still verifies pinned hashes.
     total_bytes = sum(spec.size for spec in BUNDLE_FILES)
     completed_bytes = 0
     hashes: dict[str, str] = {}

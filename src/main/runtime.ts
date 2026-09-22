@@ -1,16 +1,18 @@
 import AdmZip from 'adm-zip'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync } from 'node:fs'
 import { chmod, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { net } from 'electron'
+import { availableParallelism } from 'node:os'
+import { app } from 'electron'
 import type { ComputeDevice, GpuInfo, RuntimeInfo } from '@shared/domain.js'
-import { resolvePytorchSourceUrl, selectPytorchBackend } from '@shared/runtime-sources.js'
+import { matchRuntimeSourcePreset, RUNTIME_SOURCE_PRESETS, resolvePytorchSourceUrl, selectPytorchBackend } from '@shared/runtime-sources.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { Logger } from './logger.js'
 import { isManagedPath, type AppPaths } from './paths.js'
 import { runProcess, spawnSafe } from './process.js'
+import { redactNetworkCredentials } from './runtime-proxy.js'
 import { selectComputeDevice } from './runtime-device.js'
 import {
   PYTHON_RUNTIME_VERSIONS,
@@ -19,6 +21,10 @@ import {
 } from './runtime-dependencies.js'
 import { currentToolTarget, toolFile } from './platform-tools.js'
 import { isTrustedMacBundle } from './macos-bundle-integrity.js'
+import { RuntimeNetwork, proxyEnvironment } from './runtime-network.js'
+import { activeEnvironment, activateEnvironment, createEnvironment } from './runtime-environments.js'
+import { intelSphnRequirement, validateIntelRuntimeLock } from './runtime-wheel-manifest.js'
+import { isTrustedWindowsTool } from './windows-tool-integrity.js'
 import {
   VC_RUNTIME_DOWNLOAD_URL,
   detectWindowsVcRuntime,
@@ -78,6 +84,9 @@ interface WorkerMessage {
 export class RuntimeManager {
   private listeners = new Set<RuntimeListener>()
   private installation: AbortController | null = null
+  private installationTask: Promise<RuntimeInfo> | null = null
+  private detectionTask: Promise<RuntimeInfo> | null = null
+  private readonly network = new RuntimeNetwork()
   private info: RuntimeInfo
 
   constructor(
@@ -108,12 +117,22 @@ export class RuntimeManager {
     return { ...this.info }
   }
 
+  isInstalling(): boolean { return this.installationTask !== null || this.installation !== null }
+
+  async shutdown(): Promise<void> {
+    this.cancelInstall()
+    await Promise.allSettled([this.installationTask, this.detectionTask])
+    this.network.close()
+  }
+
   onChange(listener: RuntimeListener): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
   private update(patch: Partial<RuntimeInfo>): void {
+    if (patch.error) patch = { ...patch, error: redactNetworkCredentials(patch.error) }
+    if (patch.stage) patch = { ...patch, stage: redactNetworkCredentials(patch.stage) }
     this.info = { ...this.info, ...patch }
     for (const listener of this.listeners) listener(this.getInfo())
   }
@@ -139,22 +158,23 @@ export class RuntimeManager {
     env.PATH = `${toolBin}${path.delimiter}${env.PATH ?? ''}`
     if (network.pythonInstallMirror) env.UV_PYTHON_INSTALL_MIRROR = network.pythonInstallMirror
     else delete env.UV_PYTHON_INSTALL_MIRROR
-    if (network.proxyMode === 'manual' && network.proxyUrl) {
-      env.HTTPS_PROXY = network.proxyUrl
-      env.HTTP_PROXY = network.proxyUrl
-    } else if (network.proxyMode === 'none') {
-      delete env.HTTPS_PROXY
-      delete env.HTTP_PROXY
-      delete env.ALL_PROXY
-    }
-    return env
+    // Keep one CPU available for playback/UI; avoid overlapping BLAS thread pools.
+    const threads = String(Math.max(1, Math.min(8, availableParallelism() - 1)))
+    for (const key of ['OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'BANDBUDDY_CPU_THREADS']) env[key] = threads
+    delete env.PYTHONHOME
+    delete env.PYTHONPATH
+    return proxyEnvironment(env, network)
   }
 
   pythonExecutable(): string {
     const settings = this.database.getSettings()
+    return this.pythonIn(activeEnvironment(settings.runtimeRoot))
+  }
+
+  private pythonIn(directory: string): string {
     return process.platform === 'win32'
-      ? path.join(settings.runtimeRoot, 'env', 'Scripts', 'python.exe')
-      : path.join(settings.runtimeRoot, 'env', 'bin', 'python')
+      ? path.join(directory, 'Scripts', 'python.exe')
+      : path.join(directory, 'bin', 'python')
   }
 
   workerScript(): string {
@@ -164,7 +184,7 @@ export class RuntimeManager {
 
   private async detectNvidia(): Promise<GpuInfo | null> {
     try {
-      const result = await runProcess('nvidia-smi.exe', ['--query-gpu=name,driver_version,memory.total', '--format=csv,noheader,nounits'])
+      const result = await runProcess('nvidia-smi.exe', ['--query-gpu=name,driver_version,memory.total', '--format=csv,noheader,nounits'], { timeoutMs: 8_000 })
       if (result.code !== 0 || !result.stdout.trim()) return null
       const [name = '', driverVersion = '', memory = '0'] = result.stdout.trim().split(/\r?\n/)[0]!.split(',').map((part) => part.trim())
       return { name, driverVersion, memoryMb: Number(memory) || 0 }
@@ -176,7 +196,7 @@ export class RuntimeManager {
   private async detectCudaVersion(): Promise<string | null> {
     if (process.platform !== 'win32') return null
     try {
-      const result = await runProcess('nvidia-smi.exe', [])
+      const result = await runProcess('nvidia-smi.exe', [], { timeoutMs: 8_000 })
       if (result.code !== 0) return null
       return /CUDA(?: UMD)? Version:\s*(\d+\.\d+)/i.exec(result.stdout)?.[1] ?? null
     } catch {
@@ -186,6 +206,13 @@ export class RuntimeManager {
 
   async detect(): Promise<RuntimeInfo> {
     if (this.installation) return this.getInfo()
+    if (this.detectionTask) return this.detectionTask
+    const task = this.performDetection()
+    this.detectionTask = task
+    try { return await task } finally { if (this.detectionTask === task) this.detectionTask = null }
+  }
+
+  private async performDetection(): Promise<RuntimeInfo> {
     const settings = this.database.getSettings()
     this.update({
       status: 'detecting', stage: '检测显卡与私有运行环境', progress: null, error: null,
@@ -214,7 +241,7 @@ export class RuntimeManager {
     if (!existsSync(python) || !existsSync(this.workerScript())) {
       const stage = gpu
         ? '检测到 NVIDIA，可安装 CUDA 环境'
-        : process.platform === 'darwin'
+        : process.platform === 'darwin' && process.arch === 'arm64'
           ? '将优先使用 Apple MPS，不可用时自动使用 CPU'
           : '未检测到 NVIDIA GPU，将自动使用 CPU'
       this.update({ status: 'missing', stage, gpu, selectedDevice, progress: null })
@@ -222,7 +249,7 @@ export class RuntimeManager {
     }
 
     try {
-      const probe = await this.runWorker(['probe', '--model-root', settings.modelRoot], undefined, 90_000)
+      const probe = await this.runWorker(['probe', '--model-root', settings.modelRoot, '--quick'], undefined, 90_000)
       if (probe.code !== 0) throw new Error(probe.error ?? '运行环境自检失败')
       const data = probe.result
       selectedDevice = selectComputeDevice(settings.preferredDevice, process.platform, {
@@ -230,10 +257,11 @@ export class RuntimeManager {
         cudaAvailable: Boolean(data.cudaAvailable),
         mpsAvailable: Boolean(data.mpsAvailable)
       })
+      const ready = Boolean(data.modelReady && data.dependenciesReady)
       this.update({
-        status: data.modelReady ? 'ready' : 'missing',
-        stage: data.modelReady ? `环境就绪 · ${selectedDevice.toUpperCase()}` : '运行环境已安装，分轨资源尚未就绪',
-        progress: data.modelReady ? 1 : null,
+        status: ready ? 'ready' : 'missing',
+        stage: ready ? `环境就绪 · ${selectedDevice.toUpperCase()}` : '分轨组件或资源需要修复',
+        progress: ready ? 1 : null,
         gpu,
         selectedDevice,
         windowsVcRuntimeVersion: vcRuntime?.version ?? null,
@@ -254,39 +282,67 @@ export class RuntimeManager {
   }
 
   async install(): Promise<RuntimeInfo> {
+    if (this.installationTask) return this.installationTask
+    const task = this.performInstall()
+    this.installationTask = task
+    try { return await task } finally { if (this.installationTask === task) this.installationTask = null }
+  }
+
+  private async performInstall(): Promise<RuntimeInfo> {
     if (this.installation) return this.getInfo()
     const controller = new AbortController()
     this.installation = controller
     const settings = this.database.getSettings()
-    mkdirSync(settings.runtimeRoot, { recursive: true })
-    mkdirSync(settings.modelRoot, { recursive: true })
+    let candidate: string | null = null
+    let activated = false
+    let previousInfo = this.getInfo()
     try {
+      await this.detectionTask
+      previousInfo = this.getInfo()
+      controller.signal.throwIfAborted()
+      mkdirSync(settings.runtimeRoot, { recursive: true })
+      mkdirSync(settings.modelRoot, { recursive: true })
+      candidate = await createEnvironment(settings.runtimeRoot)
       this.update({ status: 'installing', stage: '检查系统运行库', progress: 0.01, error: null })
       await this.ensureWindowsPrerequisites(controller.signal)
       this.update({ status: 'installing', stage: '准备安装工具', progress: 0.08, error: null })
       const uv = await this.ensureUv(controller.signal)
-      const env = this.environment()
+      let env = await this.network.environment(this.environment(), settings.network, settings.network.pythonInstallMirror || 'https://github.com/astral-sh/python-build-standalone')
       const run = async (args: string[], stage: string, progress: number): Promise<void> => {
         this.update({ status: 'installing', stage, progress })
         const result = await runProcess(uv, args, {
           env,
+          timeoutMs: 30 * 60_000,
           signal: controller.signal,
           onStderrLine: (line) => {
-            if (/download|install|resolve/i.test(line)) this.update({ stage: `${stage} · ${line.slice(0, 100)}` })
+            if (/download|install|resolve/i.test(line)) this.update({ stage: `${stage} · ${redactNetworkCredentials(line).slice(0, 100)}` })
             this.logger.info('uv', line)
           }
         })
         if (controller.signal.aborted) throw new Error('INSTALL_CANCELLED')
-        if (result.code !== 0) throw new Error(`UV_FAILED:${result.stderr.slice(-1200)}`)
+        if (result.code !== 0) throw new Error(`UV_FAILED:${redactNetworkCredentials(result.stderr).slice(-1200)}`)
       }
 
-      await run(['python', 'install', RUNTIME_VERSIONS.python, '--python-preference', 'only-managed'], '安装私有 CPython 3.12', 0.12)
+      const fallbackNetwork = matchRuntimeSourcePreset(settings.network) === 'china'
+        ? { ...settings.network, ...RUNTIME_SOURCE_PRESETS.official } : null
+      try {
+        await run(['python', 'install', RUNTIME_VERSIONS.python, '--python-preference', 'only-managed'], '安装私有 CPython 3.12', 0.12)
+      } catch (error) {
+        if (!fallbackNetwork || controller.signal.aborted) throw error
+        this.update({ stage: '当前镜像不可用，正在尝试官方 Python 源' })
+        delete env.UV_PYTHON_INSTALL_MIRROR
+        env = await this.network.environment(env, fallbackNetwork, 'https://github.com/astral-sh/python-build-standalone')
+        await run(['python', 'install', RUNTIME_VERSIONS.python, '--python-preference', 'only-managed'], '安装私有 CPython 3.12', 0.12)
+      }
       await run([
-        'venv', path.join(settings.runtimeRoot, 'env'), '--python', RUNTIME_VERSIONS.python,
-        '--python-preference', 'only-managed', '--clear', '--no-project'
+        'venv', candidate, '--python', RUNTIME_VERSIONS.python,
+        '--python-preference', 'only-managed', '--no-project'
       ], '创建 BandBuddy 私有环境', 0.2)
 
-      const installArgs = ['pip', 'install', '--python', this.pythonExecutable()]
+      // Intel releases supply a complete wheel lock; established platforms retain pure Python sdists.
+      const binaryPackages = process.platform === 'darwin' && process.arch === 'x64'
+        ? ':all:' : 'torch,torchaudio,numpy,scipy,sphn,soundfile,onnxruntime,onnxruntime-gpu,numba,llvmlite'
+      const installArgs = ['pip', 'install', '--python', this.pythonIn(candidate), '--only-binary', binaryPackages]
       const cudaVersion = await this.detectCudaVersion()
       const backend = selectPytorchBackend(process.platform, cudaVersion, settings.preferredDevice)
       if (settings.network.pythonIndexUrl) installArgs.push('--default-index', settings.network.pythonIndexUrl)
@@ -299,25 +355,44 @@ export class RuntimeManager {
         installArgs.push('--torch-backend', backend)
       }
       const onnxVariant = selectOnnxRuntimeVariant(process.platform, backend)
-      installArgs.push(...pythonRuntimeRequirements(PYTHON_RUNTIME_VERSIONS, onnxVariant))
+      const requirements = [...pythonRuntimeRequirements(PYTHON_RUNTIME_VERSIONS, onnxVariant)]
+      let packageArguments = requirements
+      if (process.platform === 'darwin' && process.arch === 'x64') {
+        const sphn = await intelSphnRequirement(app.isPackaged ? this.paths.packagedResource('runtime-wheels.json') : path.join(process.cwd(), 'resources/runtime-wheels.json'))
+        const lock = app.isPackaged ? this.paths.packagedResource('runtime-locks', 'macos-x64.lock') : path.join(process.cwd(), 'python/runtime/macos-x64.lock')
+        await validateIntelRuntimeLock(lock, sphn)
+        packageArguments = ['--require-hashes', '--requirements', lock]
+      }
+      installArgs.push(...packageArguments)
       this.logger.info('selected ONNX Runtime package', { onnxVariant, backend, cudaVersion })
-      await run(installArgs, '安装本地分轨组件（下载可续传）', 0.32)
+      env = await this.network.environment(env, settings.network, settings.network.pythonIndexUrl || 'https://pypi.org/simple')
+      try { await run(installArgs, '安装本地分轨组件（下载可续传）', 0.32) }
+      catch (error) {
+        if (!fallbackNetwork || controller.signal.aborted) throw error
+        env = await this.network.environment(env, fallbackNetwork, 'https://pypi.org/simple')
+        await run(['pip', 'install', '--python', this.pythonIn(candidate), '--only-binary', binaryPackages, '--default-index', 'https://pypi.org/simple', '--torch-backend', backend, ...packageArguments], '镜像暂不可用，正在从官方源安装分轨组件', 0.32)
+      }
 
       this.update({ status: 'downloadingModel', stage: '下载并校验分轨资源', progress: 0.78 })
       const modelArgs = ['ensure-model', '--model-root', settings.modelRoot]
       const model = await this.runWorker(modelArgs, controller.signal, 0, (message) => {
         if (typeof message.progress === 'number') this.update({ progress: 0.78 + message.progress * 0.14 })
         if (message.message) this.update({ stage: message.message })
-      })
+      }, candidate)
       if (model.code !== 0) throw new Error(model.error ?? 'MODEL_INSTALL_FAILED')
 
       this.update({ status: 'verifying', stage: '执行 Torch 与短推理自检', progress: 0.94 })
-      const detected = await this.detectAfterInstall(controller.signal)
+      const detected = await this.detectAfterInstall(controller.signal, candidate)
+      controller.signal.throwIfAborted()
+      await activateEnvironment(settings.runtimeRoot, candidate)
+      activated = true
       this.database.unblockRuntimeJobs()
       this.update({ ...detected, status: 'ready', stage: `环境就绪 · ${detected.selectedDevice.toUpperCase()}`, progress: 1, modelReady: true, error: null })
       return this.getInfo()
     } catch (error) {
-      if (controller.signal.aborted || String(error).includes('INSTALL_CANCELLED')) {
+      if (previousInfo.status === 'ready' && existsSync(this.pythonExecutable())) {
+        this.update({ ...previousInfo, stage: controller.signal.aborted ? '安装已取消，继续使用原有环境' : '更新未完成，已保留原有可用环境', error: controller.signal.aborted ? null : String(error) })
+      } else if (controller.signal.aborted || String(error).includes('INSTALL_CANCELLED')) {
         this.update({ status: 'missing', stage: '安装已取消，可继续安装', progress: null, error: null })
       } else {
         this.logger.error('runtime installation failed', error)
@@ -328,18 +403,21 @@ export class RuntimeManager {
       }
       return this.getInfo()
     } finally {
+      if (candidate && !activated) await rm(candidate, { recursive: true, force: true }).catch(error => this.logger.warn('incomplete environment cleanup failed', error))
+      this.network.close()
       if (this.installation === controller) this.installation = null
     }
   }
 
-  private async detectAfterInstall(signal: AbortSignal): Promise<Partial<RuntimeInfo> & { selectedDevice: 'cuda' | 'mps' | 'cpu' }> {
+  private async detectAfterInstall(signal: AbortSignal, candidate: string): Promise<Partial<RuntimeInfo> & { selectedDevice: 'cuda' | 'mps' | 'cpu' }> {
     const settings = this.database.getSettings()
     const [gpu, vcRuntime] = process.platform === 'win32'
       ? await Promise.all([this.detectNvidia(), detectWindowsVcRuntime(runProcess)])
       : [null, null]
-    const probe = await this.runWorker(['probe', '--model-root', settings.modelRoot, '--self-test'], signal, 180_000)
+    const probe = await this.runWorker(['probe', '--model-root', settings.modelRoot, '--self-test', '--device', process.platform === 'darwin' && process.arch === 'x64' ? 'cpu' : settings.preferredDevice], signal, 600_000, undefined, candidate)
     if (probe.code !== 0) throw new Error(probe.error ?? 'SELF_TEST_FAILED')
     const data = probe.result
+    if (!data.modelReady || !data.dependenciesReady || !(data.selfTest as { ok?: boolean } | undefined)?.ok) throw new Error('RUNTIME_SELF_TEST_INCOMPLETE')
     const selectedDevice = selectComputeDevice(settings.preferredDevice, process.platform, {
       nvidiaDetected: gpu !== null,
       cudaAvailable: Boolean(data.cudaAvailable),
@@ -361,12 +439,14 @@ export class RuntimeManager {
   }
 
   async repair(): Promise<RuntimeInfo> {
-    await this.removeEnvironment(false)
+    this.cancelInstall()
+    await this.installationTask
     return await this.install()
   }
 
   async removeEnvironment(includeModels = false): Promise<void> {
     this.cancelInstall()
+    await this.installationTask
     const settings = this.database.getSettings()
     const unifiedStorage = this.usesUnifiedStorage(settings)
     const legacyManagedPath = isManagedPath(this.paths.localRoot, settings.runtimeRoot)
@@ -375,6 +455,8 @@ export class RuntimeManager {
     if (unifiedStorage) {
       await Promise.all([
         rm(path.join(settings.runtimeRoot, 'env'), { recursive: true, force: true }),
+        rm(path.join(settings.runtimeRoot, 'runtimes'), { recursive: true, force: true }),
+        rm(path.join(settings.runtimeRoot, 'active-environment.json'), { force: true }),
         rm(path.join(settings.runtimeRoot, 'managed-python'), { recursive: true, force: true })
       ])
     } else {
@@ -414,7 +496,7 @@ export class RuntimeManager {
     if (current.supported) {
       const audioHost = this.paths.audioHostExecutable()
       if (!existsSync(audioHost)) throw new Error('AUDIO_HOST_MISSING')
-      const selfTest = await runProcess(audioHost, ['--self-test'], { signal })
+      const selfTest = await runProcess(audioHost, ['--self-test'], { signal, timeoutMs: 30_000 })
       if (selfTest.code === 0) {
         this.update({ windowsVcRuntimeVersion: current.version })
         this.logger.info('Windows native prerequisites ready', { vcRuntime: current.version })
@@ -439,7 +521,7 @@ export class RuntimeManager {
     const installed = await detectWindowsVcRuntime(runProcess)
     if (!installed.supported) throw new Error(`VC_RUNTIME_INSTALL_FAILED:${result.code}`)
 
-    const selfTest = await runProcess(this.paths.audioHostExecutable(), ['--self-test'], { signal })
+    const selfTest = await runProcess(this.paths.audioHostExecutable(), ['--self-test'], { signal, timeoutMs: 30_000 })
     if (selfTest.code !== 0) {
       if (result.code === 3010 || result.code === 1641) throw new Error('VC_RUNTIME_RESTART_REQUIRED')
       throw new Error(`VC_RUNTIME_SELF_TEST_FAILED:${selfTest.code}`)
@@ -459,9 +541,7 @@ export class RuntimeManager {
     await rm(temporary, { force: true })
     this.update({ status: 'installing', stage: '从微软下载 Visual C++ x64 运行库', progress: 0.02 })
     try {
-      const response = await net.fetch(VC_RUNTIME_DOWNLOAD_URL, { signal })
-      if (!response.ok) throw new Error(`VC_RUNTIME_DOWNLOAD_HTTP_${response.status}`)
-      await writeFile(temporary, Buffer.from(await response.arrayBuffer()))
+      await writeFile(temporary, await this.network.bytes([VC_RUNTIME_DOWNLOAD_URL], this.database.getSettings().network, signal))
       if (!await this.hasTrustedMicrosoftSignature(temporary)) throw new Error('VC_RUNTIME_SIGNATURE_INVALID')
       await rename(temporary, destination)
       return destination
@@ -475,7 +555,7 @@ export class RuntimeManager {
     const result = await runProcess('powershell.exe', [
       '-NoLogo', '-NoProfile', '-NonInteractive',
       '-Command', AUTHENTICODE_SCRIPT
-    ], { env: { ...process.env, [PREREQUISITE_PATH_ENV]: filePath } })
+    ], { env: { ...process.env, [PREREQUISITE_PATH_ENV]: filePath }, timeoutMs: 30_000 })
     return result.code === 0 && isTrustedMicrosoftSignature(parseAuthenticodeInfo(result.stdout))
   }
 
@@ -485,6 +565,7 @@ export class RuntimeManager {
       const actualSha256 = await this.fileSha256(packaged)
       if (actualSha256 === UV_BINARY_SHA256) return packaged
       if (isTrustedMacBundle(this.paths.packagedResource())) return packaged
+      if (await isTrustedWindowsTool(packaged)) return packaged
       // Distribution signing changes the binary bytes. Never execute an
       // unverified bundled tool: use the pinned, verified cache/download below.
       this.logger.warn('packaged uv checksum differs; using verified standalone uv', {
@@ -501,9 +582,10 @@ export class RuntimeManager {
     const archive = path.join(this.paths.downloadRoot, UV_SOURCE.archive)
     const temporary = `${archive}.part`
     this.update({ status: 'installing', stage: `下载 uv ${RUNTIME_VERSIONS.uv}`, progress: 0.04 })
-    const response = await net.fetch(UV_DOWNLOAD, { signal })
-    if (!response.ok) throw new Error(`UV_DOWNLOAD_HTTP_${response.status}`)
-    const bytes = Buffer.from(await response.arrayBuffer())
+    const alternate = UV_DOWNLOAD.startsWith('https://github.com/astral-sh/')
+      ? UV_DOWNLOAD.replace('https://github.com/', 'https://releases.astral.sh/github/')
+      : UV_DOWNLOAD.replace('https://releases.astral.sh/github/', 'https://github.com/')
+    const bytes = await this.network.bytes([UV_DOWNLOAD, alternate], this.database.getSettings().network, signal)
     await writeFile(temporary, bytes)
     const digest = createHash('sha256').update(bytes).digest('hex')
     if (digest !== UV_ARCHIVE_SHA256) {
@@ -531,16 +613,20 @@ export class RuntimeManager {
   }
 
   private async fileSha256(filePath: string): Promise<string> {
-    return createHash('sha256').update(await readFile(filePath)).digest('hex')
+    const hash = createHash('sha256')
+    for await (const chunk of createReadStream(filePath)) hash.update(chunk)
+    return hash.digest('hex')
   }
 
   async runWorker(
     args: string[],
     signal?: AbortSignal,
     timeoutMs = 0,
-    onMessage?: (message: WorkerMessage) => void
+    onMessage?: (message: WorkerMessage) => void,
+    environmentDirectory?: string
   ): Promise<{ code: number; result: Record<string, unknown>; error: string | null }> {
-    const python = this.pythonExecutable()
+    signal?.throwIfAborted()
+    const python = environmentDirectory ? this.pythonIn(environmentDirectory) : this.pythonExecutable()
     if (!existsSync(python)) return { code: -1, result: {}, error: 'PYTHON_MISSING' }
     const controller = new AbortController()
     const forwardAbort = (): void => controller.abort()
@@ -550,8 +636,10 @@ export class RuntimeManager {
     let lastResult: Record<string, unknown> = {}
     let structuredError: string | null = null
     try {
+      const env = args[0] === 'ensure-model'
+        ? await this.network.environment(this.environment(), this.database.getSettings().network, 'https://modelscope.cn/') : this.environment()
       const result = await runProcess(python, [this.workerScript(), ...args], {
-        env: this.environment(),
+        env,
         signal: controller.signal,
         onStdoutLine: (line) => {
           try {
@@ -574,17 +662,23 @@ export class RuntimeManager {
 
   spawnWorker(args: string[], signal: AbortSignal, onMessage: (message: WorkerMessage) => void): ReturnType<typeof spawnSafe> {
     const child = spawnSafe(this.pythonExecutable(), [this.workerScript(), ...args], { env: this.environment(), signal })
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
     let pending = ''
-    child.stdout.on('data', (chunk: Buffer) => {
-      pending += chunk.toString('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      pending += chunk
       const lines = pending.split(/\r?\n/)
-      pending = lines.pop() ?? ''
+      pending = (lines.pop() ?? '').slice(-2 * 1024 * 1024)
       for (const line of lines) {
         try { onMessage(JSON.parse(line) as WorkerMessage) }
         catch { this.logger.info('worker stdout', line) }
       }
     })
-    child.stderr.on('data', (chunk: Buffer) => this.logger.info('worker stderr', chunk.toString('utf8')))
+    child.stdout.on('end', () => {
+      if (!pending) return
+      try { onMessage(JSON.parse(pending) as WorkerMessage) } catch { this.logger.info('worker stdout', pending) }
+    })
+    child.stderr.on('data', (chunk: string) => this.logger.info('worker stderr', chunk))
     return child
   }
 }

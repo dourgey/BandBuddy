@@ -23,7 +23,7 @@ const executable = process.argv[2] ?? path.join(
 )
 if (!existsSync(executable)) throw new Error(`Audio host is missing: ${executable}`)
 
-const root = mkdtempSync(path.join(tmpdir(), 'bandbuddy-audio-host-'))
+const root = mkdtempSync(path.join(tmpdir(), 'BandBuddy 中文 (音频) 🎸-'))
 const backingPath = path.join(root, 'backing.wav')
 const capturePath = path.join(root, 'capture.part.wav')
 const driftBackingPath = path.join(root, 'drift-backing.wav')
