@@ -1,21 +1,22 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync } from 'node:fs'
 import { rename, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
 import { type BpmDetectionResult, type MediaCapabilities, type MusicalKeyAnalysis, type StemStorageFormat, type StemType } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
-import { detectBpmFromSamples, type BpmAnalysis } from './bpm-detection.js'
-import { detectMusicalKeyFromSamples } from './key-detection.js'
+import type { BpmAnalysis } from './bpm-detection.js'
+import { runMediaAnalysis } from './media-analysis.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
-import { runProcess, spawnSafe } from './process.js'
+import { runProcess } from './process.js'
 import type { Logger } from './logger.js'
 import { mediaResponseHeaders, parseByteRange } from './media-range.js'
 import { decodeNcmFile } from './ncm.js'
 import { currentToolTarget, toolFile } from './platform-tools.js'
-import { isTrustedMacBundle } from './macos-bundle-integrity.js'
+import { isTrustedMacBundleAsync } from './macos-bundle-integrity.js'
+import { isTrustedWindowsTool } from './windows-tool-integrity.js'
 
 export interface AudioProbe {
   durationMs: number
@@ -49,32 +50,43 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
-  private readonly verifiedToolRoot: string | null
+  private verifiedToolRoot: string | null = null
+  private verification: Promise<void> | null = null
 
   constructor(
     private readonly paths: AppPaths,
     private readonly database: BandBuddyDatabase,
     private readonly logger: Logger
-  ) {
-    this.verifiedToolRoot = this.findVerifiedToolRoot()
-    if (!this.verifiedToolRoot) this.logger.error('FFmpeg resources failed integrity verification')
+  ) {}
+
+  ready(): Promise<void> {
+    this.verification ??= this.findVerifiedToolRoot().then(root => {
+      this.verifiedToolRoot = root
+      if (!root) this.logger.error('FFmpeg resources failed integrity verification')
+    })
+    return this.verification
   }
 
-  private findVerifiedToolRoot(): string | null {
+  private async findVerifiedToolRoot(): Promise<string | null> {
     const candidates = [
       this.paths.packagedResource('bin'),
       path.join(process.cwd(), 'resources', 'bin')
     ]
     for (const root of [...new Set(candidates)]) {
-      const valid = Object.entries(FFMPEG_FILE_HASHES).every(([name, expected]) => {
-        const file = path.join(root, name)
-        if (!existsSync(file)) return false
-        return createHash('sha256').update(readFileSync(file)).digest('hex') === expected
-      })
+      let valid = true
+      for (const [name, expected] of Object.entries(FFMPEG_FILE_HASHES)) {
+        try {
+          const hash = createHash('sha256')
+          for await (const chunk of createReadStream(path.join(root, name))) hash.update(chunk as Buffer)
+          if (hash.digest('hex') !== expected) {
+            if (root !== this.paths.packagedResource('bin') || !await isTrustedWindowsTool(path.join(root, name))) { valid = false; break }
+          }
+        } catch { valid = false; break }
+      }
       if (valid) return root
       if (root === this.paths.packagedResource('bin')
         && Object.keys(FFMPEG_FILE_HASHES).every(name => existsSync(path.join(root, name)))
-        && isTrustedMacBundle(path.dirname(root))) return root
+        && await isTrustedMacBundleAsync(path.dirname(root))) return root
     }
     return null
   }
@@ -102,6 +114,7 @@ export class MediaService {
   }
 
   async probe(filePath: string): Promise<AudioProbe> {
+    await this.ready()
     const ffprobe = this.tool('ffprobe')
     if (!ffprobe) {
       return { durationMs: 0, sampleRate: null, channels: null, format: path.extname(filePath).slice(1), title: null, artist: null, video: null }
@@ -126,6 +139,7 @@ export class MediaService {
   }
 
   async decodeAudio(input: string, temporaryOutput: string, finalOutput: string, signal: AbortSignal): Promise<void> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
@@ -147,6 +161,7 @@ export class MediaService {
   }
 
   async extractVideoAudio(input: string, temporaryOutput: string, finalOutput: string, signal: AbortSignal): Promise<void> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
@@ -172,6 +187,7 @@ export class MediaService {
   }
 
   async prepareVideo(input: string, temporaryRoot: string, outputRoot: string, signal: AbortSignal): Promise<string> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
@@ -204,6 +220,7 @@ export class MediaService {
   }
 
   async extractArtwork(input: string, output: string): Promise<boolean> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) return false
     mkdirSync(path.dirname(output), { recursive: true })
@@ -212,6 +229,7 @@ export class MediaService {
   }
 
   async convertNcmToMp3(input: string, decrypted: string, temporaryOutput: string, finalOutput: string): Promise<void> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     let coverPath: string | null = null
@@ -250,6 +268,7 @@ export class MediaService {
   }
 
   async leadingSilenceMs(input: string): Promise<number | null> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) return null
     const sink = process.platform === 'win32' ? 'NUL' : '/dev/null'
@@ -271,6 +290,7 @@ export class MediaService {
     storageFormat: StemStorageFormat = 'flac24',
     linearGain = 1
   ): Promise<AudioProbe> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     mkdirSync(path.dirname(temporaryOutput), { recursive: true })
@@ -294,45 +314,23 @@ export class MediaService {
     return await this.probe(finalOutput)
   }
 
-  async generatePeaks(input: string, output: string, durationMs: number, bins = 1800): Promise<void> {
+  async generatePeaks(input: string, output: string, durationMs: number, bins = 1800, signal?: AbortSignal): Promise<void> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) {
       await writeFile(output, JSON.stringify({ version: 1, sampleRate: 44100, min: [], max: [] }), 'utf8')
       return
     }
     mkdirSync(path.dirname(output), { recursive: true })
-    const sampleCount = Math.max(1, Math.round(durationMs * 44.1))
-    const samplesPerBin = Math.max(1, Math.ceil(sampleCount / bins))
-    const min = new Float32Array(bins).fill(1)
-    const max = new Float32Array(bins).fill(-1)
-    let sampleIndex = 0
-    let pending = Buffer.alloc(0)
-    const child = spawnSafe(ffmpeg, ['-v', 'error', '-i', input, '-vn', '-ac', '1', '-ar', '44100', '-f', 'f32le', 'pipe:1'])
-    const errorChunks: Buffer[] = []
-    child.stderr.on('data', (chunk: Buffer) => errorChunks.push(chunk))
-    child.stdout.on('data', (chunk: Buffer) => {
-      const data = Buffer.concat([pending, chunk])
-      const complete = data.length - (data.length % 4)
-      for (let offset = 0; offset < complete; offset += 4) {
-        const value = data.readFloatLE(offset)
-        const bin = Math.min(bins - 1, Math.floor(sampleIndex / samplesPerBin))
-        if (value < min[bin]!) min[bin] = value
-        if (value > max[bin]!) max[bin] = value
-        sampleIndex += 1
-      }
-      pending = data.subarray(complete)
-    })
-    const code = await new Promise<number>((resolve, reject) => {
-      child.once('error', reject)
-      child.once('close', (value) => resolve(value ?? -1))
-    })
-    if (code !== 0) throw new Error(`PEAKS_FAILED:${Buffer.concat(errorChunks).toString('utf8').slice(-800)}`)
-    const normalizedMin = Array.from(min, (value, index) => max[index] === -1 ? 0 : Math.round(value * 32767))
-    const normalizedMax = Array.from(max, (value) => value === -1 ? 0 : Math.round(value * 32767))
-    await writeFile(output, JSON.stringify({ version: 1, sampleRate: 44100, min: normalizedMin, max: normalizedMax }), 'utf8')
+    const peaks = await runMediaAnalysis({
+      kind: 'peaks', ffmpeg, durationMs, bins, sampleRate: 44100,
+      args: ['-v', 'error', '-i', input, '-vn', '-ac', '1', '-ar', '44100', '-f', 'f32le', 'pipe:1']
+    }, signal)
+    await writeFile(output, JSON.stringify(peaks), 'utf8')
   }
 
   async detectBpm(songId: string): Promise<BpmDetectionResult> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(songId)
@@ -384,25 +382,13 @@ export class MediaService {
 
   private async analyzeBpmInput(ffmpeg: string, input: string): Promise<BpmAnalysis | null> {
     const sampleRate = 8000
-    const child = spawnSafe(ffmpeg, [
-      '-v', 'error', '-i', input, '-t', '180', '-map', '0:a:0', '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 'f32le', 'pipe:1'
-    ])
-    const outputChunks: Buffer[] = []
-    const errorChunks: Buffer[] = []
-    child.stdout.on('data', (chunk: Buffer) => outputChunks.push(chunk))
-    child.stderr.on('data', (chunk: Buffer) => errorChunks.push(chunk))
-    const code = await new Promise<number>((resolve, reject) => {
-      child.once('error', reject)
-      child.once('close', (value) => resolve(value ?? -1))
+    return await runMediaAnalysis({ kind: 'bpm', ffmpeg, sampleRate,
+      args: ['-v', 'error', '-i', input, '-t', '180', '-map', '0:a:0', '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 'f32le', 'pipe:1']
     })
-    if (code !== 0) throw new Error(Buffer.concat(errorChunks).toString('utf8').slice(-500))
-    const pcm = Buffer.concat(outputChunks)
-    const samples = new Float32Array(Math.floor(pcm.length / 4))
-    for (let index = 0; index < samples.length; index += 1) samples[index] = pcm.readFloatLE(index * 4)
-    return detectBpmFromSamples(samples, sampleRate)
   }
 
   async detectKey(songId: string): Promise<MusicalKeyAnalysis> {
+    await this.ready()
     const ffmpeg = this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(songId)
@@ -421,24 +407,14 @@ export class MediaService {
     const filter = inputs.length === 1
       ? '[0:a]anull[keymix]'
       : `${labels}amix=inputs=${inputs.length}:duration=longest:normalize=1[keymix]`
-    const child = spawnSafe(ffmpeg, [
-      '-v', 'error', ...inputs.flatMap((input) => ['-i', input.path]),
-      '-filter_complex', filter, '-map', '[keymix]', '-t', '300', '-vn',
-      '-ac', '1', '-ar', String(sampleRate), '-f', 'f32le', 'pipe:1'
-    ])
-    const outputChunks: Buffer[] = []
-    const errorChunks: Buffer[] = []
-    child.stdout.on('data', (chunk: Buffer) => outputChunks.push(chunk))
-    child.stderr.on('data', (chunk: Buffer) => errorChunks.push(chunk))
-    const code = await new Promise<number>((resolve, reject) => {
-      child.once('error', reject)
-      child.once('close', (value) => resolve(value ?? -1))
+    const analysis = await runMediaAnalysis({ kind: 'key', ffmpeg, sampleRate,
+      stems: inputs.map(({ stem }) => stem.type),
+      args: [
+        '-v', 'error', ...inputs.flatMap((input) => ['-i', input.path]),
+        '-filter_complex', filter, '-map', '[keymix]', '-t', '300', '-vn',
+        '-ac', '1', '-ar', String(sampleRate), '-f', 'f32le', 'pipe:1'
+      ]
     })
-    if (code !== 0) throw new Error(`KEY_DETECTION_DECODE_FAILED:${Buffer.concat(errorChunks).toString('utf8').slice(-500)}`)
-    const pcm = Buffer.concat(outputChunks)
-    const samples = new Float32Array(Math.floor(pcm.length / 4))
-    for (let index = 0; index < samples.length; index += 1) samples[index] = pcm.readFloatLE(index * 4)
-    const analysis = detectMusicalKeyFromSamples(samples, sampleRate, inputs.map(({ stem }) => stem.type))
     if (!analysis) throw new Error('KEY_DETECTION_UNSTABLE')
     const saved = this.database.saveKeyAnalysis(songId, analysis)
     this.logger.info('musical key detected and saved', {

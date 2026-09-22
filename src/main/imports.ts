@@ -93,6 +93,7 @@ export class ImportService {
   }
 
   async importStems(options: ImportStemsOptions): Promise<ImportResult> {
+    await this.media.ready()
     if (!this.media.toolsReady()) throw new Error('FFMPEG_MISSING')
     for (const file of options.files) await this.validateAudioFile(file.path, AUDIO_EXTENSIONS)
     const probes = await Promise.all(options.files.map((file) => this.media.probe(file.path)))
@@ -166,6 +167,7 @@ export class ImportService {
     const sourcePath = path.resolve(selected.path)
     await this.validateAudioFile(sourcePath, SOURCE_MEDIA_EXTENSIONS)
     const videoSource = isVideoSource(sourcePath)
+    if (videoSource) await this.media.ready()
     if (videoSource && !this.media.toolsReady()) throw new Error('FFMPEG_MISSING')
     // Validate streams before copying a potentially large video into the library.
     const sourceProbe = videoSource ? await this.media.probe(sourcePath) : null

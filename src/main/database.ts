@@ -2,7 +2,8 @@ import { trackEffectsSchema } from '@shared/arsenal.js'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { copyFileSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { DEFAULT_APPEARANCE, normalizeAppearance } from '@shared/appearance.js'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
@@ -43,7 +44,19 @@ import type {
   RehearsalSetSummary,
   SaveRehearsalRequest
 } from '@shared/rehearsal.js'
-import type { AppPaths } from './paths.js'
+
+/** Only serializable paths are needed by the database and its startup worker. */
+export interface DatabasePaths {
+  databasePath: string
+  backupRoot: string
+  defaultLibraryRoot: string
+  pythonRoot: string
+  modelRoot: string
+}
+
+export interface DatabaseOpenOptions {
+  prepared?: boolean
+}
 
 interface SongRow {
   id: string
@@ -530,7 +543,10 @@ export const DATABASE_MIGRATIONS = [
   `CREATE TABLE tone_assets(id TEXT PRIMARY KEY,json TEXT NOT NULL,created_at TEXT NOT NULL);
    CREATE TABLE arsenal_presets(id TEXT PRIMARY KEY,json TEXT NOT NULL,updated_at TEXT NOT NULL);
    ALTER TABLE recording_tracks ADD COLUMN effects_json TEXT;
-   ALTER TABLE recording_takes ADD COLUMN effects_snapshot_json TEXT;`
+   ALTER TABLE recording_takes ADD COLUMN effects_snapshot_json TEXT;`,
+  `CREATE INDEX IF NOT EXISTS songs_library_order_idx ON songs(COALESCE(last_practiced_at, updated_at) DESC, id);
+   CREATE INDEX IF NOT EXISTS songs_recent_order_idx ON songs(last_practiced_at DESC, id);
+   CREATE INDEX IF NOT EXISTS jobs_song_type_created_idx ON jobs(song_id, type, created_at DESC);`
 ]
 
 function parseKeyAnalysis(value: string | null): MusicalKeyAnalysis | null {
@@ -565,30 +581,79 @@ function parseDeviceSnapshot(row: RecordingTakeRow): RecordingDeviceSnapshot {
   }
 }
 
+export interface LibraryPageRequest {
+  query?: string
+  filter?: 'all' | 'favorite' | 'processing' | 'recent'
+  offset?: number
+  limit?: number
+}
+
+export interface LibraryPageResult {
+  items: SongSummary[]
+  total: number
+  offset: number
+  limit: number
+}
+
+const SUMMARY_COLUMNS = 'id, title, artist, duration_ms, artwork_rel_path, favorite, status, progress, phase, active_separation_id, created_at, updated_at, last_practiced_at'
+const LIBRARY_ORDER = 'COALESCE(last_practiced_at, updated_at) DESC, id'
+
 export class BandBuddyDatabase {
   readonly sqlite: Database.Database
   readonly orm: BetterSQLite3Database
 
-  constructor(private readonly paths: AppPaths) {
-    this.backupBeforeMigrate()
-    this.sqlite = new Database(paths.databasePath)
-    this.orm = drizzle(this.sqlite)
-    this.sqlite.pragma('journal_mode = WAL')
-    this.sqlite.pragma('foreign_keys = ON')
-    this.sqlite.pragma('busy_timeout = 5000')
-    this.migrate()
-    this.recoverInterruptedJobs()
+  constructor(private readonly paths: DatabasePaths, options: DatabaseOpenOptions = {}) {
+    this.sqlite = options.prepared
+      ? new Database(paths.databasePath, { fileMustExist: true })
+      : new Database(paths.databasePath)
+    try {
+      this.orm = drizzle(this.sqlite)
+      this.sqlite.pragma('journal_mode = WAL')
+      this.sqlite.pragma('foreign_keys = ON')
+      this.sqlite.pragma('busy_timeout = 5000')
+      this.sqlite.function('bb_casefold', { deterministic: true }, (value: unknown) => String(value ?? '').toLocaleLowerCase())
+      if (options.prepared) this.assertPreparedSchema()
+      else {
+        this.backupBeforeMigrate()
+        this.migrate()
+        this.recoverInterruptedJobs()
+      }
+    } catch (error) {
+      this.sqlite.close()
+      throw error
+    }
+  }
+
+  private assertPreparedSchema(): void {
+    const hasVersion = this.sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").get()
+    if (!hasVersion) throw new Error('DATABASE_PREPARATION_REQUIRED')
+    const version = this.sqlite.prepare('SELECT COUNT(*) AS count, MIN(version) AS first, MAX(version) AS latest FROM schema_version').get() as { count: number; first: number | null; latest: number | null }
+    if (version.count !== DATABASE_MIGRATIONS.length || version.first !== 1 || version.latest !== DATABASE_MIGRATIONS.length) {
+      throw new Error('DATABASE_PREPARATION_REQUIRED')
+    }
   }
 
   private backupBeforeMigrate(): void {
-    if (!existsSync(this.paths.databasePath) || statSync(this.paths.databasePath).size === 0) return
+    const hasVersion = this.sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").get()
+    if (!hasVersion) return
+    const current = this.sqlite.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_version').get() as { version: number }
+    if (current.version >= DATABASE_MIGRATIONS.length) return
+    mkdirSync(this.paths.backupRoot, { recursive: true })
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    copyFileSync(this.paths.databasePath, path.join(this.paths.backupRoot, `bandbuddy-${stamp}.db`))
-    const backups = readdirSync(this.paths.backupRoot)
-      .filter((name) => /^bandbuddy-.*\.db$/.test(name))
-      .map((name) => ({ name, time: statSync(path.join(this.paths.backupRoot, name)).mtimeMs }))
-      .sort((a, b) => b.time - a.time)
-    for (const old of backups.slice(3)) unlinkSync(path.join(this.paths.backupRoot, old.name))
+    const backup = path.join(this.paths.backupRoot, `bandbuddy-${stamp}-${randomUUID().slice(0, 8)}.db`)
+    // SQLite reads a consistent snapshot including committed WAL pages. A file
+    // copy of only the main .db silently omits those pages after an interrupted run.
+    try { this.sqlite.prepare('VACUUM INTO ?').run(backup) }
+    catch (error) { try { unlinkSync(backup) } catch { /* no partial snapshot */ }; throw error }
+    try {
+      const backups = readdirSync(this.paths.backupRoot)
+        .filter((name) => /^bandbuddy-.*\.db$/.test(name))
+        .map((name) => ({ name, time: statSync(path.join(this.paths.backupRoot, name)).mtimeMs }))
+        .sort((a, b) => b.time - a.time)
+      for (const old of backups.slice(3)) {
+        try { unlinkSync(path.join(this.paths.backupRoot, old.name)) } catch { /* A retained backup does not invalidate the new snapshot. */ }
+      }
+    } catch { /* Read permissions on old backups must not prevent migration. */ }
   }
 
   private migrate(): void {
@@ -635,6 +700,7 @@ export class BandBuddyDatabase {
       runtimeRoot: this.paths.pythonRoot,
       modelRoot: this.paths.modelRoot,
       debugMode: false,
+      appearance: { ...DEFAULT_APPEARANCE },
       desktopLyricsFontSize: 24,
       preferredDevice: 'auto',
       audioOutputDeviceId: '',
@@ -660,12 +726,14 @@ export class BandBuddyDatabase {
     return {
       ...defaults,
       ...saved,
+      appearance: normalizeAppearance(saved.appearance),
       network: { ...defaults.network, ...saved.network },
       recordingAudio: { ...defaults.recordingAudio, ...saved.recordingAudio }
     }
   }
 
   saveSettings(settings: AppSettings): AppSettings {
+    settings = { ...settings, appearance: normalizeAppearance(settings.appearance) }
     const now = new Date().toISOString()
     this.sqlite.prepare(`
       INSERT INTO settings(key, value_json, updated_at) VALUES ('app', ?, ?)
@@ -697,17 +765,60 @@ export class BandBuddyDatabase {
   }
 
   listSongs(query = '', filter: 'all' | 'favorite' | 'processing' | 'recent' = 'all'): SongSummary[] {
-    const rows = this.sqlite.prepare('SELECT * FROM songs ORDER BY COALESCE(last_practiced_at, updated_at) DESC').all() as SongRow[]
+    const { where, values } = this.libraryFilter(query, filter)
+    const rows = this.sqlite.prepare(`SELECT ${SUMMARY_COLUMNS} FROM songs ${where} ORDER BY ${LIBRARY_ORDER}`).all(...values) as SongRow[]
+    return this.summarizeSongs(rows)
+  }
+
+  listSongsPage(input: LibraryPageRequest = {}): LibraryPageResult {
+    const limit = Number.isFinite(input.limit) ? Math.min(200, Math.max(1, Math.trunc(input.limit!))) : 80
+    const offset = Number.isFinite(input.offset) ? Math.max(0, Math.trunc(input.offset!)) : 0
+    const { where, values } = this.libraryFilter(input.query ?? '', input.filter ?? 'all')
+    const { total } = this.sqlite.prepare(`SELECT COUNT(*) AS total FROM songs ${where}`).get(...values) as { total: number }
+    const rows = this.sqlite.prepare(`SELECT ${SUMMARY_COLUMNS} FROM songs ${where} ORDER BY ${LIBRARY_ORDER} LIMIT ? OFFSET ?`).all(...values, limit, offset) as SongRow[]
+    return { items: this.summarizeSongs(rows), total, offset, limit }
+  }
+
+  recentSongs(limit = 3): SongSummary[] {
+    const count = Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.trunc(limit))) : 3
+    const rows = this.sqlite.prepare(`SELECT ${SUMMARY_COLUMNS} FROM songs WHERE last_practiced_at IS NOT NULL ORDER BY last_practiced_at DESC, id LIMIT ?`).all(count) as SongRow[]
+    return this.summarizeSongs(rows)
+  }
+
+  private libraryFilter(query: string, filter: LibraryPageRequest['filter']): { where: string; values: string[] } {
+    const predicates: string[] = []
+    const values: string[] = []
     const normalized = query.trim().toLocaleLowerCase()
-    return rows
-      .filter((row) => !normalized || `${row.title}\n${row.artist}`.toLocaleLowerCase().includes(normalized))
-      .filter((row) => {
-        if (filter === 'favorite') return Boolean(row.favorite)
-        if (filter === 'processing') return ['blockedRuntime', 'queued', 'processing'].includes(row.status)
-        if (filter === 'recent') return Boolean(row.last_practiced_at)
-        return true
-      })
-      .map((row) => this.songRowToSummary(row))
+    if (normalized) {
+      // instr treats '%' and '_' literally; Unicode folding preserves the
+      // previous substring search semantics rather than SQLite's ASCII lower().
+      predicates.push("instr(bb_casefold(title || char(10) || artist), ?) > 0")
+      values.push(normalized)
+    }
+    if (filter === 'favorite') predicates.push('favorite = 1')
+    if (filter === 'processing') predicates.push("status IN ('blockedRuntime', 'queued', 'processing')")
+    if (filter === 'recent') predicates.push('last_practiced_at IS NOT NULL')
+    return { where: predicates.length ? `WHERE ${predicates.join(' AND ')}` : '', values }
+  }
+
+  private summarizeSongs(rows: SongRow[]): SongSummary[] {
+    const stems = new Map<string, Array<{ type: StemType; name: string | null }>>()
+    const latestJobs = new Map<string, JobStatus>()
+    for (let start = 0; start < rows.length; start += 400) {
+      const batch = rows.slice(start, start + 400)
+      const separations = batch.map(row => row.active_separation_id).filter((id): id is string => Boolean(id))
+      if (separations.length) {
+        const records = this.sqlite.prepare(`SELECT separation_id, type, name FROM stems WHERE separation_id IN (${separations.map(() => '?').join(',')})`).all(...separations) as Array<{ separation_id: string; type: StemType; name: string | null }>
+        for (const record of records) {
+          const group = stems.get(record.separation_id) ?? []
+          group.push(record)
+          stems.set(record.separation_id, group)
+        }
+      }
+      const records = this.sqlite.prepare(`SELECT id, (SELECT status FROM jobs WHERE song_id = songs.id AND type = 'guitarSplit' ORDER BY created_at DESC LIMIT 1) AS status FROM songs WHERE id IN (${batch.map(() => '?').join(',')})`).all(...batch.map(row => row.id)) as Array<{ id: string; status: JobStatus | null }>
+      for (const record of records) if (record.status) latestJobs.set(record.id, record.status)
+    }
+    return rows.map(row => this.songRowToSummary(row, stems.get(row.active_separation_id ?? '') ?? [], latestJobs.get(row.id) ?? null))
   }
 
   getSong(id: string): SongDetail | null {
@@ -754,14 +865,19 @@ export class BandBuddyDatabase {
     }
   }
 
+  getSongSummary(id: string): SongSummary | null {
+    const row = this.sqlite.prepare(`SELECT ${SUMMARY_COLUMNS} FROM songs WHERE id = ?`).get(id) as SongRow | undefined
+    return row ? this.songRowToSummary(row) : null
+  }
+
   getSongRow(id: string): SongRow | null {
     return (this.sqlite.prepare('SELECT * FROM songs WHERE id = ?').get(id) as SongRow | undefined) ?? null
   }
 
-  private songRowToSummary = (row: SongRow): SongSummary => {
-    const stemRows = row.active_separation_id
+  private songRowToSummary = (row: SongRow, suppliedStems?: Array<{ type: StemType; name: string | null }>, latestJob?: JobStatus | null): SongSummary => {
+    const stemRows = suppliedStems ?? (row.active_separation_id
       ? this.sqlite.prepare('SELECT type, name FROM stems WHERE separation_id = ?').all(row.active_separation_id) as Array<{ type: StemType; name: string | null }>
-      : []
+      : [])
     return {
       id: row.id,
       title: row.title,
@@ -774,19 +890,19 @@ export class BandBuddyDatabase {
       phase: row.phase,
       stemTypes: stemRows.map((stem) => stem.type),
       stemNames: Object.fromEntries(stemRows.filter((stem) => stem.name).map((stem) => [stem.type, stem.name!])),
-      guitarSplitStatus: this.guitarSplitStatus(row.id, stemRows.map((stem) => stem.type)),
+      guitarSplitStatus: this.guitarSplitStatus(row.id, stemRows.map((stem) => stem.type), latestJob),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastPracticedAt: row.last_practiced_at
     }
   }
 
-  private guitarSplitStatus(songId: string, activeStemTypes: StemType[]): GuitarSplitStatus {
+  private guitarSplitStatus(songId: string, activeStemTypes: StemType[], suppliedStatus?: JobStatus | null): GuitarSplitStatus {
     const available = new Set(activeStemTypes)
     if (GUITAR_SPLIT_STEMS.every((stem) => available.has(stem))) return 'ready'
-    const latest = this.sqlite.prepare(`
+    const latest = suppliedStatus === undefined ? this.sqlite.prepare(`
       SELECT status FROM jobs WHERE song_id = ? AND type = 'guitarSplit' ORDER BY created_at DESC LIMIT 1
-    `).get(songId) as { status: JobStatus } | undefined
+    `).get(songId) as { status: JobStatus } | undefined : suppliedStatus ? { status: suppliedStatus } : undefined
     if (!latest) return 'missing'
     if (['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(latest.status)) return 'pending'
     if (['failed', 'cancelled', 'interrupted'].includes(latest.status)) return 'failed'

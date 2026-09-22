@@ -12,6 +12,18 @@ import { JobScheduler } from '../src/main/jobs.js'
 import { MediaService } from '../src/main/media.js'
 import { AppPaths } from '../src/main/paths.js'
 import { runProcess } from '../src/main/process.js'
+import { removeTestAnalysisWorker, testAnalysisWorker } from './helpers/analysis-worker.js'
+import type { MediaAnalysisRequest } from '../src/main/media-analysis.js'
+
+vi.mock('../src/main/media-analysis.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../src/main/media-analysis.js')>()
+  let runner: ReturnType<typeof original.createMediaAnalysisRunner> | undefined
+  return { ...original, runMediaAnalysis: async (request: MediaAnalysisRequest, signal?: AbortSignal) => {
+    runner ??= original.createMediaAnalysisRunner(await testAnalysisWorker())
+    return runner(request, signal)
+  } }
+})
+afterAll(removeTestAnalysisWorker)
 
 const electron = vi.hoisted(() => ({
   protocol: { handle: vi.fn() },
@@ -67,6 +79,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     mkdirSync(paths.backupRoot, { recursive: true })
     database = new BandBuddyDatabase(paths)
     media = new MediaService(paths, database, logger as never)
+    await media.ready()
     expect(media.toolsReady()).toBe(true)
     source = path.join(root, '现场 测试 🎸.avi')
     const generated = await runProcess(media.tool('ffmpeg')!, [

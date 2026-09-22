@@ -115,7 +115,7 @@ export class ArsenalService {
     try{await stat(target);return target}catch{}
     const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`
     try {
-      const ffmpeg=this.media.tool('ffmpeg');if(!ffmpeg)throw new Error('FFMPEG_MISSING')
+      await this.media.ready();const ffmpeg=this.media.tool('ffmpeg');if(!ffmpeg)throw new Error('FFMPEG_MISSING')
       const decode=await runProcess(ffmpeg,['-y','-v','error','-i',source,'-ar','48000','-ac','2','-c:a','pcm_f32le',input],{signal});if(decode.code)throw new Error(decode.stderr)
       await writeFile(manifest,JSON.stringify({input,output,prepared,tailSeconds}))
       const result=await runProcess(this.paths.audioHostExecutable(),['--render-effects',manifest],{signal});if(result.code)throw new Error(`湿声渲染失败：${result.stderr}`)

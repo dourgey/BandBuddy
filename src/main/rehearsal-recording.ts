@@ -462,6 +462,7 @@ export class RehearsalRecordingService {
     output: string,
     signal: AbortSignal
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const sessionRoot = path.dirname(output)
@@ -571,6 +572,7 @@ export class RehearsalRecordingService {
     output: string,
     signal: AbortSignal
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const files = this.database.getActiveStemFiles(song.id)
@@ -691,6 +693,7 @@ export class RehearsalRecordingService {
     offsetMs: number,
     signal: AbortSignal
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const durationSeconds = Math.max(0.001, durationMs / 1000)
@@ -723,7 +726,8 @@ export class RehearsalRecordingService {
     this.patchState({ phase: 'finalizing', message: '正在生成整场录音与对齐预览' })
     try {
       if (!existsSync(session.capturePath) || result.frames <= 0) throw new Error('RECORDING_CAPTURE_EMPTY')
-      const ffmpeg = this.media.tool('ffmpeg')
+      await this.media.ready()
+    const ffmpeg = this.media.tool('ffmpeg')
       if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const settings = this.database.getSettings()
       const revision = this.database.getRehearsalRevision(session.revisionId)
@@ -818,6 +822,7 @@ export class RehearsalRecordingService {
     startPositionMs: number,
     alignmentOffsetMs: number
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const delayMs = startPositionMs + alignmentOffsetMs

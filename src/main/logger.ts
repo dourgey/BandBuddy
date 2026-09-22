@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
+import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const SENSITIVE = /(https?:\/\/)([^\s/:@]+):([^\s/@]+)@/gi
@@ -7,9 +8,13 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 export class Logger {
   private readonly applicationLogPath: string
   readonly debugLogPath: string
+  private queue: Array<{ file: string; line: string; bytes: number }> = []
+  private queuedBytes = 0
+  private timer: NodeJS.Timeout | null = null
+  private flushing: Promise<void> | null = null
 
   constructor(private readonly logsRoot: string, private debugMode = false) {
-    mkdirSync(logsRoot, { recursive: true })
+    try { mkdirSync(logsRoot, { recursive: true }) } catch { /* Diagnostics must not block startup. */ }
     this.applicationLogPath = path.join(logsRoot, 'bandbuddy.log')
     this.debugLogPath = path.join(logsRoot, 'debug.log')
     if (debugMode) this.capture('debug', 'debug logging session started', { pid: process.pid })
@@ -40,7 +45,42 @@ export class Logger {
   }
 
   private append(filePath: string, line: string): void {
-    appendFileSync(filePath, `${line}\n`, 'utf8')
+    const content = `${line}\n`
+    const bytes = Buffer.byteLength(content)
+    // Bound both the number of entries and their memory footprint. Retain the
+    // newest context when a slow disk cannot keep up with verbose diagnostics.
+    if (bytes > 256 * 1024) return
+    while (this.queue.length >= 2048 || this.queuedBytes + bytes > 1024 * 1024) {
+      this.queuedBytes -= this.queue.shift()!.bytes
+    }
+    this.queue.push({ file: filePath, line: content, bytes })
+    this.queuedBytes += bytes
+    if (!this.timer) {
+      this.timer = setTimeout(() => { this.timer = null; void this.flush() }, 100)
+      this.timer.unref()
+    }
+  }
+
+  /** Await at shutdown and before reading an exported diagnostic log. */
+  async flush(): Promise<void> {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null }
+    if (this.flushing) return this.flushing
+    this.flushing = (async () => {
+      while (this.queue.length) {
+        const batch = this.queue.splice(0)
+        this.queuedBytes = 0
+        const files = new Map<string, string[]>()
+        for (const entry of batch) {
+          const lines = files.get(entry.file) ?? []
+          lines.push(entry.line)
+          files.set(entry.file, lines)
+        }
+        await Promise.all([...files].map(async ([file, lines]) => {
+          try { await appendFile(file, lines.join(''), 'utf8') } catch { /* Best-effort logging, including full/read-only disks. */ }
+        }))
+      }
+    })().finally(() => { this.flushing = null })
+    return this.flushing
   }
 
   write(level: Exclude<LogLevel, 'debug'>, message: string, detail?: unknown): void {

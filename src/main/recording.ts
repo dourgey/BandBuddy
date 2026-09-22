@@ -517,6 +517,7 @@ export class RecordingService {
     output: string,
     signal: AbortSignal
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(request.songId)
@@ -678,7 +679,8 @@ export class RecordingService {
     if (this.active?.id === session.id) this.patchState({ phase: 'finalizing', message: '正在生成 FLAC、对齐预览和波形' })
     try {
       if (!existsSync(session.capturePath) || result.frames <= 0) throw new Error('RECORDING_CAPTURE_EMPTY')
-      const ffmpeg = this.media.tool('ffmpeg')
+      await this.media.ready()
+    const ffmpeg = this.media.tool('ffmpeg')
       if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const settings = this.database.getSettings()
       const song = this.database.getSong(session.songId)
@@ -806,6 +808,7 @@ export class RecordingService {
     playbackRate: number,
     alignmentOffsetMs: number
   ): Promise<void> {
+    await this.media.ready()
     const ffmpeg = this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const delayMs = startPositionMs / playbackRate + alignmentOffsetMs
