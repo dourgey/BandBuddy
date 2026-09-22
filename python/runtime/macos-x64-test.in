@@ -1,0 +1,15 @@
+# Native Intel source tests only. Full runtime qualification uses macos-x64.in
+# and the separately reviewed wheelhouse; these tests do not claim that support.
+torch==2.2.2
+numpy==1.26.4
+scipy==1.17.0
+soundfile==0.14.0
+librosa==0.11.0
+PyYAML==6.0.3
+einops==0.8.1
+beartype==0.18.5
+rotary-embedding-torch==0.3.5
+packaging==26.2
+onnxruntime==1.23.2
+numba==0.61.2
+llvmlite==0.44.0

@@ -15,8 +15,22 @@ concurrency:
 
 jobs:
   test-and-package:
-    name: macOS Apple Silicon
-    runs-on: macos-15
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            native: arm64
+            runner: macos-15
+            package_script: package:mac:unsigned
+          - arch: x64
+            native: x86_64
+            runner: macos-15-intel
+            package_script: package:mac:x64:unsigned
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
     timeout-minutes: 90
 
     steps:
@@ -25,7 +39,7 @@ jobs:
 
       - name: Verify native runner architecture
         shell: bash
-        run: test "$(uname -m)" = "arm64"
+        run: test "$(uname -m)" = "${{ matrix.native }}"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -48,7 +62,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install HQ6 test dependencies
-        run: python -m pip install --disable-pip-version-check -r python/guitar_separator_hq/requirements-test.txt
+        run: |
+          if test "${{ matrix.arch }}" = x64; then
+            python -m pip install --disable-pip-version-check --only-binary=:all: -r python/runtime/macos-x64-test.in
+          else
+            python -m pip install --disable-pip-version-check -r python/guitar_separator_hq/requirements-test.txt
+          fi
 
       - name: Fetch verified native desktop tools
         run: pnpm tools:fetch
@@ -61,11 +80,13 @@ jobs:
           pnpm test
 
       - name: Package unsigned macOS builds
+        if: matrix.arch == 'arm64' || vars.ENABLE_INTEL_MAC_RELEASE == 'true'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: pnpm package:mac:unsigned
+        run: pnpm ${{ matrix.package_script }}
 
       - name: Verify packaged application and native tools
+        if: matrix.arch == 'arm64' || vars.ENABLE_INTEL_MAC_RELEASE == 'true'
         shell: bash
         run: |
           app_path="$(find release-macos-unsigned -maxdepth 2 -type d -name BandBuddy.app | head -n 1)"
@@ -74,29 +95,35 @@ jobs:
           test -x "$app_path/Contents/Resources/bin/uv"
           test -x "$app_path/Contents/Resources/bin/ffmpeg"
           test -x "$app_path/Contents/Resources/bin/ffprobe"
-          test -x "$app_path/Contents/Resources/audio-host/darwin-arm64/bandbuddy-audio-host"
+          test -x "$app_path/Contents/Resources/audio-host/darwin-${{ matrix.arch }}/bandbuddy-audio-host"
           test -f "$app_path/Contents/Resources/worker/guitar_separator_hq/separator.py"
-          file "$app_path/Contents/MacOS/BandBuddy" | grep -q "arm64"
+          node scripts/verify-macos-architecture.cjs "$app_path" "${{ matrix.arch }}"
           "$app_path/Contents/Resources/bin/uv" --version
           "$app_path/Contents/Resources/bin/ffmpeg" -version
           "$app_path/Contents/Resources/bin/ffprobe" -version
-          "$app_path/Contents/Resources/audio-host/darwin-arm64/bandbuddy-audio-host" --self-test
+          "$app_path/Contents/Resources/audio-host/darwin-${{ matrix.arch }}/bandbuddy-audio-host" --self-test
 
       - name: Generate checksums
+        if: matrix.arch == 'arm64' || vars.ENABLE_INTEL_MAC_RELEASE == 'true'
         shell: bash
         run: |
           shopt -s nullglob
-          files=(release-macos-unsigned/BandBuddy-*-macos-arm64.dmg release-macos-unsigned/BandBuddy-*-macos-arm64.zip)
+          files=(release-macos-unsigned/BandBuddy-*-macos-${{ matrix.arch }}.dmg release-macos-unsigned/BandBuddy-*-macos-${{ matrix.arch }}.zip)
           test "${#files[@]}" -eq 2
-          shasum -a 256 "${files[@]}" | sed 's#release-macos-unsigned/##' > "release-macos-unsigned/SHA256SUMS-macos-arm64.txt"
+          shasum -a 256 "${files[@]}" | sed 's#release-macos-unsigned/##' > "release-macos-unsigned/SHA256SUMS-macos-${{ matrix.arch }}.txt"
 
       - name: Upload macOS artifacts
+        if: matrix.arch == 'arm64' || vars.ENABLE_INTEL_MAC_RELEASE == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: BandBuddy-macos-unsigned-arm64-${{ github.sha }}
+          name: BandBuddy-macos-unsigned-${{ matrix.arch }}-${{ github.sha }}
           path: |
-            release-macos-unsigned/BandBuddy-*-macos-arm64.dmg
-            release-macos-unsigned/BandBuddy-*-macos-arm64.zip
-            release-macos-unsigned/SHA256SUMS-macos-arm64.txt
+            release-macos-unsigned/BandBuddy-*-macos-${{ matrix.arch }}.dmg
+            release-macos-unsigned/BandBuddy-*-macos-${{ matrix.arch }}.zip
+            release-macos-unsigned/SHA256SUMS-macos-${{ matrix.arch }}.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Explain pending Intel package validation
+        if: matrix.arch == 'x64' && vars.ENABLE_INTEL_MAC_RELEASE != 'true'
+        run: echo 'Intel native source tests ran; x64 packaging is disabled pending reviewed wheelhouse and CPU reference validation. Set ENABLE_INTEL_MAC_RELEASE=true only after completing that gate.' >> "$GITHUB_STEP_SUMMARY"

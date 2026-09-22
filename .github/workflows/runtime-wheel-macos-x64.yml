@@ -1,0 +1,64 @@
+name: Build and validate Intel runtime wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable artifact release tag (nothing is published automatically)
+        required: true
+        default: runtime-wheels-sphn-0.1.12-r1
+      reference_run_id:
+        description: Same-repository workflow run containing the reviewed CPU reference artifact
+        required: true
+      reference_artifact:
+        description: Artifact containing reference.zip, matching python/runtime/cpu-reference.json
+        required: true
+        default: BandBuddy-reviewed-CPU-reference
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-wheel:
+    runs-on: macos-15-intel
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+      - name: Require a reviewed CPU reference pin
+        run: |
+          test -f python/runtime/cpu-reference.json || { echo 'INTEL_RELEASE_BLOCKED: no reviewed CPU reference pin'; exit 1; }
+      - name: Download the reviewed reference from this repository
+        uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.reference_run_id }}
+          name: ${{ inputs.reference_artifact }}
+          path: out/cpu-reference
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Verify native Intel runner and pin Rust
+        run: |
+          test "$(uname -m)" = x86_64
+          rustup toolchain install 1.85.1 --profile minimal
+      - name: Fetch verified build helper
+        run: node scripts/fetch-tools.mjs
+      - name: Build from pinned source and test the full binary-only runtime
+        env:
+          BANDBUDDY_CPU_THREADS: '2'
+          WHEEL_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: python scripts/build-intel-runtime-wheel.py --release-tag "$WHEEL_RELEASE_TAG" --cpu-reference out/cpu-reference/reference.zip
+      - name: Upload reviewable wheel, complete lock, manifest and native evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Intel-runtime-cp312-${{ github.sha }}
+          path: out/runtime-wheel-macos-x64/*
+          if-no-files-found: error
+          retention-days: 30

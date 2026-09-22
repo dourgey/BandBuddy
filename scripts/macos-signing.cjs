@@ -60,10 +60,37 @@ function assertRequiredCode(appPath, inventory) {
   if (!relative.some(file => file.endsWith('/better_sqlite3.node'))) throw new Error('MAC_REQUIRED_BINARY_MISSING:better_sqlite3.node')
 }
 
+function deploymentTargets(commands) {
+  return commands.split('Load command').filter(block => /LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/.test(block))
+    .flatMap(block => [...block.matchAll(/\b(?:minos|version)\s+(\d+\.\d+(?:\.\d+)?)/g)].map(match => match[1]))
+}
+
+async function verifyArchitecture(appPath, architecture = process.arch, inventory = null) {
+  const expected = architecture === 'x64' ? 'x86_64' : architecture
+  if (!['x86_64', 'arm64'].includes(expected)) throw new Error(`MAC_ARCHITECTURE_UNSUPPORTED:${architecture}`)
+  const code = inventory ?? await scanCode(appPath)
+  assertRequiredCode(appPath, code)
+  if (!code.binaries.some(file => file.endsWith(`/audio-host/darwin-${architecture}/bandbuddy-audio-host`))) {
+    throw new Error(`MAC_AUDIO_HOST_ARCHITECTURE_MISSING:${architecture}`)
+  }
+  for (const binary of code.binaries) {
+    const { stdout: slices } = await run('/usr/bin/lipo', ['-archs', binary])
+    if (!slices.trim().split(/\s+/).includes(expected)) throw new Error(`MAC_BINARY_WRONG_ARCHITECTURE:${binary}:${slices.trim()}`)
+    const { stdout: commands } = await run('/usr/bin/otool', ['-arch', expected, '-l', binary])
+    const versions = deploymentTargets(commands)
+    if (!versions.length || versions.some(version => {
+      const [major, minor] = version.split('.').map(Number)
+      return major > 13 || (major === 13 && minor > 0)
+    })) throw new Error(`MAC_DEPLOYMENT_TARGET_EXCEEDS_13:${binary}:${versions.join(',')}`)
+  }
+  return { architecture, minimumSystemVersion: '13.0', binaries: code.binaries.length }
+}
+
 async function verifyApp(appPath, { notarized = false } = {}) {
   const app = path.resolve(appPath)
   const inventory = await scanCode(app)
   assertRequiredCode(app, inventory)
+  const target = await verifyArchitecture(app, process.arch, inventory)
   for (const binary of inventory.binaries) {
     await run('/usr/bin/codesign', ['--verify', '--strict', '-R', publisherRequirement, binary])
     const { stderr } = await run('/usr/bin/codesign', ['--display', '--verbose=4', binary])
@@ -76,7 +103,7 @@ async function verifyApp(appPath, { notarized = false } = {}) {
     await run('/usr/bin/xcrun', ['stapler', 'validate', app])
     await run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', app])
   }
-  return { app, binaries: inventory.binaries.map(file => path.relative(app, file)), bundles: inventory.bundles.length, notarized }
+  return { app, ...target, binaries: inventory.binaries.map(file => path.relative(app, file)), bundles: inventory.bundles.length, notarized }
 }
 
-module.exports = { run, scanCode, selectIdentity, assertRequiredCode, verifyApp, policy, publisherRequirement, appRequirement }
+module.exports = { run, scanCode, selectIdentity, assertRequiredCode, verifyArchitecture, deploymentTargets, verifyApp, policy, publisherRequirement, appRequirement }

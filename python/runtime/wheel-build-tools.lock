@@ -1,0 +1,12 @@
+# Official PyPI wheels used only by the native Intel release-builder.
+maturin==1.8.3 \
+    --hash=sha256:583404d20d7f1d9c8f3c18dcab9014faacabbed6be02da80062c06cd0e279554 \
+    --hash=sha256:f9ffdac53dfe0089cf19b597410bc552eb34c856ddb41482b243a695e8b549d3
+cmake==3.31.6 \
+    --hash=sha256:da9d4fd9abd571fd016ddb27da0428b10277010b23bb21e3678f8b9e96e1686e
+pip==25.1.1 \
+    --hash=sha256:2913a38a2abf4ea6b64ab507bd9e967f3b53dc1ede74b01b0931e1ce548751af
+wheel==0.45.1 \
+    --hash=sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248
+setuptools==78.1.1 \
+    --hash=sha256:c3a9c4211ff4c309edb8b8c4f1cbfa7ae324c4ba9f91ff254e3d305b9fd54561
