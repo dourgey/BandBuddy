@@ -10,7 +10,13 @@
     <title>BandBuddy</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <section class="startup-shell" aria-label="BandBuddy 启动">
+        <header class="startup-titlebar"><b>BandBuddy <span>音乐练习伴侣</span></b><nav aria-label="窗口控制"><button type="button" data-startup-minimize aria-label="最小化">−</button><button type="button" data-startup-close aria-label="关闭">×</button></nav></header>
+        <main class="startup-content"><span class="startup-mark" aria-hidden="true">♪</span><p class="startup-eyebrow">BAND BUDDY</p><h1>让练习，回到音乐本身。</h1><p class="startup-status" id="startup-status" role="status" aria-live="polite">正在准备曲库数据库…</p><p class="startup-detail" id="startup-detail">首次打开或升级时，正在检查并准备已有曲库。窗口可以最小化或关闭。</p><pre id="startup-error" class="startup-error" hidden></pre></main>
+        <footer>本地音乐练习伴侣 · 启动准备不需要联网</footer>
+      </section>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

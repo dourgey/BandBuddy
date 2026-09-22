@@ -1,3 +1,5 @@
+import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from '@shared/appearance.js'
+import type { AppSettings } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import { createDefaultRecordingAudioSettings, createDefaultRecordingTrackState } from '@shared/domain.js'
@@ -9,7 +11,10 @@ const noop = (): (() => void) => () => undefined
 
 export function installFixtureBridge(): void {
   if (window.bandbuddy) return
-  const settings = {
+  let cachedAppearance = DEFAULT_APPEARANCE
+  try { cachedAppearance = normalizeAppearance(JSON.parse(localStorage.getItem('bandbuddy.appearance.v1') ?? 'null')) } catch { /* Fixture storage is optional. */ }
+  const settings: AppSettings = {
+    appearance: { ...cachedAppearance },
     libraryRoot: 'C:\\Users\\Musician\\BandBuddy\\music',
     runtimeRoot: 'C:\\Users\\Musician\\BandBuddy\\envs',
     modelRoot: 'C:\\Users\\Musician\\BandBuddy\\envs\\models',
@@ -40,7 +45,13 @@ export function installFixtureBridge(): void {
     timelineFingerprint: null, timelinePositionMs: 0, preRollRemaining: 0, sampleRate: 0,
     bufferFrames: 0, latencyMs: 0, xruns: 0, splitDevices: false, message: '', error: null
   })
+  const appearanceListeners = new Set<(value: Appearance) => void>()
   const api: BandBuddyApi = {
+    appearance: {
+      get: async () => settings.appearance,
+      set: async (value) => { settings.appearance = normalizeAppearance(value); appearanceListeners.forEach(listener => listener(settings.appearance)); return settings.appearance },
+      onChanged: (listener) => { appearanceListeners.add(listener); return () => appearanceListeners.delete(listener) }
+    },
     arsenal: {
       list: async () => ({ assets: [], presets: [{ id: '99999999-9999-4999-8999-999999999999', name: '干净起点', chain: defaultEffectChain(), revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] }),
       importAsset: async () => null,
@@ -54,6 +65,13 @@ export function installFixtureBridge(): void {
       onMonitor: noop
     } satisfies ArsenalApi,
     library: {
+      onUpdated: noop,
+      listPage: async ({ query = '', filter = 'all', offset = 0, limit = 50 } = {}) => {
+        const items = fixtureSongs.filter(song => `${song.title} ${song.artist}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+          .filter(song => filter === 'favorite' ? song.favorite : filter === 'processing' ? song.status !== 'ready' : filter === 'recent' ? Boolean(song.lastPracticedAt) : true)
+          .sort((a, b) => filter === 'recent' ? (b.lastPracticedAt ?? '').localeCompare(a.lastPracticedAt ?? '') : 0)
+        return { items: items.slice(offset, offset + limit), total: items.length, offset, limit }
+      },
       list: async () => fixtureSongs,
       get: async (id) => { const song = fixtureSongs.find((item) => item.id === id); return song ? fixtureDetail(song) : null },
       getPathForFile: () => '',
@@ -74,6 +92,7 @@ export function installFixtureBridge(): void {
       setEnabled: async () => ({ enabled: false, port: null, urls: [], error: '预览模式无法启动服务，请在桌面 App 中使用' })
     },
     settings: {
+      reconcileAudio: async () => settings,
       get: async () => settings,
       chooseDataRoot: async () => ({ dataRoot: 'C:\\Users\\Musician\\BandBuddy', libraryRoot: settings.libraryRoot, runtimeRoot: settings.runtimeRoot, modelRoot: settings.modelRoot }),
       update: async (value) => value,

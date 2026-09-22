@@ -1,6 +1,10 @@
+import { isDeepStrictEqual } from 'node:util'
+import { appearanceSchema } from '@shared/appearance-schema.js'
+import type { Appearance } from '@shared/appearance.js'
+import type { LibraryUpdate } from '@shared/domain.js'
 import { ARSENAL_CHANNEL, effectChainSchema, trackEffectsSchema } from '@shared/arsenal.js'
 import type { ArsenalService } from './arsenal.js'
-import { mkdirSync } from 'node:fs'
+import { migrateDataRoots } from './data-migration.js'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { dialog, ipcMain, shell } from 'electron'
 import path from 'node:path'
@@ -13,6 +17,8 @@ import {
   importSourceSchema,
   importStemsSchema,
   listSongsSchema,
+  listSongsPageSchema,
+  reconcileAudioSchema,
   practiceStateSchema,
   rehearsalDuplicateSchema,
   rehearsalRecordingStartSchema,
@@ -38,6 +44,7 @@ import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
+  windowControlsRegistered?: boolean
   arsenal: ArsenalService
   getWindow: () => BrowserWindow | null
   database: BandBuddyDatabase
@@ -53,15 +60,31 @@ interface IpcServices {
   desktopLyrics: DesktopLyricsWindow
   logger: Logger
   isTrustedUrl: (url: string) => boolean
+  emitAppearance: (appearance: Appearance) => void
+  emitLibraryUpdate: (update: LibraryUpdate) => void
   emitSettings: () => void
   emitLibrary: () => void
   emitTasks: () => void
 }
 
 export function registerIpc(services: IpcServices): void {
+  let migrating = false
+  let activeMutations = 0
+  const storageMutations = new Set<string>([
+    IPC.libraryImportStems, IPC.libraryImportSource, IPC.libraryDelete, IPC.libraryReseparate,
+    IPC.libraryRequestGuitarSplit, IPC.libraryImportLyrics, IPC.exportStart,
+    IPC.recordingStart, IPC.rehearsalRecordingStart, IPC.runtimeInstall, IPC.runtimeRepair,
+    IPC.runtimeRemove, IPC.runtimeClearModel, IPC.settingsUpdate, IPC.tasksRetry,
+    IPC.recordingUpdateTake, IPC.recordingDeleteTake, IPC.recordingCreateTrack, IPC.recordingUpdateTrack,
+    IPC.rehearsalCreate, IPC.rehearsalSave, IPC.rehearsalDuplicate, IPC.rehearsalDelete,
+    IPC.rehearsalRecordingCreateTrack, IPC.rehearsalRecordingUpdateTrack,
+    IPC.rehearsalRecordingUpdateTake, IPC.rehearsalRecordingDeleteTake, ARSENAL_CHANNEL
+  ])
   const handle = <T>(channel: string, callback: (event: IpcMainInvokeEvent, input: T) => unknown | Promise<unknown>): void => {
     ipcMain.handle(channel, async (event, input: T) => {
       assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
+      if (migrating && storageMutations.has(channel)) throw new Error('数据目录正在迁移，请完成后重试。')
+      if (storageMutations.has(channel)) activeMutations++
       const startedAt = Date.now()
       services.logger.capture('debug', 'ipc invoke started', { channel })
       try {
@@ -71,6 +94,8 @@ export function registerIpc(services: IpcServices): void {
       } catch (error) {
         services.logger.capture('error', 'ipc invoke failed', { channel, durationMs: Date.now() - startedAt, error })
         throw error
+      } finally {
+        if (storageMutations.has(channel)) activeMutations--
       }
     })
   }
@@ -96,6 +121,25 @@ export function registerIpc(services: IpcServices): void {
     const parsed = listSongsSchema.parse(input ?? {})
     return services.database.listSongs(parsed.query, parsed.filter)
   })
+  handle(IPC.libraryListPage, (_event, input) => services.database.listSongsPage(listSongsPageSchema.parse(input ?? {})))
+  handle(IPC.appearanceGet, () => services.database.getSettings().appearance)
+  handle(IPC.appearanceSet, (_event, input) => {
+    const appearance = appearanceSchema.parse(input)
+    const settings = services.database.getSettings()
+    services.database.saveSettings({ ...settings, appearance })
+    services.emitAppearance(appearance)
+    services.emitSettings()
+    return appearance
+  })
+  handle(IPC.settingsReconcileAudio, (_event, input) => {
+    const request = reconcileAudioSchema.parse(input)
+    const settings = services.database.getSettings()
+    const currentAudio = { audioOutputDeviceId: settings.audioOutputDeviceId, recordingAudio: settings.recordingAudio }
+    if (!isDeepStrictEqual(currentAudio, request.expected)) return settings
+    const saved = services.database.saveSettings({ ...settings, audioOutputDeviceId: request.audioOutputDeviceId, recordingAudio: request.recordingAudio })
+    services.emitSettings()
+    return saved
+  })
   handle(IPC.libraryGet, (_event, input) => services.database.getSong(uuidSchema.parse(input)))
   handle(IPC.lanStatus, () => services.lan.status())
   handle(IPC.lanSetEnabled, (_event, input) => services.lan.setEnabled(z.boolean().parse(input)))
@@ -119,8 +163,10 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.libraryReseparate, (_event, input) => services.imports.reSeparate(uuidSchema.parse(input)))
   handle(IPC.libraryRequestGuitarSplit, (_event, input) => services.imports.requestGuitarSplit(uuidSchema.parse(input)))
   handle(IPC.practiceSave, (_event, input) => {
-    services.database.savePractice(practiceStateSchema.parse(input))
-    services.emitLibrary()
+    const practice = practiceStateSchema.parse(input)
+    services.database.savePractice(practice)
+    const song = services.database.getSongSummary(practice.songId)
+    if (song) services.emitLibraryUpdate({ songId: practice.songId, song, kind: 'updated' })
   })
 
   handle(IPC.tasksList, () => services.database.listJobs())
@@ -170,23 +216,41 @@ export function registerIpc(services: IpcServices): void {
     services.emitSettings()
     return saved
   })
-  handle(IPC.settingsRevealDebugLog, () => {
+  handle(IPC.settingsRevealDebugLog, async () => {
+    await services.logger.flush()
     shell.showItemInFolder(services.logger.ensureDebugLog())
   })
-  handle(IPC.settingsUpdate, (_event, input) => {
+  handle(IPC.settingsUpdate, async (_event, input) => {
     const settings = appSettingsSchema.parse(input)
-    for (const directory of [settings.libraryRoot, settings.runtimeRoot, settings.modelRoot]) {
-      mkdirSync(directory, { recursive: true })
+    const previous = services.database.getSettings()
+    const rootsChanged = ['libraryRoot', 'runtimeRoot', 'modelRoot'].some(key => previous[key as keyof typeof previous] !== settings[key as keyof typeof settings])
+    if (rootsChanged && (activeMutations > 1 || services.database.hasActiveJobs() || services.recording.isActive()
+      || services.rehearsalRecording.isActive() || services.runtime.isInstalling())) {
+      throw new Error('请先完成或取消正在进行的导入、分轨、导出和录音，再更换数据目录。')
     }
-    const saved = services.database.saveSettings(settings)
+    if (rootsChanged) migrating = true
+    let saved = previous
+    try {
+      await migrateDataRoots(previous, settings, () => {
+        // Narrow appearance/audio updates may complete while a large copy is running.
+        const latest = services.database.getSettings()
+        saved = services.database.saveSettings({ ...settings,
+          appearance: isDeepStrictEqual(previous.appearance, settings.appearance) ? latest.appearance : settings.appearance,
+          audioOutputDeviceId: previous.audioOutputDeviceId === settings.audioOutputDeviceId ? latest.audioOutputDeviceId : settings.audioOutputDeviceId,
+          recordingAudio: isDeepStrictEqual(previous.recordingAudio, settings.recordingAudio) ? latest.recordingAudio : settings.recordingAudio
+        })
+      })
+    } finally { if (rootsChanged) migrating = false }
+    if (!isDeepStrictEqual(previous.appearance, saved.appearance)) services.emitAppearance(saved.appearance)
     services.desktopLyrics.setFontSize(saved.desktopLyricsFontSize)
     services.logger.setDebugMode(saved.debugMode)
     services.emitSettings()
-    void services.runtime.detect()
+    if (!isDeepStrictEqual(previous.network, saved.network) || previous.preferredDevice !== saved.preferredDevice
+      || previous.runtimeRoot !== saved.runtimeRoot || previous.modelRoot !== saved.modelRoot) void services.runtime.detect()
     return saved
   })
 
-  handle(IPC.mediaCapabilities, () => services.media.capabilities())
+  handle(IPC.mediaCapabilities, async () => { await services.media.ready(); return services.media.capabilities() })
   handle(IPC.mediaPrepareOutputDevice, (_event, input) =>
     services.recording.prepareOutputDevice(z.string().min(1).max(500).nullable().parse(input)))
   handle(IPC.mediaDetectBpm, (_event, input) => services.media.detectBpm(uuidSchema.parse(input)))
@@ -286,6 +350,7 @@ export function registerIpc(services: IpcServices): void {
     }
   })
 
+  if (!services.windowControlsRegistered) {
   handle(IPC.windowMinimize, () => services.getWindow()?.minimize())
   handle(IPC.windowToggleMaximize, () => {
     const window = services.getWindow()
@@ -296,6 +361,7 @@ export function registerIpc(services: IpcServices): void {
   })
   handle(IPC.windowIsMaximized, () => services.getWindow()?.isMaximized() ?? false)
   handle(IPC.windowClose, () => services.getWindow()?.close())
+  }
 }
 
 function assertTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent, window: BrowserWindow | null, isTrustedUrl: (url: string) => boolean): void {

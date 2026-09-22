@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/renderer/src/App.js'
 import { ExportDialog, ImportDialog, MetadataDialog, SettingsDrawer, SongActionsDialog } from '../src/renderer/src/components/Dialogs.js'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { installFixtureBridge } from '../src/renderer/src/mock-bridge.js'
+import { applyAppearance } from '../src/renderer/src/appearance.js'
+import { DEFAULT_APPEARANCE } from '../packages/shared/src/appearance.js'
+
+function chooseSelect(label: string, option: string): void {
+  fireEvent.click(screen.getByRole('combobox', { name: label }))
+  fireEvent.click(screen.getByRole('option', { name: option }))
+}
 
 describe('library dialogs', () => {
   beforeEach(() => {
@@ -79,7 +86,7 @@ describe('library dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: '已分轨数据' }))
     fireEvent.click(screen.getByRole('button', { name: '选择分轨文件' }))
     await screen.findByLabelText('轨道 1 名称')
-    fireEvent.change(screen.getByLabelText('轨道 1 预设名称'), { target: { value: 'piano' } })
+    chooseSelect('轨道 1 预设名称', '钢琴')
     expect((screen.getByLabelText('轨道 1 名称') as HTMLInputElement).value).toBe('钢琴')
     fireEvent.change(screen.getByLabelText('轨道 2 名称'), { target: { value: '我的节奏吉他' } })
     fireEvent.click(screen.getByRole('button', { name: '导入并处理' }))
@@ -158,8 +165,8 @@ describe('library dialogs', () => {
     expect(screen.getByText(/E minor/)).toBeTruthy()
     expect(screen.getByText('可能转调')).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText('主音'), { target: { value: 'A' } })
-    fireEvent.change(screen.getByLabelText('调式'), { target: { value: 'minor' } })
+    chooseSelect('主音', 'A')
+    chooseSelect('调式', 'Minor · 小调')
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({
       id: song.id,
@@ -288,7 +295,7 @@ describe('library dialogs', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: '高音质分轨' }))
     fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
     fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
-    fireEvent.change(screen.getByLabelText('延迟模式'), { target: { value: 'playback' } })
+    chooseSelect('延迟模式', '稳定播放')
     fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
     fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
     expect((screen.getByRole('checkbox', { name: '高音质分轨' }) as HTMLInputElement).checked).toBe(true)
@@ -303,11 +310,27 @@ describe('library dialogs', () => {
     vi.spyOn(window.bandbuddy.settings, 'update').mockRejectedValue(new Error('保存失败'))
     render(<SettingsDrawer open onOpenChange={onOpenChange} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
-    fireEvent.change(screen.getByLabelText('延迟模式'), { target: { value: 'playback' } })
+    chooseSelect('延迟模式', '稳定播放')
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(onOpenChange).not.toHaveBeenCalled()
-    expect((screen.getByLabelText('延迟模式') as HTMLSelectElement).value).toBe('playback')
+    expect(screen.getByRole('combobox', { name: '延迟模式' }).textContent).toBe('稳定播放')
+  })
+
+  it('does not overwrite a newer appearance broadcast when saving an older settings draft', async () => {
+    const settings = { ...await window.bandbuddy.settings.get(), appearance: { ...DEFAULT_APPEARANCE } }
+    const runtime = await window.bandbuddy.runtime.get()
+    const update = vi.spyOn(window.bandbuddy.settings, 'update')
+    const props = { open: true, onOpenChange: vi.fn(), runtime, onSaved: vi.fn(), onRefresh: vi.fn() }
+    const { rerender } = render(<SettingsDrawer {...props} settings={settings} />)
+    fireEvent.click(screen.getByRole('button', { name: '通用与显示' }))
+    fireEvent.change(screen.getByRole('slider', { name: /桌面歌词文字大小/ }), { target: { value: '48' } })
+    const appearance = { ...DEFAULT_APPEARANCE, theme: 'dark' as const, density: 'compact' as const }
+    act(() => applyAppearance(appearance))
+    rerender(<SettingsDrawer {...props} settings={{ ...settings, appearance }} />)
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ appearance, desktopLyricsFontSize: 48 })))
+    act(() => applyAppearance(DEFAULT_APPEARANCE))
   })
 
   it('stops input testing when returning to settings categories', async () => {

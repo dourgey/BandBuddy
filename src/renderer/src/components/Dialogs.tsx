@@ -1,3 +1,7 @@
+import { RuntimePreparation } from './RuntimePreparation.js'
+import { AppearanceSettings } from './AppearanceSettings.js'
+import { getAppearance } from '../appearance.js'
+import { Select } from './ui/Select.js'
 import { LanSettings } from './LanSettings.js'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
@@ -168,10 +172,10 @@ export function ImportDialog({
         <p className="dialog-lead">源文件会复制到受管曲库。视频会先提取音频再分轨，所有处理均在本机完成。</p>
         <div className="dialog-tabs"><button disabled={busy} className={mode === 'source' ? 'active' : ''} onClick={() => { setMode('source'); setError(''); setPadding(null) }}>歌曲 / 视频</button><button disabled={busy} className={mode === 'stems' ? 'active' : ''} onClick={() => { setMode('stems'); setError(''); setDuplicate(null) }}>已分轨数据</button></div>
         {mode === 'stems' ? <div className="stem-import"><button disabled={busy} className="outline-button" onClick={() => void chooseStems()}><FolderOpen size={16} />选择分轨文件</button> <button disabled={busy} className="outline-button" onClick={() => void chooseStems('folder')}><FolderOpen size={16} />选择文件夹</button><p>导入 2–9 条音轨，无需安装分离模型。选择预设名称或输入自定义名称。各轨从同一时间点开始，较短音轨将在末尾补静音。</p>
-          {stemFiles.map((file, index) => <div className="stem-import-row" key={file.path}><small title={file.path}>{file.path.split(/[\\/]/).pop()}</small><select disabled={busy} aria-label={`轨道 ${index + 1} 预设名称`} value={STEM_ORDER.find((type) => STEM_META[type].label === file.name) ?? 'custom'} onChange={(event) => {
+          {stemFiles.map((file, index) => <div className="stem-import-row" key={file.path}><small title={file.path}>{file.path.split(/[\\/]/).pop()}</small><Select disabled={busy} aria-label={`轨道 ${index + 1} 预设名称`} value={STEM_ORDER.find((type) => STEM_META[type].label === file.name) ?? 'custom'} onChange={(event) => {
             const value = event.target.value
             setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: value === 'custom' ? '' : STEM_META[value as StemType].label } : item)); setPadding(null)
-          }}><option value="custom">自定义名称</option>{STEM_ORDER.map((type) => <option value={type} key={type}>{STEM_META[type].label}</option>)}</select><input disabled={busy} aria-label={`轨道 ${index + 1} 名称`} maxLength={80} value={file.name} placeholder="输入轨道名称" onChange={(event) => { setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item)); setPadding(null) }} /></div>)}
+          }}><option value="custom">自定义名称</option>{STEM_ORDER.map((type) => <option value={type} key={type}>{STEM_META[type].label}</option>)}</Select><input disabled={busy} aria-label={`轨道 ${index + 1} 名称`} maxLength={80} value={file.name} placeholder="输入轨道名称" onChange={(event) => { setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item)); setPadding(null) }} /></div>)}
         </div> : <div className={`drop-zone ${source ? 'selected' : ''} ${dragging ? 'is-dragging' : ''}`} role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
           onClick={() => void chooseSource()}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void chooseSource() } }}
@@ -190,11 +194,12 @@ export function ImportDialog({
   </Dialog.Root>
 }
 
-export function TasksDrawer({ open, onOpenChange, jobs, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; onRefresh(): void }): React.JSX.Element {
+export function TasksDrawer({ open, onOpenChange, jobs, runtime, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; runtime?: RuntimeInfo; onRefresh(): void }): React.JSX.Element {
   const active = jobs.filter((job) => ['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(job.status))
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer" data-dialog-open="true" aria-describedby={undefined}>
     <Dialog.Title>任务</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">分离任务单线程运行，导出与标准化会依次进入队列。</p>
     <div className="drawer-summary"><Gauge /><span><b>{active.length ? `${active.length} 个进行中任务` : '当前没有活动任务'}</b><small>{jobs.length} 条任务记录</small></span></div>
+    {runtime && <RuntimePreparation runtime={runtime} />}
     <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>任务列表是空的</b><span>导入歌曲后，分离进度会显示在这里。</span></div> : jobs.map((job) => <article key={job.id}>
       <header><span className={`task-dot ${job.status}`} /> <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b><em>{statusLabel(job.status)}</em></header>
       <p>{job.phase}</p><div className="progress-line"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><small>{Math.round(job.progress * 100)}% · {formatDate(job.createdAt)}</small>
@@ -239,6 +244,19 @@ function SettingsGroup({ title, description, summary, icon, open, onOpenChange, 
       </Dialog.Content>
     </Dialog.Portal>
   </Dialog.Root>
+}
+
+/** During recording, only the appearance API is available from Settings. */
+export function AppearanceDialog({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }): React.JSX.Element {
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal>
+    <Dialog.Overlay className="dialog-overlay" data-dialog-open="true" />
+    <Dialog.Content className="dialog-content bb-recording-appearance" data-dialog-open="true" aria-describedby="recording-appearance-note">
+      <Dialog.Title>外观设置</Dialog.Title>
+      <Dialog.Description id="recording-appearance-note">录音持续进行。外观立即生效，其他设置可在录音结束后调整。</Dialog.Description>
+      <AppearanceSettings />
+      <footer className="dialog-footer"><Dialog.Close className="outline-button">关闭</Dialog.Close></footer>
+    </Dialog.Content>
+  </Dialog.Portal></Dialog.Root>
 }
 
 export function SettingsDrawer({
@@ -351,7 +369,7 @@ export function SettingsDrawer({
     setStartingInputTest(true)
     inputTestRequested.current = true
     try {
-      const saved = await window.bandbuddy.settings.update(draft)
+      const saved = await window.bandbuddy.settings.update({ ...draft, appearance: getAppearance() })
       onSaved(saved)
       if (!inputTestRequested.current) return
       await window.bandbuddy.recording.startTest()
@@ -369,7 +387,7 @@ export function SettingsDrawer({
     setSaving(true)
     setSaveError('')
     try {
-      const saved = await window.bandbuddy.settings.update(draft)
+      const saved = await window.bandbuddy.settings.update({ ...draft, appearance: getAppearance() })
       onSaved(saved)
       setActiveCategory(null)
       onOpenChange(false)
@@ -423,21 +441,21 @@ export function SettingsDrawer({
       <div className="runtime-actions">{changing ? <button className="outline-button" onClick={() => void window.bandbuddy.runtime.cancel()}>取消当前操作</button> : runtime.status === 'ready' ? <><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.detect())}>重新检测</button><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.repair())}>修复环境</button></> : <button className="primary-button" onClick={() => setConfirmInstall(true)}><Download size={17} />安装本地环境</button>}</div>
       {confirmInstall && <div className="install-confirm"><HardDrive /><span><b>预计需要 8–15 GB 可用空间</b><small>会下载私有 CPython、Torch 和分轨资源；Windows 缺少 VC++ 运行库时会从微软下载并请求系统授权。</small></span><button className="primary-button small" disabled={busy} onClick={() => { setConfirmInstall(false); void action(() => window.bandbuddy.runtime.install()) }}>确认安装</button><button onClick={() => setConfirmInstall(false)}>稍后</button></div>}
       <div className="danger-actions"><button onClick={() => void action(() => window.bandbuddy.runtime.clearModel())}>清理分轨资源缓存</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(false))}>卸载环境</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(true))}>环境与分轨资源全部清理</button></div>
-      <div className="settings-grid"><label>首选计算设备<select value={draft.preferredDevice} onChange={(event) => setDraft({ ...draft, preferredDevice: event.target.value as AppSettings['preferredDevice'] })}><option value="auto">自动：CUDA → MPS → CPU</option><option value="cuda">NVIDIA CUDA（不可用时回退）</option><option value="mps">Apple MPS（不可用时回退）</option><option value="cpu">CPU</option></select></label></div>
+      <div className="settings-grid"><label>首选计算设备<Select value={draft.preferredDevice} onChange={(event) => setDraft({ ...draft, preferredDevice: event.target.value as AppSettings['preferredDevice'] })}><option value="auto">自动：CUDA → MPS → CPU</option><option value="cuda">NVIDIA CUDA（不可用时回退）</option><option value="mps">Apple MPS（不可用时回退）</option><option value="cpu">CPU</option></Select></label></div>
     </section>
     </SettingsGroup>
     <SettingsGroup title="音频与录音" description="播放输出、录音设备、延迟与输入测试" summary={`${draft.latencyMode === 'interactive' ? '低延迟' : draft.latencyMode === 'balanced' ? '平衡延迟' : '稳定播放'} · ${draft.recordingAudio.inputChannelMode === 'mono' ? '单声道输入' : '立体声输入'}`} icon={<AudioLines />} {...groupProps('audio')}>
-    <section className="settings-section"><h3><SlidersHorizontal />音频播放</h3><div className="settings-grid"><label>音频输出<select value={draft.audioOutputDeviceId} onChange={(event) => setDraft({ ...draft, audioOutputDeviceId: event.target.value })}><option value="">系统默认输出</option>{audioOutputs.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `音频输出 ${index + 1}`}</option>)}</select></label><label>延迟模式<select value={draft.latencyMode} onChange={(event) => setDraft({ ...draft, latencyMode: event.target.value as AppSettings['latencyMode'] })}><option value="interactive">低延迟</option><option value="balanced">平衡</option><option value="playback">稳定播放</option></select></label></div></section>
+    <section className="settings-section"><h3><SlidersHorizontal />音频播放</h3><div className="settings-grid"><label>音频输出<Select value={draft.audioOutputDeviceId} onChange={(event) => setDraft({ ...draft, audioOutputDeviceId: event.target.value })}><option value="">系统默认输出</option>{audioOutputs.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `音频输出 ${index + 1}`}</option>)}</Select></label><label>延迟模式<Select value={draft.latencyMode} onChange={(event) => setDraft({ ...draft, latencyMode: event.target.value as AppSettings['latencyMode'] })}><option value="interactive">低延迟</option><option value="balanced">平衡</option><option value="playback">稳定播放</option></Select></label></div></section>
     <section className="settings-section recording-device-settings"><h3><AudioLines />练习录音设备</h3>
       <p className="security-note">如需监听自己的输入，请使用声卡或调音台的硬件直通监听。</p>
       <div className="settings-grid">
-        <label>音频后端<select value={draft.recordingAudio.backend} onChange={(event) => patchRecording({ backend: event.target.value as AudioBackend, inputDeviceId: '', outputDeviceId: '', inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [0] : [0, 1] })}><option value="auto">自动（系统默认）</option>{recordingDevices.some((device) => device.backend === 'asio') && <option value="asio">ASIO</option>}{recordingDevices.some((device) => device.backend === 'wasapi-shared') && <option value="wasapi-shared">WASAPI Shared</option>}{recordingDevices.some((device) => device.backend === 'wasapi-exclusive') && <option value="wasapi-exclusive">WASAPI Exclusive</option>}{recordingDevices.some((device) => device.backend === 'coreaudio') && <option value="coreaudio">CoreAudio</option>}</select></label>
-        <label>输入设备<select value={draft.recordingAudio.inputDeviceId} onChange={(event) => patchRecording({ inputDeviceId: event.target.value, inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [0] : [0, 1] })}><option value="">默认输入</option>{inputDevices.map((device) => <option key={device.id} value={device.id}>{device.name} · {device.inputChannels} in</option>)}</select></label>
-        <label>输出设备<select value={draft.recordingAudio.outputDeviceId} onChange={(event) => patchRecording({ outputDeviceId: event.target.value })}><option value="">默认输出</option>{outputDevices.map((device) => <option key={device.id} value={device.id}>{device.name} · {device.outputChannels} out</option>)}</select></label>
-        <label>输入模式<select value={draft.recordingAudio.inputChannelMode} onChange={(event) => patchRecording({ inputChannelMode: event.target.value as 'mono' | 'stereo', inputChannels: event.target.value === 'mono' ? [0] : [0, 1] })}><option value="mono">单声道</option><option value="stereo" disabled={inputChannelCount < 2}>立体声通道对</option></select></label>
-        <label>{draft.recordingAudio.inputChannelMode === 'mono' ? '输入通道' : '起始通道'}<select value={draft.recordingAudio.inputChannels[0] ?? 0} onChange={(event) => { const channel = Number(event.target.value); patchRecording({ inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [channel] : [channel, channel + 1] }) }}>{Array.from({ length: Math.max(1, inputChannelCount - (draft.recordingAudio.inputChannelMode === 'stereo' ? 1 : 0)) }, (_, channel) => <option key={channel} value={channel}>{draft.recordingAudio.inputChannelMode === 'mono' ? `Input ${channel + 1}` : `Input ${channel + 1}–${channel + 2}`}</option>)}</select></label>
-        <label>采样率<select value={draft.recordingAudio.sampleRate} onChange={(event) => patchRecording({ sampleRate: Number(event.target.value) })}><option value="0">Auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="88200">88.2 kHz</option><option value="96000">96 kHz</option></select></label>
-        <label>Buffer frames<select value={draft.recordingAudio.bufferFrames} onChange={(event) => patchRecording({ bufferFrames: Number(event.target.value) })}><option value="0">Auto</option>{[32, 64, 128, 256, 512, 1024].map((frames) => <option key={frames} value={frames}>{frames}</option>)}</select></label>
+        <label>音频后端<Select value={draft.recordingAudio.backend} onChange={(event) => patchRecording({ backend: event.target.value as AudioBackend, inputDeviceId: '', outputDeviceId: '', inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [0] : [0, 1] })}><option value="auto">自动（系统默认）</option>{recordingDevices.some((device) => device.backend === 'asio') && <option value="asio">ASIO</option>}{recordingDevices.some((device) => device.backend === 'wasapi-shared') && <option value="wasapi-shared">WASAPI Shared</option>}{recordingDevices.some((device) => device.backend === 'wasapi-exclusive') && <option value="wasapi-exclusive">WASAPI Exclusive</option>}{recordingDevices.some((device) => device.backend === 'coreaudio') && <option value="coreaudio">CoreAudio</option>}</Select></label>
+        <label>输入设备<Select value={draft.recordingAudio.inputDeviceId} onChange={(event) => patchRecording({ inputDeviceId: event.target.value, inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [0] : [0, 1] })}><option value="">默认输入</option>{inputDevices.map((device) => <option key={device.id} value={device.id}>{device.name} · {device.inputChannels} in</option>)}</Select></label>
+        <label>输出设备<Select value={draft.recordingAudio.outputDeviceId} onChange={(event) => patchRecording({ outputDeviceId: event.target.value })}><option value="">默认输出</option>{outputDevices.map((device) => <option key={device.id} value={device.id}>{device.name} · {device.outputChannels} out</option>)}</Select></label>
+        <label>输入模式<Select value={draft.recordingAudio.inputChannelMode} onChange={(event) => patchRecording({ inputChannelMode: event.target.value as 'mono' | 'stereo', inputChannels: event.target.value === 'mono' ? [0] : [0, 1] })}><option value="mono">单声道</option><option value="stereo" disabled={inputChannelCount < 2}>立体声通道对</option></Select></label>
+        <label>{draft.recordingAudio.inputChannelMode === 'mono' ? '输入通道' : '起始通道'}<Select value={draft.recordingAudio.inputChannels[0] ?? 0} onChange={(event) => { const channel = Number(event.target.value); patchRecording({ inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [channel] : [channel, channel + 1] }) }}>{Array.from({ length: Math.max(1, inputChannelCount - (draft.recordingAudio.inputChannelMode === 'stereo' ? 1 : 0)) }, (_, channel) => <option key={channel} value={channel}>{draft.recordingAudio.inputChannelMode === 'mono' ? `Input ${channel + 1}` : `Input ${channel + 1}–${channel + 2}`}</option>)}</Select></label>
+        <label>采样率<Select value={draft.recordingAudio.sampleRate} onChange={(event) => patchRecording({ sampleRate: Number(event.target.value) })}><option value="0">Auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="88200">88.2 kHz</option><option value="96000">96 kHz</option></Select></label>
+        <label>Buffer frames<Select value={draft.recordingAudio.bufferFrames} onChange={(event) => patchRecording({ bufferFrames: Number(event.target.value) })}><option value="0">Auto</option>{[32, 64, 128, 256, 512, 1024].map((frames) => <option key={frames} value={frames}>{frames}</option>)}</Select></label>
         <label>设备对齐偏移（ms）<input type="number" min="-1000" max="1000" step="1" value={draft.recordingAudio.deviceAlignmentOffsets[alignmentKey] ?? draft.recordingAudio.alignmentOffsetMs} onChange={(event) => { const alignmentOffsetMs = Number(event.target.value); patchRecording({ alignmentOffsetMs, deviceAlignmentOffsets: { ...draft.recordingAudio.deviceAlignmentOffsets, [alignmentKey]: alignmentOffsetMs } }) }} /></label>
       </div>
       <div className="runtime-actions"><button className="outline-button" type="button" onClick={() => void window.bandbuddy.recording.devices().then(setRecordingDevices).catch((error) => setRecordingDeviceError(toUserErrorMessage(error, '无法读取音频设备，请检查声卡后重试')))}><RefreshCw size={15} />刷新设备</button><button className={testingInput ? 'primary-button' : 'outline-button'} type="button" disabled={startingInputTest} onClick={() => void toggleInputTest()}>{startingInputTest ? '正在启动测试…' : testingInput ? '停止输入测试' : '保存并测试输入'}</button></div>
@@ -445,8 +463,9 @@ export function SettingsDrawer({
       {recordingDeviceError && <p className="device-error">{recordingDeviceError}</p>}
     </section>
     </SettingsGroup>
-    <SettingsGroup title="通用与显示" description="关闭窗口行为与桌面歌词样式" summary={`歌词 ${draft.desktopLyricsFontSize} px · ${draft.closeToTrayWhileWorking ? '任务进行时留在托盘' : '关闭即退出'}`} icon={<FileText />} {...groupProps('general')}>
-    <section className="settings-section"><h3><SlidersHorizontal />窗口行为</h3><label>关闭窗口时<select value={draft.closeToTrayWhileWorking ? 'tray' : 'quit'} onChange={(event) => setDraft({ ...draft, closeToTrayWhileWorking: event.target.value === 'tray' })}><option value="tray">有任务时留在托盘</option><option value="quit">直接退出</option></select></label></section>
+    <SettingsGroup title="通用与显示" description="主题、界面密度与桌面歌词样式" summary={`歌词 ${draft.desktopLyricsFontSize} px · ${draft.closeToTrayWhileWorking ? '任务进行时留在托盘' : '关闭即退出'}`} icon={<FileText />} {...groupProps('general')}>
+    <AppearanceSettings onSaved={appearance => { setDraft(current => ({ ...current, appearance })) }} />
+    <section className="settings-section"><h3><SlidersHorizontal />窗口行为</h3><label>关闭窗口时<Select value={draft.closeToTrayWhileWorking ? 'tray' : 'quit'} onChange={(event) => setDraft({ ...draft, closeToTrayWhileWorking: event.target.value === 'tray' })}><option value="tray">有任务时留在托盘</option><option value="quit">直接退出</option></Select></label></section>
     <section className="settings-section"><h3><FileText />桌面歌词</h3>
       <label>桌面歌词文字大小 · {draft.desktopLyricsFontSize} px
         <input type="range" min={16} max={64} step={1} value={draft.desktopLyricsFontSize} onChange={(event) => setDraft({ ...draft, desktopLyricsFontSize: Number(event.target.value) })} />
@@ -459,11 +478,11 @@ export function SettingsDrawer({
     <LanSettings />
     <section className="settings-section"><h3><ShieldCheck />高级网络</h3>
       <div className="settings-grid">
-        <label>环境下载源<select value={runtimeSourcePreset} onChange={(event) => {
+        <label>环境下载源<Select value={runtimeSourcePreset} onChange={(event) => {
           const preset = event.target.value
           if (preset === 'china' || preset === 'official') selectRuntimeSourcePreset(preset)
-        }}><option value="china">中国大陆镜像（推荐）</option><option value="official">官方源</option><option value="custom" disabled>自定义地址</option></select></label>
-        <label>代理<select value={draft.network.proxyMode} onChange={(event) => patchNetwork({ proxyMode: event.target.value as AppSettings['network']['proxyMode'] })}><option value="system">使用系统代理</option><option value="manual">手动代理</option><option value="none">不使用代理</option></select></label>
+        }}><option value="china">中国大陆镜像（推荐）</option><option value="official">官方源</option><option value="custom" disabled>自定义地址</option></Select></label>
+        <label>代理<Select value={draft.network.proxyMode} onChange={(event) => patchNetwork({ proxyMode: event.target.value as AppSettings['network']['proxyMode'] })}><option value="system">使用系统代理</option><option value="manual">手动代理</option><option value="none">不使用代理</option></Select></label>
         {draft.network.proxyMode === 'manual' && <label>代理地址<input type="password" autoComplete="off" value={draft.network.proxyUrl} onChange={(event) => patchNetwork({ proxyUrl: event.target.value })} placeholder="https://user:password@host:port" /></label>}
       </div>
       <label>CPython 安装镜像<input value={draft.network.pythonInstallMirror} onChange={(event) => patchNetwork({ pythonInstallMirror: event.target.value })} placeholder="留空使用 uv 官方源" /></label>
@@ -657,7 +676,7 @@ export function MetadataDialog({ open, onOpenChange, song, onSaved }: { open: bo
           <p className="key-analysis-meta">分析 {analysis.analyzedStems.map((stem) => STEM_META[stem].label).join('、')} · {formatTime(analysis.analyzedDurationMs)}</p>
         </> : <div className="key-empty"><AudioLines /><span><b>尚未识别歌曲调</b><small>识别后会显示置信度、前三候选与可能转调的片段。</small></span></div>}
 
-        <div className="manual-key-row"><label>主音<select value={keyTonic} onChange={(event) => { setKeyTonic(event.target.value as MusicalKeyTonic | ''); setKeySource(event.target.value ? 'manual' : null) }}><option value="">未设置</option>{MUSICAL_KEY_TONICS.map((tonic) => <option value={tonic} key={tonic}>{tonic}</option>)}</select></label><label>调式<select value={keyMode} disabled={!keyTonic} onChange={(event) => { setKeyMode(event.target.value as MusicalKeyMode); setKeySource('manual') }}><option value="major">Major · 大调</option><option value="minor">Minor · 小调</option></select></label>{analysis && <button className="outline-button" disabled={keySource === 'detected' && keyTonic === analysis.tonic && keyMode === analysis.mode} onClick={useDetectedKey}>使用识别结果</button>}</div>
+        <div className="manual-key-row"><label>主音<Select value={keyTonic} onChange={(event) => { setKeyTonic(event.target.value as MusicalKeyTonic | ''); setKeySource(event.target.value ? 'manual' : null) }}><option value="">未设置</option>{MUSICAL_KEY_TONICS.map((tonic) => <option value={tonic} key={tonic}>{tonic}</option>)}</Select></label><label>调式<Select value={keyMode} disabled={!keyTonic} onChange={(event) => { setKeyMode(event.target.value as MusicalKeyMode); setKeySource('manual') }}><option value="major">Major · 大调</option><option value="minor">Minor · 小调</option></Select></label>{analysis && <button className="outline-button" disabled={keySource === 'detected' && keyTonic === analysis.tonic && keyMode === analysis.mode} onClick={useDetectedKey}>使用识别结果</button>}</div>
         <p className="key-source-note">{keyTonic ? keySource === 'manual' ? '当前采用手动纠正；重新识别不会覆盖。' : '当前采用识别结果，可随时手动纠正。' : '当前未设置歌曲调。'}</p>
       </section>
       <p className="security-note">BPM 可在练习室的节拍器中检测；歌曲调识别与音频分析均在本机完成。</p>

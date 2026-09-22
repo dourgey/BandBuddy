@@ -1,17 +1,19 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import App from './App.js'
-import { installFixtureBridge } from './mock-bridge.js'
-import './styles.css'
+import { startRenderer } from './startup.js'
+import './theme-tokens.css'
+import './startup.css'
 
-if (import.meta.env.DEV && new URLSearchParams(location.search).has('fixtures')) installFixtureBridge()
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 5_000, retry: 1, refetchOnWindowFocus: false },
-    mutations: { retry: 0 }
+async function start(): Promise<void> {
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('fixtures')) {
+    const { installFixtureBridge } = await import('./mock-bridge.js')
+    installFixtureBridge()
   }
-})
-
-ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><QueryClientProvider client={queryClient}><App /></QueryClientProvider></React.StrictMode>)
+  // Fetch/parse the application while SQLite is being prepared. Importing this
+  // module does not mount React or create an audio engine; startup still owns
+  // the readiness gate. Capture load failures until the shell can display them.
+  const application = import('./mount-app.js').then(
+    module => () => module.mountApplication(),
+    error => () => Promise.reject(error)
+  )
+  await startRenderer(window.bandbuddy, async () => { await (await application)() })
+}
+void start()
