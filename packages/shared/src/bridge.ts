@@ -1,3 +1,6 @@
+import type { StartupApi } from './startup.js'
+import type { AppearanceApi } from './appearance.js'
+import type { LibraryPageInput, LibraryPageResult, LibraryUpdate, ReconcileAudioRequest } from './domain.js'
 import type { ArsenalApi } from './arsenal.js'
 import type {
   ImportStemsOptions,
@@ -40,8 +43,12 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  startup?: StartupApi
+  appearance: AppearanceApi
   arsenal: ArsenalApi
   library: {
+    listPage(input?: LibraryPageInput): Promise<LibraryPageResult>
+    onUpdated(callback: (update: LibraryUpdate) => void): Unsubscribe
     list(input?: { query?: string; filter?: 'all' | 'favorite' | 'processing' | 'recent' }): Promise<SongSummary[]>
     get(songId: string): Promise<SongDetail | null>
     getPathForFile(file: File): string
@@ -64,7 +71,7 @@ export interface BandBuddyApi {
     cancel(jobId: string): Promise<void>
     retry(jobId: string, useCpu?: boolean): Promise<void>
     clearFinished(): Promise<void>
-    onChanged(callback: () => void): Unsubscribe
+    onChanged(callback: (job?: JobRecord) => void): Unsubscribe
   }
   runtime: {
     get(): Promise<RuntimeInfo>
@@ -81,6 +88,7 @@ export interface BandBuddyApi {
     setEnabled(enabled: boolean): Promise<LanStatus>
   }
   settings: {
+    reconcileAudio(input: ReconcileAudioRequest): Promise<AppSettings>
     get(): Promise<AppSettings>
     chooseDataRoot(currentLibraryRoot?: string): Promise<StoragePaths | null>
     update(settings: AppSettings): Promise<AppSettings>
@@ -158,5 +166,6 @@ export interface BandBuddyApi {
 }
 
 export interface DesktopLyricsRendererApi {
+  appearance: Pick<AppearanceApi, 'get' | 'onChanged'>
   onUpdate(callback: (payload: DesktopLyricsPayload) => void): Unsubscribe
 }

@@ -1,3 +1,4 @@
+import { appearanceSchema } from './appearance-schema.js'
 import { z } from 'zod'
 import {
   METRONOME_OFFSET_MAX_MS,
@@ -155,6 +156,7 @@ export const networkSettingsSchema = z.object({
 })
 
 export const appSettingsSchema = z.object({
+  appearance: appearanceSchema.default({ schemaVersion: 1, theme: 'warm', density: 'normal', effects: 'standard' }),
   desktopLyricsFontSize: z.number().int().min(16).max(64).default(24),
   libraryRoot: z.string().min(3).max(1000),
   runtimeRoot: z.string().min(3).max(1000),
@@ -237,4 +239,14 @@ export const rehearsalRecordingTrackUpdateSchema = z.object({
     muted: z.boolean().optional(),
     solo: z.boolean().optional()
   }).refine((value) => Object.keys(value).length > 0, 'REHEARSAL_RECORDING_TRACK_PATCH_EMPTY')
+})
+
+export const listSongsPageSchema = listSongsSchema.extend({
+  offset: z.number().int().nonnegative().default(0),
+  limit: z.number().int().min(1).max(200).default(50)
+})
+export const reconcileAudioSchema = z.object({
+  expected: z.object({ audioOutputDeviceId: z.string().max(500), recordingAudio: recordingAudioSettingsSchema }),
+  audioOutputDeviceId: z.string().max(500),
+  recordingAudio: recordingAudioSettingsSchema
 })
