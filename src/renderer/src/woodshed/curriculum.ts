@@ -1,4 +1,9 @@
 import type { Lesson, ExerciseConfig, Technique } from './types.js'
+import { ENSEMBLE_LESSONS, ENSEMBLE_SOURCES } from './ensemble-curriculum.js'
+import { PIANO_LESSONS } from './piano-curriculum.js'
+import { ADVANCED_LESSONS } from './advanced-curriculum.js'
+import { ELECTRIC_LESSONS } from './electric-curriculum.js'
+import { ELECTRIC_SOURCES } from './electric.js'
 const all: Lesson[] = []
 function unit(
   track: Lesson['track'],
@@ -19,7 +24,9 @@ function unit(
   view: Lesson['view'] = 'tab'
 ): void {
   const id = `${track}-${number}`
-  const previous = all.filter((x) => x.track === track && (track !== 'shared' || x.category === category)).at(-1)
+  const previous = all
+    .filter((x) => x.track === track && (track !== 'shared' || x.category === category))
+    .at(-1)
   const prerequisites = previous ? [previous.id] : track !== 'shared' ? ['shared-1'] : []
   const lesson: Lesson = {
     id,
@@ -1258,16 +1265,35 @@ unit(
   '在 ii–V–I 预设中练三七音连接，再研究爵士布鲁斯替代。',
   { root: 9, scale: 'minor-blues', pattern: 'blues', backing: 'blues', mode: 'apply', rounds: 3 }
 )
-export const LESSONS: readonly Lesson[] = all
+const combined = [...all, ...ENSEMBLE_LESSONS, ...PIANO_LESSONS, ...ADVANCED_LESSONS, ...ELECTRIC_LESSONS]
+// Make cross-route prerequisites discoverable in both directions without changing stable lesson IDs.
+for (const lesson of combined)
+  for (const id of lesson.prerequisites) {
+    const prerequisite = combined.find((l) => l.id === id)
+    if (prerequisite && !prerequisite.related.includes(lesson.id)) prerequisite.related.push(lesson.id)
+  }
+export const LESSONS: readonly Lesson[] = combined
 export const TRACKS = {
   shared: '共享基础',
   guitar: '吉他',
+  electric: '电吉他风格',
   bass: '贝斯',
   ukulele: '尤克里里',
-  blues: '布鲁斯专题'
+  blues: '布鲁斯专题',
+  drums: '鼓手',
+  violin: '小提琴',
+  synthesis: '电子合成乐',
+  piano: '键盘／钢琴'
 } as const
 export const LEVELS = { 1: '入门', 2: '进阶', 3: '深入应用' } as const
 export const CONTENT_SOURCES = [
+  ...ELECTRIC_SOURCES,
+  {
+    label: 'Yamaha · Keyboard Fingering',
+    url: 'https://hub.yamaha.com/keyboards/k-how-to/the-basics-of-piano-keyboard-fingering/'
+  },
+  { label: 'ABRSM · Piano', url: 'https://www.abrsm.org/en-gb/piano' },
+  ...ENSEMBLE_SOURCES,
   { label: 'Berklee · Blues Guitar', url: 'https://online.berklee.edu/courses/blues-guitar' },
   { label: 'Fender · 大小调布鲁斯音阶', url: 'https://www.fender.com/articles/scales/blues-guitar-scale' },
   { label: 'Fender · 尤克里里调弦', url: 'https://www.fender.com/articles/setup/how-to-tune-a-ukulele' }

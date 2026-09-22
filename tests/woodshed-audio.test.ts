@@ -3,6 +3,12 @@ vi.mock('../src/renderer/src/audio-engine.js', () => ({ setAudioContextOutputDev
 import { WoodshedAudio } from '../src/renderer/src/woodshed/audio.js'
 import { DEFAULT_EXERCISE } from '../src/renderer/src/woodshed/types.js'
 import type { GeneratedExercise } from '../src/renderer/src/woodshed/generator.js'
+import {
+  GUITAR_PROJECTS,
+  guitarProjectExercise,
+  projectConfig
+} from '../src/renderer/src/woodshed/electric.js'
+import { TUNINGS } from '../src/renderer/src/woodshed/theory.js'
 class Parameter {
   value = 0
   setValueAtTime = vi.fn((value: number) => {
@@ -84,7 +90,12 @@ describe('woodshed audio clock and lifecycle', () => {
     const count = melody().length
     await vi.advanceTimersByTimeAsync(1000)
     expect(melody()).toHaveLength(count)
-    await audio.play(exercise, { ...DEFAULT_EXERCISE, bpm: 120, countIn: 0, rounds: 1, subdivision: 1 }, false, true)
+    await audio.play(
+      exercise,
+      { ...DEFAULT_EXERCISE, bpm: 120, countIn: 0, rounds: 1, subdivision: 1 },
+      false,
+      true
+    )
     await vi.advanceTimersByTimeAsync(1400)
     expect(melody()).toHaveLength(4)
     audio.stop()
@@ -96,7 +107,10 @@ describe('woodshed audio clock and lifecycle', () => {
       ...exercise,
       beats: 8,
       bars: 2,
-      events: [...exercise.events, ...exercise.events.map((e) => ({ ...e, id: e.id + 'b', beat: e.beat + 4 }))]
+      events: [
+        ...exercise.events,
+        ...exercise.events.map((e) => ({ ...e, id: e.id + 'b', beat: e.beat + 4 }))
+      ]
     }
     const audio = new WoodshedAudio()
     await audio.play(twoBars, {
@@ -128,14 +142,24 @@ describe('woodshed audio clock and lifecycle', () => {
       ...exercise,
       beats: 8,
       bars: 2,
-      events: [...exercise.events, ...exercise.events.map((e) => ({ ...e, id: e.id + 'b', beat: e.beat + 4 }))]
+      events: [
+        ...exercise.events,
+        ...exercise.events.map((e) => ({ ...e, id: e.id + 'b', beat: e.beat + 4 }))
+      ]
     }
     const audio = new WoodshedAudio()
     const frames: { bar: number; hidden: boolean }[] = []
     audio.onFrame((f) => {
       if (f.playing) frames.push(f)
     })
-    await audio.play(twoBars, { ...DEFAULT_EXERCISE, bpm: 120, countIn: 0, rounds: 1, silentBars: 1, mode: 'follow' })
+    await audio.play(twoBars, {
+      ...DEFAULT_EXERCISE,
+      bpm: 120,
+      countIn: 0,
+      rounds: 1,
+      silentBars: 1,
+      mode: 'follow'
+    })
     await vi.advanceTimersByTimeAsync(3900)
     expect(frames.filter((f) => f.bar === 2).every((f) => f.hidden)).toBe(true)
     expect(frames.some((f) => f.bar === 1 && !f.hidden)).toBe(true)
@@ -147,5 +171,38 @@ describe('woodshed audio clock and lifecycle', () => {
     audio.destroy()
     await expect(pending).rejects.toThrow('关闭')
     expect(sources).toHaveLength(0)
+  })
+  it('schedules all seven eighth notes exactly once after an odd-meter count-in across two rounds', async () => {
+    const p = GUITAR_PROJECTS.find((p) => p.id === 'math-grid')!
+    const exercise = guitarProjectExercise(p, TUNINGS[0]!, 0, { stage: 0, shift: 0 })
+    const c = projectConfig(
+      p,
+      { ...DEFAULT_EXERCISE, bpm: 120, countIn: 1, rounds: 2 },
+      { stage: 0, shift: 0 },
+      0
+    )
+    const audio = new WoodshedAudio()
+    await audio.play(exercise, c)
+    await vi.advanceTimersByTimeAsync(9000)
+    const notes = melody()
+    expect(notes).toHaveLength(28)
+    notes.forEach((n, i) => expect(n.start.mock.calls[0]![0]).toBeCloseTo(1.81 + i * 0.25, 5))
+    audio.destroy()
+  })
+  it('auditions the same bend event and releases palm-muted notes earlier than open notes', async () => {
+    const audio = new WoodshedAudio()
+    await audio.previewEvent(
+      { id: 'bend', beat: 0, duration: 1, notes: [{ string: 2, fret: 8, midi: 67 }], bend: 2 },
+      1
+    )
+    const bent = sources.at(-1)!
+    expect(bent.frequency.exponentialRampToValueAtTime.mock.calls[0]![0]).toBeCloseTo(440, 5)
+    await audio.previewEvent(
+      { id: 'pm', beat: 0, duration: 1, notes: [{ string: 6, fret: 0, midi: 40 }], palmMute: true },
+      1
+    )
+    const muted = sources.at(-1)!
+    expect(muted.stop.mock.calls[0]![0]).toBeLessThan(bent.stop.mock.calls[0]![0])
+    audio.destroy()
   })
 })

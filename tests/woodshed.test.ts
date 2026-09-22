@@ -10,7 +10,12 @@ import {
   chordVoicings,
   mod
 } from '../src/renderer/src/woodshed/theory.js'
-import { generateExercise, progression, beatUnit, meterLength } from '../src/renderer/src/woodshed/generator.js'
+import {
+  generateExercise,
+  progression,
+  beatUnit,
+  meterLength
+} from '../src/renderer/src/woodshed/generator.js'
 import { LESSONS } from '../src/renderer/src/woodshed/curriculum.js'
 import { DEFAULT_EXERCISE } from '../src/renderer/src/woodshed/types.js'
 import { decodePreferences, defaults } from '../src/renderer/src/woodshed/preferences.js'
@@ -108,7 +113,12 @@ describe('woodshed exercise source of truth', () => {
   it('represents rests, compound pulse durations and triplet timing', () => {
     for (const meter of ['2/4', '3/4', '4/4', '6/8', '12/8'])
       for (const subdivision of [1, 2, 3, 4]) {
-        const result = generateExercise(TUNINGS[0]!, 0, { ...DEFAULT_EXERCISE, pattern: 'rhythm', meter, subdivision })
+        const result = generateExercise(TUNINGS[0]!, 0, {
+          ...DEFAULT_EXERCISE,
+          pattern: 'rhythm',
+          meter,
+          subdivision
+        })
         expect(result.events.some((e) => !e.notes.length)).toBe(true)
         expect(result.beats / meterLength(meter)).toBeCloseTo(result.bars)
         expect(result.events[0]!.duration).toBeCloseTo(beatUnit(meter) / subdivision)
@@ -126,16 +136,24 @@ describe('woodshed exercise source of truth', () => {
   })
 })
 describe('curriculum and persistence', () => {
-  it('has exactly 72 complete, distinct units and an acyclic prerequisite graph', () => {
-    expect(LESSONS).toHaveLength(72)
-    expect(new Set(LESSONS.map((l) => l.title)).size).toBe(72)
+  it('has exactly 178 complete, distinct units and an acyclic prerequisite graph', () => {
+    expect(LESSONS).toHaveLength(178)
+    expect(new Set(LESSONS.map((l) => l.title)).size).toBe(178)
     for (const track of ['shared', 'guitar', 'bass', 'ukulele', 'blues'])
-      expect(LESSONS.filter((l) => l.track === track)).toHaveLength(track === 'shared' ? 24 : 12)
+      expect(LESSONS.filter((l) => l.track === track)).toHaveLength(track === 'shared' ? 26 : 14)
     const seen = new Set<string>()
     for (const l of LESSONS) {
       for (const prereq of l.prerequisites) expect(seen.has(prereq), `${l.id} requires ${prereq}`).toBe(true)
       seen.add(l.id)
-      for (const field of ['goal', 'explanation', 'example', 'mistakes', 'check', 'easier', 'harder'] as const)
+      for (const field of [
+        'goal',
+        'explanation',
+        'example',
+        'mistakes',
+        'check',
+        'easier',
+        'harder'
+      ] as const)
         expect(l[field].length, `${l.id}.${field}`).toBeGreaterThan(3)
       expect(l.steps).toHaveLength(3)
       l.related.forEach((id) => expect(LESSONS.some((l) => l.id === id)).toBe(true))
@@ -167,7 +185,8 @@ describe('tuner', () => {
           samples = Float32Array.from(
             { length: 8192 },
             (_, i) =>
-              0.3 * Math.sin((2 * Math.PI * hz * i) / sampleRate) + 0.1 * Math.sin((4 * Math.PI * hz * i) / sampleRate)
+              0.3 * Math.sin((2 * Math.PI * hz * i) / sampleRate) +
+              0.1 * Math.sin((4 * Math.PI * hz * i) / sampleRate)
           )
         const pitch = detectPitch(samples, sampleRate)
         expect(pitch.frequency, `MIDI ${midi} at ${sampleRate}`).not.toBeNull()
@@ -188,7 +207,9 @@ describe('ready-to-play curriculum presets', () => {
       const tunings =
         lesson.track === 'shared' || lesson.track === 'blues'
           ? TUNINGS.filter((t) => ['guitar', 'bass', 'uke-high'].includes(t.id))
-          : TUNINGS.filter((t) => t.instrument === lesson.track && ['guitar', 'bass', 'uke-high'].includes(t.id))
+          : TUNINGS.filter(
+              (t) => t.instrument === lesson.track && ['guitar', 'bass', 'uke-high'].includes(t.id)
+            )
       for (const tuning of tunings) {
         try {
           generateExercise(tuning, 0, { ...DEFAULT_EXERCISE, ...lesson.exercise }, lesson.technique)

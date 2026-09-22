@@ -30,7 +30,9 @@ export function swingBeat(beat: number, config: ExerciseConfig): number {
   if (config.subdivision !== 2) return beat
   return (
     (base +
-      (fraction <= 0.5 ? fraction * config.swing * 2 : config.swing + (fraction - 0.5) * (1 - config.swing) * 2)) *
+      (fraction <= 0.5
+        ? fraction * config.swing * 2
+        : config.swing + (fraction - 0.5) * (1 - config.swing) * 2)) *
     unit
   )
 }
@@ -41,6 +43,7 @@ export class WoodshedAudio {
   private sources = new Set<AudioScheduledSourceNode>()
   private timer: ReturnType<typeof setInterval> | null = null
   private animation = 0
+  private visualActive = true
   private generation = 0
   private disposed = false
   private origin = 0
@@ -58,6 +61,33 @@ export class WoodshedAudio {
   private a4 = 440
   onFrame(listener: (frame: TransportFrame) => void): void {
     this.frameListener = listener
+  }
+  getFrame(): TransportFrame {
+    this.consumeFrames(false)
+    return { ...this.currentFrame }
+  }
+  setVisualActive(active: boolean): void {
+    if (this.visualActive === active || this.disposed) return
+    this.visualActive = active
+    cancelAnimationFrame(this.animation)
+    this.animation = 0
+    this.consumeFrames(false)
+    if (active) {
+      this.frameListener(this.currentFrame)
+      this.draw()
+    }
+  }
+  private consumeFrames(notify: boolean): void {
+    if (!this.context) return
+    while (this.queue.length && this.queue[0]!.time <= this.context.currentTime) {
+      this.currentFrame = this.queue.shift()!.frame
+      if (notify) this.frameListener(this.currentFrame)
+    }
+  }
+  private draw = (): void => {
+    if (!this.active || !this.visualActive || this.disposed) return
+    this.consumeFrames(true)
+    this.animation = requestAnimationFrame(this.draw)
   }
   async setOutput(id: string): Promise<void> {
     this.output = id
@@ -93,7 +123,8 @@ export class WoodshedAudio {
       envelope = this.context.createGain()
     osc.type = type
     osc.frequency.setValueAtTime(frequency(midi, this.a4), time)
-    if (bend) osc.frequency.exponentialRampToValueAtTime(frequency(midi + bend, this.a4), time + duration * 0.65)
+    if (bend)
+      osc.frequency.exponentialRampToValueAtTime(frequency(midi + bend, this.a4), time + duration * 0.65)
     envelope.gain.setValueAtTime(0, time)
     envelope.gain.linearRampToValueAtTime(gain, time + 0.008)
     envelope.gain.exponentialRampToValueAtTime(0.0001, time + Math.max(0.025, duration))
@@ -112,6 +143,11 @@ export class WoodshedAudio {
     const token = this.generation
     const context = await this.ready()
     if (token === this.generation) this.tone(midi, context.currentTime, 0.8, 0.22)
+  }
+  async previewEvent(event: MusicEvent, seconds: number): Promise<void> {
+    const token = this.generation
+    const context = await this.ready()
+    if (token === this.generation) this.noteEvent({ ...event, tie: false }, context.currentTime, seconds)
   }
   async drone(root: number, fifth: boolean): Promise<void> {
     this.stop()
@@ -145,6 +181,7 @@ export class WoodshedAudio {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
     cancelAnimationFrame(this.animation)
+    this.animation = 0
     for (const source of this.sources) {
       try {
         source.stop()
@@ -160,6 +197,7 @@ export class WoodshedAudio {
   pause(): void {
     if (!this.active || !this.context) return
     const elapsed = this.context.currentTime - this.origin
+    this.consumeFrames(false)
     const frame = this.currentFrame
     this.stop()
     this.elapsed = elapsed
@@ -185,18 +223,15 @@ export class WoodshedAudio {
     this.active = true
     this.scheduled = 0
     this.queue = []
-    const run = () => this.schedule()
+    const run = () => {
+      this.schedule()
+      // The audio timer keeps only the latest due cue while the page is hidden.
+      // Future cues remain in the short audio look-ahead window.
+      if (!this.visualActive) this.consumeFrames(false)
+    }
     run()
     this.timer = setInterval(run, 25)
-    const draw = () => {
-      if (!this.active || !this.context) return
-      while (this.queue.length && this.queue[0]!.time <= this.context.currentTime) {
-        this.currentFrame = this.queue.shift()!.frame
-        this.frameListener(this.currentFrame)
-      }
-      this.animation = requestAnimationFrame(draw)
-    }
-    draw()
+    this.draw()
   }
   private schedule(): void {
     const context = this.context,
@@ -206,7 +241,8 @@ export class WoodshedAudio {
     const length = meterLength(c.meter),
       unit = beatUnit(c.meter)
     const from = Math.min(Math.max(0, (c.loopStart - 1) * length), exercise.beats - length)
-    const to = c.loopEnd > 0 ? Math.min(exercise.beats, Math.max(from + length, c.loopEnd * length)) : exercise.beats
+    const to =
+      c.loopEnd > 0 ? Math.min(exercise.beats, Math.max(from + length, c.loopEnd * length)) : exercise.beats
     const loopBeats = to - from
     const tick = unit / 12
     const countBeats = c.countIn * length
@@ -227,7 +263,8 @@ export class WoodshedAudio {
         round = Math.floor((passed + 1e-7) / loopBeats)
         local = passed - round * loopBeats + from
         seconds = countSeconds
-        for (let r = 0; r < round; r++) seconds += ((loopBeats / unit) * 60) / Math.min(240, c.bpm + r * c.speedStep)
+        for (let r = 0; r < round; r++)
+          seconds += ((loopBeats / unit) * 60) / Math.min(240, c.bpm + r * c.speedStep)
         bpm = Math.min(240, c.bpm + round * c.speedStep)
         seconds += ((swingBeat(local - from, c) / unit) * 60) / bpm
       }
@@ -255,7 +292,8 @@ export class WoodshedAudio {
       const onPulse = Math.abs(barBeat / unit - Math.round(barBeat / unit)) < 1e-5
       const onSubdivision =
         Math.abs(barBeat / (unit / c.subdivision) - Math.round(barBeat / (unit / c.subdivision))) < 1e-5
-      if (!onPulse && onSubdivision && !inCount && !silent && !c.backbeat) this.tone(72, time, 0.025, 0.055, 'sine')
+      if (!onPulse && onSubdivision && !inCount && !silent && !c.backbeat)
+        this.tone(72, time, 0.025, 0.055, 'sine')
       if (onPulse) {
         const pulse = Math.round(barBeat / unit)
         const click = inCount || (!silent && (!c.backbeat || pulse === 1 || pulse === 3))
@@ -301,7 +339,11 @@ export class WoodshedAudio {
             }
           }
           if (!this.metronomeOnly && c.mode === 'demo' && !silent)
-            this.noteEvent(event, time, (((swingBeat(local + duration, c) - swingBeat(local, c)) / unit) * 60) / bpm)
+            this.noteEvent(
+              event,
+              time,
+              (((swingBeat(local + duration, c) - swingBeat(local, c)) / unit) * 60) / bpm
+            )
         }
         if (!this.metronomeOnly && c.mode === 'apply' && onPulse && !silent) {
           const chords = progression(c.backing, c.root)
@@ -309,11 +351,18 @@ export class WoodshedAudio {
           const pulse = Math.round(barBeat / unit)
           const beatSeconds = 60 / bpm
           if (c.drums > 0) this.tone(pulse % 2 ? 55 : 31, time, 0.07, c.drums * 0.26, 'triangle')
-          if (c.bass > 0) this.tone(36 + chord.root + (pulse % 2 ? 7 : 0), time, beatSeconds * 0.8, c.bass * 0.26)
+          if (c.bass > 0)
+            this.tone(36 + chord.root + (pulse % 2 ? 7 : 0), time, beatSeconds * 0.8, c.bass * 0.26)
           if (pulse === 0 && c.harmony > 0) {
             const quality = c.backing === 'drone' ? CHORDS[c.chord]! : CHORDS[chord.quality]!
             for (const interval of quality.semitones)
-              this.tone(48 + chord.root + interval, time, (length / unit) * beatSeconds * 0.9, c.harmony * 0.09, 'sine')
+              this.tone(
+                48 + chord.root + interval,
+                time,
+                (length / unit) * beatSeconds * 0.9,
+                c.harmony * 0.09,
+                'sine'
+              )
           }
         }
       }
@@ -326,8 +375,9 @@ export class WoodshedAudio {
       this.tone(
         note.midi,
         time + (event.technique === 'down' ? i * 0.015 : 0),
-        Math.max(0.035, duration * 0.88),
-        event.technique === 'mute' ? 0.035 : 0.24 / Math.sqrt(event.notes.length),
+        Math.max(0.035, duration * (event.gate ?? (event.palmMute ? 0.38 : 0.88))),
+        (event.technique === 'mute' ? 0.035 : 0.24 / Math.sqrt(event.notes.length)) *
+          (event.velocity ?? (event.accent ? 1.15 : 1)),
         event.technique === 'mute' ? 'square' : 'triangle',
         event.bend ?? 0
       )

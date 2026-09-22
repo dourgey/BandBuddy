@@ -1,0 +1,306 @@
+@layer theme, base, components, utilities;
+@layer components {
+.ws-track-tabs,
+.ws-tool-tabs {
+  flex-wrap: wrap;
+}
+.ws-ensemble {
+  margin-top: 20px;
+  min-width: 0;
+}
+.ws-ensemble p {
+  line-height: 1.9;
+}
+.ws-ensemble .ws-form-row {
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 20px 0;
+}
+.ws-ensemble .ws-form-row > label {
+  min-width: 130px;
+}
+.ws-ensemble-transport {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.ws-ensemble-transport small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ws-ensemble-slider {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 18px 0;
+}
+.ws-drum-scroll {
+  overflow-x: auto;
+  margin: 22px 0;
+}
+.ws-drum-grid {
+  display: grid;
+  grid-template-columns: 68px repeat(16, minmax(28px, 1fr));
+  gap: 6px;
+  min-width: 690px;
+  align-items: center;
+}
+.ws-drum-row {
+  display: contents;
+}
+.ws-drum-grid small {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ws-drum-grid b,
+.ws-drum-grid > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.ws-drum-grid button {
+  height: 42px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+}
+.ws-drum-grid button.hit-1 {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+.ws-drum-grid button.hit-2 {
+  background: var(--surface-sunken);
+  color: var(--inverse-text);
+  font-size: 27px;
+}
+.ws-drum-grid button.beat-start {
+  border-left: 3px solid var(--warning);
+}
+.ws-drum-grid button.playing {
+  outline: 2px solid var(--warning);
+  outline-offset: 1px;
+}
+.ws-poly-grid {
+  padding: 24px;
+  background: var(--surface-muted);
+  border-radius: 12px;
+}
+.ws-poly-grid > div {
+  margin: 14px 0;
+}
+.ws-poly-grid b {
+  font-size: 12px;
+  font-weight: 500;
+}
+.ws-poly-grid > div > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ws-poly-grid span {
+  flex: 1;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.ws-poly-grid span.hit {
+  background: var(--surface-sunken);
+  color: var(--inverse-text);
+}
+.ws-violin-board {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.ws-violin-board svg {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+}
+.ws-violin-board svg > g:not([role='button']) > text {
+  fill: var(--muted);
+  font-size: 13px;
+}
+.ws-violin-board g[role='button'] {
+  cursor: pointer;
+}
+.ws-violin-board g[role='button']:focus {
+  outline: none;
+  stroke: var(--warning);
+  stroke-width: 2;
+}
+.ws-bow-cue {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: var(--surface-muted);
+  padding: 18px;
+  border-radius: 10px;
+  color: var(--muted);
+}
+.ws-bow-cue b {
+  font-size: 21px;
+  min-width: 110px;
+}
+.ws-bow-cue small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ws-violin-score {
+  margin: 20px 0;
+  overflow: hidden;
+}
+.ws-violin-score p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ws-violin-score .ws-score-scroll {
+  overflow: auto;
+  min-height: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ws-active-note {
+  fill: var(--warning) !important;
+  stroke: var(--warning) !important;
+}
+.ws-synth-diagrams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin: 24px 0;
+}
+.ws-synth-diagrams > div {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ws-synth-diagrams small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ws-synth-diagrams svg {
+  width: 100%;
+  display: block;
+  margin-top: 12px;
+}
+.ws-synth-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  margin: 25px 0;
+}
+.ws-synth-controls label {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ws-synth-controls b {
+  font-weight: 500;
+  color: var(--muted);
+}
+.ws-synth-controls input {
+  width: 100%;
+  accent-color: #4d7566;
+}
+.ws-synth-keyboard {
+  display: flex;
+  gap: 4px;
+  padding: 18px;
+  background: var(--surface-muted);
+  border-radius: 12px;
+  overflow: auto;
+}
+.ws-synth-keyboard button {
+  min-width: 42px;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 14px;
+  font-size: 12px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.ws-synth-keyboard button.black {
+  height: 85px;
+  background: var(--inverse-surface);
+  color: var(--text-subtle);
+  border-color: var(--border-strong);
+}
+.ws-synth-keyboard button:active {
+  background: var(--surface-sunken);
+  color: var(--inverse-text);
+}
+.ws-delay {
+  padding: 22px;
+  background: var(--surface-muted);
+  border-radius: 12px;
+  margin-top: 28px;
+}
+.ws-delay h3 {
+  margin-top: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+.ws-delay dl {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.ws-delay dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ws-delay dd {
+  font-size: 18px;
+  margin: 8px 0;
+  color: var(--muted);
+}
+.ws-source-note a {
+  display: inline-block;
+  color: var(--muted);
+  margin: 5px 14px 0 0;
+}
+@media (max-width: 1200px) {
+  .ws-synth-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ws-delay dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .ws-synth-diagrams {
+    grid-template-columns: 1fr;
+  }
+  .ws-delay dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+}

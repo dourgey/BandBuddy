@@ -1,3 +1,4 @@
+import { useResolvedTheme, themeColor } from '../appearance.js'
 import { memo, useEffect, useRef, useState } from 'react'
 import { meterLength } from './generator.js'
 import type { ExerciseConfig, MusicEvent } from './types.js'
@@ -9,11 +10,22 @@ interface Props {
   onSelect: (event: MusicEvent) => void
 }
 export const Score = memo(function Score({ events, tuning, config, onSelect }: Props): React.JSX.Element {
+  const theme = useResolvedTheme()
   const host = useRef<HTMLDivElement>(null)
   const callback = useRef(onSelect)
   callback.current = onSelect
   const [error, setError] = useState(''),
-    [ready, setReady] = useState(false)
+    [ready, setReady] = useState(false),
+    [availableWidth, setAvailableWidth] = useState(0)
+  useEffect(() => {
+    const container = host.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setAvailableWidth(Math.floor(entry.contentRect.width))
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     let cancelled = false
     const container = host.current
@@ -28,28 +40,38 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
       const length = meterLength(config.meter)
       const bars = Math.ceil((events.at(-1)!.beat + events.at(-1)!.duration - 1e-6) / length)
       const rhythm = config.pattern === 'rhythm'
-      const width = Math.max(360, container.clientWidth || 660)
-      const columns = width >= 760 ? 2 : 1,
+      const maxNotes = Math.max(
+        ...Array.from(
+          { length: bars },
+          (_, b) =>
+            events.filter((e) => e.beat >= b * length - 1e-6 && e.beat < (b + 1) * length - 1e-6).length
+        )
+      )
+      const width = Math.max(maxNotes > 12 ? 680 : 360, availableWidth || container.clientWidth || 660)
+      const columns = width >= 760 && maxNotes <= 10 ? 2 : 1,
         barWidth = width / columns,
         rowHeight = rhythm ? 195 : tuning.notes.length * 17 + 140
       const renderer = new V.Renderer(container, V.Renderer.Backends.SVG)
       renderer.resize(width, Math.ceil(bars / columns) * rowHeight)
       const ctx = renderer.getContext()
+      const ink = themeColor('--score-ink', '#29231c'), muted = themeColor('--score-muted', '#81735f')
       ctx.setFont('Academico', 11)
-      ctx.setFillStyle('#534a40')
-      ctx.setStrokeStyle('#8f806b')
+      ctx.setFillStyle(ink)
+      ctx.setStrokeStyle(ink)
       for (let bar = 0; bar < bars; bar++) {
-        const group = events.filter((e) => e.beat >= bar * length - 1e-6 && e.beat < (bar + 1) * length - 1e-6)
+        const group = events.filter(
+          (e) => e.beat >= bar * length - 1e-6 && e.beat < (bar + 1) * length - 1e-6
+        )
         const x = (bar % columns) * barWidth + 5,
           y = Math.floor(bar / columns) * rowHeight + 75
         const stave = rhythm
           ? new V.Stave(x, y, barWidth - 12, { numLines: 1 })
           : new V.TabStave(x, y, barWidth - 12, { numLines: tuning.notes.length, spacingBetweenLinesPx: 17 })
         if (bar === 0) stave.addClef(rhythm ? 'percussion' : 'tab').addTimeSignature(config.meter)
-        stave.setContext(ctx).draw()
+        stave.setStyle({ fillStyle: ink, strokeStyle: ink }).setContext(ctx).draw()
         // VexFlow modifiers change the shared context's font while drawing.
         ctx.setFont('Academico', 11)
-        ctx.setFillStyle('#81735f')
+        ctx.setFillStyle(muted)
         ctx.fillText(String(bar + 1), x + 5, y - 3)
         const triplets: InstanceType<typeof V.Tuplet>[] = []
         const notes = group.map((e) => {
@@ -69,7 +91,8 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
                     : '16'
           // Compound-pulse subdivisions use dotted values, not mislabeled triplets.
           const dotted = [3, 1.5, 0.75, 0.375].some((n) => Math.abs(n - e.duration) < 0.001)
-          if (dotted) duration = e.duration >= 3 ? 'h' : e.duration >= 1.5 ? 'q' : e.duration >= 0.75 ? '8' : '16'
+          if (dotted)
+            duration = e.duration >= 3 ? 'h' : e.duration >= 1.5 ? 'q' : e.duration >= 0.75 ? '8' : '16'
           const rest = e.notes.length === 0
           const note =
             rest || rhythm
@@ -80,18 +103,29 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
                 })
               : new V.TabNote(
                   {
-                    positions: e.notes.map((p) => ({ str: p.string, fret: e.technique === 'mute' ? 'X' : p.fret })),
+                    positions: e.notes.map((p) => ({
+                      str: p.string,
+                      fret: e.technique === 'mute' ? 'X' : p.fret
+                    })),
                     duration,
                     dots: dotted ? 1 : 0
                   },
                   true
                 )
           if (dotted) V.Dot.buildAndAttach([note], { all: true })
+          note.setStyle({ fillStyle: ink, strokeStyle: ink })
           note.setAttribute('id', `ws-note-${e.id}`)
-          if (e.bend) note.addModifier(new V.Bend([{ type: V.Bend.UP, text: e.bend === 2 ? 'full' : '½' }]), 0)
+          if (e.bend)
+            note.addModifier(new V.Bend([{ type: V.Bend.UP, text: e.bend === 2 ? 'full' : '½' }]), 0)
           if (e.technique === 'vibrato') note.addModifier(new V.Vibrato(), 0)
           if (e.technique === 'up' || e.technique === 'down')
             note.addModifier(new V.Annotation(e.technique === 'up' ? '↑' : '↓').setFont('Academico', 11), 0)
+          const marks = [
+            e.accent ? '>' : '',
+            e.palmMute ? 'P.M.' : '',
+            e.technique === 'tap' ? 'T' : ''
+          ].filter(Boolean)
+          if (marks.length) note.addModifier(new V.Annotation(marks.join(' ')).setFont('Academico', 11), 0)
           return note
         })
         for (let i = 0; i < group.length; ) {
@@ -100,7 +134,9 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
             i + 2 < notes.length &&
             group.slice(i, i + 3).every((e) => Math.abs(e.duration - 1 / 3) < 0.001)
           ) {
-            triplets.push(new V.Tuplet(notes.slice(i, i + 3), { numNotes: 3, notesOccupied: 2, bracketed: true }))
+            triplets.push(
+              new V.Tuplet(notes.slice(i, i + 3), { numNotes: 3, notesOccupied: 2, bracketed: true })
+            )
             i += 3
           } else i++
         }
@@ -119,7 +155,8 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
           if (next.tie) new V.TabTie(pair).setContext(ctx).draw()
         }
         group.forEach((e) => {
-          const element = container.querySelector(`#vf-ws-note-${e.id}`) ?? container.querySelector(`#ws-note-${e.id}`)
+          const element =
+            container.querySelector(`#vf-ws-note-${e.id}`) ?? container.querySelector(`#ws-note-${e.id}`)
           if (element) {
             element.setAttribute('data-event', e.id)
             element.classList.add('ws-score-note')
@@ -148,7 +185,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
     return () => {
       cancelled = true
     }
-  }, [events, tuning.notes.length, config.meter, config.pattern])
+  }, [events, tuning.notes.length, config.meter, config.pattern, availableWidth, theme])
   return (
     <section className="ws-score-section">
       <div className="ws-panel-heading">
@@ -182,8 +219,8 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
         aria-label={config.pattern === 'rhythm' ? '节奏练习谱例' : `${tuning.notes.length}线练习谱例`}
       />
       <p className="ws-notation-key">
-        上方为第 1 弦 · 数字为相对品位 · 0 空弦 · X 闷音 · h 击弦 · p 勾弦 · 斜线 滑音 · full 全音推弦 · 弧线 延音／连奏
-        · ↑↓ 拨弦方向。点击音符可试听。
+        上方为第 1 弦 · 数字为相对品位 · 0 空弦 · X 闷音 · h 击弦 · p 勾弦 · 斜线 滑音 · full 全音推弦 · 弧线
+        延音／连奏 · ↑↓ 拨弦方向 · P.M. 掌根制音（保留音高） · &gt; 重音 · T 右手点弦。点击音符可试听。
       </p>
     </section>
   )

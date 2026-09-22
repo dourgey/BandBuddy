@@ -1,3 +1,6 @@
+import type { PianoConfig } from './piano.js'
+import type { ElectricConfig } from './electric.js'
+import type { EnsemblePrefs } from './ensemble.js'
 import type { Instrument, Position } from './theory.js'
 export type Section = 'learn' | 'lab' | 'practice' | 'tools'
 export type Pattern =
@@ -13,7 +16,7 @@ export type Pattern =
   | 'blues'
   | 'chromatic'
   | 'chord'
-export type Technique = 'hammer' | 'pull' | 'slide' | 'bend' | 'vibrato' | 'mute' | 'down' | 'up'
+export type Technique = 'hammer' | 'pull' | 'slide' | 'bend' | 'vibrato' | 'mute' | 'down' | 'up' | 'tap'
 export interface MusicEvent {
   id: string
   beat: number
@@ -22,6 +25,10 @@ export interface MusicEvent {
   technique?: Technique
   bend?: number
   tie?: boolean
+  palmMute?: boolean
+  accent?: boolean
+  velocity?: number
+  gate?: number
 }
 export interface ExerciseConfig {
   root: number
@@ -55,7 +62,7 @@ export interface ExerciseConfig {
 }
 export interface Lesson {
   id: string
-  track: 'shared' | Instrument | 'blues'
+  track: 'shared' | Instrument | 'blues' | 'drums' | 'violin' | 'synthesis' | 'piano' | 'electric'
   category: string
   level: 1 | 2 | 3
   title: string
@@ -70,11 +77,17 @@ export interface Lesson {
   prerequisites: string[]
   related: string[]
   exercise: Partial<ExerciseConfig>
+  workshopPreset?: string
+  guitarProjectId?: string
+  guitarStage?: 0 | 1 | 2
   technique?: Technique
   view?: 'tab' | 'chord' | 'rhythm'
 }
 export interface Preferences {
   version: 1
+  piano: PianoConfig
+  electric: ElectricConfig
+  ensemble: EnsemblePrefs
   section: Section
   tuningId: string
   customNotes: number[] | null

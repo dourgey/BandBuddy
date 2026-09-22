@@ -1,9 +1,13 @@
+import { allowAudioAction, useRecordingSession } from '../recording-session.js'
+import { pauseAudioSession } from '../audio-session.js'
+import { Select } from '../components/ui/Select.js'
 import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Volume2 } from 'lucide-react'
 import { detectPitch, pitchReading } from './pitch.js'
 import { noteName, type Tuning } from './theory.js'
 import type { WoodshedAudio } from './audio.js'
 export function Tuner({
+  visible = true,
   tuning,
   capo,
   a4,
@@ -13,7 +17,8 @@ export function Tuner({
   audio,
   onError
 }: {
-  tuning: Tuning
+  visible?: boolean
+  tuning: Pick<Tuning, 'id' | 'notes'>
   capo: number
   a4: number
   onA4: (n: number) => void
@@ -33,6 +38,9 @@ export function Tuner({
     context = useRef<AudioContext | null>(null),
     timer = useRef<ReturnType<typeof setInterval> | null>(null),
     token = useRef(0)
+  const recording = useRecordingSession()
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
   const current = useRef({ a4, target, tuning, capo })
   current.current = { a4, target, tuning, capo }
   const stop = (): void => {
@@ -48,6 +56,7 @@ export function Tuner({
     setReading(null)
     setLevel(0)
   }
+  useEffect(() => { if (recording) stop() }, [Boolean(recording)])
   useEffect(
     () => () => {
       token.current++
@@ -73,6 +82,7 @@ export function Tuner({
     return () => navigator.mediaDevices?.removeEventListener('devicechange', refresh)
   }, [])
   const start = async (): Promise<void> => {
+    if (!allowAudioAction()) return
     stop()
     setBusy(true)
     const ticket = token.current
@@ -118,6 +128,7 @@ export function Tuner({
       if (ticket !== token.current) return
       setDevices(available.filter((d) => d.kind === 'audioinput'))
       timer.current = setInterval(() => {
+        if (!visibleRef.current) return
         analyser.getFloatTimeDomainData(samples)
         const pitch = detectPitch(samples, ctx.sampleRate)
         setLevel(Math.min(1, pitch.rms * 5))
@@ -184,7 +195,7 @@ export function Tuner({
       <div className="ws-form-row">
         <label>
           音频输入
-          <select value={inputDevice} disabled={active || busy} onChange={(e) => onDevice(e.target.value)}>
+          <Select value={inputDevice} disabled={active || busy} onChange={(e) => onDevice(e.target.value)}>
             <option value="">系统默认输入</option>
             {devices
               .filter((d) => d.deviceId !== 'default')
@@ -193,7 +204,7 @@ export function Tuner({
                   {d.label || `输入设备 ${i + 1}`}
                 </option>
               ))}
-          </select>
+          </Select>
         </label>
         <label>
           A4 标准音
@@ -243,6 +254,8 @@ export function Tuner({
               onClick={() => {
                 stop()
                 setStatus('参考音播放后，可重新开启调音。')
+                if (!allowAudioAction()) return
+                pauseAudioSession()
                 void audio?.preview(midi + capo).catch((e) => onError(String(e)))
               }}
             >
@@ -252,7 +265,10 @@ export function Tuner({
         ))}
       </div>
       <p className="ws-muted">
-        调音前移除变调夹可校准空弦；当前目标已计入变调夹。调音期间不监听输入，避免啸叫。请在系统中选择合适的声卡输入通道。
+        {tuning.id === 'violin'
+          ? '标准调弦 G3–D4–A4–E5；显示所选 A4 下的十二平均律参考。'
+          : '调音前移除变调夹可校准空弦；当前目标已计入变调夹。'}
+        调音期间不监听输入，避免啸叫。请在系统中选择合适的声卡输入通道。
       </p>
     </section>
   )

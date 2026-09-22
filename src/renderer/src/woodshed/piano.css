@@ -1,0 +1,116 @@
+@layer theme, base, components, utilities;
+@layer components {
+.ws-piano {
+  margin-top: 20px;
+  min-width: 0;
+}
+.ws-piano p {
+  line-height: 1.9;
+}
+.ws-piano-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.ws-piano-key-actions {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 20px 0;
+}
+.ws-piano-key-actions > label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ws-piano-key-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+.ws-piano-key-scroll svg {
+  display: block;
+  width: 100%;
+}
+.ws-piano-key-scroll [role='button'] {
+  cursor: pointer;
+}
+.ws-piano-key-scroll [role='button']:focus rect {
+  stroke: var(--warning);
+  stroke-width: 3;
+}
+.ws-piano-legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 15px 0;
+}
+.ws-piano-note-strip {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-size: 13px;
+}
+.ws-piano-score p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ws-piano-score .ws-score-scroll {
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 330px;
+}
+.ws-piano-changes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.ws-piano-changes button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  padding: 12px;
+  cursor: pointer;
+  min-width: 110px;
+}
+.ws-piano-changes button.active {
+  background: var(--surface-sunken);
+  color: var(--inverse-text);
+}
+.ws-piano-changes small {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.ws-piano-fields .ws-tag {
+  align-self: center;
+}
+.ws-piano-fields select,
+.ws-piano-fields input {
+  width: 100%;
+}
+@media (max-width: 1200px) {
+  .ws-piano-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .ws-piano-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+}

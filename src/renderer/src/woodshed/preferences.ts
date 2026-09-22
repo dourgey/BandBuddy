@@ -1,3 +1,6 @@
+import { pianoDefaults, pianoSchema } from './piano.js'
+import { electricDefaults, electricSchema } from './electric.js'
+import { ensembleSchema, ensembleDefaults } from './ensemble.js'
 import { z } from 'zod'
 import { TUNINGS, SCALES, CHORDS } from './theory.js'
 import { DEFAULT_EXERCISE, PATTERNS, type Preferences } from './types.js'
@@ -18,7 +21,7 @@ const exerciseSchema = z.object({
   maxFret: integer(0, 24),
   strings: z.array(integer(1, 6)).max(6),
   bpm: integer(30, 240),
-  meter: z.enum(['2/4', '3/4', '4/4', '6/8', '12/8']),
+  meter: z.enum(['2/4', '3/4', '4/4', '6/8', '12/8', '7/8']),
   subdivision: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   swing: z.number().min(0.5).max(0.75),
   countIn: integer(0, 2),
@@ -37,13 +40,16 @@ const exerciseSchema = z.object({
 })
 const schema = z.object({
   version: z.literal(1),
+  electric: electricSchema.catch(electricDefaults).default(electricDefaults),
+  piano: pianoSchema.catch(pianoDefaults).default(pianoDefaults),
+  ensemble: ensembleSchema.catch(ensembleDefaults).default(ensembleDefaults),
   section: z.enum(['learn', 'lab', 'practice', 'tools']),
   tuningId: known(TUNINGS.map((t) => t.id)),
   customNotes: z.array(integer(12, 108)).min(4).max(6).nullable(),
   capo: integer(0, 12),
   leftHanded: z.boolean(),
   labels: z.enum(['notes', 'degrees', 'chord']),
-  favorites: z.array(z.string()).max(72),
+  favorites: z.array(z.string()).max(LESSONS.length),
   lessonId: z.string(),
   exercise: exerciseSchema,
   a4: integer(430, 450),
@@ -62,6 +68,9 @@ export const STORAGE_KEY = 'bandbuddy.woodshed.v1'
 export function defaults(): Preferences {
   return {
     version: 1,
+    electric: electricDefaults(),
+    piano: pianoDefaults(),
+    ensemble: ensembleDefaults(),
     section: 'learn',
     tuningId: 'guitar',
     customNotes: null,

@@ -1,0 +1,112 @@
+@layer theme, base, components, utilities;
+@layer components {
+.ws-course-guide {
+  margin: 0 0 24px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.ws-course-guide > summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 14px;
+}
+.ws-course-guide > summary small {
+  margin-left: 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ws-course-guide > p {
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin: 20px 0;
+}
+.ws-course-stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.ws-course-stages > section {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+.ws-course-stages h3 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 12px 0;
+}
+.ws-course-stages p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+  min-height: 65px;
+}
+.ws-course-stages ol {
+  padding-left: 20px;
+  color: var(--warning);
+  font-size: 12px;
+}
+.ws-course-stages li {
+  margin: 10px 0;
+  padding-left: 3px;
+}
+.ws-course-stages button {
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  cursor: pointer;
+  padding: 0;
+}
+.ws-course-stages button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.ws-chapter-depth {
+  padding: 18px 20px;
+  margin: 24px 0;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: 9px;
+}
+.ws-chapter-depth summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+}
+.ws-chapter-depth > small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.ws-chapter-diagnosis {
+  border-left: 3px solid var(--warning);
+  padding: 8px 15px;
+  margin: 20px 0;
+  background: var(--surface-muted);
+}
+.ws-chapter-diagnosis h4 {
+  font-size: 13px;
+  margin: 0;
+  color: var(--warning);
+}
+.ws-chapter-diagnosis p {
+  margin-bottom: 0;
+}
+@media (max-width: 1000px) {
+  .ws-course-stages {
+    grid-template-columns: 1fr;
+  }
+  .ws-course-stages p {
+    min-height: 0;
+  }
+}
+
+}

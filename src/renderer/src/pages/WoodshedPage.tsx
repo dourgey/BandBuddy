@@ -1,3 +1,6 @@
+import { allowAudioAction, useRecordingSession } from '../recording-session.js'
+import { claimAudioSession, isAudioSessionCurrent, releaseAudioSession } from '../audio-session.js'
+import { Select } from '../components/ui/Select.js'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
@@ -8,6 +11,7 @@ import {
   Search,
   Bookmark,
   ArrowRight,
+  ChevronLeft,
   ChevronRight,
   Music2,
   Compass,
@@ -17,10 +21,23 @@ import {
   Mic,
   Timer,
   CircleHelp,
-  RotateCcw
+  RotateCcw,
+  Drum,
+  AudioLines,
+  Piano
 } from 'lucide-react'
-import { LESSONS, TRACKS, LEVELS, BLUES_ROLES } from '../woodshed/curriculum.js'
-import { TUNINGS, CIRCLE, SCALES, CHORDS, ROOTS, parseNote, noteName, mod, type Tuning } from '../woodshed/theory.js'
+import { LESSONS, TRACKS, LEVELS, BLUES_ROLES, CONTENT_SOURCES } from '../woodshed/curriculum.js'
+import {
+  TUNINGS,
+  CIRCLE,
+  SCALES,
+  CHORDS,
+  ROOTS,
+  parseNote,
+  noteName,
+  mod,
+  type Tuning
+} from '../woodshed/theory.js'
 import {
   DEFAULT_EXERCISE,
   type Preferences,
@@ -30,6 +47,14 @@ import {
 } from '../woodshed/types.js'
 import { readPreferences, savePreferences } from '../woodshed/preferences.js'
 import { Workbench, SelectField, NumberField } from '../woodshed/Workbench.js'
+import { PianoWorkbench } from '../woodshed/PianoWorkbench.js'
+import { pianoDefaults, applyPianoPreset } from '../woodshed/piano.js'
+import { CourseGuide, ChapterDepth } from '../woodshed/CourseGuide.js'
+import { COURSES } from '../woodshed/course-plan.js'
+import { GUITAR_PROJECTS, electricDefaults } from '../woodshed/electric.js'
+import { ElectricProjects } from '../woodshed/ElectricProjects.js'
+import { EnsembleWorkbench } from '../woodshed/EnsembleWorkbench.js'
+import { isWorkshop, applyWorkshopPreset, ensembleDefaults, type Workshop } from '../woodshed/ensemble.js'
 import { Tuner } from '../woodshed/Tuner.js'
 import { WoodshedAudio } from '../woodshed/audio.js'
 import '../woodshed/woodshed.css'
@@ -44,20 +69,37 @@ const TOOLS = [
   { id: 'tuner', name: '调音器', icon: Mic },
   { id: 'chords', name: '和弦查询', icon: Music2 },
   { id: 'circle', name: '五度圈', icon: Compass },
-  { id: 'drone', name: '持续参考音', icon: Volume2 }
+  { id: 'drone', name: '持续参考音', icon: Volume2 },
+  { id: 'drums', name: '鼓手节奏', icon: Drum },
+  { id: 'violin', name: '小提琴工具', icon: Music2 },
+  { id: 'synthesis', name: '合成器实验', icon: AudioLines },
+  { id: 'piano', name: '键盘／钢琴', icon: Piano }
 ] as const
 export default function WoodshedPage({
+  active = true,
   outputDeviceId = '',
   onToast
 }: {
+  active?: boolean
   outputDeviceId?: string
   onToast: (message: string) => void
 }): React.JSX.Element {
+  const [smallViewport, setSmallViewport] = useState(() => window.innerWidth <= 1000 || window.innerHeight <= 600)
+  const [sidebarPreference, setSidebarPreference] = useState<boolean | null>(() => {
+    try { const saved = localStorage.getItem('bandbuddy.woodshed.sidebarExpanded'); return saved === 'true' ? true : saved === 'false' ? false : null } catch { return null }
+  })
+  const sidebarExpanded = sidebarPreference ?? !smallViewport
+  useEffect(() => {
+    const resize = (): void => setSmallViewport(window.innerWidth <= 1000 || window.innerHeight <= 600)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
   const [p, setP] = useState<Preferences>(readPreferences),
     [audio, setAudio] = useState<WoodshedAudio | null>(null)
   const [query, setQuery] = useState(''),
     [track, setTrack] = useState('all'),
     [level, setLevel] = useState('all'),
+    [electricCategory, setElectricCategory] = useState('all'),
     [onlyFavorites, setOnlyFavorites] = useState(false)
   const [tool, setTool] = useState('metronome'),
     [customOpen, setCustomOpen] = useState(false),
@@ -66,6 +108,10 @@ export default function WoodshedPage({
     [drone, setDrone] = useState(false)
   const scroll = useRef<HTMLDivElement>(null),
     storageFailed = useRef(false)
+  const droneSession = useRef<number | undefined>(undefined)
+  const releaseDrone = (): void => { if (droneSession.current !== undefined) releaseAudioSession('woodshed', droneSession.current) }
+  const recording = useRecordingSession()
+  useEffect(() => { if (recording) { audio?.stop(); setDrone(false); releaseDrone() } }, [Boolean(recording), audio])
   const latest = useRef(p)
   latest.current = p
   const scrollPositions = useRef({ ...p.scrollPositions }),
@@ -94,13 +140,14 @@ export default function WoodshedPage({
   useEffect(() => {
     const engine = new WoodshedAudio()
     setAudio(engine)
-    return () => engine.destroy()
+    return () => { engine.destroy(); releaseDrone() }
   }, [])
   useEffect(() => {
     void audio
       ?.setOutput(outputDeviceId)
       .catch((e) => error(`无法切换练功房输出：${e instanceof Error ? e.message : String(e)}`))
   }, [audio, outputDeviceId, error])
+  useEffect(() => { audio?.setVisualActive(active) }, [audio, active])
   useEffect(() => {
     audio?.setReference(p.a4)
   }, [audio, p.a4])
@@ -113,11 +160,13 @@ export default function WoodshedPage({
   useEffect(() => {
     audio?.stop()
     setDrone(false)
+    releaseDrone()
   }, [p.section, tool, audio])
   useEffect(() => {
     if (drone) {
       audio?.stop()
       setDrone(false)
+      releaseDrone()
     }
   }, [p.exercise.root, p.a4, p.droneFifth])
   const preset = TUNINGS.find((t) => t.id === p.tuningId)!
@@ -134,18 +183,26 @@ export default function WoodshedPage({
       LESSONS.filter(
         (l) =>
           (track === 'all' || l.track === track) &&
+          (track !== 'electric' || electricCategory === 'all' || l.category === electricCategory) &&
           (level === 'all' || String(l.level) === level) &&
           (!onlyFavorites || p.favorites.includes(l.id)) &&
-          `${l.title} ${l.category} ${l.goal} ${l.explanation}`.toLowerCase().includes(query.trim().toLowerCase())
+          `${l.title} ${l.category} ${l.goal} ${l.explanation}`
+            .toLowerCase()
+            .includes(query.trim().toLowerCase())
       ),
-    [track, level, onlyFavorites, p.favorites, query]
+    [track, level, onlyFavorites, p.favorites, query, electricCategory]
   )
   const selectLesson = (next: Lesson): void => {
     audio?.stop()
+    if (isWorkshop(next.track)) setCustomOpen(false)
     const target =
-      next.track === 'shared' || next.track === 'blues' || next.track === preset.instrument
+      isWorkshop(next.track) ||
+      next.track === 'shared' ||
+      next.track === 'blues' ||
+      next.track === preset.instrument ||
+      (next.track === 'electric' && preset.instrument === 'guitar')
         ? p.tuningId
-        : next.track === 'guitar'
+        : next.track === 'guitar' || next.track === 'electric'
           ? 'guitar'
           : next.track === 'bass'
             ? 'bass'
@@ -154,6 +211,12 @@ export default function WoodshedPage({
     setP((old) => ({
       ...old,
       lessonId: next.id,
+      electric: next.track === 'electric' ? { stage: next.guitarStage ?? 0, shift: 0 } : old.electric,
+      piano: next.track === 'piano' ? applyPianoPreset(old.piano, next.workshopPreset ?? '') : old.piano,
+      ensemble:
+        isWorkshop(next.track) && next.track !== 'piano'
+          ? applyWorkshopPreset(old.ensemble, next.track, next.workshopPreset ?? '')
+          : old.ensemble,
       tuningId: target,
       customNotes: target !== old.tuningId ? null : old.customNotes,
       capo: target !== old.tuningId ? 0 : old.capo,
@@ -168,16 +231,33 @@ export default function WoodshedPage({
               ? 'minor'
               : 'major'),
         bass: targetPreset.instrument === 'bass' ? 0 : DEFAULT_EXERCISE.bass,
-        minFret: Math.min(next.exercise.minFret ?? 0, targetPreset.frets - (target === old.tuningId ? old.capo : 0)),
-        maxFret: Math.min(targetPreset.frets - (target === old.tuningId ? old.capo : 0), next.exercise.maxFret ?? 5)
+        minFret: Math.min(
+          next.exercise.minFret ?? 0,
+          targetPreset.frets - (target === old.tuningId ? old.capo : 0)
+        ),
+        maxFret: Math.min(
+          targetPreset.frets - (target === old.tuningId ? old.capo : 0),
+          next.exercise.maxFret ?? 5
+        )
       }
     }))
   }
   const selectInstrument = (id: string): void => {
     audio?.stop()
+    if (isWorkshop(id)) {
+      selectLesson(LESSONS.find((l) => l.track === id)!)
+      setTrack(id)
+      if (p.section === 'tools') setTool(id)
+      setCustomOpen(false)
+      return
+    }
     const next = TUNINGS.find((t) => t.id === id)!
+    setTrack(lesson.track === 'electric' && next.instrument === 'guitar' ? 'electric' : next.instrument)
     const nextLesson =
-      lesson.track === 'shared' || lesson.track === 'blues' || lesson.track === next.instrument
+      lesson.track === 'shared' ||
+      lesson.track === 'blues' ||
+      lesson.track === next.instrument ||
+      (lesson.track === 'electric' && next.instrument === 'guitar')
         ? lesson
         : LESSONS.find((l) => l.track === next.instrument)!
     setP((old) => ({
@@ -221,21 +301,56 @@ export default function WoodshedPage({
     navigate('practice')
     scroll.current?.scrollTo(0, 0)
   }
-  const renderWorkbench = (metronomeOnly = false): React.JSX.Element => (
-    <Workbench
-      tuning={tuning}
-      preferences={p}
-      patch={patch}
-      onLabels={labels}
-      audio={audio}
-      onError={error}
-      technique={p.section === 'learn' || p.section === 'practice' ? lesson.technique : undefined}
-      metronomeOnly={metronomeOnly}
-    />
-  )
+  const renderEnsemble = (kind: Workshop): React.JSX.Element =>
+    kind === 'piano' ? (
+      <PianoWorkbench
+        visible={active}
+        key={`${p.section}-${lesson.id}-${tool}`}
+        config={p.piano}
+        onChange={(piano) => setP((old) => ({ ...old, piano }))}
+        outputDeviceId={outputDeviceId}
+        a4={p.a4}
+        onError={error}
+      />
+    ) : (
+      <EnsembleWorkbench
+        visible={active}
+        key={`${p.section}-${kind}-${lesson.id}-${tool}`}
+        kind={kind}
+        p={p}
+        onChange={(value) => setP((old) => ({ ...old, ...value }))}
+        audio={audio}
+        outputDeviceId={outputDeviceId}
+        onError={error}
+      />
+    )
+  const renderWorkbench = (metronomeOnly = false): React.JSX.Element =>
+    !metronomeOnly && p.section !== 'tools' && isWorkshop(lesson.track) ? (
+      renderEnsemble(lesson.track)
+    ) : (
+      <Workbench
+        visible={active}
+        tuning={tuning}
+        preferences={p}
+        patch={patch}
+        onLabels={labels}
+        audio={audio}
+        onError={error}
+        technique={p.section === 'learn' || p.section === 'practice' ? lesson.technique : undefined}
+        project={
+          !metronomeOnly && (p.section === 'learn' || p.section === 'practice')
+            ? GUITAR_PROJECTS.find((project) => project.id === lesson.guitarProjectId)
+            : undefined
+        }
+        onProjectSettings={(electric) =>
+          setP((old) => ({ ...old, electric, exercise: { ...old.exercise, loopStart: 1, loopEnd: 0 } }))
+        }
+        metronomeOnly={metronomeOnly}
+      />
+    )
   return (
-    <main className="ws-page">
-      <aside className="ws-sidebar">
+    <main className={`ws-page ${sidebarExpanded ? '' : 'is-sidebar-collapsed'}`}>
+      <aside className="ws-sidebar" aria-hidden={!sidebarExpanded} inert={!sidebarExpanded} id="woodshed-navigation">
         <div className="ws-sidebar-brand">
           <div className="ws-brand-icon">
             <Guitar size={23} />
@@ -247,11 +362,17 @@ export default function WoodshedPage({
         </div>
         <nav aria-label="练功房导航">
           {NAV.map((item) => (
-            <button key={item.id} className={p.section === item.id ? 'selected' : ''} onClick={() => navigate(item.id)}>
+            <button
+              key={item.id}
+              className={p.section === item.id ? 'selected' : ''}
+              onClick={() => navigate(item.id)}
+            >
               <item.icon size={19} />
               <span>
-                <b>{item.name}</b>
-                <small>{item.subtitle}</small>
+                <b>{item.id === 'lab' && isWorkshop(lesson.track) ? '乐器实验台' : item.name}</b>
+                <small>
+                  {item.id === 'lab' && isWorkshop(lesson.track) ? '听见变化与联系' : item.subtitle}
+                </small>
               </span>
               {p.section === item.id && <ChevronRight size={15} />}
             </button>
@@ -295,19 +416,45 @@ export default function WoodshedPage({
       </aside>
       <section className="ws-main">
         <header className="ws-topbar">
+          <button className="ws-button ws-sidebar-toggle" aria-label={`${sidebarExpanded ? '收起' : '展开'}练功房目录`} aria-expanded={sidebarExpanded} aria-controls="woodshed-navigation" onClick={() => { const next = !sidebarExpanded; setSidebarPreference(next); try { localStorage.setItem('bandbuddy.woodshed.sidebarExpanded', String(next)) } catch { /* Keep the layout usable if storage is unavailable. */ } }}>{sidebarExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}目录</button>
           <div className="ws-breadcrumb">
-            练功房 <ChevronRight size={13} /> <b>{NAV.find((n) => n.id === p.section)?.name}</b>
+            练功房 <ChevronRight size={13} />{' '}
+            <b>
+              {p.section === 'lab' && isWorkshop(lesson.track)
+                ? '乐器实验台'
+                : NAV.find((n) => n.id === p.section)?.name}
+            </b>
           </div>
           <div className="ws-instrument-controls">
-            <Guitar size={16} />
-            <select aria-label="乐器与调弦" value={p.tuningId} onChange={(e) => selectInstrument(e.target.value)}>
+            {lesson.track === 'piano' ? (
+              <Piano size={16} />
+            ) : lesson.track === 'drums' ? (
+              <Drum size={16} />
+            ) : lesson.track === 'synthesis' ? (
+              <AudioLines size={16} />
+            ) : lesson.track === 'violin' ? (
+              <Music2 size={16} />
+            ) : (
+              <Guitar size={16} />
+            )}
+            <Select
+              aria-label="乐器与调弦"
+              value={isWorkshop(lesson.track) ? lesson.track : p.tuningId}
+              onChange={(e) => selectInstrument(e.target.value)}
+            >
+              {(['piano', 'drums', 'violin', 'synthesis'] as const).map((id) => (
+                <option value={id} key={id}>
+                  {TRACKS[id]}
+                </option>
+              ))}
               {TUNINGS.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <button
+              disabled={isWorkshop(lesson.track)}
               className={`ws-button ${p.customNotes ? 'active' : ''}`}
               onClick={() => {
                 setCustomText(tuning.notes.map((n) => noteName(n)).join(' '))
@@ -392,9 +539,11 @@ export default function WoodshedPage({
               </span>
               <h2>
                 {p.section === 'learn'
-                  ? '把知识，弹进手里。'
+                  ? '把知识，变成音乐。'
                   : p.section === 'lab'
-                    ? '在指板上，找到音乐。'
+                    ? isWorkshop(lesson.track)
+                      ? '从声音出发，探索音乐。'
+                      : '在指板上，找到音乐。'
                     : p.section === 'practice'
                       ? '每一次练习，都有方向。'
                       : '小工具，随手就好。'}
@@ -403,15 +552,33 @@ export default function WoodshedPage({
                 {p.section === 'learn'
                   ? '从第一个清晰的音，到有表达的乐句。循序渐进，也可以随时探索。'
                   : p.section === 'lab'
-                    ? '音名、音级、和弦与把位，在同一张指板上建立联系。'
+                    ? isWorkshop(lesson.track)
+                      ? '节奏、音高与音色，在听与练之间建立联系。'
+                      : '音名、音级、和弦与把位，在同一张指板上建立联系。'
                     : p.section === 'practice'
                       ? '选一个目标，慢速听示范，再把它放进真实的节奏与和声。'
                       : '调准音、稳住拍点，让注意力回到演奏本身。'}
               </p>
             </div>
             <div className="ws-hero-stat">
-              <b>{p.section === 'learn' ? '72' : p.section === 'tools' ? '05' : '12'}</b>
-              <span>{p.section === 'learn' ? '学习单元' : p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
+              <b>
+                {p.section === 'learn'
+                  ? LESSONS.length
+                  : p.section === 'tools'
+                    ? TOOLS.length
+                    : lesson.track === 'drums'
+                      ? '4/4'
+                      : '12'}
+              </b>
+              <span>
+                {p.section === 'learn'
+                  ? '学习单元'
+                  : p.section === 'tools'
+                    ? '常用工具'
+                    : lesson.track === 'drums'
+                      ? '拍点 · 自由探索'
+                      : '个调 · 自由探索'}
+              </span>
             </div>
           </div>
           {p.section === 'learn' && (
@@ -435,14 +602,14 @@ export default function WoodshedPage({
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
-                  <select aria-label="难度筛选" value={level} onChange={(e) => setLevel(e.target.value)}>
+                  <Select aria-label="难度筛选" value={level} onChange={(e) => setLevel(e.target.value)}>
                     <option value="all">全部难度</option>
                     {Object.entries(LEVELS).map(([id, name]) => (
                       <option key={id} value={id}>
                         {name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     className="ws-button"
                     aria-pressed={onlyFavorites}
@@ -453,6 +620,47 @@ export default function WoodshedPage({
                   </button>
                 </div>
               </div>
+              {track === 'electric' && (
+                <div className="ws-electric-filter">
+                  <span>风格与能力</span>
+                  <div className="ws-segments">
+                    {['all', '硬摇', '朋克', '后摇', '数摇', '机能项目'].map((category) => (
+                      <button
+                        key={category}
+                        aria-pressed={electricCategory === category}
+                        onClick={() => setElectricCategory(category)}
+                      >
+                        {category === 'all' ? '全部' : category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <CourseGuide
+                track={track in COURSES ? (track as Lesson['track']) : lesson.track}
+                lessons={LESSONS}
+                onSelect={(next) => {
+                  selectLesson(next)
+                  setTrack(next.track)
+                  setQuery('')
+                  setLevel('all')
+                  setOnlyFavorites(false)
+                  setElectricCategory('all')
+                }}
+              />
+              {(track === 'electric' || (track === 'all' && lesson.track === 'electric')) && (
+                <ElectricProjects
+                  lessons={LESSONS}
+                  onSelect={(next) => {
+                    selectLesson(next)
+                    setTrack('electric')
+                    setElectricCategory('all')
+                    setQuery('')
+                    setLevel('all')
+                    setOnlyFavorites(false)
+                  }}
+                />
+              )}
               <div className="ws-learn-layout">
                 <aside className="ws-lesson-list">
                   <div className="ws-list-heading">
@@ -564,6 +772,7 @@ export default function WoodshedPage({
                       <p>{lesson.harder}</p>
                     </div>
                   </div>
+                  <ChapterDepth lesson={lesson} />
                   <div className="ws-lesson-actions">
                     <button className="ws-button primary" onClick={openPractice}>
                       <PlayIcon />
@@ -571,7 +780,7 @@ export default function WoodshedPage({
                       <ArrowRight size={15} />
                     </button>
                     <button className="ws-button" onClick={() => navigate('lab')}>
-                      在指板中探索
+                      {isWorkshop(lesson.track) ? '在实验台中探索' : '在指板中探索'}
                     </button>
                   </div>
                   {lesson.related.length > 0 && (
@@ -588,18 +797,30 @@ export default function WoodshedPage({
                   <details className="ws-source-note">
                     <summary>内容与谱例说明</summary>
                     <p>
-                      讲解与短谱例为原创练习材料。谱面下方为可调音型，文字中的专项步骤需结合实际演奏；听准与弹准分别自检，不自动评分。
+                      {lesson.track === 'electric'
+                        ? '电吉他项目按标准调弦编写，每个版本有原创谱例。参考《365》与《地狱训练》的技能分类及拆解到综合的编排思路，不复刻书中谱例，也不使用每日任务。'
+                        : '讲解与短谱例为原创练习材料。谱面下方为可调音型，文字中的专项步骤需结合实际演奏；听准与弹准分别自检，不自动评分。'}
                     </p>
                     <p>
-                      参考：Berklee Blues Guitar 课程、Fender
-                      布鲁斯音阶与尤克里里调弦教程。知识入口按前置关系组织，不限制自由浏览。
+                      知识入口按前置关系组织，不限制自由浏览。资料用于核对基础概念，讲解与练习为原创；外部参考需联网，学习正文离线可用。
+                      {CONTENT_SOURCES.map((source) => (
+                        <a key={source.url} href={source.url} target="_blank" rel="noreferrer">
+                          {source.label} ↗{' '}
+                        </a>
+                      ))}
                     </p>
                   </details>
                 </article>
               </div>
               <div className="ws-section-caption">
-                <span>把刚学到的，放到指板上</span>
-                <small>所选单元的参考音型 · 可自由调整</small>
+                <span>
+                  {isWorkshop(lesson.track) ? '把刚学到的，变成听得见的练习' : '把刚学到的，放到指板上'}
+                </span>
+                <small>
+                  {lesson.track === 'electric'
+                    ? '原创项目谱例 · 拆解 → 组合 → 应用'
+                    : '所选单元的参考音型 · 可自由调整'}
+                </small>
               </div>
               {renderWorkbench()}
             </>
@@ -609,9 +830,15 @@ export default function WoodshedPage({
               <div className="ws-lab-intro">
                 <Compass size={25} />
                 <div>
-                  <b>一张指板，多种观察方式</b>
+                  <b>
+                    {isWorkshop(lesson.track)
+                      ? `${TRACKS[lesson.track]} · 交互实验`
+                      : '一张指板，多种观察方式'}
+                  </b>
                   <p>
-                    选择音阶或和弦，点击音符试听；限定弦组与品位后，直接生成对应音型。左手显示只镜像空间，弦号和音高保持一致。
+                    {isWorkshop(lesson.track)
+                      ? '从节奏、音高或音色出发，每次只改变一个变量，听清它的作用。上方可切换练习乐器。'
+                      : '选择音阶或和弦，点击音符试听；限定弦组与品位后，直接生成对应音型。左手显示只镜像空间，弦号和音高保持一致。'}
                   </p>
                 </div>
                 <button className="ws-button" onClick={() => navigate('practice')}>
@@ -629,13 +856,22 @@ export default function WoodshedPage({
                   label="练习目标"
                   value={lesson.id}
                   options={Object.fromEntries(
-                    LESSONS.filter(
-                      (l) => l.track === 'shared' || l.track === 'blues' || l.track === tuning.instrument
+                    LESSONS.filter((l) =>
+                      isWorkshop(lesson.track)
+                        ? l.track === lesson.track
+                        : l.track === 'shared' ||
+                          l.track === 'blues' ||
+                          l.track === tuning.instrument ||
+                          (l.track === 'electric' && tuning.instrument === 'guitar')
                     ).map((l) => [l.id, `${TRACKS[l.track]} · ${l.title}`])
                   )}
                   onChange={(id) => selectLesson(LESSONS.find((l) => l.id === id)!)}
                 />
-                <button className="ws-icon-button" aria-label="收藏当前练习" onClick={() => favorite(lesson.id)}>
+                <button
+                  className="ws-icon-button"
+                  aria-label="收藏当前练习"
+                  onClick={() => favorite(lesson.id)}
+                >
                   <Bookmark size={18} fill={p.favorites.includes(lesson.id) ? 'currentColor' : 'none'} />
                 </button>
                 <button className="ws-button" onClick={() => navigate('learn')}>
@@ -643,6 +879,7 @@ export default function WoodshedPage({
                   查看讲解
                 </button>
               </div>
+              {lesson.track === 'electric' && <ElectricProjects lessons={LESSONS} onSelect={selectLesson} />}
               <div className="ws-goal-callout">
                 <span>本次只关注</span>
                 <b>{lesson.goal}</b>
@@ -669,11 +906,13 @@ export default function WoodshedPage({
                   </button>
                 ))}
               </div>
+              {isWorkshop(tool) && renderEnsemble(tool)}
               {tool === 'metronome' && renderWorkbench(true)}
               {tool === 'tuner' && (
                 <Tuner
-                  tuning={tuning}
-                  capo={p.capo}
+                  visible={active}
+                  tuning={lesson.track === 'violin' ? { id: 'violin', notes: [55, 62, 69, 76] } : tuning}
+                  capo={lesson.track === 'violin' ? 0 : p.capo}
                   a4={p.a4}
                   onA4={(a4) => setP((old) => ({ ...old, a4 }))}
                   inputDevice={p.inputDevice}
@@ -694,12 +933,12 @@ export default function WoodshedPage({
                   </div>
                   <div className="ws-circle-layout">
                     <svg viewBox="0 0 440 440" role="group" aria-label="交互五度圈">
-                      <circle cx="220" cy="220" r="157" fill="none" stroke="#e1d5bf" strokeWidth="44" />
-                      <circle cx="220" cy="220" r="98" fill="none" stroke="#eee6d7" />
-                      <text x="220" y="211" textAnchor="middle" fill="#524a3b" fontSize="27">
+                      <circle cx="220" cy="220" r="157" fill="none" stroke="var(--border-strong)" strokeWidth="44" />
+                      <circle cx="220" cy="220" r="98" fill="none" stroke="var(--border)" />
+                      <text x="220" y="211" textAnchor="middle" fill="var(--ink)" fontSize="27">
                         {ROOTS[p.exercise.root]}
                       </text>
-                      <text x="220" y="238" textAnchor="middle" fill="#9b8a70" fontSize="12">
+                      <text x="220" y="238" textAnchor="middle" fill="var(--muted)" fontSize="12">
                         大调 · 调性中心
                       </text>
                       {CIRCLE.map(([major, minor, signature], i) => {
@@ -723,14 +962,14 @@ export default function WoodshedPage({
                               cx={x}
                               cy={y}
                               r="27"
-                              fill={p.exercise.root === pc ? '#496d64' : '#fbf8f1'}
-                              stroke="#dbcfb9"
+                              fill={p.exercise.root === pc ? 'var(--accent)' : 'var(--surface-raised)'}
+                              stroke="var(--border)"
                             />
                             <text
                               x={x}
                               y={y + 5}
                               textAnchor="middle"
-                              fill={p.exercise.root === pc ? '#fff' : '#554a3d'}
+                              fill={p.exercise.root === pc ? 'var(--on-accent)' : 'var(--ink)'}
                               fontSize="16"
                               fontWeight="600"
                             >
@@ -740,7 +979,7 @@ export default function WoodshedPage({
                               x={220 + 111 * Math.cos(angle)}
                               y={224 + 111 * Math.sin(angle)}
                               textAnchor="middle"
-                              fill="#87765e"
+                              fill="var(--muted)"
                               fontSize="11"
                             >
                               {minor}
@@ -752,7 +991,8 @@ export default function WoodshedPage({
                     <div>
                       <h3>{ROOTS[p.exercise.root]} 大调</h3>
                       <p>
-                        {CIRCLE.find(([root]) => mod(parseNote(`${root}4`)!) === p.exercise.root)?.[2]} · 关系小调{' '}
+                        {CIRCLE.find(([root]) => mod(parseNote(`${root}4`)!) === p.exercise.root)?.[2]} ·
+                        关系小调{' '}
                         {CIRCLE.find(([root]) => mod(parseNote(`${root}4`)!) === p.exercise.root)?.[1]}
                       </p>
                       <p>
@@ -840,16 +1080,24 @@ export default function WoodshedPage({
                       if (drone) {
                         audio?.stop()
                         setDrone(false)
-                      } else
+                        releaseDrone()
+                      } else {
+                        if (!allowAudioAction()) return
+                        const id = claimAudioSession('woodshed', '持续参考音', () => { audio?.stop(); setDrone(false); releaseDrone() })
+                        droneSession.current = id
                         void audio
                           ?.drone(p.exercise.root, p.droneFifth)
-                          .then(() => setDrone(true))
-                          .catch((e) => error(String(e)))
+                          .then(() => { if (isAudioSessionCurrent(id)) setDrone(true) })
+                          .catch((e) => { releaseAudioSession('woodshed', id); error(String(e)) })
+                      }
                     }}
                   >
-                    {drone ? <Square size={17} /> : <Volume2 size={17} />} {drone ? '停止参考音' : '播放参考音'}
+                    {drone ? <Square size={17} /> : <Volume2 size={17} />}{' '}
+                    {drone ? '停止参考音' : '播放参考音'}
                   </button>
-                  <p>保持一个调性中心，慢弹音阶并听各音与根音的距离。比较同主音大小调或调式时保持 Drone 不变。</p>
+                  <p>
+                    保持一个调性中心，慢弹音阶并听各音与根音的距离。比较同主音大小调或调式时保持 Drone 不变。
+                  </p>
                 </section>
               )}
             </>
@@ -862,6 +1110,9 @@ export default function WoodshedPage({
                 audio?.stop()
                 setP((old) => ({
                   ...old,
+                  piano: pianoDefaults(),
+                  electric: electricDefaults(),
+                  ensemble: ensembleDefaults(),
                   exercise: { ...DEFAULT_EXERCISE, bass: tuning.instrument === 'bass' ? 0 : 0.25 }
                 }))
               }}
