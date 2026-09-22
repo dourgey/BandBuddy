@@ -98,6 +98,7 @@ describe('library dialogs', () => {
     const runtime = await window.bandbuddy.runtime.get()
     const enabled = vi.spyOn(window.bandbuddy.lan, 'setEnabled').mockResolvedValue({ enabled: true, port: 60233, urls: ['http://192.168.1.20:60233/s/session/'], error: null })
     render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '网络与共享' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /开启局域网练琴与同步/ }))
     await waitFor(() => expect(enabled).toHaveBeenCalledWith(true))
     expect((await screen.findByLabelText('局域网访问地址') as HTMLInputElement).value).toBe('http://192.168.1.20:60233/s/session/')
@@ -108,6 +109,7 @@ describe('library dialogs', () => {
     const runtime = await window.bandbuddy.runtime.get()
     const update = vi.spyOn(window.bandbuddy.settings, 'update')
     render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '通用与显示' }))
     fireEvent.change(screen.getByRole('slider', { name: /桌面歌词文字大小/ }), { target: { value: '48' } })
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ desktopLyricsFontSize: 48 })))
@@ -212,6 +214,7 @@ describe('library dialogs', () => {
       onRefresh={() => undefined}
     />)
 
+    fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
     expect(screen.getByText('新分轨保存为 320 kbps MP3，节省空间')).toBeTruthy()
     expect(screen.getByText('仅影响后续分轨；已有歌曲需重新分轨才会改变格式')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: '高音质分轨' }))
@@ -235,6 +238,7 @@ describe('library dialogs', () => {
       onRefresh={() => undefined}
     />)
 
+    fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
     const slider = screen.getByRole('slider', { name: '吉他分轨档位' })
     expect(slider.getAttribute('aria-valuetext')).toBe('平衡')
     fireEvent.change(slider, { target: { value: '0' } })
@@ -263,6 +267,7 @@ describe('library dialogs', () => {
       onRefresh={() => undefined}
     />)
 
+    fireEvent.click(screen.getByRole('button', { name: '存储与诊断' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Debug 模式' }))
     await waitFor(() => expect(setDebugMode).toHaveBeenCalledWith(true))
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ debugMode: true }))
@@ -271,4 +276,80 @@ describe('library dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开日志位置' }))
     await waitFor(() => expect(revealDebugLog).toHaveBeenCalledTimes(1))
   })
+  it('keeps changes across category dialogs and saves them together', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    const update = vi.spyOn(window.bandbuddy.settings, 'update')
+    render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+
+    expect(screen.queryByRole('checkbox', { name: '高音质分轨' })).toBeNull()
+    expect(screen.queryByLabelText('延迟模式')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '高音质分轨' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
+    fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
+    fireEvent.change(screen.getByLabelText('延迟模式'), { target: { value: 'playback' } })
+    fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
+    fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
+    expect((screen.getByRole('checkbox', { name: '高音质分轨' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ highQualityStems: true, latencyMode: 'playback' })))
+  })
+
+  it('keeps the settings dialog and draft available when saving fails', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    const onOpenChange = vi.fn()
+    vi.spyOn(window.bandbuddy.settings, 'update').mockRejectedValue(new Error('保存失败'))
+    render(<SettingsDrawer open onOpenChange={onOpenChange} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
+    fireEvent.change(screen.getByLabelText('延迟模式'), { target: { value: 'playback' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect((screen.getByLabelText('延迟模式') as HTMLSelectElement).value).toBe('playback')
+  })
+
+  it('stops input testing when returning to settings categories', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    const start = vi.spyOn(window.bandbuddy.recording, 'startTest')
+    const stop = vi.spyOn(window.bandbuddy.recording, 'stopTest')
+    render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存并测试输入' }))
+    await screen.findByRole('button', { name: '停止输入测试' })
+    expect(start).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
+    await waitFor(() => expect(stop).toHaveBeenCalledOnce())
+  })
+
+  it('does not start a pending input test after its category closes', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    let finishSave!: (value: typeof settings) => void
+    vi.spyOn(window.bandbuddy.settings, 'update').mockImplementation(() => new Promise(resolve => { finishSave = resolve }))
+    const start = vi.spyOn(window.bandbuddy.recording, 'startTest')
+    const onSaved = vi.fn()
+    render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={onSaved} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '音频与录音' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存并测试输入' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回分类' }))
+    finishSave(settings)
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it('returns to categories with Escape without closing settings', async () => {
+    const settings = await window.bandbuddy.settings.get()
+    const runtime = await window.bandbuddy.runtime.get()
+    const onOpenChange = vi.fn()
+    render(<SettingsDrawer open onOpenChange={onOpenChange} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '通用与显示' }))
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '通用与显示' }), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '通用与显示' })).toBeNull())
+    expect(screen.getByRole('dialog', { name: '设置' })).toBeTruthy()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
 })

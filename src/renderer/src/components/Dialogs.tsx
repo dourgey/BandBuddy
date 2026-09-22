@@ -5,6 +5,7 @@ import {
   AudioLines,
   Bug,
   Check,
+  ChevronRight,
   Download,
   FileAudio,
   FileText,
@@ -21,7 +22,7 @@ import {
   X,
   Zap
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   MUSICAL_KEY_TONICS,
   STEM_META,
@@ -204,6 +205,42 @@ export function TasksDrawer({ open, onOpenChange, jobs, onRefresh }: { open: boo
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }
 
+type SettingsCategory = 'separation' | 'audio' | 'general' | 'network' | 'storage'
+
+function SettingsGroup({ title, description, summary, icon, open, onOpenChange, onSave, saving, error, children }: {
+  title: string
+  description: string
+  summary: string
+  icon: ReactNode
+  open: boolean
+  onOpenChange(open: boolean): void
+  onSave(): void
+  saving: boolean
+  error: string
+  children: ReactNode
+}): React.JSX.Element {
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Trigger className="settings-category" aria-label={title}>
+      <span className="settings-category-icon">{icon}</span>
+      <span className="settings-category-copy"><b>{title}</b><small>{description}</small><em>{summary}</em></span>
+      <ChevronRight size={18} />
+    </Dialog.Trigger>
+    <Dialog.Portal>
+      <Dialog.Overlay className="dialog-overlay settings-detail-overlay" data-dialog-open="true" />
+      <Dialog.Content className="dialog-content settings-detail" data-dialog-open="true">
+        <header className="settings-detail-header"><Dialog.Title>{title}</Dialog.Title><Dialog.Description>{description}</Dialog.Description></header>
+        <Dialog.Close className="dialog-close" aria-label="返回设置分类"><X /></Dialog.Close>
+        <div className="settings-detail-scroll">{children}</div>
+        <footer className="settings-detail-footer">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <span>修改暂存，保存后生效；即时操作另有标注。</span>
+          <div><Dialog.Close className="outline-button">返回分类</Dialog.Close><button className="primary-button" disabled={saving} onClick={onSave}>{saving ? '正在保存…' : '保存设置'}</button></div>
+        </footer>
+      </Dialog.Content>
+    </Dialog.Portal>
+  </Dialog.Root>
+}
+
 export function SettingsDrawer({
   open, onOpenChange, runtime, settings, onSaved, onRefresh
 }: {
@@ -215,19 +252,23 @@ export function SettingsDrawer({
   onRefresh(): void
 }): React.JSX.Element {
   const [draft, setDraft] = useState(settings)
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [confirmInstall, setConfirmInstall] = useState(false)
   const [busy, setBusy] = useState(false)
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([])
   const [recordingDevices, setRecordingDevices] = useState<RecordingDeviceInfo[]>([])
   const [recordingDeviceError, setRecordingDeviceError] = useState('')
   const [testingInput, setTestingInput] = useState(false)
+  const [startingInputTest, setStartingInputTest] = useState(false)
   const [testState, setTestState] = useState<RecordingState | null>(null)
   const [testPeak, setTestPeak] = useState(0)
   const [debugModeSaving, setDebugModeSaving] = useState(false)
   const [debugLogError, setDebugLogError] = useState('')
   const inputTestRequested = useRef(false)
   useEffect(() => {
-    if (!open) setDraft(settings)
+    if (!open) { setDraft(settings); setActiveCategory(null); setSaveError(''); setConfirmInstall(false) }
   }, [settings, open])
   useEffect(() => { if (open) setDebugLogError('') }, [open])
   useEffect(() => {
@@ -246,11 +287,13 @@ export function SettingsDrawer({
     return () => { unsubscribeState(); unsubscribeMeter() }
   }, [open])
   useEffect(() => {
-    if (!open && inputTestRequested.current) {
+    if ((!open || activeCategory !== 'audio') && inputTestRequested.current) {
       inputTestRequested.current = false
-      void window.bandbuddy.recording.stopTest()
+      setTestingInput(false)
+      setTestState(null)
+      void window.bandbuddy.recording.stopTest().catch(() => undefined)
     }
-  }, [open])
+  }, [open, activeCategory])
   const changing = ['installing', 'downloadingModel', 'verifying', 'detecting'].includes(runtime.status)
   const action = async (operation: () => Promise<unknown>): Promise<void> => { setBusy(true); try { await operation(); onRefresh() } finally { setBusy(false) } }
   const dataRoot = draft.libraryRoot.replace(/[\\/]+music$/i, '')
@@ -305,31 +348,51 @@ export function SettingsDrawer({
       return
     }
     setRecordingDeviceError('')
+    setStartingInputTest(true)
     inputTestRequested.current = true
     try {
       const saved = await window.bandbuddy.settings.update(draft)
       onSaved(saved)
+      if (!inputTestRequested.current) return
       await window.bandbuddy.recording.startTest()
+      if (!inputTestRequested.current) {
+        await window.bandbuddy.recording.stopTest()
+        return
+      }
       setTestingInput(true)
     } catch (error) {
       inputTestRequested.current = false
       setRecordingDeviceError(toUserErrorMessage(error, '输入测试失败，请检查声卡后重试'))
-    }
+    } finally { setStartingInputTest(false) }
   }
+  const saveSettings = async (): Promise<void> => {
+    setSaving(true)
+    setSaveError('')
+    try {
+      const saved = await window.bandbuddy.settings.update(draft)
+      onSaved(saved)
+      setActiveCategory(null)
+      onOpenChange(false)
+    } catch (error) {
+      setSaveError(toUserErrorMessage(error, '设置保存失败，请重试'))
+    } finally { setSaving(false) }
+  }
+  const groupProps = (category: SettingsCategory) => ({
+    open: open && activeCategory === category,
+    onOpenChange: (next: boolean) => setActiveCategory(next ? category : null),
+    onSave: () => { void saveSettings() },
+    saving: saving || debugModeSaving,
+    error: saveError
+  })
   const guitarQualityIndex = GUITAR_QUALITY_VALUES.indexOf(draft.guitarSeparationQuality)
   const guitarQuality = GUITAR_QUALITY_DETAILS[draft.guitarSeparationQuality]
-  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer settings-drawer" data-dialog-open="true" aria-describedby={undefined}>
-    <Dialog.Close className="dialog-close"><X /></Dialog.Close><div className="settings-scroll">
-    <Dialog.Title>设置</Dialog.Title><p className="dialog-lead">管理本地分离环境、音频设备与网络源。</p>
-    <section className="settings-section"><h3><Zap />本地分离环境</h3>
-      <div className={`runtime-card ${runtime.status}`}><header><span><i /><b>{statusLabel(runtime.status)}</b></span><em>{runtime.selectedDevice.toUpperCase()}</em></header><p>{runtime.stage}</p>{runtime.progress !== null && <div className="progress-line"><i style={{ width: `${runtime.progress * 100}%` }} /></div>}{runtime.error && <pre>{toUserErrorMessage(runtime.error, '运行环境异常，请尝试修复或重新安装')}</pre>}
-        <dl>{runtime.windowsVcRuntimeVersion && <div><dt>VC++</dt><dd>{runtime.windowsVcRuntimeVersion}</dd></div>}<div><dt>Python</dt><dd>{runtime.pythonVersion ?? '—'}</dd></div><div><dt>PyTorch</dt><dd>{runtime.torchVersion ?? '—'}</dd></div><div><dt>CUDA</dt><dd>{runtime.cudaVersion ?? '—'}</dd></div></dl>
-      </div>
-      {runtime.gpu ? <div className="gpu-card"><Gauge /><span><b>{runtime.gpu.name}</b><small>驱动 {runtime.gpu.driverVersion} · {Math.round(runtime.gpu.memoryMb / 1024)} GB 显存</small></span></div> : <div className="gpu-card muted"><Gauge /><span><b>{runtime.selectedDevice === 'mps' ? 'Apple MPS 加速' : '未检测到 NVIDIA GPU'}</b><small>{runtime.selectedDevice === 'mps' ? '将使用 Apple 芯片 GPU；不可用时自动切换 CPU。' : '将自动使用 CPU 完成本地分轨。'}</small></span></div>}
-      <div className="runtime-actions">{changing ? <button className="outline-button" onClick={() => void window.bandbuddy.runtime.cancel()}>取消当前操作</button> : runtime.status === 'ready' ? <><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.detect())}>重新检测</button><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.repair())}>修复环境</button></> : <button className="primary-button" onClick={() => setConfirmInstall(true)}><Download size={17} />安装本地环境</button>}</div>
-      {confirmInstall && <div className="install-confirm"><HardDrive /><span><b>预计需要 8–15 GB 可用空间</b><small>会下载私有 CPython、Torch 和分轨资源；Windows 缺少 VC++ 运行库时会从微软下载并请求系统授权。</small></span><button className="primary-button small" disabled={busy} onClick={() => { setConfirmInstall(false); void action(() => window.bandbuddy.runtime.install()) }}>确认安装</button><button onClick={() => setConfirmInstall(false)}>稍后</button></div>}
-      <div className="danger-actions"><button onClick={() => void action(() => window.bandbuddy.runtime.clearModel())}>清理分轨资源缓存</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(false))}>卸载环境</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(true))}>环境与分轨资源全部清理</button></div>
-    </section>
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer settings-drawer" data-dialog-open="true" aria-describedby={undefined} onEscapeKeyDown={(event) => {
+    if (activeCategory) { event.preventDefault(); setActiveCategory(null) }
+  }}>
+    <Dialog.Close className="dialog-close" aria-label="关闭设置"><X /></Dialog.Close><div className="settings-scroll">
+    <Dialog.Title>设置</Dialog.Title><p className="dialog-lead">按用途整理偏好，让练习保持顺手。</p>
+    <div className="settings-categories">
+    <SettingsGroup title="分轨与运行环境" description="分轨音质、计算设备与本地环境" summary={`${guitarQuality.label} · ${draft.highQualityStems ? 'FLAC' : 'MP3'} · ${statusLabel(runtime.status)}`} icon={<Zap />} {...groupProps('separation')}>
     <section className="settings-section"><h3><HardDrive />分轨音质</h3>
       <div className="guitar-quality-setting">
         <header><span><b>吉他分轨档位</b><small>仅影响后续新建的吉他分轨任务</small></span><strong>{guitarQuality.label}</strong></header>
@@ -352,14 +415,19 @@ export function SettingsDrawer({
       <label className="settings-toggle"><input type="checkbox" aria-label="高音质分轨" checked={draft.highQualityStems} onChange={(event) => setDraft({ ...draft, highQualityStems: event.target.checked })} /><span><b>高音质分轨</b><small>{draft.highQualityStems ? '新分轨保存为 24-bit FLAC，占用空间较大' : '新分轨保存为 320 kbps MP3，节省空间'}</small></span></label>
       <p className="security-note">仅影响后续分轨；已有歌曲需重新分轨才会改变格式</p>
     </section>
-    <section className="settings-section"><h3><SlidersHorizontal />性能与播放</h3><div className="settings-grid"><label>首选计算设备<select value={draft.preferredDevice} onChange={(event) => setDraft({ ...draft, preferredDevice: event.target.value as AppSettings['preferredDevice'] })}><option value="auto">自动：CUDA → MPS → CPU</option><option value="cuda">NVIDIA CUDA（不可用时回退）</option><option value="mps">Apple MPS（不可用时回退）</option><option value="cpu">CPU</option></select></label><label>关闭窗口时<select value={draft.closeToTrayWhileWorking ? 'tray' : 'quit'} onChange={(event) => setDraft({ ...draft, closeToTrayWhileWorking: event.target.value === 'tray' })}><option value="tray">有任务时留在托盘</option><option value="quit">直接退出</option></select></label><label>音频输出<select value={draft.audioOutputDeviceId} onChange={(event) => setDraft({ ...draft, audioOutputDeviceId: event.target.value })}><option value="">系统默认输出</option>{audioOutputs.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `音频输出 ${index + 1}`}</option>)}</select></label><label>延迟模式<select value={draft.latencyMode} onChange={(event) => setDraft({ ...draft, latencyMode: event.target.value as AppSettings['latencyMode'] })}><option value="interactive">低延迟</option><option value="balanced">平衡</option><option value="playback">稳定播放</option></select></label></div></section>
-    <section className="settings-section"><h3><FileText />桌面歌词</h3>
-      <label>桌面歌词文字大小 · {draft.desktopLyricsFontSize} px
-        <input type="range" min={16} max={64} step={1} value={draft.desktopLyricsFontSize} onChange={(event) => setDraft({ ...draft, desktopLyricsFontSize: Number(event.target.value) })} />
-      </label>
-      <p style={{ fontSize: draft.desktopLyricsFontSize, overflowWrap: 'anywhere' }}>桌面歌词预览</p>
-      <p className="source-note">16–64 px，保存后生效。练习室与排练室共用此字号。</p>
+    <section className="settings-section"><h3><Zap />本地分离环境</h3>
+      <div className={`runtime-card ${runtime.status}`}><header><span><i /><b>{statusLabel(runtime.status)}</b></span><em>{runtime.selectedDevice.toUpperCase()}</em></header><p>{runtime.stage}</p>{runtime.progress !== null && <div className="progress-line"><i style={{ width: `${runtime.progress * 100}%` }} /></div>}{runtime.error && <pre>{toUserErrorMessage(runtime.error, '运行环境异常，请尝试修复或重新安装')}</pre>}
+        <dl>{runtime.windowsVcRuntimeVersion && <div><dt>VC++</dt><dd>{runtime.windowsVcRuntimeVersion}</dd></div>}<div><dt>Python</dt><dd>{runtime.pythonVersion ?? '—'}</dd></div><div><dt>PyTorch</dt><dd>{runtime.torchVersion ?? '—'}</dd></div><div><dt>CUDA</dt><dd>{runtime.cudaVersion ?? '—'}</dd></div></dl>
+      </div>
+      {runtime.gpu ? <div className="gpu-card"><Gauge /><span><b>{runtime.gpu.name}</b><small>驱动 {runtime.gpu.driverVersion} · {Math.round(runtime.gpu.memoryMb / 1024)} GB 显存</small></span></div> : <div className="gpu-card muted"><Gauge /><span><b>{runtime.selectedDevice === 'mps' ? 'Apple MPS 加速' : '未检测到 NVIDIA GPU'}</b><small>{runtime.selectedDevice === 'mps' ? '将使用 Apple 芯片 GPU；不可用时自动切换 CPU。' : '将自动使用 CPU 完成本地分轨。'}</small></span></div>}
+      <div className="runtime-actions">{changing ? <button className="outline-button" onClick={() => void window.bandbuddy.runtime.cancel()}>取消当前操作</button> : runtime.status === 'ready' ? <><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.detect())}>重新检测</button><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.repair())}>修复环境</button></> : <button className="primary-button" onClick={() => setConfirmInstall(true)}><Download size={17} />安装本地环境</button>}</div>
+      {confirmInstall && <div className="install-confirm"><HardDrive /><span><b>预计需要 8–15 GB 可用空间</b><small>会下载私有 CPython、Torch 和分轨资源；Windows 缺少 VC++ 运行库时会从微软下载并请求系统授权。</small></span><button className="primary-button small" disabled={busy} onClick={() => { setConfirmInstall(false); void action(() => window.bandbuddy.runtime.install()) }}>确认安装</button><button onClick={() => setConfirmInstall(false)}>稍后</button></div>}
+      <div className="danger-actions"><button onClick={() => void action(() => window.bandbuddy.runtime.clearModel())}>清理分轨资源缓存</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(false))}>卸载环境</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(true))}>环境与分轨资源全部清理</button></div>
+      <div className="settings-grid"><label>首选计算设备<select value={draft.preferredDevice} onChange={(event) => setDraft({ ...draft, preferredDevice: event.target.value as AppSettings['preferredDevice'] })}><option value="auto">自动：CUDA → MPS → CPU</option><option value="cuda">NVIDIA CUDA（不可用时回退）</option><option value="mps">Apple MPS（不可用时回退）</option><option value="cpu">CPU</option></select></label></div>
     </section>
+    </SettingsGroup>
+    <SettingsGroup title="音频与录音" description="播放输出、录音设备、延迟与输入测试" summary={`${draft.latencyMode === 'interactive' ? '低延迟' : draft.latencyMode === 'balanced' ? '平衡延迟' : '稳定播放'} · ${draft.recordingAudio.inputChannelMode === 'mono' ? '单声道输入' : '立体声输入'}`} icon={<AudioLines />} {...groupProps('audio')}>
+    <section className="settings-section"><h3><SlidersHorizontal />音频播放</h3><div className="settings-grid"><label>音频输出<select value={draft.audioOutputDeviceId} onChange={(event) => setDraft({ ...draft, audioOutputDeviceId: event.target.value })}><option value="">系统默认输出</option>{audioOutputs.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `音频输出 ${index + 1}`}</option>)}</select></label><label>延迟模式<select value={draft.latencyMode} onChange={(event) => setDraft({ ...draft, latencyMode: event.target.value as AppSettings['latencyMode'] })}><option value="interactive">低延迟</option><option value="balanced">平衡</option><option value="playback">稳定播放</option></select></label></div></section>
     <section className="settings-section recording-device-settings"><h3><AudioLines />练习录音设备</h3>
       <p className="security-note">如需监听自己的输入，请使用声卡或调音台的硬件直通监听。</p>
       <div className="settings-grid">
@@ -372,19 +440,22 @@ export function SettingsDrawer({
         <label>Buffer frames<select value={draft.recordingAudio.bufferFrames} onChange={(event) => patchRecording({ bufferFrames: Number(event.target.value) })}><option value="0">Auto</option>{[32, 64, 128, 256, 512, 1024].map((frames) => <option key={frames} value={frames}>{frames}</option>)}</select></label>
         <label>设备对齐偏移（ms）<input type="number" min="-1000" max="1000" step="1" value={draft.recordingAudio.deviceAlignmentOffsets[alignmentKey] ?? draft.recordingAudio.alignmentOffsetMs} onChange={(event) => { const alignmentOffsetMs = Number(event.target.value); patchRecording({ alignmentOffsetMs, deviceAlignmentOffsets: { ...draft.recordingAudio.deviceAlignmentOffsets, [alignmentKey]: alignmentOffsetMs } }) }} /></label>
       </div>
-      <div className="runtime-actions"><button className="outline-button" type="button" onClick={() => void window.bandbuddy.recording.devices().then(setRecordingDevices).catch((error) => setRecordingDeviceError(toUserErrorMessage(error, '无法读取音频设备，请检查声卡后重试')))}><RefreshCw size={15} />刷新设备</button><button className={testingInput ? 'primary-button' : 'outline-button'} type="button" onClick={() => void toggleInputTest()}>{testingInput ? '停止输入测试' : '保存并测试输入'}</button></div>
+      <div className="runtime-actions"><button className="outline-button" type="button" onClick={() => void window.bandbuddy.recording.devices().then(setRecordingDevices).catch((error) => setRecordingDeviceError(toUserErrorMessage(error, '无法读取音频设备，请检查声卡后重试')))}><RefreshCw size={15} />刷新设备</button><button className={testingInput ? 'primary-button' : 'outline-button'} type="button" disabled={startingInputTest} onClick={() => void toggleInputTest()}>{startingInputTest ? '正在启动测试…' : testingInput ? '停止输入测试' : '保存并测试输入'}</button></div>
       {testState && ['testing', 'recording', 'countIn'].includes(testState.phase) && <><p className="device-runtime-stats">{testState.sampleRate} Hz · {testState.bufferFrames} frames · 约 {testState.latencyMs.toFixed(1)} ms · xrun {testState.xruns}</p><span className="settings-input-meter" aria-label={`输入峰值 ${Math.round(testPeak * 100)}%`}><i style={{ width: `${Math.min(100, testPeak * 100)}%` }} /></span></>}
       {recordingDeviceError && <p className="device-error">{recordingDeviceError}</p>}
     </section>
-    <section className="settings-section"><h3><FolderOpen />存储位置</h3><label className="path-field">数据目录<div className="path-picker"><input readOnly value={dataRoot} title={dataRoot} /><button className="outline-button" type="button" onClick={() => void chooseDataRoot()}><FolderOpen size={15} />浏览</button></div></label><p className="security-note">歌曲、运行环境和分轨资源将分别保存在 music、envs 和 envs/models 子目录中。</p></section>
-    <section className="settings-section"><h3><Bug />调试与诊断</h3>
-      <div className="debug-settings-row">
-        <label className="settings-toggle"><input type="checkbox" aria-label="Debug 模式" checked={draft.debugMode} disabled={debugModeSaving} onChange={(event) => void toggleDebugMode(event.target.checked)} /><span><b>Debug 模式</b><small>{debugModeSaving ? '正在保存…' : '切换后立即生效，记录主进程、IPC 调用和界面控制台日志'}</small></span></label>
-        <button className="outline-button" type="button" onClick={() => void revealDebugLog()}><FolderOpen size={15} />打开日志位置</button>
-      </div>
-      <p className="security-note">仅在 Debug 模式开启期间追加详细日志；代理凭据、令牌和密码会自动脱敏。</p>
-      {debugLogError && <p className="device-error">{debugLogError}</p>}
+    </SettingsGroup>
+    <SettingsGroup title="通用与显示" description="关闭窗口行为与桌面歌词样式" summary={`歌词 ${draft.desktopLyricsFontSize} px · ${draft.closeToTrayWhileWorking ? '任务进行时留在托盘' : '关闭即退出'}`} icon={<FileText />} {...groupProps('general')}>
+    <section className="settings-section"><h3><SlidersHorizontal />窗口行为</h3><label>关闭窗口时<select value={draft.closeToTrayWhileWorking ? 'tray' : 'quit'} onChange={(event) => setDraft({ ...draft, closeToTrayWhileWorking: event.target.value === 'tray' })}><option value="tray">有任务时留在托盘</option><option value="quit">直接退出</option></select></label></section>
+    <section className="settings-section"><h3><FileText />桌面歌词</h3>
+      <label>桌面歌词文字大小 · {draft.desktopLyricsFontSize} px
+        <input type="range" min={16} max={64} step={1} value={draft.desktopLyricsFontSize} onChange={(event) => setDraft({ ...draft, desktopLyricsFontSize: Number(event.target.value) })} />
+      </label>
+      <p style={{ fontSize: draft.desktopLyricsFontSize, overflowWrap: 'anywhere' }}>桌面歌词预览</p>
+      <p className="source-note">16–64 px，保存后生效。练习室与排练室共用此字号。</p>
     </section>
+    </SettingsGroup>
+    <SettingsGroup title="网络与共享" description="局域网练琴、下载源与代理" summary={`${runtimeSourcePreset === 'china' ? '中国大陆镜像' : runtimeSourcePreset === 'official' ? '官方源' : '自定义下载源'} · ${draft.network.proxyMode === 'system' ? '系统代理' : draft.network.proxyMode === 'manual' ? '手动代理' : '不使用代理'}`} icon={<ShieldCheck />} {...groupProps('network')}>
     <LanSettings />
     <section className="settings-section"><h3><ShieldCheck />高级网络</h3>
       <div className="settings-grid">
@@ -400,8 +471,23 @@ export function SettingsDrawer({
       <label>PyTorch wheel 源<input value={draft.network.pytorchIndexUrl} onChange={(event) => patchNetwork({ pytorchIndexUrl: event.target.value })} placeholder="留空由 uv 自动选择官方后端" /></label>
       <p className="security-note"><ShieldCheck size={13} />Python 与桌面工具可使用所选镜像；分轨权重始终从固定仓库下载并按内置清单校验，代理凭据不会写入日志。</p>
     </section>
+    </SettingsGroup>
+    <SettingsGroup title="存储与诊断" description="数据目录、调试日志与故障排查" summary={`Debug ${draft.debugMode ? '已开启' : '已关闭'}`} icon={<FolderOpen />} {...groupProps('storage')}>
+    <section className="settings-section"><h3><FolderOpen />存储位置</h3><label className="path-field">数据目录<div className="path-picker"><input readOnly value={dataRoot} title={dataRoot} /><button className="outline-button" type="button" onClick={() => void chooseDataRoot()}><FolderOpen size={15} />浏览</button></div></label><p className="security-note">歌曲、运行环境和分轨资源将分别保存在 music、envs 和 envs/models 子目录中。</p></section>
+    <section className="settings-section"><h3><Bug />调试与诊断</h3>
+      <div className="debug-settings-row">
+        <label className="settings-toggle"><input type="checkbox" aria-label="Debug 模式" checked={draft.debugMode} disabled={debugModeSaving} onChange={(event) => void toggleDebugMode(event.target.checked)} /><span><b>Debug 模式</b><small>{debugModeSaving ? '正在保存…' : '切换后立即生效，记录主进程、IPC 调用和界面控制台日志'}</small></span></label>
+        <button className="outline-button" type="button" onClick={() => void revealDebugLog()}><FolderOpen size={15} />打开日志位置</button>
+      </div>
+      <p className="security-note">仅在 Debug 模式开启期间追加详细日志；代理凭据、令牌和密码会自动脱敏。</p>
+      {debugLogError && <p className="device-error">{debugLogError}</p>}
+    </section>
+    </SettingsGroup>
     </div>
-    <footer className="drawer-footer sticky"><Dialog.Close className="outline-button">取消</Dialog.Close><button className="primary-button" onClick={() => void window.bandbuddy.settings.update(draft).then((saved) => { onSaved(saved); onOpenChange(false) })}>保存设置</button></footer>
+    <p className="settings-overview-note">选择分类查看详细选项，返回分类后会保留本次修改。</p>
+    {saveError && <p className="form-error" role="alert">{saveError}</p>}
+    </div>
+    <footer className="drawer-footer sticky"><Dialog.Close className="outline-button">取消</Dialog.Close><button className="primary-button" disabled={saving || debugModeSaving} onClick={() => void saveSettings()}>{saving ? '正在保存…' : '保存设置'}</button></footer>
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }
 

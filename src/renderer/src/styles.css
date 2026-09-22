@@ -513,6 +513,40 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: #f
 .settings-scroll { flex: 1; min-height: 0; padding: 29px 27px 18px; overflow-y: auto; }
 .settings-scroll > h2 { margin: 0; font-family: var(--serif); font-size: 28px; }
 .settings-drawer > .drawer-footer { position: static; flex: 0 0 auto; }
+/* Settings overview and focused category dialogs. */
+.settings-categories { display: grid; gap: 10px; margin-top: 24px; }
+.settings-category { width: 100%; display: flex; align-items: center; gap: 14px; padding: 17px 15px; border: 1px solid var(--border); border-radius: 13px; background: rgba(255,255,255,.5); color: var(--ink); text-align: left; transition: background .15s, border-color .15s; }
+.settings-category:hover { background: #fffaf3; border-color: #b5a48c; }
+.settings-category:focus-visible { outline: 2px solid #8e7659; outline-offset: 3px; }
+.settings-category-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border-radius: 11px; background: #ece5da; color: #806c51; }
+.settings-category-icon svg { width: 20px; height: 20px; }
+.settings-category-copy { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.settings-category-copy b { font-size: 14px; }
+.settings-category-copy small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.settings-category-copy em { color: #7b6b53; font-size: 10px; line-height: 1.5; font-style: normal; }
+.settings-category > svg { flex-shrink: 0; color: #9b8b77; }
+.settings-overview-note { margin: 18px 2px 0; font-size: 11px; line-height: 1.7; color: var(--muted); }
+.settings-detail-overlay { z-index: 110; }
+.dialog-content.settings-detail { z-index: 111; display: flex; flex-direction: column; width: min(720px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
+.settings-detail-header { flex-shrink: 0; padding: 26px 60px 18px 28px; border-bottom: 1px solid var(--border); }
+.settings-detail-header h2 { margin: 0; font-size: 23px; }
+.settings-detail-header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.settings-detail-scroll { min-height: 0; overflow-y: auto; padding: 0 28px; overscroll-behavior: contain; }
+.settings-detail-scroll .settings-section:last-child { border-bottom: 0; margin-bottom: 0; }
+.settings-detail-footer { flex-shrink: 0; padding: 16px 28px; border-top: 1px solid var(--border); background: #f3eee5; }
+.settings-detail-footer > span { display: block; margin-bottom: 12px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.settings-detail-footer > div { display: flex; justify-content: flex-end; gap: 8px; }
+.settings-detail .settings-grid > label { min-width: 0; }
+.settings-detail .settings-section input, .settings-detail .settings-section select { min-width: 0; max-width: 100%; }
+@media (max-width: 560px) {
+  .settings-drawer { width: calc(100vw - 16px); }
+  .settings-scroll { padding: 25px 18px 18px; }
+  .settings-detail-header { padding-left: 18px; }
+  .settings-detail-scroll { padding: 0 18px; }
+  .settings-detail-footer { padding: 14px 18px; }
+  .settings-detail .settings-grid { grid-template-columns: 1fr; }
+  .settings-detail .debug-settings-row, .settings-detail .install-confirm { flex-wrap: wrap; }
+}
 .settings-section { margin: 20px 0; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
 .settings-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; }.settings-section h3 svg { width: 17px; }
 .runtime-card { padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,.45); }
