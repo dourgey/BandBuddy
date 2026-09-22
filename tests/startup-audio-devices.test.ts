@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_APPEARANCE } from '../packages/shared/src/appearance.js'
 import {
   createDefaultRecordingAudioSettings,
   type AppSettings,
@@ -6,6 +7,7 @@ import {
 } from '../packages/shared/src/domain.js'
 import {
   loadStartupAudioSettings,
+  reconcileStartupAudioSettings,
   reconcileAudioDeviceSettings
 } from '../src/renderer/src/startup-audio-devices.js'
 
@@ -13,6 +15,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 function appSettings(): AppSettings {
   return {
+    appearance: { ...DEFAULT_APPEARANCE },
     libraryRoot: 'music',
     runtimeRoot: 'runtime',
     modelRoot: 'models',
@@ -53,6 +56,27 @@ function device(patch: Partial<RecordingDeviceInfo> = {}): RecordingDeviceInfo {
 }
 
 describe('startup audio device reconciliation', () => {
+  it('returns saved preferences without waiting for hardware or altering settings', async () => {
+    const settings = appSettings()
+    const devices = vi.fn(() => new Promise(() => {}))
+    const reconcileAudio = vi.fn()
+    vi.stubGlobal('window', { bandbuddy: { settings: { get: async () => settings, reconcileAudio }, recording: { devices } } })
+    expect(await loadStartupAudioSettings()).toBe(settings)
+    expect(devices).not.toHaveBeenCalled()
+    expect(reconcileAudio).not.toHaveBeenCalled()
+  })
+
+  it('sends only the expected audio snapshot after a background scan', async () => {
+    const initial = appSettings()
+    initial.audioOutputDeviceId = 'missing'
+    const latest = { ...initial, libraryRoot: '用户新选择的目录', audioOutputDeviceId: 'new-device' }
+    const reconcileAudio = vi.fn(async () => latest)
+    vi.stubGlobal('window', { bandbuddy: { settings: { reconcileAudio }, recording: { devices: async () => [] } } })
+    vi.stubGlobal('navigator', { platform: 'Win32', mediaDevices: { enumerateDevices: async () => [] } })
+    expect(await reconcileStartupAudioSettings(initial)).toBe(latest)
+    expect(reconcileAudio).toHaveBeenCalledWith({ expected: { audioOutputDeviceId: 'missing', recordingAudio: initial.recordingAudio }, audioOutputDeviceId: '', recordingAudio: initial.recordingAudio })
+  })
+
   it('uses the changed computer hardware on the next launch instead of the previous device list', async () => {
     let saved = appSettings()
     saved.audioOutputDeviceId = 'old-usb-web'
@@ -81,15 +105,15 @@ describe('startup audio device reconciliation', () => {
       ])
     const update = vi.fn(async (settings: AppSettings) => { saved = settings; return settings })
     vi.stubGlobal('window', { bandbuddy: {
-      settings: { get: async () => saved, update }, recording: { devices: recordingDevices }
+      settings: { get: async () => saved, update, reconcileAudio: async (request: { audioOutputDeviceId: string; recordingAudio: AppSettings['recordingAudio'] }) => update({ ...saved, audioOutputDeviceId: request.audioOutputDeviceId, recordingAudio: request.recordingAudio }) }, recording: { devices: recordingDevices }
     } })
     vi.stubGlobal('navigator', { platform: 'MacIntel', mediaDevices: { enumerateDevices: playbackDevices } })
 
-    const firstLaunch = await loadStartupAudioSettings()
+    const firstLaunch = await reconcileStartupAudioSettings(await loadStartupAudioSettings())
     expect(firstLaunch.audioOutputDeviceId).toBe('old-usb-web')
     expect(update).not.toHaveBeenCalled()
 
-    const secondLaunch = await loadStartupAudioSettings()
+    const secondLaunch = await reconcileStartupAudioSettings(await loadStartupAudioSettings())
     expect(playbackDevices).toHaveBeenCalledTimes(2)
     expect(recordingDevices).toHaveBeenCalledTimes(2)
     expect(secondLaunch.audioOutputDeviceId).toBe('')
@@ -114,7 +138,7 @@ describe('startup audio device reconciliation', () => {
       { kind: 'audiooutput', deviceId: 'loopback-web' }
     ] } })
 
-    expect(await loadStartupAudioSettings()).toBe(settings)
+    expect(await reconcileStartupAudioSettings(await loadStartupAudioSettings())).toBe(settings)
     expect(update).not.toHaveBeenCalled()
   })
 
@@ -136,8 +160,8 @@ describe('startup audio device reconciliation', () => {
       mediaDevices: { enumerateDevices: playbackDevices }
     })
 
-    await loadStartupAudioSettings()
-    await loadStartupAudioSettings()
+    await reconcileStartupAudioSettings(await loadStartupAudioSettings())
+    await reconcileStartupAudioSettings(await loadStartupAudioSettings())
 
     expect(getSettings).toHaveBeenCalledTimes(2)
     expect(recordingDevices).toHaveBeenCalledTimes(2)

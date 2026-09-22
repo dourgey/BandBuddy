@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Cable, ChevronDown, ChevronLeft, ChevronRight, Gauge, Headphones, Plus, Save, Search, SlidersHorizontal, Upload, Volume2, X } from 'lucide-react'
+import { allowAudioAction, isRecordingLocked, useRecordingSession, RECORDING_GUARD_MESSAGE } from '../recording-session.js'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Cable, ChevronLeft, ChevronRight, Gauge, Plus, Save, Search, SlidersHorizontal, Upload, Volume2 } from 'lucide-react'
 import { defaultEffectChain, effectChainSchema, WHITEBOX_DEVICES, type ArsenalPreset, type EffectBlock, type EffectChainSnapshot, type MonitorMode, type ToneAsset } from '@shared/arsenal.js'
 import { AmpCabControls, ModulationControls } from '../arsenal/ClassicControls.js'
 import { WhiteboxControls } from '../arsenal/WhiteboxControls.js'
+import { DeviceFooter } from '../arsenal/DeviceFooter.js'
 import './arsenal.css'
 
 const labels: Record<EffectBlock, string> = { mod: '调制 / 动态', drive: '白盒单块', amp: 'AMP + CAB', eq: 'EQ', delay: 'DELAY', reverb: 'REVERB' }
-const colors: Record<EffectBlock, string> = { mod: '#745290', drive: '#587358', amp: '#252321', eq: '#d6d3cb', delay: '#efe2cf', reverb: '#286a9a' }
+const colors: Record<EffectBlock, string> = { mod: 'var(--purple)', drive: 'var(--success)', amp: 'var(--ink)', eq: 'var(--border-strong)', delay: 'var(--accent)', reverb: 'var(--info)' }
 
 export function ArsenalPage({ onToast }: { onToast(message: string): void }): React.JSX.Element {
+  const recording = useRecordingSession()
   const [presets, setPresets] = useState<ArsenalPreset[]>([])
   const [assets, setAssets] = useState<ToneAsset[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -18,8 +21,17 @@ export function ArsenalPage({ onToast }: { onToast(message: string): void }): Re
   const [search, setSearch] = useState('')
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [routing, setRouting] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const routingRef = useRef(false)
+  const chainRef = useRef(chain)
+  chainRef.current = chain
 
-  useEffect(() => { void window.bandbuddy.arsenal.list().then((state) => { setPresets(state.presets); setAssets(state.assets); const first = state.presets[0]; if (first) { setSelectedId(first.id); setChain(effectChainSchema.parse(first.chain)) } }) }, [])
+  useEffect(() => {
+    let mounted = true
+    void window.bandbuddy.arsenal.list().then(state => { if (!mounted) return; setPresets(state.presets); setAssets(state.assets); const first = state.presets[0]; if (first) { setSelectedId(first.id); setChain(effectChainSchema.parse(first.chain)) } }).catch(error => { if (mounted) onToast(error instanceof Error ? error.message : '预设加载失败') })
+    return () => { mounted = false }
+  }, [])
   useEffect(() => {
     let mounted = true
     void window.bandbuddy.arsenal.monitorState().then(s => { if (mounted) setMonitor(s.active ? s.mode : 'off') }).catch(() => undefined)
@@ -27,18 +39,19 @@ export function ArsenalPage({ onToast }: { onToast(message: string): void }): Re
     return () => { mounted = false; unsubscribe() }
   }, [])
   useEffect(() => {
-    if (monitor === 'off') return
+    if (monitor === 'off' || routing || recording) return
     let stale = false
     const timer = window.setTimeout(() => {
+      if (routingRef.current || isRecordingLocked()) return
       void window.bandbuddy.arsenal.monitor({ mode: monitor, chain }).catch(error => {
         if (!stale) onToast(error instanceof Error ? error.message : '效果更新失败')
       })
     }, 60)
     return () => { stale = true; window.clearTimeout(timer) }
-  }, [chain, monitor, onToast])
+  }, [chain, monitor, routing, onToast, Boolean(recording)])
   const visible = useMemo(() => presets.filter((p) => p.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())), [presets, search])
-  const update = (patch: Partial<EffectChainSnapshot>): void => { setChain((current) => ({ ...current, ...patch })); setDirty(true) }
-  const selectPreset = (preset: ArsenalPreset): void => { setSelectedId(preset.id); setChain(effectChainSchema.parse(preset.chain)); setDirty(false) }
+  const update = (patch: Partial<EffectChainSnapshot>): void => { if (!allowAudioAction()) return; setChain((current) => ({ ...current, ...patch })); setDirty(true) }
+  const selectPreset = (preset: ArsenalPreset): void => { if (!allowAudioAction()) return; setSelectedId(preset.id); setChain(effectChainSchema.parse(preset.chain)); setDirty(false) }
   const save = async (asNew = false): Promise<void> => {
     try {
       const current = presets.find((p) => p.id === selectedId)
@@ -47,8 +60,10 @@ export function ArsenalPage({ onToast }: { onToast(message: string): void }): Re
     } catch (error) { onToast(error instanceof Error ? error.message : '预设保存失败') }
   }
   const changeMonitor = async (mode: MonitorMode): Promise<void> => {
+    if (!allowAudioAction()) return
+    if (routingRef.current || loading) return
     setLoading(true)
-    try { await window.bandbuddy.arsenal.monitor({ mode, chain }); setMonitor(mode) } catch (error) { onToast(error instanceof Error ? error.message : '监听启动失败') } finally { setLoading(false) }
+    try { const state = await window.bandbuddy.arsenal.monitor({ mode, chain: chainRef.current }); setMonitor(state.active ? state.mode : 'off'); if (state.error) onToast(state.error) } catch (error) { onToast(error instanceof Error ? error.message : '监听启动失败') } finally { setLoading(false) }
   }
   const importAsset = async (kind: 'nam' | 'ir'): Promise<void> => {
     try { const asset = await window.bandbuddy.arsenal.importAsset(kind); if (asset) { onToast(`${kind === 'nam' ? 'NAM 音色' : '箱体 IR'} 已导入`); const state = await window.bandbuddy.arsenal.list(); setPresets(state.presets); setAssets(state.assets); if (kind === 'nam') update({ amp: { ...chain.amp, assetId: asset.id, engine: 'nam' } }); else update({ cab: { ...chain.cab, assetId: asset.id, engine: 'ir' } }) } } catch (error) { onToast(error instanceof Error ? error.message : '导入失败') }
@@ -67,15 +82,16 @@ export function ArsenalPage({ onToast }: { onToast(message: string): void }): Re
     const order = [...chain.order]; [order[index], order[next]] = [order[next]!, order[index]!]; update({ order })
   }
   const enabled = (block: EffectBlock): boolean => block === 'mod' ? chain.mod.enabled : block === 'drive' ? chain.drive.enabled : block === 'amp' ? chain.amp.enabled : block === 'eq' ? chain.eq.enabled : block === 'delay' ? chain.delay.enabled : chain.reverb.enabled
-  return <main className="arsenal-page">
+  return <main className={`arsenal-page ${collapsed ? 'is-sidebar-collapsed' : ''}`}>
     <aside className="arsenal-sidebar">
-      <div className="arsenal-sidebar-head"><div><h1>军火库</h1><p>我的声音，我的装备。</p></div><button aria-label="收起预设"><ChevronLeft size={17} /></button></div>
+      <div className="arsenal-sidebar-head"><div><h1>军火库</h1><p>我的声音，我的装备。</p></div><button aria-label="收起预设" aria-expanded={!collapsed} onClick={() => setCollapsed(true)}><ChevronLeft size={17} /></button></div>
       <label className="arsenal-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索预设..." /></label>
-      <div className="arsenal-preset-list">{visible.map((preset) => <button key={preset.id} className={`arsenal-preset ${preset.id === selectedId ? 'selected' : ''}`} onClick={() => selectPreset(preset)}><span className="preset-thumb" style={{ background: preset.id === selectedId ? 'linear-gradient(145deg,#9c7a55,#382d23)' : 'linear-gradient(145deg,#676159,#25221f)' }} /><span><b>{preset.name}</b><small>{preset.chain.drive.enabled ? preset.chain.drive.device.toUpperCase() : preset.chain.amp.enabled ? (preset.chain.amp.engine === 'classic' ? preset.chain.amp.classic.device : 'NAM') : '干声'} · {preset.chain.delay.enabled ? '延迟' : '直达'} · {preset.chain.reverb.enabled ? '空间' : '无混响'}</small></span><i>⋮</i></button>)}</div>
-      <div className="arsenal-sidebar-actions"><button onClick={() => { setSelectedId(null); setChain(defaultEffectChain()); setDirty(true) }}><Plus size={16} />新建预设</button><button onClick={() => void save()} disabled={!dirty}><Save size={16} />保存{dirty && <em>未保存</em>}</button><button onClick={() => void save(true)}><SlidersHorizontal size={16} />另存为</button></div>
+      <div className="arsenal-preset-list">{visible.map((preset) => <button key={preset.id} className={`arsenal-preset ${preset.id === selectedId ? 'selected' : ''}`} onClick={() => selectPreset(preset)}><span className="preset-thumb" style={{ background: preset.id === selectedId ? 'linear-gradient(145deg,var(--accent),var(--ink))' : 'linear-gradient(145deg,var(--muted),var(--ink))' }} /><span><b>{preset.name}</b><small>{preset.chain.drive.enabled ? preset.chain.drive.device.toUpperCase() : preset.chain.amp.enabled ? (preset.chain.amp.engine === 'classic' ? preset.chain.amp.classic.device : 'NAM') : '干声'} · {preset.chain.delay.enabled ? '延迟' : '直达'} · {preset.chain.reverb.enabled ? '空间' : '无混响'}</small></span><i>⋮</i></button>)}</div>
+      <div className="arsenal-sidebar-actions"><button onClick={() => { if (!allowAudioAction()) return; setSelectedId(null); setChain(defaultEffectChain()); setDirty(true) }}><Plus size={16} />新建预设</button><button onClick={() => void save()} disabled={!dirty}><Save size={16} />保存{dirty && <em>未保存</em>}</button><button onClick={() => void save(true)}><SlidersHorizontal size={16} />另存为</button></div>
     </aside>
     <section className={`arsenal-workspace ${['drive', 'amp', 'mod'].includes(selectedBlock) ? 'editing-whitebox' : ''}`}>
-      <header className="arsenal-toolbar"><div><span className="arsenal-kicker">SIGNAL WORKSHOP</span><h2>{presets.find((p) => p.id === selectedId)?.name ?? '新预设'}{dirty && <sup>未保存</sup>}</h2></div><div className="arsenal-toolbar-actions"><button className="outline-button compact" onClick={() => setSelectedBlock('drive')}>白盒设备</button><button className="outline-button compact" onClick={() => void importAsset('nam')}><Upload size={14} />导入 NAM</button><button className="outline-button compact" onClick={() => void importAsset('ir')}><Upload size={14} />导入 IR</button></div></header>
+      {recording && <p className="recording-audio-note" role="status">{RECORDING_GUARD_MESSAGE}</p>}
+      <header className="arsenal-toolbar">{collapsed && <button className="outline-button compact" aria-label="展开预设" aria-expanded="false" onClick={() => setCollapsed(false)}><ChevronRight size={16} />预设</button>}<div><span className="arsenal-kicker">SIGNAL WORKSHOP</span><h2>{presets.find((p) => p.id === selectedId)?.name ?? '新预设'}{dirty && <sup>未保存</sup>}</h2></div><div className="arsenal-toolbar-actions"><button className="outline-button compact" onClick={() => setSelectedBlock('drive')}>白盒设备</button><button className="outline-button compact" onClick={() => void importAsset('nam')}><Upload size={14} />导入 NAM</button><button className="outline-button compact" onClick={() => void importAsset('ir')}><Upload size={14} />导入 IR</button></div></header>
       <div className="arsenal-studio" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}arsenal/studio-room.png")` }}>
         <div className="studio-amp" onClick={() => setSelectedBlock('amp')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedBlock('amp') } }} aria-label="打开箱头和箱体"><img className="amp-head" src={`${import.meta.env.BASE_URL}arsenal/amp-head.png`} alt="NAM 箱头" draggable="false" /><img className="amp-cab" src={`${import.meta.env.BASE_URL}arsenal/amp-cab.png`} alt="箱体与 IR" draggable="false" /></div>
         <div className="studio-cables"><Cable size={24} /><Cable size={18} /></div>
@@ -84,7 +100,7 @@ export function ArsenalPage({ onToast }: { onToast(message: string): void }): Re
       </div>
       <div className="arsenal-chain"><div className="chain-node input"><Volume2 size={15} />INPUT</div>{chain.order.map((block, index) => <span className="chain-step" key={block}><ChevronRight size={14} /><button className={`chain-node ${enabled(block) ? 'on' : ''} ${selectedBlock === block ? 'active' : ''}`} onClick={() => setSelectedBlock(block)} style={{ borderColor: colors[block] }}>{block === 'drive' ? WHITEBOX_DEVICES.find(d => d.id === chain.drive.device)?.name.split(' · ')[0] : labels[block]}<small>{enabled(block) ? 'ON' : 'BYPASS'}</small></button>{index === chain.order.length - 1 && <ChevronRight size={14} />}</span>)}<div className="chain-node output">◯ OUTPUT</div></div>
       <div className="arsenal-editor"><div className="editor-head"><div><b>{labels[selectedBlock]}</b><small>{selectedBlock === 'drive' ? '经典电路原型 · 实验版' : selectedBlock === 'amp' ? 'NAM / 白盒前级 / 箱体' : selectedBlock === 'mod' ? '移相 · 调制 · 动态' : '踩下踏板调整参数'}</small></div><div className="editor-actions"><button className="move-button" onClick={() => moveBlock(-1)} aria-label="效果前移">←</button><button className="move-button" onClick={() => moveBlock(1)} aria-label="效果后移">→</button><button className={`power-toggle ${enabled(selectedBlock) ? 'on' : ''}`} onClick={() => toggle(selectedBlock)}><Gauge size={15} />{enabled(selectedBlock) ? '已开启' : '旁通'}</button></div></div><EditorControls block={selectedBlock} chain={chain} assets={assets} update={update} /></div>
-      <footer className="arsenal-footer"><div className="footer-device"><Headphones size={16} /><b>输入通道</b><select defaultValue="1"><option value="1">1</option><option value="2">2</option></select><select defaultValue="128"><option value="64">64 frames</option><option value="128">128 frames</option><option value="256">256 frames</option></select><span>48 kHz</span></div><div className="footer-monitor"><span>监听</span>{(['off', 'dry', 'wet'] as MonitorMode[]).map((mode) => <button key={mode} disabled={loading} className={monitor === mode ? 'active' : ''} onClick={() => void changeMonitor(mode)}>{mode === 'off' ? '关闭' : mode === 'dry' ? '干声' : '效果'}</button>)}<i className="level-bars">▮▮▮▮▮▮▮▮▮▮▯▯▯▯</i><small>{monitor === 'wet' ? '效果监听中' : '未监听'}</small></div></footer>
+      <DeviceFooter monitor={monitor} busy={loading || routing || Boolean(recording)} getChain={() => chainRef.current} onMonitor={mode => void changeMonitor(mode)} onRouting={value => { routingRef.current = value; setRouting(value) }} onToast={onToast} />
     </section>
   </main>
 }

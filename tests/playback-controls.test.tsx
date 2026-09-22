@@ -42,6 +42,36 @@ async function openPractice(): Promise<void> {
 }
 
 describe('practice transport interaction', () => {
+  it('keeps playback running when navigating between practice and library', async () => {
+    await openPractice()
+    act(() => { usePlayerStore.getState().setPlaying(true); usePlayerStore.getState().setCurrentMs(12345) })
+    audio.pause.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: '曲库', exact: true }))
+    await screen.findByRole('textbox', { name: '搜索歌曲或艺术家' })
+    expect(usePlayerStore.getState().playing).toBe(true)
+    expect(usePlayerStore.getState().currentMs).toBe(12345)
+    expect(audio.pause).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '练习室', exact: true }))
+    await screen.findByRole('button', { name: '设置 A 点' })
+    expect(usePlayerStore.getState().playing).toBe(true)
+    expect(audio.pause).not.toHaveBeenCalled()
+  })
+
+  it('allows navigation while recording without stopping the recording', async () => {
+    const state = await window.bandbuddy.recording.state()
+    window.bandbuddy.recording.state = async () => ({ ...state, phase: 'recording', songId: fixtureSongs[0]!.id })
+    const cancel = vi.spyOn(window.bandbuddy.recording, 'cancel')
+    const stop = vi.spyOn(window.bandbuddy.recording, 'stop')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    render(<QueryClientProvider client={client}><App /></QueryClientProvider>)
+    const navigation = screen.getByRole('button', { name: '练习室', exact: true }) as HTMLButtonElement
+    await screen.findByRole('complementary', { name: '全局录音控制' })
+    expect(navigation.disabled).toBe(false)
+    fireEvent.click(navigation)
+    expect(stop).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
   it('cycles one button through A, B with automatic playback, and cancellation', async () => {
     await openPractice()
     act(() => usePlayerStore.getState().setCurrentMs(8000))
@@ -55,7 +85,7 @@ describe('practice transport interaction', () => {
     await waitFor(() => expect(usePlayerStore.getState().playing).toBe(true))
     expect(usePlayerStore.getState().practice).toMatchObject({ loopStartMs: 8000, loopEndMs: 15_000, loopEnabled: true })
     expect(audio.seek).toHaveBeenLastCalledWith(8000)
-    expect(audio.play).toHaveBeenLastCalledWith()
+    expect(audio.play).toHaveBeenLastCalledWith(0, expect.any(Function))
     expect(screen.getByRole('button', { name: '取消 A-B 循环' }).getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: '取消 A-B 循环' }))
     expect(usePlayerStore.getState().practice).toMatchObject({ loopStartMs: null, loopEndMs: null, loopEnabled: false })
@@ -72,7 +102,7 @@ describe('practice transport interaction', () => {
     fireEvent.click(screen.getByRole('button', { name: '跳回 A 点并播放' }))
     await waitFor(() => expect(usePlayerStore.getState().playing).toBe(true))
     expect(audio.seek).toHaveBeenLastCalledWith(6000)
-    expect(audio.play).toHaveBeenLastCalledWith()
+    expect(audio.play).toHaveBeenLastCalledWith(0, expect.any(Function))
     act(() => {
       usePlayerStore.getState().patchPractice({ loopEnabled: false })
       usePlayerStore.getState().setPlaying(false)

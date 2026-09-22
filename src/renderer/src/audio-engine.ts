@@ -187,6 +187,8 @@ export class MultiTrackAudioEngine {
   private endedListener: (() => void) | null = null
   private errorListener: ((error: unknown) => void) | null = null
   private playbackGeneration = 0
+  private loadGeneration = 0
+  private outputTransition: Promise<void> = Promise.resolve()
   private countInTimer: number | null = null
   private countInResolve: (() => void) | null = null
   private countInListener: ((remaining: number) => void) | null = null
@@ -206,12 +208,19 @@ export class MultiTrackAudioEngine {
   }
 
   async load(song: SongDetail, outputDeviceId = '', latencyMode: AudioContextLatencyCategory = 'balanced'): Promise<void> {
+    const generation = ++this.loadGeneration
     this.pause()
     this.destroyTracks()
     this.song = song
     this.practice = song.practice
     await this.ensureContext(latencyMode)
-    await setAudioContextOutputDeviceOrDefault(this.context, outputDeviceId)
+    if (generation !== this.loadGeneration) return
+    // Serialize device changes; an older slow setSinkId must not win a later selection.
+    this.outputTransition = this.outputTransition.catch(() => undefined).then(async () => {
+      if (generation === this.loadGeneration) await setAudioContextOutputDeviceOrDefault(this.context, outputDeviceId)
+    })
+    await this.outputTransition
+    if (generation !== this.loadGeneration) return
     this.configureOutputGraph()
     const stemByType = new Map(song.stems.map((stem) => [stem.type, stem]))
     for (const type of STEM_ORDER) {
@@ -447,7 +456,8 @@ export class MultiTrackAudioEngine {
   }
 
   async setOutputDevice(deviceId: string): Promise<void> {
-    await setAudioContextOutputDevice(this.context, deviceId)
+    this.outputTransition = this.outputTransition.catch(() => undefined).then(() => setAudioContextOutputDevice(this.context, deviceId))
+    await this.outputTransition
     this.configureOutputGraph()
   }
 
@@ -869,6 +879,7 @@ export class MultiTrackAudioEngine {
   }
 
   unload(): void {
+    this.loadGeneration++
     this.pause()
     this.destroyTracks()
     this.song = null
@@ -876,6 +887,7 @@ export class MultiTrackAudioEngine {
   }
 
   destroy(): void {
+    this.loadGeneration++
     this.pause()
     this.pitchGeneration += 1
     this.destroyTracks()

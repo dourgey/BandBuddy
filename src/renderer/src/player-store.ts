@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createDefaultPracticeState, isStemVisible, normalizePitchSemitones, normalizeSelectedStemForGuitarMode, type PracticeState, type SongDetail, type StemType, type TrackState } from '@shared/domain.js'
+import { createDefaultPracticeState, isStemVisible, normalizePitchSemitones, normalizeSelectedStemForGuitarMode, type RecordingMeter, type PracticeState, type SongDetail, type StemType, type TrackState } from '@shared/domain.js'
 
 export function patchTrackStates(
   tracks: readonly TrackState[],
@@ -73,8 +73,8 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
     ? { song: { ...song, practice: state.practice ?? song.practice } }
     : state),
   unload: () => set({ song: null, practice: null, currentMs: 0, playing: false }),
-  setPlaying: (playing) => set({ playing }),
-  setCurrentMs: (currentMs) => set({ currentMs }),
+  setPlaying: (playing) => set((state) => state.playing === playing ? state : { playing }),
+  setCurrentMs: (currentMs) => set((state) => state.currentMs === currentMs ? state : { currentMs }),
   patchPractice: (patch) => set((state) => {
     if (!state.practice) return state
     const guitarSplitEnabled = patch.guitarSplitEnabled ?? state.practice.guitarSplitEnabled
@@ -105,4 +105,10 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
     selectedStem,
     practice: state.practice ? { ...state.practice, selectedStem } : state.practice
   }))
+}))
+
+/** High frequency input levels are independent of the application/transport tree. */
+export const useRecordingMeterStore = create<{ meter: RecordingMeter; setMeter(meter: RecordingMeter): void }>((set) => ({
+  meter: { peak: [0, 0], rms: [0, 0], clipped: false, sourcePositionMs: 0, recording: false },
+  setMeter: (meter) => set({ meter })
 }))

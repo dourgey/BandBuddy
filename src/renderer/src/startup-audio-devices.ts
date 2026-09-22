@@ -144,24 +144,22 @@ async function enumerateRecordingDevices(): Promise<readonly RecordingDeviceInfo
   }
 }
 
-async function scanStartupAudioSettings(): Promise<AppSettings> {
-  const api = bandbuddyApi()
-  const [settings, playbackOutputDeviceIds, recordingDevices] = await Promise.all([
-    api.settings.get(),
+/** Reads persisted preferences immediately; hardware enumeration is deliberately separate. */
+export function loadStartupAudioSettings(): Promise<AppSettings> {
+  return bandbuddyApi().settings.get()
+}
+
+/** The main process compares the audio snapshot before merging, so new preferences cannot be overwritten. */
+export async function reconcileStartupAudioSettings(settings: AppSettings, canApply: () => boolean = () => true): Promise<AppSettings> {
+  const [playbackOutputDeviceIds, recordingDevices] = await Promise.all([
     enumeratePlaybackOutputDeviceIds(),
     enumerateRecordingDevices()
   ])
-  const reconciled = reconcileAudioDeviceSettings(settings, {
-    playbackOutputDeviceIds,
-    recordingDevices,
-    platform: navigator.platform
+  const reconciled = reconcileAudioDeviceSettings(settings, { playbackOutputDeviceIds, recordingDevices, platform: navigator.platform })
+  if (reconciled === settings || !canApply()) return settings
+  return bandbuddyApi().settings.reconcileAudio({
+    expected: { audioOutputDeviceId: settings.audioOutputDeviceId, recordingAudio: settings.recordingAudio },
+    audioOutputDeviceId: reconciled.audioOutputDeviceId,
+    recordingAudio: reconciled.recordingAudio
   })
-  return reconciled === settings ? settings : await api.settings.update(reconciled)
-}
-
-export function loadStartupAudioSettings(): Promise<AppSettings> {
-  // Do not retain a process-wide device snapshot. A renderer can be recreated
-  // while the desktop process stays alive, and every such app open must query
-  // the hardware that is connected now.
-  return scanStartupAudioSettings()
 }

@@ -1,3 +1,8 @@
+import { claimAudioSession, getAudioSession, isAudioSessionCurrent, pauseAudioSession, releaseAudioSession } from '../audio-session.js'
+import { allowAudioAction, getRecordingSession, isRecordingLocked, publishRecordingState, registerRecordingControls, useRecordingSession, type RecordingControls } from '../recording-session.js'
+import { confirmAction, promptAction } from '../components/ui/confirm.js'
+import { AudioPreview } from '../components/ui/AudioPreview.js'
+import { Select } from '../components/ui/Select.js'
 import {
   AlertTriangle,
   Check,
@@ -25,7 +30,7 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   type AppSettings,
   type DesktopLyricsPayload,
@@ -90,6 +95,7 @@ type DragSource =
 type DropTarget = { itemId: string | null; placement: 'before' | 'after' }
 
 interface RehearsalRoomProps {
+  active?: boolean
   settings?: AppSettings
   initialRehearsalId?: string | null
   initialItemId?: string | null
@@ -106,6 +112,7 @@ interface RehearsalRoomProps {
 }
 
 export function RehearsalRoom({
+  active = true,
   settings,
   initialRehearsalId,
   initialItemId,
@@ -115,7 +122,13 @@ export function RehearsalRoom({
   onRecordingLockChange,
   onToast
 }: RehearsalRoomProps): React.JSX.Element {
-  const engine = useRef(new RehearsalAudioEngine())
+  const [audioEngine] = useState(() => new RehearsalAudioEngine())
+  const engine = useRef(audioEngine)
+  const activeRef = useRef(active)
+  activeRef.current = active
+  const latestPosition = useRef<RehearsalTimelinePosition>({ segment: null, globalMs: 0, segmentMs: 0, songSourceMs: 0 })
+  const publishLyrics = useRef<(next: RehearsalTimelinePosition, running: boolean) => void>(() => {})
+  const lyricVisibility = useRef(false)
   const page = useRef<HTMLElement>(null)
   const rehearsalRef = useRef<RehearsalSetDetail | null>(null)
   const songsRef = useRef(new Map<string, SongDetail>())
@@ -125,6 +138,14 @@ export function RehearsalRoom({
   const dirty = useRef(false)
   const booted = useRef(false)
   const recordingWasActive = useRef(false)
+  const authoritativeRecordingState = useRef(idleRecordingState)
+  const recordingStateVersion = useRef(0)
+  const recordingStartGeneration = useRef(0)
+  const recordingStartPending = useRef(false)
+  const nativeRecordingRequested = useRef(false)
+  const recordingInterruption = useRef<{ generation: number; action: 'stop' | 'cancel' } | null>(null)
+  const recordingInterruptionInFlight = useRef(false)
+  const latestRecordingMeter = useRef(idleMeter)
   const playbackStarting = useRef(false)
   const playbackConfigurationQueue = useRef<Promise<void>>(Promise.resolve())
   const dragSourceRef = useRef<DragSource | null>(null)
@@ -132,11 +153,28 @@ export function RehearsalRoom({
   const dragCleanup = useRef<() => void>(() => undefined)
   const lastLyricsUpdate = useRef({ at: 0, signature: '' })
 
+  const [narrowViewport, setNarrowViewport] = useState(() => window.innerWidth <= 950)
+  const [palettePreference, setPalettePreference] = useState<boolean | null>(null)
+  const paletteExpanded = palettePreference ?? !narrowViewport
+  useEffect(() => {
+    const resize = (): void => setNarrowViewport(window.innerWidth <= 950)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
   const [sets, setSets] = useState<RehearsalSetSummary[]>([])
   const [rehearsal, setRehearsal] = useState<RehearsalSetDetail | null>(null)
   const [librarySongs, setLibrarySongs] = useState<SongSummary[]>([])
   const [songDetails, setSongDetails] = useState<Map<string, SongDetail>>(new Map())
   const [libraryQuery, setLibraryQuery] = useState('')
+  const [librarySearch, setLibrarySearch] = useState('')
+  const [libraryComposing, setLibraryComposing] = useState(false)
+  const assets = useRef<HTMLDivElement>(null)
+  const [assetViewport, setAssetViewport] = useState({ top: 0, height: 336 })
+  useEffect(() => {
+    if (libraryComposing || librarySearch === libraryQuery) return
+    const timer = setTimeout(() => setLibraryQuery(librarySearch), 150)
+    return () => clearTimeout(timer)
+  }, [librarySearch, libraryQuery, libraryComposing])
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [playing, setPlaying] = useState(false)
@@ -156,8 +194,13 @@ export function RehearsalRoom({
     () => buildRehearsalTimeline(rehearsal?.items ?? [], [...songDetails.values()]),
     [rehearsal?.items, songDetails]
   )
-  const recordingActive = !['idle', 'failed'].includes(recordingState.phase)
-  const structureLocked = recordingActive || playing
+  const timelineRef = useRef(timeline)
+  timelineRef.current = timeline
+  const recordingSession = useRecordingSession()
+  const recordingActive = !['idle', 'failed'].includes(recordingState.phase) || recordingSession?.owner === 'rehearsal'
+  const activeRecordingPhase = recordingSession?.owner === 'rehearsal' ? recordingSession.phase : recordingState.phase
+  const recordingLocked = Boolean(recordingSession) || recordingActive
+  const structureLocked = recordingLocked || playing
   const filteredSongs = useMemo(() => {
     const normalized = libraryQuery.trim().toLocaleLowerCase()
     return librarySongs
@@ -165,11 +208,32 @@ export function RehearsalRoom({
       .filter((song) => !normalized || `${song.title} ${song.artist}`.toLocaleLowerCase().includes(normalized))
   }, [libraryQuery, librarySongs])
 
+  const assetStart = Math.max(0, Math.min(Math.floor(assetViewport.top / 56) - 4, filteredSongs.length - 1))
+  const assetEnd = Math.min(filteredSongs.length, Math.ceil((assetViewport.top + assetViewport.height) / 56) + 4)
+  useLayoutEffect(() => {
+    const element = assets.current
+    if (!element || !paletteExpanded || !active) return
+    const measure = (): void => setAssetViewport(previous => {
+      const next = { top: element.scrollTop, height: element.clientHeight || 336 }
+      return previous.top === next.top && previous.height === next.height ? previous : next
+    })
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(element)
+    window.addEventListener('resize', measure)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
+  }, [active, paletteExpanded, loading])
+  useLayoutEffect(() => {
+    if (assets.current) assets.current.scrollTop = 0
+    setAssetViewport(previous => previous.top === 0 ? previous : { ...previous, top: 0 })
+  }, [libraryQuery])
+
   const setCurrentRehearsal = useCallback((next: RehearsalSetDetail): void => {
     rehearsalRef.current = next
     setRehearsal(next)
     setCurrentMs(0)
-    setPosition(rehearsalTimelinePosition(buildRehearsalTimeline(next.items, [...songsRef.current.values()]), 0))
+    latestPosition.current = rehearsalTimelinePosition(buildRehearsalTimeline(next.items, [...songsRef.current.values()]), 0)
+    setPosition(latestPosition.current)
     setSaveStatus('saved')
     dirty.current = false
     saveVersion.current += 1
@@ -271,6 +335,7 @@ export function RehearsalRoom({
   }, [persist])
 
   const commitDraft = useCallback((next: RehearsalSetDetail): void => {
+    if (isRecordingLocked()) return
     rehearsalRef.current = next
     setRehearsal(next)
     const version = ++saveVersion.current
@@ -290,6 +355,21 @@ export function RehearsalRoom({
     updateSetListEntry(next)
     return next
   }, [updateSetListEntry])
+
+  const completeRecordingInterruption = useCallback(async (generation?: number): Promise<void> => {
+    const interruption = recordingInterruption.current
+    if (!interruption || (generation !== undefined && interruption.generation !== generation) || recordingInterruptionInFlight.current) return
+    const { action } = interruption
+    recordingInterruptionInFlight.current = true
+    try {
+      if (action === 'stop') await window.bandbuddy.rehearsals.stopRecording()
+      else await window.bandbuddy.rehearsals.cancelRecording()
+    } catch (error) {
+      onToast(toUserErrorMessage(error, action === 'stop' ? '停止排练录音失败，请重试' : '取消排练录音失败，请重试'))
+    } finally {
+      recordingInterruptionInFlight.current = false
+    }
+  }, [onToast])
 
   useEffect(() => {
     if (booted.current) return
@@ -332,7 +412,7 @@ export function RehearsalRoom({
   }, [initialItemId, initialRehearsalId, initialScrollTop, loadRehearsal, onToast])
 
   useEffect(() => {
-    if (loading || !rehearsal || !initialItemId) return
+    if (!active || loading || !rehearsal || !initialItemId) return
     const frame = requestAnimationFrame(() => {
       if (page.current) page.current.scrollTop = initialScrollTop
       document.querySelector<HTMLElement>(
@@ -340,7 +420,7 @@ export function RehearsalRoom({
       )?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(frame)
-  }, [initialItemId, initialScrollTop, loading, rehearsal])
+  }, [active, initialItemId, initialScrollTop, loading, rehearsal])
 
   useEffect(() => {
     const stopHidden = window.bandbuddy.window.onHidden(() => void flushSave())
@@ -349,7 +429,7 @@ export function RehearsalRoom({
       void (async () => {
         const next = fixtureMode ? fixtureSongs : await window.bandbuddy.library.list({ filter: 'all' })
         setLibrarySongs(next)
-        if (!playing && !recordingActive && rehearsalRef.current) await resolveSongDetails(rehearsalRef.current.items)
+        if (!playing && !isRecordingLocked() && rehearsalRef.current) await resolveSongDetails(rehearsalRef.current.items)
       })()
     })
     return () => {
@@ -362,21 +442,38 @@ export function RehearsalRoom({
 
   useEffect(() => {
     engine.current.onTime((next, isPlaying) => {
-      setCurrentMs(next.globalMs)
-      setPosition(next)
+      if (getRecordingSession()?.owner === 'rehearsal') return
+      latestPosition.current = next
+      if (activeRef.current) { setCurrentMs(next.globalMs); setPosition(next) }
       setPlaying(isPlaying)
+      publishLyrics.current(next, isPlaying)
     })
-    engine.current.onEnded(() => setPlaying(false))
+    engine.current.onEnded(() => { setPlaying(false); releaseAudioSession('rehearsal') })
     engine.current.onError(() => onToast('实时升降调初始化失败，当前歌曲保持原调'))
-    return () => engine.current.destroy()
+    return () => { engine.current.destroy(); releaseAudioSession('rehearsal') }
   }, [onToast])
+
+  useEffect(() => {
+    engine.current.setVisualActive?.(active)
+    if (active) {
+      setCurrentMs(latestPosition.current.globalMs)
+      setPosition(latestPosition.current)
+      setRecordingState(authoritativeRecordingState.current)
+      setRecordingMeter(latestRecordingMeter.current)
+      // Song settings may have changed while this room was kept in the background.
+      if (!engine.current.isPlaying && rehearsalRef.current && !isRecordingLocked()) void resolveSongDetails(rehearsalRef.current.items).catch(() => onToast('无法刷新歌曲设置，请重试'))
+    }
+  }, [active])
 
   const configurePlayback = useCallback(async (
     nextTimeline: RehearsalTimeline,
     details: Map<string, SongDetail>,
-    source = rehearsalRef.current
+    source = rehearsalRef.current,
+    recordingPreparation = false
   ): Promise<void> => {
     if (!source) return
+    const canConfigure = (): boolean => !isRecordingLocked() || (recordingPreparation && recordingStartPending.current && getRecordingSession()?.owner === 'rehearsal' && getRecordingSession()?.phase === 'starting')
+    if (!canConfigure()) return
     const configuration = {
       timeline: nextTimeline,
       songs: [...details.values()],
@@ -387,44 +484,60 @@ export function RehearsalRoom({
     }
     const operation = playbackConfigurationQueue.current
       .catch(() => undefined)
-      .then(() => engine.current.configure(configuration))
+      .then(() => { if (canConfigure()) return engine.current.configure(configuration) })
     playbackConfigurationQueue.current = operation.catch(() => undefined)
     await operation
   }, [settings?.audioOutputDeviceId, settings?.latencyMode])
 
   useEffect(() => {
-    if (!rehearsal || playing || recordingActive || playbackStarting.current) return
+    if (!rehearsal || playing || recordingLocked || playbackStarting.current) return
     void configurePlayback(timeline, songDetails).catch(() => {
       onToast('无法准备排练音频，请检查歌曲文件和输出设备')
     })
-  }, [configurePlayback, onToast, playing, recordingActive, rehearsal, songDetails, timeline])
+  }, [configurePlayback, onToast, playing, recordingLocked, rehearsal, songDetails, timeline])
 
   useEffect(() => {
-    void window.bandbuddy.rehearsals.recordingState().then(setRecordingState)
-    const stopState = window.bandbuddy.rehearsals.onRecordingState((next) => {
-      setRecordingState(next)
+    let mounted = true
+    const receiveState = (next: RehearsalRecordingState): void => {
+      if (!mounted) return
+      const previous = authoritativeRecordingState.current
+      authoritativeRecordingState.current = next
+      recordingStateVersion.current++
+      publishRecordingState('rehearsal', next)
+      if (activeRef.current || previous.phase !== next.phase || previous.message !== next.message || previous.error !== next.error || previous.recordingTrackId !== next.recordingTrackId) setRecordingState(next)
       if (!['idle', 'failed'].includes(next.phase)) {
+        nativeRecordingRequested.current = true
         recordingWasActive.current = true
-        setCurrentMs(next.timelinePositionMs)
-        const currentTimeline = buildRehearsalTimeline(
-          rehearsalRef.current?.items ?? [],
-          [...songsRef.current.values()]
-        )
-        setPosition(rehearsalTimelinePosition(currentTimeline, next.timelinePositionMs))
+        const nextPosition = rehearsalTimelinePosition(timelineRef.current, next.timelinePositionMs)
+        latestPosition.current = nextPosition
+        if (activeRef.current) { setCurrentMs(next.timelinePositionMs); setPosition(nextPosition) }
+        publishLyrics.current(nextPosition, false)
       } else if (next.phase === 'idle' && recordingWasActive.current) {
         recordingWasActive.current = false
         void refreshCurrentRehearsal()
       }
+      if (['idle', 'failed'].includes(next.phase)) {
+        nativeRecordingRequested.current = false
+        recordingInterruption.current = null
+      } else if (recordingInterruption.current && !['stopping', 'finalizing'].includes(next.phase)) {
+        void completeRecordingInterruption()
+      }
       if (next.error && !isCancellationError(next.error)) {
         onToast(toUserErrorMessage(next.error, '排练录音失败，请检查声卡后重试'))
       }
-    })
-    const stopMeter = window.bandbuddy.rehearsals.onMeter(setRecordingMeter)
+    }
+    const version = recordingStateVersion.current
+    void window.bandbuddy.rehearsals.recordingState().then(next => {
+      if (version === recordingStateVersion.current && !recordingStartPending.current) receiveState(next)
+    }).catch(error => { if (mounted) onToast(toUserErrorMessage(error, '无法获取排练录音状态')) })
+    const stopState = window.bandbuddy.rehearsals.onRecordingState(receiveState)
+    const stopMeter = window.bandbuddy.rehearsals.onMeter(value => { latestRecordingMeter.current = value; if (activeRef.current) setRecordingMeter(value) })
     return () => {
+      mounted = false
       stopState()
       stopMeter()
     }
-  }, [onToast, refreshCurrentRehearsal])
+  }, [completeRecordingInterruption, onToast, refreshCurrentRehearsal])
 
   useEffect(() => {
     onRecordingLockChange(recordingActive)
@@ -436,63 +549,50 @@ export function RehearsalRoom({
     setPosition(rehearsalTimelinePosition(timeline, currentMs))
   }, [currentMs, rehearsal, timeline])
 
-  const activeLyricSong = position.segment?.songId
-    ? songDetails.get(position.segment.songId) ?? null
-    : null
-  const desktopLyricsVisible = Boolean(
-    position.segment
-    && position.segment.kind !== 'transition'
-    && position.segment.desktopLyricsEnabled
-    && activeLyricSong?.lyrics?.cues.length
-  )
-
-  useEffect(() => {
-    void window.bandbuddy.desktopLyrics.setVisible(desktopLyricsVisible).catch(() => {
-      if (desktopLyricsVisible) onToast('无法打开桌面歌词，请重启应用后重试')
-    })
-  }, [desktopLyricsVisible, onToast])
-
-  useEffect(() => {
-    if (!desktopLyricsVisible || !activeLyricSong?.lyrics) return
-    const sourceMs = position.segment?.kind === 'song' ? position.songSourceMs : 0
-    const frame = lyricFrameAt(activeLyricSong.lyrics.cues, sourceMs)
-    const currentLines = (frame.current?.lines ?? [
-      activeLyricSong.artist ? `${activeLyricSong.title} · ${activeLyricSong.artist}` : activeLyricSong.title
-    ]).slice(0, 4).map((line) => line.slice(0, 1000))
-    const nextLines = (frame.next?.lines ?? []).slice(0, 4).map((line) => line.slice(0, 1000))
-    const running = playing || recordingActive
-    const signature = `${activeLyricSong.id}\n${running}\n${currentLines.join('\n')}\n${nextLines.join('\n')}`
+  publishLyrics.current = (next, playbackRunning): void => {
+    const owner = getAudioSession()?.owner
+    const ownRecording = !['idle', 'failed'].includes(authoritativeRecordingState.current.phase)
+    if (owner && owner !== 'rehearsal' && !ownRecording) return
+    if (!activeRef.current && owner !== 'rehearsal' && !ownRecording) return
+    const lyricSong = next.segment?.songId ? songsRef.current.get(next.segment.songId) : null
+    const visible = Boolean(next.segment && next.segment.kind !== 'transition' && next.segment.desktopLyricsEnabled && lyricSong?.lyrics?.cues.length)
+    if (visible !== lyricVisibility.current) {
+      lyricVisibility.current = visible
+      void window.bandbuddy.desktopLyrics.setVisible(visible).catch(() => onToast('无法打开桌面歌词，请重启应用后重试'))
+    }
+    if (!visible || !lyricSong?.lyrics) return
+    const frame = lyricFrameAt(lyricSong.lyrics.cues, next.segment?.kind === 'song' ? next.songSourceMs : 0)
+    const currentLines = (frame.current?.lines ?? [lyricSong.artist ? `${lyricSong.title} · ${lyricSong.artist}` : lyricSong.title]).slice(0, 4).map(line => line.slice(0, 1000))
+    const nextLines = (frame.next?.lines ?? []).slice(0, 4).map(line => line.slice(0, 1000))
+    const running = playbackRunning || (ownRecording && authoritativeRecordingState.current.phase !== 'paused')
+    const signature = `${lyricSong.id}\n${running}\n${currentLines.join('\n')}\n${nextLines.join('\n')}`
     const now = performance.now()
     if (signature === lastLyricsUpdate.current.signature && now - lastLyricsUpdate.current.at < 80) return
     lastLyricsUpdate.current = { at: now, signature }
-    const payload: DesktopLyricsPayload = {
-      title: activeLyricSong.title,
-      artist: activeLyricSong.artist,
-      currentLines,
-      nextLines,
-      progress: frame.progress,
-      playing: running
-    }
+    const payload: DesktopLyricsPayload = { title: lyricSong.title, artist: lyricSong.artist, currentLines, nextLines, progress: frame.progress, playing: running }
     window.bandbuddy.desktopLyrics.update(payload)
-  }, [activeLyricSong, desktopLyricsVisible, playing, position.segment?.kind, position.songSourceMs, recordingActive])
+  }
+  useEffect(() => { publishLyrics.current(latestPosition.current, playing) }, [active, playing, recordingActive, songDetails])
 
   useEffect(() => () => {
     void window.bandbuddy.desktopLyrics.setVisible(false)
   }, [])
 
   const switchRehearsal = async (rehearsalId: string): Promise<void> => {
-    if (recordingActive || rehearsalId === rehearsalRef.current?.id) return
-    engine.current.pause()
+    if (!allowAudioAction() || rehearsalId === rehearsalRef.current?.id) return
+    engine.current.pause(); releaseAudioSession('rehearsal')
     setPlaying(false)
     await flushSave()
+    if (!allowAudioAction()) return
     await loadRehearsal(rehearsalId)
   }
 
   const createRehearsal = async (): Promise<void> => {
-    if (recordingActive) return
-    engine.current.pause()
+    if (!allowAudioAction()) return
+    engine.current.pause(); releaseAudioSession('rehearsal')
     setPlaying(false)
     await flushSave()
+    if (!allowAudioAction()) return
     const created = await window.bandbuddy.rehearsals.create('新排练编排')
     updateSetListEntry(created)
     await resolveSongDetails(created.items)
@@ -501,10 +601,11 @@ export function RehearsalRoom({
 
   const duplicateRehearsal = async (revisionId?: string): Promise<void> => {
     const current = rehearsalRef.current
-    if (!current || recordingActive) return
-    engine.current.pause()
+    if (!current || !allowAudioAction()) return
+    engine.current.pause(); releaseAudioSession('rehearsal')
     setPlaying(false)
     await flushSave()
+    if (!allowAudioAction()) return
     try {
       const duplicate = await window.bandbuddy.rehearsals.duplicate({
         rehearsalId: current.id,
@@ -521,10 +622,11 @@ export function RehearsalRoom({
 
   const deleteRehearsal = async (): Promise<void> => {
     const current = rehearsalRef.current
-    if (!current || recordingActive || !window.confirm(`确定删除“${current.name}”？相关排练录音会移入系统废纸篓。`)) return
-    engine.current.pause()
+    if (!current || !allowAudioAction() || !await confirmAction({ title: '删除排练', message: `确定删除“${current.name}”？相关排练录音会移入系统废纸篓。`, destructive: true }) || !allowAudioAction()) return
+    engine.current.pause(); releaseAudioSession('rehearsal')
     setPlaying(false)
     await flushSave()
+    if (!allowAudioAction()) return
     try {
       await window.bandbuddy.rehearsals.delete(current.id)
       let remaining = await refreshSetList()
@@ -690,13 +792,16 @@ export function RehearsalRoom({
     setDragSource(source)
   }
 
-  const refreshBeforePlayback = async (): Promise<{
+  const refreshBeforePlayback = async (recordingPreparation = false): Promise<{
     details: Map<string, SongDetail>
     timeline: RehearsalTimeline
   } | null> => {
     const current = rehearsalRef.current
     if (!current) return null
     const details = await resolveSongDetails(current.items)
+    if (recordingPreparation
+      ? !recordingStartPending.current || getRecordingSession()?.owner !== 'rehearsal' || getRecordingSession()?.phase !== 'starting'
+      : isRecordingLocked()) return null
     const nextTimeline = buildRehearsalTimeline(current.items, [...details.values()])
     if (!nextTimeline.segments.length) {
       onToast('编排单为空，请先加入歌曲或衔接')
@@ -706,23 +811,25 @@ export function RehearsalRoom({
       onToast('编排中有不可用歌曲，请先移除或替换')
       return null
     }
-    await configurePlayback(nextTimeline, details, current)
+    await configurePlayback(nextTimeline, details, current, recordingPreparation)
     return { details, timeline: nextTimeline }
   }
 
   const togglePlayback = async (): Promise<void> => {
-    if (recordingActive || playbackStarting.current) return
+    if (!allowAudioAction() || playbackStarting.current) return
     if (playing) {
-      engine.current.pause()
+      engine.current.pause(); releaseAudioSession('rehearsal')
       setPlaying(false)
       return
     }
     playbackStarting.current = true
+    const session = claimAudioSession('rehearsal', rehearsalRef.current?.name ?? '排练编排', () => { engine.current.pause(); setPlaying(false); releaseAudioSession('rehearsal') })
     try {
       const plan = await refreshBeforePlayback()
-      if (!plan) return
+      if (!plan || !isAudioSessionCurrent(session) || !allowAudioAction()) { releaseAudioSession('rehearsal', session); return }
       if (!await engine.current.play()) throw new Error('REHEARSAL_PLAYBACK_NOT_STARTED')
     } catch (error) {
+      releaseAudioSession('rehearsal', session)
       onToast(toUserErrorMessage(error, '排练播放失败，请检查歌曲文件或输出设备'))
     } finally {
       playbackStarting.current = false
@@ -730,21 +837,21 @@ export function RehearsalRoom({
   }
 
   const seek = async (milliseconds: number): Promise<void> => {
-    if (recordingActive) return
+    if (!allowAudioAction()) return
     await engine.current.seek(clamp(milliseconds, 0, timeline.totalDurationMs))
   }
 
   const stopPlayback = async (): Promise<void> => {
-    if (recordingActive) return
+    if (!allowAudioAction()) return
     await engine.current.stop()
+    releaseAudioSession('rehearsal')
     setPlaying(false)
   }
 
   const openSongSettings = async (itemId: string, songId: string): Promise<void> => {
-    if (recordingActive) return
-    engine.current.pause()
-    setPlaying(false)
+    if (!allowAudioAction()) return
     await flushSave()
+    if (!allowAudioAction()) return
     const current = rehearsalRef.current
     if (!current) return
     onOpenSongSettings({
@@ -757,29 +864,64 @@ export function RehearsalRoom({
 
   const startRecording = async (recordingTrackId: string): Promise<void> => {
     const current = rehearsalRef.current
-    if (!current || recordingActive) return
-    engine.current.pause()
+    if (!current || recordingStartPending.current || !allowAudioAction()) return
+    const token = ++recordingStartGeneration.current
+    recordingStartPending.current = true
+    recordingInterruption.current = null
+    recordingStateVersion.current++
+    publishRecordingState('rehearsal', { phase: 'starting', message: '正在准备排练录音…' })
+    const currentStart = (): boolean => token === recordingStartGeneration.current && getRecordingSession()?.owner === 'rehearsal' && getRecordingSession()?.phase === 'starting'
+    pauseAudioSession()
+    engine.current.pause(); releaseAudioSession('rehearsal')
     setPlaying(false)
-    setRecordingMeter({ ...idleMeter, sourcePositionMs: currentMs })
+    latestRecordingMeter.current = { ...idleMeter, sourcePositionMs: currentMs }
+    setRecordingMeter(latestRecordingMeter.current)
+    let failed = false
     try {
       await flushSave()
-      const plan = await refreshBeforePlayback()
-      if (!plan) return
+      if (!currentStart()) return
+      const plan = await refreshBeforePlayback(true)
+      if (!plan || !currentStart()) return
+      nativeRecordingRequested.current = true
       await window.bandbuddy.rehearsals.startRecording({
         rehearsalId: current.id,
         recordingTrackId,
         positionMs: currentMs
       })
+      if (token !== recordingStartGeneration.current) await completeRecordingInterruption(token)
     } catch (error) {
+      failed = true
       if (!isCancellationError(error)) {
         onToast(toUserErrorMessage(error, '排练录音失败，请检查声卡后重试'))
+      }
+    } finally {
+      if (token === recordingStartGeneration.current) {
+        recordingStartPending.current = false
+        if ((!nativeRecordingRequested.current || failed) && getRecordingSession()?.owner === 'rehearsal' && getRecordingSession()?.phase === 'starting') {
+          nativeRecordingRequested.current = false
+          publishRecordingState('rehearsal', authoritativeRecordingState.current)
+        }
       }
     }
   }
 
+  const cancelRecordingPreparation = (action: 'stop' | 'cancel'): boolean => {
+    if (recordingStartPending.current && nativeRecordingRequested.current) recordingInterruption.current = { generation: recordingStartGeneration.current, action }
+    recordingStartGeneration.current++
+    recordingStartPending.current = false
+    recordingStateVersion.current++
+    if (!nativeRecordingRequested.current && getRecordingSession()?.owner === 'rehearsal' && getRecordingSession()?.phase === 'starting') {
+      publishRecordingState('rehearsal', authoritativeRecordingState.current)
+      return true
+    }
+    return false
+  }
+
   const stopRecording = async (): Promise<void> => {
+    if (getRecordingSession()?.owner !== 'rehearsal' || cancelRecordingPreparation('stop')) return
     try {
-      await window.bandbuddy.rehearsals.stopRecording()
+      if (recordingInterruption.current) await completeRecordingInterruption()
+      else await window.bandbuddy.rehearsals.stopRecording()
       await refreshCurrentRehearsal()
     } catch (error) {
       onToast(toUserErrorMessage(error, '停止排练录音失败，请重试'))
@@ -787,16 +929,53 @@ export function RehearsalRoom({
   }
 
   const cancelRecording = async (): Promise<void> => {
-    if (!window.confirm('放弃本次排练录音？未保存的音频会被删除。')) return
-    await window.bandbuddy.rehearsals.cancelRecording()
-    setRecordingMeter(idleMeter)
+    if (getRecordingSession()?.owner !== 'rehearsal') return
+    if (!await confirmAction({ title: '放弃本次录音', message: '放弃本次排练录音？未保存的音频会被删除。', destructive: true })) return
+    if (getRecordingSession()?.owner !== 'rehearsal' || cancelRecordingPreparation('cancel')) return
+    try {
+      if (recordingInterruption.current) await completeRecordingInterruption()
+      else await window.bandbuddy.rehearsals.cancelRecording()
+      latestRecordingMeter.current = idleMeter
+      if (activeRef.current) setRecordingMeter(idleMeter)
+    } catch (error) {
+      onToast(toUserErrorMessage(error, '取消排练录音失败，请重试'))
+    }
   }
+
+  const pauseRecording = async (): Promise<void> => {
+    if (getRecordingSession()?.owner !== 'rehearsal' || !['armed', 'countIn', 'recording'].includes(authoritativeRecordingState.current.phase)) return
+    try { await window.bandbuddy.rehearsals.pauseRecording() }
+    catch (error) { onToast(toUserErrorMessage(error, '暂停排练录音失败，请重试')) }
+  }
+
+  const resumeRecording = async (): Promise<void> => {
+    if (getRecordingSession()?.owner !== 'rehearsal' || authoritativeRecordingState.current.phase !== 'paused') return
+    try { await window.bandbuddy.rehearsals.resumeRecording() }
+    catch (error) { onToast(toUserErrorMessage(error, '继续排练录音失败，请重试')) }
+  }
+
+  const recordingControls = useRef<RecordingControls>({ stop: stopRecording, cancel: cancelRecording, pause: pauseRecording, resume: resumeRecording })
+  recordingControls.current = { stop: stopRecording, cancel: cancelRecording, pause: pauseRecording, resume: resumeRecording }
+  useEffect(() => {
+    const unregister = registerRecordingControls('rehearsal', {
+      stop: () => recordingControls.current.stop(),
+      cancel: () => recordingControls.current.cancel(),
+      pause: () => recordingControls.current.pause?.(),
+      resume: () => recordingControls.current.resume?.()
+    })
+    return () => {
+      recordingStartGeneration.current++
+      unregister()
+      publishRecordingState('rehearsal', { phase: 'idle' })
+    }
+  }, [])
 
   const createRecordingTrack = async (): Promise<void> => {
     const current = rehearsalRef.current
-    if (!current || recordingActive) return
+    if (!current || !allowAudioAction()) return
     try {
       await flushSave()
+      if (!allowAudioAction()) return
       await window.bandbuddy.rehearsals.createTrack(current.id)
       await refreshCurrentRehearsal()
     } catch (error) {
@@ -808,7 +987,7 @@ export function RehearsalRoom({
     recordingTrackId: string,
     patch: Partial<Pick<RehearsalRecordingTrackState, 'name' | 'gainDb' | 'muted' | 'solo'>>
   ): Promise<void> => {
-    if (recordingActive) return
+    if (!allowAudioAction()) return
     try {
       await window.bandbuddy.rehearsals.updateTrack({ recordingTrackId, patch })
       await refreshCurrentRehearsal()
@@ -818,7 +997,7 @@ export function RehearsalRoom({
   }
 
   const selectTake = async (recordingTrackId: string, takeId: string | null): Promise<void> => {
-    if (recordingActive) return
+    if (!allowAudioAction()) return
     await window.bandbuddy.rehearsals.selectTake({ recordingTrackId, takeId })
     await refreshCurrentRehearsal()
   }
@@ -827,13 +1006,13 @@ export function RehearsalRoom({
     takeId: string,
     patch: { name?: string; alignmentOffsetMs?: number }
   ): Promise<void> => {
-    if (recordingActive) return
+    if (!allowAudioAction()) return
     await window.bandbuddy.rehearsals.updateTake({ takeId, ...patch })
     await refreshCurrentRehearsal()
   }
 
   const deleteTake = async (take: RehearsalRecordingTake): Promise<void> => {
-    if (recordingActive || !window.confirm(`确定删除“${take.name}”？此操作无法撤销。`)) return
+    if (!allowAudioAction() || !await confirmAction({ title: '删除 Take', message: `确定删除“${take.name}”？此操作无法撤销。`, destructive: true }) || !allowAudioAction()) return
     await window.bandbuddy.rehearsals.deleteTake(take.id)
     await refreshCurrentRehearsal()
   }
@@ -862,21 +1041,21 @@ export function RehearsalRoom({
       <header className="rehearsal-header">
         <div className="rehearsal-set-picker">
           <ListMusic size={19} />
-          <select
+          <Select
             aria-label="选择排练编排单"
             value={rehearsal.id}
-            disabled={recordingActive}
+            disabled={recordingLocked}
             onChange={(event) => void switchRehearsal(event.target.value)}
           >
             {sets.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+          </Select>
           <ChevronDown size={14} />
         </div>
         <input
           className="rehearsal-name"
           aria-label="编排单名称"
           value={rehearsal.name}
-          disabled={recordingActive}
+          disabled={recordingLocked}
           maxLength={120}
           onChange={(event) => commitDraft({ ...rehearsal, name: event.target.value })}
           onBlur={() => {
@@ -888,9 +1067,9 @@ export function RehearsalRoom({
           {saveStatus === 'saved' ? '已自动保存' : saveStatus === 'saving' ? '正在保存' : saveStatus === 'dirty' ? '等待保存' : '保存失败'}
         </div>
         <div className="rehearsal-header-actions">
-          <button className="outline-button compact" disabled={recordingActive} onClick={() => void createRehearsal()}><Plus size={15} />新建</button>
-          <button className="outline-button compact" disabled={recordingActive} onClick={() => void duplicateRehearsal()}><Copy size={15} />复制</button>
-          <button className="outline-button compact danger" disabled={recordingActive} onClick={() => void deleteRehearsal()}><Trash2 size={15} />删除</button>
+          <button className="outline-button compact" disabled={recordingLocked} onClick={() => void createRehearsal()}><Plus size={15} />新建</button>
+          <button className="outline-button compact" disabled={recordingLocked} onClick={() => void duplicateRehearsal()}><Copy size={15} />复制</button>
+          <button className="outline-button compact danger" disabled={recordingLocked} onClick={() => void deleteRehearsal()}><Trash2 size={15} />删除</button>
         </div>
         <div className="rehearsal-stats">
           <b>{rehearsal.songCount}</b><span>首歌曲</span><i />
@@ -903,16 +1082,17 @@ export function RehearsalRoom({
         <span><b>编排中有 {timeline.unavailableItemIds.length} 首不可用歌曲</b>歌曲已从曲库删除或尚未就绪。占位项会保留，但播放和录音前必须移除或替换。</span>
       </div>}
 
-      <section className="rehearsal-layout">
-        <aside className="rehearsal-palette">
+      <button className="outline-button compact rehearsal-palette-toggle" aria-expanded={paletteExpanded} aria-controls="rehearsal-palette" onClick={() => setPalettePreference(!paletteExpanded)}><ListMusic size={16} />{paletteExpanded ? '收起曲库素材' : '展开曲库素材'}</button>
+      <section className={`rehearsal-layout ${paletteExpanded ? '' : 'is-palette-collapsed'}`}>
+        <aside id="rehearsal-palette" className="rehearsal-palette" aria-hidden={!paletteExpanded} inert={!paletteExpanded}>
           <div className="rehearsal-section-title">
             <span><ListMusic size={17} /><b>曲库素材</b></span>
             <small>{filteredSongs.length} 首可用</small>
           </div>
           <label className="rehearsal-search">
             <Search size={16} />
-            <input value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder="搜索歌曲或艺术家" />
-            {libraryQuery && <button aria-label="清空搜索" onClick={() => setLibraryQuery('')}><X size={14} /></button>}
+            <input aria-label="搜索排练素材" value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} onCompositionStart={() => setLibraryComposing(true)} onCompositionEnd={(event) => { setLibrarySearch(event.currentTarget.value); setLibraryComposing(false) }} placeholder="搜索歌曲或艺术家" />
+            {librarySearch && <button aria-label="清空搜索" onClick={() => { setLibrarySearch(''); setLibraryQuery('') }}><X size={14} /></button>}
           </label>
           <button
             className="transition-asset"
@@ -930,8 +1110,11 @@ export function RehearsalRoom({
             <small>默认 10 秒 · 拖入队列</small>
             <Plus size={15} />
           </button>
-          <div className="rehearsal-song-assets">
-            {filteredSongs.map((song) => <article
+          <div ref={assets} className="rehearsal-song-assets" role="list" aria-label="排练曲库素材" onScroll={(event) => { const element = event.currentTarget; setAssetViewport(previous => ({ ...previous, top: element.scrollTop })) }}>
+            {paletteExpanded && <>
+            {assetStart > 0 && <div aria-hidden="true" style={{ height: assetStart * 56 }} />}
+            {filteredSongs.slice(assetStart, assetEnd).map((song, index) => <article
+              role="listitem" aria-posinset={assetStart + index + 1} aria-setsize={filteredSongs.length}
               key={song.id}
               className="rehearsal-song-asset"
               draggable={!structureLocked}
@@ -950,7 +1133,9 @@ export function RehearsalRoom({
                 onClick={() => addAtEnd({ kind: 'song', songId: song.id })}
               ><Plus size={15} /></button>
             </article>)}
+            {assetEnd < filteredSongs.length && <div aria-hidden="true" style={{ height: (filteredSongs.length - assetEnd) * 56 }} />}
             {filteredSongs.length === 0 && <div className="rehearsal-no-assets">没有匹配的已就绪歌曲</div>}
+            </>}
           </div>
           <p className="drag-help"><GripVertical size={13} />拖动素材到右侧；双击空白衔接可直接追加</p>
         </aside>
@@ -966,7 +1151,7 @@ export function RehearsalRoom({
                 key={segment.id}
                 className={`${segment.kind} ${segment.itemId === activeItemId ? 'active' : ''}`}
                 style={{ flexGrow: Math.max(1, segment.endMs - segment.startMs) }}
-                disabled={recordingActive}
+                disabled={recordingLocked}
                 title={`${segment.title} · ${formatTime(segment.endMs - segment.startMs)}`}
                 onClick={() => void seek(segment.startMs)}
               ><span>{segment.kind === 'countIn' ? '预备' : segment.kind === 'transition' ? '衔接' : segment.title}</span></button>)}
@@ -1056,7 +1241,7 @@ export function RehearsalRoom({
                       song={songDetail}
                       startMs={itemPosition?.startMs ?? null}
                       structureLocked={structureLocked}
-                      settingsLocked={recordingActive}
+                      settingsLocked={recordingLocked}
                       onSettings={() => item.songId && void openSongSettings(item.id, item.songId)}
                       onRemove={() => removeItem(item.id)}
                     />
@@ -1081,7 +1266,7 @@ export function RehearsalRoom({
           <section className="rehearsal-recording-card">
             <div className="rehearsal-section-title">
               <span><Mic2 size={17} /><b>整场多轨录音</b><small>一次武装一条轨，不显示波形</small></span>
-              <button className="outline-button compact" disabled={recordingActive} onClick={() => void createRecordingTrack()}><Plus size={14} />添加录音轨</button>
+              <button className="outline-button compact" disabled={recordingLocked} onClick={() => void createRecordingTrack()}><Plus size={14} />添加录音轨</button>
             </div>
             {rehearsal.recordingTracks.length === 0
               ? <div className="rehearsal-empty-tracks"><Mic2 size={24} /><span>添加录音轨后，可从当前整场进度开始连续叠录。</span></div>
@@ -1094,7 +1279,7 @@ export function RehearsalRoom({
                   state={recordingState}
                   meter={recordingMeter}
                   soloActive={recordingSoloActive}
-                  locked={recordingActive}
+                  locked={recordingLocked}
                   canRecord={timeline.segments.length > 0 && timeline.unavailableItemIds.length === 0}
                   onRecord={() => void startRecording(track.id)}
                   onTrack={(patch) => void updateRecordingTrack(track.id, patch)}
@@ -1122,22 +1307,23 @@ export function RehearsalRoom({
             <button
               className="player-round"
               aria-label={recordingState.phase === 'paused' ? '继续录音' : '暂停录音'}
+              disabled={!['armed', 'countIn', 'recording', 'paused'].includes(activeRecordingPhase)}
               onClick={() => void (recordingState.phase === 'paused'
-                ? window.bandbuddy.rehearsals.resumeRecording()
-                : window.bandbuddy.rehearsals.pauseRecording())}
+                ? resumeRecording()
+                : pauseRecording())}
             >{recordingState.phase === 'paused' ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
-            <button className="player-stop-save" onClick={() => void stopRecording()}><Square size={15} fill="currentColor" />停止并保存</button>
-            <button className="player-cancel-record" onClick={() => void cancelRecording()}><X size={17} />放弃</button>
+            <button className="player-stop-save" disabled={['starting', 'preparing', 'stopping', 'finalizing'].includes(activeRecordingPhase)} onClick={() => void stopRecording()}><Square size={15} fill="currentColor" />停止并保存</button>
+            <button className="player-cancel-record" disabled={['stopping', 'finalizing'].includes(activeRecordingPhase)} onClick={() => void cancelRecording()}><X size={17} />放弃</button>
           </div>
           : <div className="rehearsal-transport">
-            <button aria-label="上一项" onClick={() => void seek(engine.current.previousItemStart())}><SkipBack size={18} fill="currentColor" /></button>
-            <button aria-label="后退 5 秒" onClick={() => void seek(currentMs - 5000)}><RotateCcw size={17} /><small>5</small></button>
-            <button className="player-round primary" aria-label={playing ? '暂停' : '播放'} onClick={() => void togglePlayback()}>
+            <button aria-label="上一项" disabled={recordingLocked} onClick={() => void seek(engine.current.previousItemStart())}><SkipBack size={18} fill="currentColor" /></button>
+            <button aria-label="后退 5 秒" disabled={recordingLocked} onClick={() => void seek(currentMs - 5000)}><RotateCcw size={17} /><small>5</small></button>
+            <button className="player-round primary" disabled={recordingLocked} aria-label={playing ? '暂停' : '播放'} onClick={() => void togglePlayback()}>
               {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
             </button>
-            <button aria-label="前进 5 秒" onClick={() => void seek(currentMs + 5000)}><FastForward size={18} /><small>5</small></button>
-            <button aria-label="下一项" onClick={() => void seek(engine.current.nextItemStart())}><SkipForward size={18} fill="currentColor" /></button>
-            <button aria-label="停止并归零" onClick={() => void stopPlayback()}><Square size={14} fill="currentColor" /></button>
+            <button aria-label="前进 5 秒" disabled={recordingLocked} onClick={() => void seek(currentMs + 5000)}><FastForward size={18} /><small>5</small></button>
+            <button aria-label="下一项" disabled={recordingLocked} onClick={() => void seek(engine.current.nextItemStart())}><SkipForward size={18} fill="currentColor" /></button>
+            <button aria-label="停止并归零" disabled={recordingLocked} onClick={() => void stopPlayback()}><Square size={14} fill="currentColor" /></button>
           </div>}
         <div className="rehearsal-scrubber">
           <span>{formatTime(currentMs)}</span>
@@ -1148,7 +1334,7 @@ export function RehearsalRoom({
             max={Math.max(1, timeline.totalDurationMs)}
             step="10"
             value={Math.min(currentMs, Math.max(1, timeline.totalDurationMs))}
-            disabled={recordingActive || timeline.totalDurationMs <= 0}
+            disabled={recordingLocked || timeline.totalDurationMs <= 0}
             onChange={(event) => void seek(Number(event.target.value))}
           />
           <span>{formatTime(timeline.totalDurationMs)}</span>
@@ -1158,7 +1344,7 @@ export function RehearsalRoom({
         {recordingActive
           ? <>
             <span className={`recording-dot ${recordingState.phase === 'paused' ? 'paused' : ''}`} />
-            <div><b>{recordingState.phase === 'paused' ? '录音已暂停' : recordingState.message || '录音中'}</b><small>{recordingState.preRollRemaining > 0 ? `额外预备拍 ${recordingState.preRollRemaining}` : `${recordingState.sampleRate || '—'} Hz · xrun ${recordingState.xruns}`}</small></div>
+            <div><b>{recordingState.phase === 'paused' ? '录音已暂停' : (recordingSession?.owner === 'rehearsal' ? recordingSession.message : recordingState.message) || '录音中'}</b><small>{recordingState.preRollRemaining > 0 ? `额外预备拍 ${recordingState.preRollRemaining}` : `${recordingState.sampleRate || '—'} Hz · xrun ${recordingState.xruns}`}</small></div>
           </>
           : <>
             <Clock3 size={18} />
@@ -1280,11 +1466,11 @@ function RehearsalRecordingRow({
 }): React.JSX.Element {
   const activeTake = takes.find((take) => take.id === track.activeTakeId) ?? null
   const mismatch = Boolean(activeTake && activeTake.timelineFingerprint !== timelineFingerprint)
-  const activeRecording = locked && state.recordingTrackId === track.id
+  const activeRecording = locked && !['idle', 'failed'].includes(state.phase) && state.recordingTrackId === track.id
   const peak = activeRecording ? Math.max(0, ...meter.peak) : 0
-  const renameTake = (): void => {
+  const renameTake = async (): Promise<void> => {
     if (!activeTake) return
-    const name = window.prompt('Take 名称', activeTake.name)?.trim()
+    const name = (await promptAction({ title: 'Take 名称', defaultValue: activeTake.name }))?.trim()
     if (name && name !== activeTake.name) onUpdateTake(activeTake.id, { name })
   }
   return <article className={`rehearsal-recording-row ${activeRecording ? 'active' : ''} ${mismatch ? 'mismatch' : ''}`}>
@@ -1308,15 +1494,15 @@ function RehearsalRecordingRow({
       <input type="range" min={MIN_GAIN_DB} max={MAX_GAIN_DB} step=".5" value={track.gainDb} disabled={locked || !activeTake} aria-label={`${track.name || '录音轨'}电平滑块`} onChange={(event) => onTrack({ gainDb: Number(event.target.value) })} />
       <LevelInput label={`${track.name || '录音轨'}电平`} value={track.gainDb} disabled={locked || !activeTake} onChange={(gainDb) => onTrack({ gainDb })} />
     </span>
-    <select value={activeTake?.id ?? ''} disabled={locked || takes.length === 0} onChange={(event) => onSelectTake(event.target.value || null)}>
+    <Select aria-label={`${track.name} 的 Take`} value={activeTake?.id ?? ''} disabled={locked || takes.length === 0} onChange={(event) => onSelectTake(event.target.value || null)}>
       <option value="">无活动 Take</option>
       {takes.map((take) => <option key={take.id} value={take.id}>{take.name}{take.timelineFingerprint === timelineFingerprint ? '' : ' · 旧版本'}</option>)}
-    </select>
+    </Select>
     {!locked
       ? <button className="rehearsal-arm" disabled={!canRecord} onClick={onRecord}><Circle size={14} fill="currentColor" />录制</button>
       : <span className="rehearsal-arm-status">{activeRecording ? state.phase === 'paused' ? '已暂停' : '录制中' : '未武装'}</span>}
     {activeTake && <div className="record-take-details">
-      <audio controls preload="metadata" src={activeTake.previewMediaUrl} />
+      <AudioPreview key={activeTake.id} src={activeTake.previewMediaUrl} label={`${activeTake.name} 试听`} />
       <button disabled={locked} title="重命名 Take" onClick={renameTake}><Pencil size={13} /></button>
       <label>对齐
         <input

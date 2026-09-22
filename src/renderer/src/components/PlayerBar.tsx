@@ -48,7 +48,7 @@ export function PlayerBar({
 }): React.JSX.Element {
   const song = usePlayerStore((state) => state.song)
   const practice = usePlayerStore((state) => state.practice)
-  const currentMs = usePlayerStore((state) => state.currentMs)
+  const currentMs = usePlayerStore((state) => Math.floor(state.currentMs / 100) * 100)
   const playing = usePlayerStore((state) => state.playing)
   const patchPractice = usePlayerStore((state) => state.patchPractice)
   const lastAudibleGain = useRef(0)
@@ -82,9 +82,9 @@ export function PlayerBar({
       </button>
       <div className="transport">
         <button className="restart-playback" disabled={locked} aria-label={activeLoopRange(practice) ? '跳回 A 点并播放' : '跳回开头并播放'} title={activeLoopRange(practice) ? '跳回 A 点并播放（Home）' : '跳回开头并播放（Home）'} onClick={onRestart}><SkipBack size={20} /></button>
-        <button aria-label="后退 5 秒" onClick={() => onSeek(currentMs - 5000)}><RotateCcw size={22} /><i>5</i></button>
+        <button aria-label="后退 5 秒" onClick={() => onSeek(usePlayerStore.getState().currentMs - 5000)}><RotateCcw size={22} /><i>5</i></button>
         <button className="main-play" aria-label={playbackActive ? '暂停' : '播放'} onClick={onToggle}>{playbackActive ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}</button>
-        <button aria-label="前进 5 秒" onClick={() => onSeek(currentMs + 5000)}><RotateCw size={22} /><i>5</i></button>
+        <button aria-label="前进 5 秒" onClick={() => onSeek(usePlayerStore.getState().currentMs + 5000)}><RotateCw size={22} /><i>5</i></button>
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
