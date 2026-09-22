@@ -738,3 +738,10 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: #f
 .lan-addresses > div { display: flex; gap: 8px; margin: 10px 0; }
 .lan-addresses input { min-width: 0; flex: 1; font-size: 12px; }
 .track-identity b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Five primary workspaces must fit before the lazy-loaded woodshed styles arrive. */
+@media (max-width: 1280px) {
+  .titlebar { grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 16px; }
+  .titlebar .top-nav { justify-self: center; gap: 8px; }
+  .titlebar .top-nav button { gap: 6px; padding: 0 8px; }
+}

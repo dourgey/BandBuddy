@@ -72,7 +72,7 @@ mac:
       arch: [arm64]
   artifactName: "BandBuddy-${version}-macos-${arch}.${ext}"
   extendInfo:
-    NSMicrophoneUsageDescription: BandBuddy 需要访问音频输入设备来录制你的单轨练习。
+    NSMicrophoneUsageDescription: BandBuddy 需要访问音频输入设备来调音和录制你的单轨练习。
 dmg:
   title: "BandBuddy ${version}"
 publish: null

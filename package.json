@@ -68,6 +68,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "signalsmith-stretch": "1.3.2",
+    "vexflow": "5.0.0",
     "wavesurfer.js": "7.12.11",
     "zod": "4.4.3",
     "zustand": "5.0.14"

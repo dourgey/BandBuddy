@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Library, Plus } from 'lucide-react'
 import {
@@ -33,6 +33,8 @@ import { loadStartupAudioSettings } from './startup-audio-devices.js'
 import { clamp, isCancellationError, silenceToggle, toUserErrorMessage } from './utils.js'
 import './playback-media.css'
 
+const WoodshedPage = lazy(() => import('./pages/WoodshedPage.js'))
+
 const previewParams = new URLSearchParams(location.search)
 const fixtureMode = import.meta.env.DEV && previewParams.has('fixtures')
 const fixtureGuitarPreview = import.meta.env.DEV ? previewParams.get('guitarSplit') : null
@@ -40,7 +42,7 @@ const fixtureGuitarPreview = import.meta.env.DEV ? previewParams.get('guitarSpli
 export default function App(): React.JSX.Element {
   const client = useQueryClient()
   const engine = useRef<MultiTrackAudioEngine>(new MultiTrackAudioEngine())
-  const [view, setView] = useState<'library' | 'practice' | 'rehearsal' | 'arsenal'>('library')
+  const [view, setView] = useState<'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'>('library')
   const [activeRehearsalId, setActiveRehearsalId] = useState<string | null>(null)
   const [rehearsalReturn, setRehearsalReturn] = useState<{
     rehearsalId: string
@@ -533,7 +535,7 @@ export default function App(): React.JSX.Element {
   }
 
   const recordingLocked = !['idle', 'failed'].includes(recordingState.phase)
-  useKeyboardShortcuts({ song, practice, currentMs, selectedStem, seek, togglePlayback, restartPlayback, cycleLoop, patchPractice, patchTrack, setSelectedStem, enabled: view !== 'rehearsal' && view !== 'arsenal' && !recordingLocked })
+  useKeyboardShortcuts({ song, practice, currentMs, selectedStem, seek, togglePlayback, restartPlayback, cycleLoop, patchPractice, patchTrack, setSelectedStem, enabled: view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && !recordingLocked })
 
   const tasks = tasksQuery.data ?? []
   const activeTaskCount = tasks.filter((job) => !['completed', 'cancelled', 'failed', 'interrupted'].includes(job.status)).length
@@ -554,16 +556,16 @@ export default function App(): React.JSX.Element {
     rehearsalReturn && rehearsalReturn.rehearsalId === rehearsalInitialId
   )
 
-  const changeView = async (next: 'library' | 'practice' | 'rehearsal' | 'arsenal'): Promise<void> => {
+  const changeView = async (next: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'): Promise<void> => {
     if (rehearsalRecordingLocked || next === view) return
-    if (view === 'practice') {
+    if (view === 'practice' || next === 'woodshed') {
       if (recordingLocked) await stopRecording()
       engine.current.pause()
       setPlaying(false)
       setCountInRemaining(0)
       await saveNow()
     }
-    if (next === 'library' || next === 'practice' || next === 'arsenal') setRehearsalReturn(null)
+    if (next === 'library' || next === 'practice' || next === 'arsenal' || next === 'woodshed') setRehearsalReturn(null)
     setView(next)
   }
 
@@ -590,7 +592,7 @@ export default function App(): React.JSX.Element {
       onTasks={() => setTasksOpen(true)}
       onSettings={() => setSettingsOpen(true)}
     />
-    {view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
+    {view === 'woodshed' ? <Suspense fallback={<main className="page"><p>正在打开练功房…</p></main>}><WoodshedPage outputDeviceId={settings?.audioOutputDeviceId} onToast={setToast} /></Suspense> : view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
       songs={songs} loading={songsQuery.isLoading} query={query} filter={filter} layout={layout}
       onQuery={setQuery} onFilter={setFilter} onLayout={setLayout} onImport={() => setImportOpen(true)}
       onOpen={(selected) => { setRehearsalReturn(null); void openSong(selected) }} onPlay={(selected) => { setRehearsalReturn(null); void openSong(selected, true) }}
@@ -626,7 +628,7 @@ export default function App(): React.JSX.Element {
       onDeleteTake={(takeId) => void deleteTake(takeId)} onRecordingTrack={(recordingTrackId, patch) => void updateRecordingTrack(recordingTrackId, patch)}
       onUseTakePractice={(rate, pitchSemitones) => patchPractice({ playbackRate: rate, pitchSemitones })}
     /> : <NoSongPractice onLibrary={() => setView('library')} onImport={() => setImportOpen(true)} />}
-    {view !== 'rehearsal' && view !== 'arsenal' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')
