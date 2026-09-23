@@ -95,7 +95,7 @@ if(WIN32)
 endif()
 
 if(MSVC)
-  target_compile_options(bandbuddy-audio-host PRIVATE /W4 /permissive- /EHsc)
+  target_compile_options(bandbuddy-audio-host PRIVATE /W4 /permissive- /EHsc /utf-8)
 else()
   target_compile_options(bandbuddy-audio-host PRIVATE -Wall -Wextra -Wpedantic)
 endif()

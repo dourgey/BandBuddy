@@ -301,7 +301,24 @@ export class RuntimeManager {
       const onnxVariant = selectOnnxRuntimeVariant(process.platform, backend)
       installArgs.push(...pythonRuntimeRequirements(PYTHON_RUNTIME_VERSIONS, onnxVariant))
       this.logger.info('selected ONNX Runtime package', { onnxVariant, backend, cudaVersion })
-      await run(installArgs, '安装本地分轨组件（下载可续传）', 0.32)
+      try {
+        await run(installArgs, '安装本地分轨组件（下载可续传）', 0.32)
+      } catch (error) {
+        // A configured mirror can reject only some packages (or return an
+        // HTML/403 response), which uv reports as an unsatisfiable package
+        // set. Retry against PyPI so a mirror outage does not leave imported
+        // songs permanently unable to start separation.
+        const mirror = settings.network.pythonIndexUrl
+        const message = String(error)
+        const mirrorRejected = Boolean(mirror)
+          && /403|404|forbidden|not found|no solution found|unsatisfiable/i.test(message)
+        if (!mirrorRejected) throw error
+        const fallbackArgs = [...installArgs]
+        const defaultIndex = fallbackArgs.indexOf('--default-index')
+        if (defaultIndex >= 0) fallbackArgs[defaultIndex + 1] = 'https://pypi.org/simple'
+        this.logger.warn('python package mirror rejected dependency resolution; retrying with PyPI')
+        await run(fallbackArgs, '镜像不可用，改用官方源安装本地分轨组件', 0.32)
+      }
 
       this.update({ status: 'downloadingModel', stage: '下载并校验分轨资源', progress: 0.78 })
       const modelArgs = ['ensure-model', '--model-root', settings.modelRoot]
