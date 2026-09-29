@@ -8,7 +8,8 @@ import {
   PLAYBACK_RATE_MAX,
   PLAYBACK_RATE_MIN,
   STEM_META,
-  normalizeBeatOffsetMs
+  normalizeBeatOffsetMs,
+  type SongSummary
 } from '@shared/domain.js'
 import { usePlayerStore } from '../player-store.js'
 import { Vinyl } from './Vinyl.js'
@@ -35,7 +36,9 @@ export function PlayerBar({
   onSeek,
   onRestart,
   onCycleLoop,
-  onPractice
+  onPractice,
+  songs,
+  onSelectSong
 }: {
   practiceMode: boolean
   countInRemaining: number
@@ -45,6 +48,8 @@ export function PlayerBar({
   onRestart(): void
   onCycleLoop(): void
   onPractice(): void
+  songs?: SongSummary[]
+  onSelectSong?(songId: string): void
 }): React.JSX.Element {
   const song = usePlayerStore((state) => state.song)
   const practice = usePlayerStore((state) => state.practice)
@@ -53,6 +58,8 @@ export function PlayerBar({
   const patchPractice = usePlayerStore((state) => state.patchPractice)
   const lastAudibleGain = useRef(0)
   const lastSongId = useRef<string | null>(null)
+  const [queueOpen, setQueueOpen] = useState(false)
+  const queuePanel = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!song || !practice) return
@@ -61,6 +68,15 @@ export function PlayerBar({
       lastAudibleGain.current = practice.masterGainDb > -60 ? practice.masterGainDb : 0
     } else if (practice.masterGainDb > -60) lastAudibleGain.current = practice.masterGainDb
   }, [song, practice])
+
+  useEffect(() => {
+    if (!queueOpen) return
+    const close = (event: PointerEvent): void => {
+      if (!queuePanel.current?.contains(event.target as Node)) setQueueOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [queueOpen])
 
   if (!song || !practice) {
     return <footer className="player-bar is-empty">
@@ -71,7 +87,6 @@ export function PlayerBar({
 
   const muted = practice.masterGainDb <= -60
   const volume = muted ? 0 : Math.round(100 * 10 ** (practice.masterGainDb / 20))
-  const volumeStyle = { '--volume': `${Math.min(100, volume / 1.5)}%` } as CSSProperties
   const playbackActive = playing || countInRemaining > 0
   return <footer className={`player-bar ${practiceMode ? 'practice-player-bar' : ''} ${locked ? 'is-locked' : ''}`} aria-disabled={locked}>
     <div className={`player-main-row ${practiceMode ? 'has-practice-controls' : ''}`}>
@@ -88,31 +103,47 @@ export function PlayerBar({
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
-        <LevelInput
-          label="主音量增益"
-          value={practice.masterGainDb}
-          onChange={(masterGainDb) => patchPractice({ masterGainDb })}
-        />
-        <button
-          className={`volume-toggle ${muted ? 'is-muted' : ''}`}
-          aria-label={muted ? '取消静音' : '静音'}
-          aria-pressed={muted}
-          onClick={() => patchPractice({ masterGainDb: muted ? lastAudibleGain.current : -60 })}
-        >{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
-        <input
-          aria-label="总音量"
-          type="range"
-          min="0"
-          max="150"
-          value={Math.min(150, volume)}
-          style={volumeStyle}
-          onDoubleClick={() => patchPractice({ masterGainDb: 0 })}
-          onChange={(event) => {
-            const value = Number(event.target.value)
-            patchPractice({ masterGainDb: value === 0 ? -60 : Math.min(6, 20 * Math.log10(value / 100)) })
-          }}
-        />
-        <button className="queue-button" aria-label="打开练习室" onClick={onPractice}><ListMusic size={21} /></button>
+        <div className="master-volume-control">
+          <button
+            className={`volume-toggle ${muted ? 'is-muted' : ''}`}
+            aria-label={muted ? '取消静音' : '静音'}
+            aria-pressed={muted}
+            onClick={() => patchPractice({ masterGainDb: muted ? lastAudibleGain.current : -60 })}
+          >{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+          <div className="master-volume-popover" role="group" aria-label="主音量调节">
+            <input
+              aria-label="总音量"
+              type="range"
+              min="0"
+              max="150"
+              value={Math.min(150, volume)}
+              onDoubleClick={() => patchPractice({ masterGainDb: 0 })}
+              onChange={(event) => {
+                const value = Number(event.target.value)
+                patchPractice({ masterGainDb: value === 0 ? -60 : Math.min(6, 20 * Math.log10(value / 100)) })
+              }}
+            />
+          </div>
+        </div>
+        <div className="practice-queue" ref={queuePanel}>
+          <button className={`queue-button ${queueOpen ? 'active' : ''}`} aria-label="练习歌曲列表" aria-expanded={queueOpen} onClick={() => setQueueOpen((open) => !open)}><ListMusic size={21} /></button>
+          {queueOpen && <div className="practice-queue-popover" role="dialog" aria-label="可练习列表">
+            <header><span>可练习列表</span><small>{songs?.filter((item) => item.status === 'ready').length ?? 0} 首</small></header>
+            <div className="practice-queue-list">
+              {(songs ?? []).map((item) => <button
+                key={item.id}
+                className={item.id === song.id ? 'active' : ''}
+                disabled={item.status !== 'ready'}
+                aria-current={item.id === song.id ? 'true' : undefined}
+                onClick={() => {
+                  if (item.id !== song.id) onSelectSong?.(item.id)
+                  setQueueOpen(false)
+                }}
+              ><span><b>{item.title}</b><small>{item.artist || '未知艺术家'}</small></span><em>{item.status === 'ready' ? formatTime(item.durationMs) : item.phase || '处理中'}</em></button>)}
+              {(songs?.length ?? 0) === 0 && <p>暂无可练习歌曲</p>}
+            </div>
+          </div>}
+        </div>
       </div>
     </div>
   </footer>
@@ -142,6 +173,8 @@ function PracticeFooterControls({
   const [detectingBpm, setDetectingBpm] = useState(false)
   const [bpmMessage, setBpmMessage] = useState('')
   const speedPanel = useRef<HTMLDivElement>(null)
+  const speedOpenTimer = useRef<number | null>(null)
+  const speedCloseTimer = useRef<number | null>(null)
   const pitchPanel = useRef<HTMLDivElement>(null)
   const pitchToggle = useRef<HTMLButtonElement>(null)
   const pitchDialogId = useId()
@@ -152,6 +185,32 @@ function PracticeFooterControls({
   const loopEnd = practice.loopEndMs === null || songDurationMs <= 0 ? null : practice.loopEndMs / songDurationMs * 100
   const hasLyrics = Boolean(song.lyrics?.cues.length)
   const pitchDescription = practice.pitchSemitones === 0 ? '原调' : `${formatPitch(practice.pitchSemitones)} 半音`
+
+  const clearSpeedTimers = (): void => {
+    if (speedOpenTimer.current !== null) window.clearTimeout(speedOpenTimer.current)
+    if (speedCloseTimer.current !== null) window.clearTimeout(speedCloseTimer.current)
+    speedOpenTimer.current = null
+    speedCloseTimer.current = null
+  }
+
+  const scheduleSpeedOpen = (): void => {
+    if (speedOpen) return
+    clearSpeedTimers()
+    speedOpenTimer.current = window.setTimeout(() => {
+      speedOpenTimer.current = null
+      setPitchOpen(false)
+      setMetronomeOpen(false)
+      setSpeedOpen(true)
+    }, 500)
+  }
+
+  const scheduleSpeedClose = (): void => {
+    clearSpeedTimers()
+    speedCloseTimer.current = window.setTimeout(() => {
+      speedCloseTimer.current = null
+      setSpeedOpen(false)
+    }, 120)
+  }
 
   const shiftPitch = (direction: -1 | 1): void => {
     if (locked) return
@@ -172,6 +231,7 @@ function PracticeFooterControls({
 
   useEffect(() => () => {
     if (alignmentSaveTimer.current !== null) window.clearTimeout(alignmentSaveTimer.current)
+    clearSpeedTimers()
   }, [])
 
   const saveBpm = (metronomeBpm: number): void => {
@@ -236,15 +296,17 @@ function PracticeFooterControls({
       <LoopButton practice={practice} disabled={locked || songDurationMs <= 0} onClick={onCycleLoop} />
     </div>
 
-    <div className="footer-option speed-option" ref={speedPanel}>
-      <span className="footer-segmented">
-        {PLAYBACK_RATES.map((rate) => <button key={rate} className={practice.playbackRate === rate ? 'active' : ''} onClick={() => patchPractice({ playbackRate: rate })}>{rate.toFixed(1)}</button>)}
-        <button className={`continuous-speed ${speedOpen ? 'active' : ''}`} aria-label="无级变速" aria-expanded={speedOpen} onClick={() => { setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen(!speedOpen) }}><SlidersHorizontal size={12} /></button>
-      </span>
+    <div className="footer-option speed-option" ref={speedPanel} onMouseEnter={scheduleSpeedOpen} onMouseLeave={scheduleSpeedClose} onFocus={() => { clearSpeedTimers(); setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen(true) }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) scheduleSpeedClose() }}>
+      <button className={`current-speed-button ${speedOpen ? 'active' : ''}`} aria-label={`播放速度 ${practice.playbackRate.toFixed(2)} 倍`} aria-expanded={speedOpen} onClick={() => { clearSpeedTimers(); setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen((open) => !open) }}>{practice.playbackRate.toFixed(2)}×</button>
       {speedOpen && <div className="speed-popover" role="dialog" aria-label="无级变速滑轨">
-        <header><span>无级变速</span><b>{practice.playbackRate.toFixed(2)}×</b></header>
-        <input aria-label="无级播放速度" type="range" min={PLAYBACK_RATE_MIN} max={PLAYBACK_RATE_MAX} step="0.01" value={practice.playbackRate} onChange={(event) => patchPractice({ playbackRate: Number(event.target.value) })} />
-        <footer><span>0.2×</span><span>1×</span><span>2×</span><span>4×</span></footer>
+        <div className="speed-continuous-row">
+          <span><SlidersHorizontal size={13} />无级变速</span>
+          <input aria-label="无级播放速度" type="range" min={PLAYBACK_RATE_MIN} max={PLAYBACK_RATE_MAX} step="0.01" value={practice.playbackRate} onChange={(event) => patchPractice({ playbackRate: Number(event.target.value) })} />
+          <b>{practice.playbackRate.toFixed(2)}×</b>
+        </div>
+        <div className="speed-preset-row" aria-label="预设速度">
+          {PLAYBACK_RATES.map((rate) => <button key={rate} className={practice.playbackRate === rate ? 'active' : ''} onClick={() => patchPractice({ playbackRate: rate })}>{rate.toFixed(1)}×</button>)}
+        </div>
       </div>}
     </div>
 

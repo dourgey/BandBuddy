@@ -3,7 +3,7 @@ import { createReadStream, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { rename, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
-import { protocol } from 'electron'
+import { app, protocol } from 'electron'
 import { type BpmDetectionResult, type MediaCapabilities, type MusicalKeyAnalysis, type StemStorageFormat, type StemType } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
 import { detectBpmFromSamples, type BpmAnalysis } from './bpm-detection.js'
@@ -488,6 +488,15 @@ export class MediaService {
   }
 
   resolveProtocolPath(url: URL): string | null {
+    if (url.hostname === 'drum') {
+      const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+      if (!parts.length || parts.some((part) => !/^[a-z0-9][a-z0-9_.-]*$/i.test(part) || part === '..')) return null
+      const root = app.isPackaged
+        ? path.join(app.getAppPath(), 'out', 'renderer', 'woodshed', 'drums')
+        : path.resolve('src', 'renderer', 'public', 'woodshed', 'drums')
+      const file = path.resolve(root, ...parts)
+      return file.startsWith(`${root}${path.sep}`) ? file : null
+    }
     if (url.hostname === 'rehearsal') {
       const [rehearsalId, kind, assetId] = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
       if (!rehearsalId || !assetId || !/^[0-9a-f-]{36}$/i.test(rehearsalId) || !/^[0-9a-f-]{36}$/i.test(assetId)) return null

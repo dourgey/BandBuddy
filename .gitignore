@@ -7,6 +7,10 @@ release-macos/
 release-macos-unsigned/
 release-unsigned/
 release-store/
+release-*/
+output/
+electron-builder.local-unsigned.yml
+src/renderer/public/woodshed/drums/**/*.flac
 models/
 coverage/
 playwright-report/

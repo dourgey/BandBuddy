@@ -17,10 +17,11 @@ import {
   Mic,
   Timer,
   CircleHelp,
-  RotateCcw
+  RotateCcw,
+  Drum
 } from 'lucide-react'
 import { LESSONS, TRACKS, LEVELS, BLUES_ROLES } from '../woodshed/curriculum.js'
-import { TUNINGS, CIRCLE, SCALES, CHORDS, ROOTS, parseNote, noteName, mod, type Tuning } from '../woodshed/theory.js'
+import { TUNINGS, SCALES, CHORDS, ROOTS, parseNote, noteName, type Tuning } from '../woodshed/theory.js'
 import {
   DEFAULT_EXERCISE,
   type Preferences,
@@ -30,7 +31,11 @@ import {
 } from '../woodshed/types.js'
 import { readPreferences, savePreferences } from '../woodshed/preferences.js'
 import { Workbench, SelectField, NumberField } from '../woodshed/Workbench.js'
+import { HarmonyExplorer } from '../woodshed/HarmonyExplorer.js'
 import { Tuner } from '../woodshed/Tuner.js'
+import { SelectMenu } from '../components/SelectMenu.js'
+import { DrumMachine } from '../woodshed/DrumMachine.js'
+import { Metronome } from '../woodshed/Metronome.js'
 import { WoodshedAudio } from '../woodshed/audio.js'
 import '../woodshed/woodshed.css'
 const NAV = [
@@ -42,6 +47,7 @@ const NAV = [
 const TOOLS = [
   { id: 'metronome', name: '节拍器', icon: Timer },
   { id: 'tuner', name: '调音器', icon: Mic },
+  { id: 'drums', name: '鼓机', icon: Drum },
   { id: 'chords', name: '和弦查询', icon: Music2 },
   { id: 'circle', name: '五度圈', icon: Compass },
   { id: 'drone', name: '持续参考音', icon: Volume2 }
@@ -59,7 +65,7 @@ export default function WoodshedPage({
     [track, setTrack] = useState('all'),
     [level, setLevel] = useState('all'),
     [onlyFavorites, setOnlyFavorites] = useState(false)
-  const [tool, setTool] = useState('metronome'),
+  const [tool, setTool] = useState<string | null>(null),
     [customOpen, setCustomOpen] = useState(false),
     [customText, setCustomText] = useState(''),
     [customError, setCustomError] = useState(''),
@@ -197,6 +203,7 @@ export default function WoodshedPage({
     setCustomOpen(false)
   }
   const navigate = (section: Section): void => {
+    if (section === 'tools') setTool(null)
     setP((old) => ({ ...old, section }))
   }
   const favorite = (id: string): void =>
@@ -232,6 +239,43 @@ export default function WoodshedPage({
       technique={p.section === 'learn' || p.section === 'practice' ? lesson.technique : undefined}
       metronomeOnly={metronomeOnly}
     />
+  )
+  const instrumentSettings = (): React.JSX.Element => (
+    <div className="ws-instrument-panel">
+      <div className="ws-instrument-row">
+        <label>
+          乐器与调弦
+          <select aria-label="乐器与调弦" value={p.tuningId} onChange={(e) => selectInstrument(e.target.value)}>
+            {TUNINGS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        <button className={`ws-button ${p.customNotes ? 'active' : ''}`} aria-expanded={customOpen} onClick={() => {
+          setCustomText(tuning.notes.map((n) => noteName(n)).join(' '))
+          setCustomError('')
+          setCustomOpen((value) => !value)
+        }}>调弦与显示</button>
+        <span>{p.customNotes ? '自定义调弦' : '预设调弦'} · 变调夹 {p.capo} 品</span>
+      </div>
+      {customOpen && (
+        <div className="ws-custom-panel">
+          <label>
+            自定义空弦（从第 {preset.notes.length} 弦到第 1 弦，必须含八度）
+            <input value={customText} onChange={(e) => setCustomText(e.target.value)} placeholder={preset.notes.map((n) => noteName(n)).join(' ')} />
+          </label>
+          <button className="ws-button primary" onClick={applyCustom}>应用调弦</button>
+          <button className="ws-button" onClick={() => {
+            setP((old) => ({ ...old, customNotes: null }))
+            setCustomText(preset.notes.map((n) => noteName(n)).join(' '))
+            setCustomError('')
+          }}>恢复预设</button>
+          <NumberField label="变调夹品位" value={p.capo} min={0} max={12} onChange={(capo) =>
+            setP((old) => ({ ...old, capo, exercise: { ...old.exercise, minFret: 0, maxFret: Math.min(5, tuning.frets - capo) } }))
+          } />
+          <label className="ws-check"><input type="checkbox" checked={p.leftHanded} onChange={(e) => setP((old) => ({ ...old, leftHanded: e.target.checked }))} />左手显示</label>
+          {customError && <p role="alert" className="ws-error">{customError}</p>}
+        </div>
+      )}
+    </div>
   )
   return (
     <main className="ws-page">
@@ -297,81 +341,11 @@ export default function WoodshedPage({
         <header className="ws-topbar">
           <div className="ws-breadcrumb">
             练功房 <ChevronRight size={13} /> <b>{NAV.find((n) => n.id === p.section)?.name}</b>
-          </div>
-          <div className="ws-instrument-controls">
-            <Guitar size={16} />
-            <select aria-label="乐器与调弦" value={p.tuningId} onChange={(e) => selectInstrument(e.target.value)}>
-              {TUNINGS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className={`ws-button ${p.customNotes ? 'active' : ''}`}
-              onClick={() => {
-                setCustomText(tuning.notes.map((n) => noteName(n)).join(' '))
-                setCustomError('')
-                setCustomOpen((v) => !v)
-              }}
-            >
-              调弦与显示
-            </button>
+            {p.section === 'tools' && tool && <><ChevronRight size={13} /> <b>{TOOLS.find((item) => item.id === tool)?.name}</b></>}
           </div>
         </header>
-        {customOpen && (
-          <div className="ws-custom-panel">
-            <label>
-              自定义空弦（从第 {preset.notes.length} 弦到第 1 弦，必须含八度）
-              <input
-                value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
-                placeholder={preset.notes.map((n) => noteName(n)).join(' ')}
-              />
-            </label>
-            <button className="ws-button primary" onClick={applyCustom}>
-              应用调弦
-            </button>
-            <button
-              className="ws-button"
-              onClick={() => {
-                setP((old) => ({ ...old, customNotes: null }))
-                setCustomText(preset.notes.map((n) => noteName(n)).join(' '))
-                setCustomError('')
-              }}
-            >
-              恢复预设
-            </button>
-            <NumberField
-              label="变调夹品位"
-              value={p.capo}
-              min={0}
-              max={12}
-              onChange={(capo) =>
-                setP((old) => ({
-                  ...old,
-                  capo,
-                  exercise: { ...old.exercise, minFret: 0, maxFret: Math.min(5, tuning.frets - capo) }
-                }))
-              }
-            />
-            <label className="ws-check">
-              <input
-                type="checkbox"
-                checked={p.leftHanded}
-                onChange={(e) => setP((old) => ({ ...old, leftHanded: e.target.checked }))}
-              />
-              左手显示
-            </label>
-            {customError && (
-              <p role="alert" className="ws-error">
-                {customError}
-              </p>
-            )}
-          </div>
-        )}
         <div
-          className="ws-scroll"
+          className={`ws-scroll ${p.section === 'tools' && tool ? 'ws-scroll-tool' : ''} ${tool === 'tuner' && p.section === 'tools' ? 'ws-scroll-tuner' : ''}`}
           ref={scroll}
           onScroll={(e) => {
             scrollPositions.current[p.section] = e.currentTarget.scrollTop
@@ -379,7 +353,7 @@ export default function WoodshedPage({
             scrollTimer.current = setTimeout(persistScroll, 200)
           }}
         >
-          <div className="ws-hero">
+          {(p.section !== 'tools' || !tool) && <div className="ws-hero">
             <div>
               <span className="ws-eyebrow">
                 {p.section === 'learn'
@@ -410,10 +384,11 @@ export default function WoodshedPage({
               </p>
             </div>
             <div className="ws-hero-stat">
-              <b>{p.section === 'learn' ? '72' : p.section === 'tools' ? '05' : '12'}</b>
+              <b>{p.section === 'learn' ? '72' : p.section === 'tools' ? '06' : '12'}</b>
               <span>{p.section === 'learn' ? '学习单元' : p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
             </div>
-          </div>
+          </div>}
+          {p.section !== 'tools' && instrumentSettings()}
           {p.section === 'learn' && (
             <>
               <div className="ws-learning-filters">
@@ -654,146 +629,49 @@ export default function WoodshedPage({
           )}
           {p.section === 'tools' && (
             <>
-              <div className="ws-tool-tabs">
+              {!tool ? <div className="ws-tool-cards">
                 {TOOLS.map((item) => (
                   <button
                     key={item.id}
-                    aria-pressed={tool === item.id}
                     onClick={() => {
                       setTool(item.id)
                       if (item.id === 'chords') patch({ material: 'chord', pattern: 'chord' })
+                      scroll.current?.scrollTo(0, 0)
                     }}
                   >
-                    <item.icon size={20} />
-                    <span>{item.name}</span>
+                    <item.icon size={28} />
+                    <span><b>{item.name}</b><small>点击打开</small></span>
+                    <ArrowRight size={18} />
                   </button>
                 ))}
-              </div>
-              {tool === 'metronome' && renderWorkbench(true)}
+              </div> : <button className="ws-tool-back" onClick={() => setTool(null)}><ChevronRight size={15} /> 返回工具箱</button>}
+              {tool === 'metronome' && <Metronome outputDeviceId={outputDeviceId} onError={error} />}
+              {tool === 'drums' && (
+                <DrumMachine
+                  machine={p.drumMachine}
+                  update={(change) => setP((old) => ({ ...old, drumMachine: change(old.drumMachine) }))}
+                  audio={audio}
+                  onError={error}
+                />
+              )}
               {tool === 'tuner' && (
                 <Tuner
+                  presetControl={<SelectMenu ariaLabel="调弦方案" value={p.tuningId} options={TUNINGS.map((item) => ({ value: item.id, label: item.name }))} menuAnchor="parent" menuClassName="ws-tuner-preset-menu" optionHeight={37} onChange={selectInstrument} />}
+                  instrumentSettings={instrumentSettings()}
                   tuning={tuning}
                   capo={p.capo}
                   a4={p.a4}
                   onA4={(a4) => setP((old) => ({ ...old, a4 }))}
                   inputDevice={p.inputDevice}
-                  onDevice={(inputDevice) => setP((old) => ({ ...old, inputDevice }))}
-                  audio={audio}
+                  onDevice={(inputDevice) => setP((old) => ({ ...old, inputDevice, inputChannel: 0 }))}
+                  inputChannel={p.inputChannel}
+                  onChannel={(inputChannel) => setP((old) => ({ ...old, inputChannel }))}
                   onError={error}
                 />
               )}
               {tool === 'chords' && renderWorkbench()}
               {tool === 'circle' && (
-                <section className="ws-tool-panel">
-                  <div className="ws-panel-heading">
-                    <div>
-                      <small>KEYS & RELATIONSHIPS</small>
-                      <h2>五度圈</h2>
-                    </div>
-                    <span className="ws-tag">顺时针上行纯五度</span>
-                  </div>
-                  <div className="ws-circle-layout">
-                    <svg viewBox="0 0 440 440" role="group" aria-label="交互五度圈">
-                      <circle cx="220" cy="220" r="157" fill="none" stroke="#e1d5bf" strokeWidth="44" />
-                      <circle cx="220" cy="220" r="98" fill="none" stroke="#eee6d7" />
-                      <text x="220" y="211" textAnchor="middle" fill="#524a3b" fontSize="27">
-                        {ROOTS[p.exercise.root]}
-                      </text>
-                      <text x="220" y="238" textAnchor="middle" fill="#9b8a70" fontSize="12">
-                        大调 · 调性中心
-                      </text>
-                      {CIRCLE.map(([major, minor, signature], i) => {
-                        const angle = ((i * 30 - 90) * Math.PI) / 180,
-                          x = 220 + 157 * Math.cos(angle),
-                          y = 220 + 157 * Math.sin(angle)
-                        const pc = mod(parseNote(`${major}4`)!)
-                        return (
-                          <g
-                            key={major}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`${major}大调，${minor}，${signature}`}
-                            onClick={() => patch({ root: pc, scale: 'major' })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') patch({ root: pc, scale: 'major' })
-                            }}
-                            className="ws-circle-key"
-                          >
-                            <circle
-                              cx={x}
-                              cy={y}
-                              r="27"
-                              fill={p.exercise.root === pc ? '#496d64' : '#fbf8f1'}
-                              stroke="#dbcfb9"
-                            />
-                            <text
-                              x={x}
-                              y={y + 5}
-                              textAnchor="middle"
-                              fill={p.exercise.root === pc ? '#fff' : '#554a3d'}
-                              fontSize="16"
-                              fontWeight="600"
-                            >
-                              {major}
-                            </text>
-                            <text
-                              x={220 + 111 * Math.cos(angle)}
-                              y={224 + 111 * Math.sin(angle)}
-                              textAnchor="middle"
-                              fill="#87765e"
-                              fontSize="11"
-                            >
-                              {minor}
-                            </text>
-                          </g>
-                        )
-                      })}
-                    </svg>
-                    <div>
-                      <h3>{ROOTS[p.exercise.root]} 大调</h3>
-                      <p>
-                        {CIRCLE.find(([root]) => mod(parseNote(`${root}4`)!) === p.exercise.root)?.[2]} · 关系小调{' '}
-                        {CIRCLE.find(([root]) => mod(parseNote(`${root}4`)!) === p.exercise.root)?.[1]}
-                      </p>
-                      <p>
-                        外圈为大调，内圈为关系小调。相邻调共享六个自然调式音，调号相差一个升降号。关系大小调共用调号，但主音与和声中心不同。
-                      </p>
-                      <h4>调内三和弦</h4>
-                      <div className="ws-diatonic-chords">
-                        {SCALES.major!.semitones.map((n, i) => (
-                          <button
-                            key={i}
-                            onClick={() => {
-                              patch({
-                                root: mod(p.exercise.root + n),
-                                chord: i === 6 ? 'dim' : [1, 2, 5].includes(i) ? 'minor' : 'major',
-                                material: 'chord',
-                                pattern: 'chord'
-                              })
-                              setTool('chords')
-                            }}
-                          >
-                            <small>{['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'][i]}</small>
-                            <b>
-                              {ROOTS[mod(p.exercise.root + n)]}
-                              {i === 6 ? 'dim' : [1, 2, 5].includes(i) ? 'm' : ''}
-                            </b>
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        className="ws-button primary"
-                        onClick={() => {
-                          patch({ scale: 'major', material: 'scale', pattern: 'scale' })
-                          navigate('lab')
-                        }}
-                      >
-                        在指板中打开
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </section>
+                <HarmonyExplorer root={p.exercise.root} onRoot={root => patch({ root })} outputDeviceId={outputDeviceId} a4={p.a4} onError={error} />
               )}
               {tool === 'drone' && (
                 <section className="ws-tool-panel ws-drone">
@@ -854,7 +732,7 @@ export default function WoodshedPage({
               )}
             </>
           )}
-          <footer className="ws-footer">
+          {p.section !== 'tools' && <footer className="ws-footer">
             <CircleHelp size={14} />
             <span>理解 → 听见 → 找到 → 演奏。按自己的节奏探索。</span>
             <button
@@ -869,7 +747,7 @@ export default function WoodshedPage({
               <RotateCcw size={12} />
               重置练习参数
             </button>
-          </footer>
+          </footer>}
         </div>
       </section>
     </main>

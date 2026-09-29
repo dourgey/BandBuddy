@@ -79,91 +79,52 @@ describe('parseGainDb', () => {
 })
 
 describe('track level input', () => {
-  const readout = () => screen.getByRole('button', { name: '人声电平（双击编辑）' })
-  const editor = () => screen.queryByRole('textbox', { name: '人声电平' }) as HTMLInputElement | null
+  const slider = () => screen.getByRole('slider', { name: '人声电平滑块' }) as HTMLInputElement
 
-  it('stays a plain readout until it is double-clicked', () => {
+  it('keeps the dB value hidden until the level is adjusted', () => {
     render(<PracticeRoom {...practiceRoomProps()} />)
-    expect(readout().textContent).toBe('0 dB (100%)')
-    expect(editor()).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByText('0 dB')).toBeNull()
+    expect(slider().getAttribute('aria-valuetext')).toBe('0 dB')
   })
 
-  it('opens an editor pre-filled with the stored level, text selected', () => {
-    render(<PracticeRoom {...practiceRoomProps()} />)
-    fireEvent.doubleClick(readout())
-    const field = editor()!
-    expect(field.value).toBe('0')
-    expect([field.selectionStart, field.selectionEnd]).toEqual([0, 1])
-  })
-
-  it('commits a typed level on Enter and closes the editor', () => {
+  it('shows a transient value popover while dragging the slider', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.doubleClick(readout())
-    fireEvent.change(editor()!, { target: { value: '-6' } })
-    fireEvent.keyDown(editor()!, { key: 'Enter' })
+    fireEvent.change(slider(), { target: { value: '-6' } })
     expect(onTrack).toHaveBeenCalledWith('vocals', { gainDb: -6 })
-    expect(editor()).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('-6 dB')
   })
 
-  it('clamps a typed level into the allowed range on blur', () => {
+  it('adjusts in half-decibel steps with the wheel while hovered', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.doubleClick(readout())
-    fireEvent.change(editor()!, { target: { value: '40' } })
-    fireEvent.blur(editor()!)
-    expect(onTrack).toHaveBeenCalledWith('vocals', { gainDb: 6 })
-  })
-
-  it('reverts unusable text without touching the store', () => {
-    const onTrack = vi.fn()
-    render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.doubleClick(readout())
-    fireEvent.change(editor()!, { target: { value: 'loud' } })
-    fireEvent.blur(editor()!)
-    expect(onTrack).not.toHaveBeenCalled()
-    expect(readout().textContent).toBe('0 dB (100%)')
-  })
-
-  it('discards the edit on Escape', () => {
-    const onTrack = vi.fn()
-    render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.doubleClick(readout())
-    fireEvent.change(editor()!, { target: { value: '-30' } })
-    fireEvent.keyDown(editor()!, { key: 'Escape' })
-    expect(onTrack).not.toHaveBeenCalled()
-    expect(editor()).toBeNull()
-  })
-
-  it('steps with the arrow keys while editing', () => {
-    const onTrack = vi.fn()
-    render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.doubleClick(readout())
-    fireEvent.keyDown(editor()!, { key: 'ArrowUp' })
+    fireEvent.wheel(slider(), { deltaY: -100 })
     expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: 0.5 })
-    fireEvent.keyDown(editor()!, { key: 'ArrowUp' })
-    expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: 1 })
-    fireEvent.change(editor()!, { target: { value: '-3' } })
-    fireEvent.keyDown(editor()!, { key: 'ArrowDown' })
-    expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: -3.5 })
+    expect(screen.getByRole('status').textContent).toBe('+0.5 dB')
+    fireEvent.wheel(slider(), { deltaY: 100 })
+    expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: 0 })
+    expect(screen.getByRole('status').textContent).toBe('0 dB')
   })
 
-  it('also opens from the keyboard, but not from a single mouse click', () => {
-    render(<PracticeRoom {...practiceRoomProps()} />)
-    fireEvent.click(readout(), { detail: 1 })
-    expect(editor()).toBeNull()
-    fireEvent.click(readout(), { detail: 0 })
-    expect(editor()).not.toBeNull()
+  it('still resets the track to unity on double click', () => {
+    const song = practiceRoomProps().song
+    song.practice.tracks = song.practice.tracks.map((track) => track.stemType === 'vocals' ? { ...track, gainDb: -8 } : track)
+    const onTrack = vi.fn()
+    render(<PracticeRoom {...practiceRoomProps(song)} onTrack={onTrack} />)
+    fireEvent.doubleClick(slider())
+    expect(onTrack).toHaveBeenCalledWith('vocals', { gainDb: 0 })
+    expect(screen.getByRole('status').textContent).toBe('0 dB')
   })
 
-  it('locks the level cell together with the slider', () => {
-    render(<PracticeRoom {...practiceRoomProps()} locked />)
-    const slider = screen.getByRole('slider', { name: '人声电平滑块' }) as HTMLInputElement
-    expect((readout() as HTMLButtonElement).disabled).toBe(true)
-    expect(slider.disabled).toBe(true)
-    expect([slider.min, slider.max, slider.step]).toEqual(['-60', '6', '0.5'])
-    fireEvent.doubleClick(readout())
-    expect(editor()).toBeNull()
+  it('locks wheel and slider adjustment during recording', () => {
+    const onTrack = vi.fn()
+    render(<PracticeRoom {...practiceRoomProps()} locked onTrack={onTrack} />)
+    expect(slider().disabled).toBe(true)
+    expect([slider().min, slider().max, slider().step]).toEqual(['-60', '6', '0.5'])
+    fireEvent.wheel(slider(), { deltaY: -100 })
+    expect(onTrack).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).toBeNull()
   })
 })
 

@@ -4,6 +4,9 @@ export interface PitchResult {
   rms: number
   peak: number
 }
+export function tunerNeedleAngle(cents: number): number {
+  return Math.max(-50, Math.min(50, cents)) * 1.8
+}
 /** YIN difference / cumulative mean normalization, downsampled for low instrument fundamentals. */
 export function detectPitch(samples: Float32Array, sampleRate: number): PitchResult {
   let sum = 0,

@@ -2,6 +2,7 @@ import { setAudioContextOutputDevice } from '../audio-engine.js'
 import { frequency, CHORDS } from './theory.js'
 import { beatUnit, meterLength, progression, type GeneratedExercise } from './generator.js'
 import type { ExerciseConfig, MusicEvent } from './types.js'
+import { DRUM_LANES, DRUM_STEPS, drumStepTime, type DrumDraft } from './drum-patterns.js'
 export interface TransportFrame {
   playing: boolean
   eventId: string | null
@@ -56,6 +57,8 @@ export class WoodshedAudio {
   private droneNodes: OscillatorNode[] = []
   private currentFrame = { ...IDLE_FRAME }
   private a4 = 440
+  private drumStepListener: (step: number) => void = () => {}
+  private drumBuffers = new Map<number, AudioBuffer>()
   onFrame(listener: (frame: TransportFrame) => void): void {
     this.frameListener = listener
   }
@@ -156,6 +159,82 @@ export class WoodshedAudio {
     this.droneNodes = []
     this.currentFrame = { ...IDLE_FRAME }
     this.frameListener(this.currentFrame)
+    this.drumStepListener(-1)
+    this.drumStepListener = () => {}
+  }
+  async loadDrumSamples(samples: Array<{ midiNote: number; file: string }>, baseUrl: string): Promise<Map<number, AudioBuffer>> {
+    const context = await this.ready()
+    for (const sample of samples) {
+      if (this.drumBuffers.has(sample.midiNote)) continue
+      const response = await fetch(new URL(sample.file, baseUrl))
+      if (!response.ok) throw new Error(`无法读取鼓采样：${sample.file}`)
+      this.drumBuffers.set(sample.midiNote, await context.decodeAudioData(await response.arrayBuffer()))
+    }
+    return this.drumBuffers
+  }
+  async playDrums(getDraft: () => DrumDraft, buffers: Map<number, AudioBuffer>, onStep: (step: number) => void, startStep = 0): Promise<void> {
+    this.stop()
+    const token = this.generation
+    const context = await this.ready()
+    if (token !== this.generation) return
+    for (const lane of DRUM_LANES) {
+      const draft = getDraft()
+      if (draft.steps[lane.id] && !buffers.has(draft.sounds[lane.id])) throw new Error(`缺少${lane.name}采样`)
+    }
+    this.drumStepListener = onStep
+    this.active = true
+    this.origin = context.currentTime + 0.06 - drumStepTime(startStep, getDraft().bpm, getDraft().swing)
+    let index = startStep
+    const openHats = new Set<{ source: AudioBufferSourceNode; gain: GainNode }>()
+    const schedule = (): void => {
+      while (this.active && token === this.generation) {
+        const draft = getDraft()
+        const step = index % DRUM_STEPS
+        const at = this.origin + drumStepTime(index, draft.bpm, draft.swing)
+        if (at > context.currentTime + 0.12) break
+        index++
+        if (at < context.currentTime - 0.01) continue
+        const closedHat = Boolean(draft.steps.closedHat & (1 << step))
+        if (closedHat) {
+          for (const voice of openHats) {
+            voice.gain.gain.setValueAtTime(voice.gain.gain.value, at)
+            voice.gain.gain.linearRampToValueAtTime(0, at + 0.012)
+            voice.source.stop(at + 0.02)
+          }
+          openHats.clear()
+        }
+        for (const lane of DRUM_LANES) {
+          if (!(draft.steps[lane.id] & (1 << step)) || (lane.id === 'openHat' && closedHat)) continue
+          const buffer = buffers.get(draft.sounds[lane.id])!
+          const source = context.createBufferSource()
+          const gain = context.createGain()
+          source.buffer = buffer
+          gain.gain.setValueAtTime(draft.volume * 0.2, at)
+          source.connect(gain).connect(this.master!)
+          source.start(at)
+          source.stop(at + buffer.duration)
+          this.sources.add(source)
+          if (lane.id === 'openHat') openHats.add({ source, gain })
+          source.onended = () => {
+            this.sources.delete(source)
+            source.disconnect()
+            gain.disconnect()
+            for (const voice of openHats) if (voice.source === source) openHats.delete(voice)
+          }
+        }
+        this.queue.push({ time: at, frame: { ...IDLE_FRAME, beat: step } })
+      }
+    }
+    schedule()
+    this.timer = setInterval(schedule, 25)
+    const draw = (): void => {
+      if (!this.active || token !== this.generation) return
+      while (this.queue.length && this.queue[0]!.time <= context.currentTime) {
+        onStep(this.queue.shift()!.frame.beat)
+      }
+      this.animation = requestAnimationFrame(draw)
+    }
+    draw()
   }
   pause(): void {
     if (!this.active || !this.context) return
@@ -338,5 +417,6 @@ export class WoodshedAudio {
     this.disposed = true
     void this.context?.close()
     this.context = null
+    this.drumBuffers.clear()
   }
 }

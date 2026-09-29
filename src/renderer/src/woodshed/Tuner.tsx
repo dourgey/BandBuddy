@@ -1,41 +1,56 @@
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Volume2 } from 'lucide-react'
+import { Guitar, Mic, MicOff, Settings } from 'lucide-react'
 import { detectPitch, pitchReading } from './pitch.js'
+import { detectPolyStrings, type StringPitch } from './poly-pitch.js'
+import { selectInputChannel } from './input-channel.js'
 import { noteName, type Tuning } from './theory.js'
-import type { WoodshedAudio } from './audio.js'
+import { AnalogTunerGauge } from './AnalogTunerGauge.js'
+import { PolyTunerGauge } from './PolyTunerGauge.js'
 export function Tuner({
+  presetControl,
+  instrumentSettings,
   tuning,
   capo,
   a4,
   onA4,
   inputDevice,
   onDevice,
-  audio,
+  inputChannel,
+  onChannel,
   onError
 }: {
+  presetControl: React.ReactNode
+  instrumentSettings: React.ReactNode
   tuning: Tuning
   capo: number
   a4: number
   onA4: (n: number) => void
   inputDevice: string
   onDevice: (id: string) => void
-  audio: WoodshedAudio | null
+  inputChannel: number
+  onChannel: (channel: number) => void
   onError: (s: string) => void
 }): React.JSX.Element {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
     [active, setActive] = useState(false),
     [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState('点击开启调音，允许访问音频输入。'),
+  const [status, setStatus] = useState('正在连接麦克风…'),
     [target, setTarget] = useState<number | null>(null)
   const [reading, setReading] = useState<{ midi: number; cents: number; hz: number } | null>(null),
     [level, setLevel] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [mode, setMode] = useState<'mono' | 'poly'>('mono')
+  const [polyReadings, setPolyReadings] = useState<Array<StringPitch | null>>([])
+  const [modeToast, setModeToast] = useState('')
+  const [channelCount, setChannelCount] = useState(0)
+  const [selectedChannel, setSelectedChannel] = useState(0)
   const stream = useRef<MediaStream | null>(null),
     context = useRef<AudioContext | null>(null),
     timer = useRef<ReturnType<typeof setInterval> | null>(null),
     token = useRef(0)
-  const current = useRef({ a4, target, tuning, capo })
-  current.current = { a4, target, tuning, capo }
-  const stop = (): void => {
+  const current = useRef({ a4, target, tuning, capo, inputChannel })
+  current.current = { a4, target, tuning, capo, inputChannel }
+  const stop = (resetView = true): void => {
     token.current++
     if (timer.current) clearInterval(timer.current)
     timer.current = null
@@ -43,20 +58,17 @@ export function Tuner({
     stream.current = null
     void context.current?.close()
     context.current = null
-    setActive(false)
-    setBusy(false)
-    setReading(null)
-    setLevel(0)
+    if (resetView) {
+      setActive(false)
+      setBusy(false)
+      setReading(null)
+      setMode('mono')
+      setPolyReadings([])
+      setLevel(0)
+      setChannelCount(0)
+      setSelectedChannel(0)
+    }
   }
-  useEffect(
-    () => () => {
-      token.current++
-      if (timer.current) clearInterval(timer.current)
-      stream.current?.getTracks().forEach((t) => t.stop())
-      void context.current?.close()
-    },
-    []
-  )
   useEffect(() => {
     setTarget(null)
     setReading(null)
@@ -76,7 +88,6 @@ export function Tuner({
     stop()
     setBusy(true)
     const ticket = token.current
-    audio?.stop()
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error('当前环境无法访问麦克风，请在桌面应用或 localhost 中打开。')
@@ -85,7 +96,8 @@ export function Tuner({
           deviceId: inputDevice ? { exact: inputDevice } : undefined,
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false
+          autoGainControl: false,
+          channelCount: { ideal: 8 }
         },
         video: false
       })
@@ -98,16 +110,28 @@ export function Tuner({
       context.current = ctx
       await ctx.resume()
       if (ticket !== token.current) return
-      const source = ctx.createMediaStreamSource(media),
-        analyser = ctx.createAnalyser()
-      analyser.fftSize = 8192
-      source.connect(analyser)
-      const samples = new Float32Array(analyser.fftSize)
+      const source = ctx.createMediaStreamSource(media)
+      const count = Math.max(1, Math.min(16, media.getAudioTracks()[0]?.getSettings().channelCount || 2))
+      const splitter = ctx.createChannelSplitter(count)
+      const analysers = Array.from({ length: count }, (_, index) => {
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 8192
+        splitter.connect(analyser, index, 0)
+        return analyser
+      })
+      source.connect(splitter)
+      const channelSamples = analysers.map((analyser) => new Float32Array(analyser.fftSize))
+      let activeChannel = 0
+      setChannelCount(count)
       let lastMidi = -999,
         stable = 0
+      let viewMode: 'mono' | 'poly' = 'mono'
+      let polyFrames = 0, monoFrames = 0, polyEntered = 0, lastPolyReading = 0
+      const stringLastSeen = Array<number>(6).fill(0)
+      const snapshot: Array<StringPitch | null> = Array<StringPitch | null>(6).fill(null)
       setActive(true)
       setBusy(false)
-      setStatus('等待单个持续音…')
+      setStatus('')
       media.getAudioTracks()[0]!.onended = () => {
         if (ticket === token.current) {
           stop()
@@ -118,7 +142,16 @@ export function Tuner({
       if (ticket !== token.current) return
       setDevices(available.filter((d) => d.kind === 'audioinput'))
       timer.current = setInterval(() => {
-        analyser.getFloatTimeDomainData(samples)
+        const levels = analysers.map((analyser, index) => {
+          const data = channelSamples[index]!
+          analyser.getFloatTimeDomainData(data)
+          let power = 0
+          for (let sample = 0; sample < data.length; sample++) power += data[sample]! ** 2
+          return Math.sqrt(power / data.length)
+        })
+        activeChannel = selectInputChannel(levels, activeChannel, current.current.inputChannel)
+        setSelectedChannel(activeChannel)
+        const samples = channelSamples[activeChannel]!
         const pitch = detectPitch(samples, ctx.sampleRate)
         setLevel(Math.min(1, pitch.rms * 5))
         if (pitch.peak >= 0.995) {
@@ -130,29 +163,67 @@ export function Tuner({
           setStatus(pitch.rms < 0.0001 ? '没有输入，请检查设备与通道。' : '信号过弱，请靠近麦克风或提高输入增益。')
           setReading(null)
           stable = 0
+          if (viewMode === 'poly' && performance.now() - lastPolyReading > 2000) {
+            viewMode = 'mono'
+            setMode('mono')
+            setPolyReadings([])
+          }
           return
         }
+        const now = current.current
+        if (now.target === null && now.tuning.instrument === 'guitar' && now.tuning.notes.length === 6) {
+          const strings = detectPolyStrings(samples, ctx.sampleRate, now.tuning.notes.map((midi) => midi + now.capo), now.a4)
+          const count = strings.filter(Boolean).length
+          polyFrames = count >= 2 ? polyFrames + 1 : 0
+          if (viewMode === 'mono' && polyFrames >= 2) {
+            viewMode = 'poly'
+            polyEntered = performance.now()
+            setMode('poly')
+            setModeToast('检测到多弦输入 · 已切换至快速调弦')
+            setTimeout(() => setModeToast(''), 1900)
+          }
+          if (viewMode === 'poly') {
+            if (count >= 2) {
+              setStatus('')
+              const instant = performance.now()
+              strings.forEach((result, index) => {
+                if (result) { snapshot[index] = result; stringLastSeen[index] = instant }
+                else if (instant - stringLastSeen[index]! > 1500) snapshot[index] = null
+              })
+              setPolyReadings([...snapshot])
+              lastPolyReading = instant
+              monoFrames = 0
+            } else if (count === 1 && performance.now() - polyEntered >= 700) {
+              monoFrames++
+              if (monoFrames >= 6) {
+                viewMode = 'mono'
+                setMode('mono')
+                setPolyReadings([])
+                setModeToast('已切换至精确调弦')
+                setTimeout(() => setModeToast(''), 1900)
+              }
+            } else monoFrames = 0
+            if (viewMode === 'poly') return
+          }
+        }
         if (!pitch.frequency) {
-          setStatus('音高不稳定，请只弹一根弦并保持。')
+          setStatus('未检测到稳定音高')
           setReading(null)
           stable = 0
           return
         }
-        const now = current.current
         const detected = pitchReading(pitch.frequency, now.a4)
         stable = detected.midi === lastMidi ? stable + 1 : 0
         lastMidi = detected.midi
         if (stable < 2) {
-          setStatus('正在稳定音高…')
+          setStatus('')
           return
         }
         const targetMidi =
           now.target === null ? undefined : now.tuning.notes[now.tuning.notes.length - now.target]! + now.capo
         const result = pitchReading(pitch.frequency, now.a4, targetMidi)
         setReading({ ...result, hz: pitch.frequency })
-        setStatus(
-          Math.abs(result.cents) <= 5 ? '音准稳定' : result.cents < 0 ? '偏低 · 轻微升高音高' : '偏高 · 轻微降低音高'
-        )
+        setStatus('')
       }, 90)
     } catch (error) {
       if (ticket !== token.current) return
@@ -170,90 +241,52 @@ export function Tuner({
       onError(message)
     }
   }
+  useEffect(() => {
+    void start()
+    return () => stop(false)
+  }, [inputDevice])
+  const detectedIndex = reading ? tuning.notes.findIndex((note) => note + capo === reading.midi) : -1
+  const currentString = target ?? (detectedIndex < 0 ? null : tuning.notes.length - detectedIndex)
   return (
-    <section className="ws-tool-panel ws-tuner">
-      <div className="ws-panel-heading">
-        <div>
-          <small>LISTEN & TUNE</small>
-          <h2>调音器</h2>
-        </div>
-        <button className="ws-button primary" disabled={busy} onClick={() => (active ? stop() : void start())}>
-          {active ? <MicOff size={16} /> : <Mic size={16} />} {busy ? '正在连接…' : active ? '关闭输入' : '开启调音'}
-        </button>
+    <section className={`ws-tuner is-${mode}`} aria-label="调音器">
+      <div className="ws-tuner-fasteners" aria-hidden="true"><i /><i /><i /><i /></div>
+      <header className="ws-tuner-header">
+        <div><small>LISTEN &amp; TUNE</small><h2>调音器</h2></div>
+        <div className="ws-tuner-preset"><span className="ws-tuner-preset-icon" aria-hidden="true"><Guitar size={25} strokeWidth={2.1} /></span>{presetControl}</div>
+        <button className="ws-tuner-settings-button" aria-label="调音器设置" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><Settings size={23} /></button>
+      </header>
+      {settingsOpen && <div className="ws-tuner-settings">
+        {instrumentSettings}
+        <label>音频设备<select value={inputDevice} disabled={busy} onChange={(e) => onDevice(e.target.value)}>
+          <option value="">系统默认输入</option>
+          {devices.filter((d) => d.deviceId !== 'default').map((d, i) => <option value={d.deviceId} key={d.deviceId}>{d.label || `输入设备 ${i + 1}`}</option>)}
+        </select></label>
+        <label>输入通道<select value={inputChannel <= channelCount ? inputChannel : 0} onChange={(e) => onChannel(Number(e.target.value))}>
+          <option value={0}>自动选择有电平的通道</option>
+          {Array.from({ length: channelCount }, (_, index) => <option key={index} value={index + 1}>通道 {index + 1}</option>)}
+        </select></label>
+        <label>A4 标准音<input type="number" min={430} max={450} value={a4} onChange={(e) => onA4(Math.max(430, Math.min(450, Math.round(Number(e.target.value)) || 440)))} /></label>
+        <p>仅分析输入，不将麦克风声音送到扬声器。变调夹目标已计入当前音名。</p>
+      </div>}
+      {modeToast && <div className="ws-tuner-mode-toast" role="status">{modeToast}</div>}
+      <div className="ws-tuner-gauge-stage">
+        {mode === 'mono' ? <AnalogTunerGauge reading={reading} /> : <PolyTunerGauge notes={tuning.notes} capo={capo} readings={polyReadings} />}
       </div>
-      <div className="ws-form-row">
-        <label>
-          音频输入
-          <select value={inputDevice} disabled={active || busy} onChange={(e) => onDevice(e.target.value)}>
-            <option value="">系统默认输入</option>
-            {devices
-              .filter((d) => d.deviceId !== 'default')
-              .map((d, i) => (
-                <option value={d.deviceId} key={d.deviceId}>
-                  {d.label || `输入设备 ${i + 1}`}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          A4 标准音
-          <input
-            type="number"
-            min={430}
-            max={450}
-            value={a4}
-            onChange={(e) => onA4(Math.max(430, Math.min(450, Math.round(Number(e.target.value)) || 440)))}
-          />
-        </label>
-      </div>
-      <div className="ws-tuner-note">
-        {reading ? noteName(reading.midi) : '—'}
-        <small>
-          {reading
-            ? `${reading.hz.toFixed(1)} Hz · ${reading.cents > 0 ? '+' : ''}${reading.cents.toFixed(1)} cents`
-            : '单音识别 · 实际音高'}
-        </small>
-      </div>
-      <div className="ws-tuner-meter">
-        <span>−50</span>
-        <div>
-          <i
-            className={reading && Math.abs(reading.cents) <= 5 ? 'in-tune' : ''}
-            style={{ left: `${50 + Math.max(-50, Math.min(50, reading?.cents ?? 0))}%` }}
-          />
-          <b />
-        </div>
-        <span>+50</span>
-      </div>
-      <p role="status">{status}</p>
-      <div className="ws-input-level">
-        <i style={{ width: `${level * 100}%` }} />
-      </div>
-      <div className="ws-string-targets">
-        <button aria-pressed={target === null} onClick={() => setTarget(null)}>
-          自动
-        </button>
-        {[...tuning.notes].reverse().map((midi, i) => (
-          <div key={i}>
-            <button aria-pressed={target === i + 1} onClick={() => setTarget(i + 1)}>
-              {i + 1} 弦 · {noteName(midi + capo)}
-            </button>
-            <button
-              aria-label={`试听第 ${i + 1} 弦`}
-              onClick={() => {
-                stop()
-                setStatus('参考音播放后，可重新开启调音。')
-                void audio?.preview(midi + capo).catch((e) => onError(String(e)))
-              }}
-            >
-              <Volume2 size={13} />
-            </button>
+      {mode === 'mono' && <div className="ws-tuner-strings" aria-label="目标琴弦">
+        {tuning.notes.map((midi, index) => {
+          const string = tuning.notes.length - index
+          return <div key={index} className={currentString === string ? 'selected' : ''}>
+            <button aria-label={`${string} 弦 ${noteName(midi + capo)}${target === string ? '，已锁定' : ''}`} aria-pressed={target === string} onClick={() => setTarget(target === string ? null : string)}>{noteName(midi + capo)}</button>
+            <i />
           </div>
-        ))}
+        })}
+      </div>}
+      <div className="ws-tuner-input">
+        <span>{active ? <Mic size={17} /> : <MicOff size={17} />} {busy ? '正在连接…' : active ? `麦克风监听中 · 通道 ${selectedChannel + 1}` : '麦克风不可用'}</span>
+        <div className="ws-input-level" role="meter" aria-label="输入电平" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}><i style={{ width: `${level * 100}%` }} /></div>
+        <span className="ws-tuner-waveform" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></span>
       </div>
-      <p className="ws-muted">
-        调音前移除变调夹可校准空弦；当前目标已计入变调夹。调音期间不监听输入，避免啸叫。请在系统中选择合适的声卡输入通道。
-      </p>
+      <p className="ws-tuner-status" role="status">{status || (active ? mode === 'poly' ? '检测到扫弦，已自动切换到多音模式' : '正在监听… 请拨动琴弦' : '请选择可用的音频输入')}</p>
     </section>
   )
 }

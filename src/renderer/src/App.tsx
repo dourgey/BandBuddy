@@ -111,6 +111,10 @@ export default function App(): React.JSX.Element {
       })
     }
   })
+  const practiceSongsQuery = useQuery({
+    queryKey: ['practice-songs', fixtureMode],
+    queryFn: () => fixtureMode ? Promise.resolve(fixtureSongs) : window.bandbuddy.library.list({ filter: 'all' })
+  })
   const tasksQuery = useQuery({ queryKey: ['tasks'], queryFn: () => window.bandbuddy.tasks.list() })
   const runtimeQuery = useQuery({ queryKey: ['runtime'], queryFn: () => window.bandbuddy.runtime.get() })
   const settingsQuery = useQuery({
@@ -124,7 +128,10 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void window.bandbuddy.recording.state().then(setRecordingState)
     const unsubscribe = [
-      window.bandbuddy.library.onChanged(() => void client.invalidateQueries({ queryKey: ['songs'] })),
+      window.bandbuddy.library.onChanged(() => {
+        void client.invalidateQueries({ queryKey: ['songs'] })
+        void client.invalidateQueries({ queryKey: ['practice-songs'] })
+      }),
       window.bandbuddy.tasks.onChanged(() => void client.invalidateQueries({ queryKey: ['tasks'] })),
       window.bandbuddy.runtime.onChanged((value) => client.setQueryData(['runtime'], value)),
       window.bandbuddy.settings.onChanged((value) => client.setQueryData(['settings'], value)),
@@ -628,7 +635,7 @@ export default function App(): React.JSX.Element {
       onDeleteTake={(takeId) => void deleteTake(takeId)} onRecordingTrack={(recordingTrackId, patch) => void updateRecordingTrack(recordingTrackId, patch)}
       onUseTakePractice={(rate, pitchSemitones) => patchPractice({ playbackRate: rate, pitchSemitones })}
     /> : <NoSongPractice onLibrary={() => setView('library')} onImport={() => setImportOpen(true)} />}
-    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')

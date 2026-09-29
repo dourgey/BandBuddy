@@ -3,6 +3,7 @@ vi.mock('../src/renderer/src/audio-engine.js', () => ({ setAudioContextOutputDev
 import { WoodshedAudio } from '../src/renderer/src/woodshed/audio.js'
 import { DEFAULT_EXERCISE } from '../src/renderer/src/woodshed/types.js'
 import type { GeneratedExercise } from '../src/renderer/src/woodshed/generator.js'
+import { defaultDrumDraft } from '../src/renderer/src/woodshed/drum-patterns.js'
 class Parameter {
   value = 0
   setValueAtTime = vi.fn((value: number) => {
@@ -21,6 +22,15 @@ class Source {
   onended: (() => void) | null = null
 }
 const sources: Source[] = []
+class SampleSource {
+  buffer: { duration: number } | null = null
+  connect = vi.fn((destination: unknown) => destination)
+  disconnect = vi.fn()
+  start = vi.fn()
+  stop = vi.fn()
+  onended: (() => void) | null = null
+}
+const sampleSources: SampleSource[] = []
 class Context {
   state = 'running'
   destination = {}
@@ -39,6 +49,11 @@ class Context {
     sources.push(source)
     return source
   }
+  createBufferSource() {
+    const source = new SampleSource()
+    sampleSources.push(source)
+    return source
+  }
 }
 const exercise: GeneratedExercise = {
   events: [0, 1, 2, 3].map((beat) => ({
@@ -52,6 +67,7 @@ const exercise: GeneratedExercise = {
 }
 beforeEach(() => {
   sources.length = 0
+  sampleSources.length = 0
   vi.useFakeTimers()
   vi.setSystemTime(0)
   vi.stubGlobal('AudioContext', Context)
@@ -147,5 +163,24 @@ describe('woodshed audio clock and lifecycle', () => {
     audio.destroy()
     await expect(pending).rejects.toThrow('关闭')
     expect(sources).toHaveLength(0)
+  })
+  it('schedules the drum grid, chokes an open hat, and stops outstanding voices', async () => {
+    const audio = new WoodshedAudio()
+    const draft = defaultDrumDraft('pop')
+    draft.steps = { ...draft.steps, kick: 1 | (1 << 8), snare: 0, closedHat: 1 << 4, openHat: 1 << 2 }
+    const buffers = new Map<number, AudioBuffer>()
+    for (const midi of Object.values(draft.sounds)) buffers.set(midi, { duration: 1 } as AudioBuffer)
+    const steps: number[] = []
+    await audio.playDrums(() => draft, buffers, (step) => steps.push(step))
+    await vi.advanceTimersByTimeAsync(1250)
+    expect(sampleSources.filter((source) => source.buffer === buffers.get(36))).toHaveLength(2)
+    expect(sampleSources.some((source) => source.stop.mock.calls.length > 1)).toBe(true)
+    expect(steps).toContain(8)
+    const count = sampleSources.length
+    audio.stop()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(sampleSources).toHaveLength(count)
+    expect(steps.at(-1)).toBe(-1)
+    audio.destroy()
   })
 })

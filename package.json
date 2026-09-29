@@ -26,7 +26,7 @@
   "scripts": {
     "dev": "pnpm native:electron && pnpm native:audio && electron-vite dev",
     "dev:renderer": "vite --config vite.renderer.config.ts",
-    "build": "pnpm verify:resources && pnpm typecheck && electron-vite build",
+    "build": "pnpm verify:resources && pnpm verify:drums && pnpm typecheck && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:whitebox": "node scripts/test-whitebox.mjs",
@@ -46,6 +46,7 @@
     "tools:fetch": "node scripts/fetch-tools.mjs",
     "tools:fetch:cn": "node scripts/fetch-tools.mjs --china",
     "verify:resources": "node scripts/verify-resources.mjs",
+    "verify:drums": "node scripts/verify-drum-samples.mjs",
     "package:dir": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win dir --x64",
     "package:unsigned": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win nsis portable --x64",
     "package:mac": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --arm64",

@@ -2,8 +2,8 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-export interface SelectMenuOption {
-  value: number
+export interface SelectMenuOption<T extends string | number = number> {
+  value: T
   label: string
   disabled?: boolean
 }
@@ -15,16 +15,19 @@ const MENU_CHROME = 10
  * Themed replacement for a native <select>: Chromium draws the native popup list with its own
  * widget, which ignores option background/colour, so the list cannot be styled to match the app.
  */
-export function SelectMenu({ ariaLabel, value, options, disabled = false, onChange }: {
+export function SelectMenu<T extends string | number>({ ariaLabel, value, options, disabled = false, menuAnchor = 'trigger', menuClassName, optionHeight = OPTION_HEIGHT, onChange }: {
   ariaLabel: string
-  value: number
-  options: readonly SelectMenuOption[]
+  value: T
+  options: readonly SelectMenuOption<T>[]
   disabled?: boolean
-  onChange(value: number): void
+  menuAnchor?: 'trigger' | 'parent'
+  menuClassName?: string
+  optionHeight?: number
+  onChange(value: T): void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [position, setPosition] = useState({ left: 0, top: 0, width: 0 })
+  const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 0 })
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const listId = useId()
@@ -33,16 +36,20 @@ export function SelectMenu({ ariaLabel, value, options, disabled = false, onChan
   const selected = options[selectedIndex]
 
   const openMenu = (): void => {
-    const bounds = trigger.current?.getBoundingClientRect()
+    const anchor = menuAnchor === 'parent' ? trigger.current?.parentElement : trigger.current
+    const bounds = anchor?.getBoundingClientRect()
     if (!bounds) return
-    const height = options.length * OPTION_HEIGHT + MENU_CHROME
-    const below = bounds.bottom + 4
-    const above = bounds.top - height - 4
+    const height = options.length * optionHeight + MENU_CHROME
+    const below = window.innerHeight - bounds.bottom - 12
+    const above = bounds.top - 12
+    const placeAbove = below < height && above > below
+    const maxHeight = Math.max(40, Math.min(height, placeAbove ? above : below))
     // The mixer card clips its content, so the menu is placed against the window, not the row.
     setPosition({
-      left: bounds.left,
-      top: below + height > window.innerHeight - 8 && above > 8 ? above : below,
-      width: bounds.width
+      left: Math.min(bounds.left, window.innerWidth - bounds.width - 8),
+      top: placeAbove ? bounds.top - maxHeight - 4 : bounds.bottom + 4,
+      width: bounds.width,
+      maxHeight
     })
     setActiveIndex(selectedIndex)
     setOpen(true)
@@ -135,8 +142,8 @@ export function SelectMenu({ ariaLabel, value, options, disabled = false, onChan
         id={listId}
         role="listbox"
         aria-label={ariaLabel}
-        className="select-menu"
-        style={{ left: `${position.left}px`, top: `${position.top}px`, minWidth: `${position.width}px` }}
+        className={`select-menu ${menuClassName ?? ''}`}
+        style={{ left: `${position.left}px`, top: `${position.top}px`, minWidth: `${position.width}px`, maxHeight: `${position.maxHeight}px`, overflowY: 'auto' }}
       >
         {options.map((option, index) => <div
           key={option.value}

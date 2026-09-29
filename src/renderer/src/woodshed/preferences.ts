@@ -3,8 +3,21 @@ import { TUNINGS, SCALES, CHORDS } from './theory.js'
 import { DEFAULT_EXERCISE, PATTERNS, type Preferences } from './types.js'
 import { LESSONS } from './curriculum.js'
 import { BACKINGS } from './generator.js'
+import { DRUM_LANES, DRUM_PRESETS } from './drum-patterns.js'
+import type { DrumDraft, DrumPresetId } from './drum-patterns.js'
 const known = (values: string[]) => z.string().refine((s) => values.includes(s))
 const integer = (min: number, max: number) => z.number().int().min(min).max(max)
+const drumLaneIds = DRUM_LANES.map((lane) => lane.id)
+const drumPresetIds = DRUM_PRESETS.map((preset) => preset.id)
+const drumPatternSchema = z.object(Object.fromEntries(drumLaneIds.map((id) => [id, integer(0, 65535)])) as Record<(typeof DRUM_LANES)[number]['id'], ReturnType<typeof integer>>)
+const drumSoundSchema = z.object(Object.fromEntries(drumLaneIds.map((id) => [id, integer(0, 127)])) as Record<(typeof DRUM_LANES)[number]['id'], ReturnType<typeof integer>>)
+const drumDraftSchema = z.object({
+  steps: drumPatternSchema,
+  sounds: drumSoundSchema,
+  bpm: integer(40, 240),
+  swing: z.number().min(0.5).max(0.75),
+  volume: z.number().min(0).max(1)
+})
 const exerciseSchema = z.object({
   root: integer(0, 11),
   scale: known(Object.keys(SCALES)),
@@ -48,7 +61,12 @@ const schema = z.object({
   exercise: exerciseSchema,
   a4: integer(430, 450),
   inputDevice: z.string().max(1024),
+  inputChannel: integer(0, 16).default(0),
   droneFifth: z.boolean(),
+  drumMachine: z.object({
+    selectedPresetId: known(drumPresetIds),
+    drafts: z.record(z.string(), drumDraftSchema)
+  }).default({ selectedPresetId: 'pop', drafts: {} }),
   scrollPositions: z
     .object({
       learn: z.number().min(0).max(100000),
@@ -73,7 +91,9 @@ export function defaults(): Preferences {
     exercise: { ...DEFAULT_EXERCISE, pattern: 'chromatic' },
     a4: 440,
     inputDevice: '',
+    inputChannel: 0,
     droneFifth: false,
+    drumMachine: { selectedPresetId: 'pop', drafts: {} },
     scrollPositions: { learn: 0, lab: 0, practice: 0, tools: 0 }
   }
 }
@@ -86,6 +106,9 @@ export function decodePreferences(raw: string | null): Preferences {
     value.favorites = [...new Set(value.favorites)].filter((id) => LESSONS.some((l) => l.id === id))
     if (!LESSONS.some((l) => l.id === value.lessonId)) value.lessonId = 'shared-1'
     if (value.customNotes?.length !== tuning.notes.length) value.customNotes = null
+    value.drumMachine.drafts = Object.fromEntries(
+      Object.entries(value.drumMachine.drafts).filter(([id]) => drumPresetIds.includes(id as DrumPresetId))
+    ) as Partial<Record<DrumPresetId, DrumDraft>>
     const max = tuning.frets - value.capo
     value.exercise.maxFret = Math.min(max, value.exercise.maxFret)
     value.exercise.minFret = Math.min(value.exercise.minFret, value.exercise.maxFret)

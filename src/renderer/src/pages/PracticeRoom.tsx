@@ -15,7 +15,7 @@ import {
   Trash2,
   Upload
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   getStemTypeFromTrackOrderKey,
   isStemVisible,
@@ -33,7 +33,7 @@ import {
   type TrackOrderKey,
   type TrackState
 } from '@shared/domain.js'
-import { LevelInput, MAX_GAIN_DB, MIN_GAIN_DB } from '../components/LevelInput.js'
+import { formatGainDb, MAX_GAIN_DB, MIN_GAIN_DB } from '../components/LevelInput.js'
 import { SelectMenu } from '../components/SelectMenu.js'
 import { Waveform } from '../components/Waveform.js'
 import { VideoPlayer } from '../components/VideoPlayer.js'
@@ -121,6 +121,39 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
   const draggedTrackRef = useRef<TrackOrderKey | null>(null)
   const dropTargetRef = useRef<{ key: TrackOrderKey; placement: 'before' | 'after' } | null>(null)
   const dragListenerCleanupRef = useRef<() => void>(() => undefined)
+  const trackListRef = useRef<HTMLDivElement>(null)
+  const dragAnimationOriginRef = useRef(new Map<TrackOrderKey, DOMRect>())
+  const previewTrackOrder = draggedTrack && dropTarget
+    ? moveTrackOrder(trackOrder, draggedTrack, dropTarget.key, dropTarget.placement)
+    : trackOrder
+  const renderedVisibleTrackOrder = previewTrackOrder.filter((key) => {
+    const stemType = getStemTypeFromTrackOrderKey(key)
+    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled))
+  })
+
+  const captureTrackPositions = (): void => {
+    const next = new Map<TrackOrderKey, DOMRect>()
+    trackListRef.current?.querySelectorAll<HTMLElement>('[data-track-order-key]').forEach((row) => {
+      next.set(row.dataset.trackOrderKey as TrackOrderKey, row.getBoundingClientRect())
+    })
+    dragAnimationOriginRef.current = next
+  }
+
+  useLayoutEffect(() => {
+    if (dragAnimationOriginRef.current.size === 0) return
+    trackListRef.current?.querySelectorAll<HTMLElement>('[data-track-order-key]').forEach((row) => {
+      const key = row.dataset.trackOrderKey as TrackOrderKey
+      const before = dragAnimationOriginRef.current.get(key)
+      if (!before || typeof row.animate !== 'function') return
+      const after = row.getBoundingClientRect()
+      const offset = before.top - after.top
+      if (Math.abs(offset) > 0.5) row.animate(
+        [{ transform: `translateY(${offset}px)` }, { transform: 'translateY(0)' }],
+        { duration: 210, easing: 'cubic-bezier(.2,.78,.25,1)' }
+      )
+    })
+    dragAnimationOriginRef.current.clear()
+  }, [renderedVisibleTrackOrder.map((key) => key).join('|')])
 
   const clearTrackDragListeners = (): void => {
     const cleanup = dragListenerCleanupRef.current
@@ -144,6 +177,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
 
   const cancelTrackDrag = (): void => {
     clearTrackDragListeners()
+    captureTrackPositions()
     draggedTrackRef.current = null
     dropTargetRef.current = null
     setDraggedTrack(null)
@@ -152,6 +186,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
 
   const updateTrackDragTarget = (target: { key: TrackOrderKey; placement: 'before' | 'after' }): void => {
     if (dropTargetRef.current?.key === target.key && dropTargetRef.current.placement === target.placement) return
+    captureTrackPositions()
     dropTargetRef.current = target
     setDropTarget(target)
   }
@@ -241,8 +276,8 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
         onRateChange={(playbackRate) => onPatch({ playbackRate })}
       />}
       <section className="mixer-card">
-        <div className="track-list">
-          {visibleTrackOrder.map((key) => {
+        <div className="track-list" ref={trackListRef}>
+          {renderedVisibleTrackOrder.map((key) => {
             const type = getStemTypeFromTrackOrderKey(key)
             const sharedDragProps = {
               trackKey: key,
@@ -369,6 +404,69 @@ function SortableTrackRow(props: SortableTrackRowProps): React.JSX.Element {
   </div>
 }
 
+function TrackGainControl({ label, value, disabled, onChange }: {
+  label: string
+  value: number
+  disabled: boolean
+  onChange(value: number): void
+}): React.JSX.Element {
+  const valueRef = useRef(value)
+  const hideTimer = useRef<number | null>(null)
+  const [feedback, setFeedback] = useState<number | null>(null)
+
+  useEffect(() => { valueRef.current = value }, [value])
+  useEffect(() => () => {
+    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current)
+  }, [])
+
+  const reveal = (next: number): void => {
+    valueRef.current = next
+    setFeedback(next)
+    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current)
+    hideTimer.current = window.setTimeout(() => {
+      hideTimer.current = null
+      setFeedback(null)
+    }, 900)
+  }
+
+  const commit = (next: number): void => {
+    const bounded = clamp(Math.round(next * 2) / 2, MIN_GAIN_DB, MAX_GAIN_DB)
+    reveal(bounded)
+    if (bounded !== valueRef.current) onChange(bounded)
+    else if (bounded !== value) onChange(bounded)
+  }
+
+  return <span
+    className={`track-gain ${feedback !== null ? 'is-adjusting' : ''}`}
+    onClick={(event) => event.stopPropagation()}
+    onWheel={(event) => {
+      if (disabled) return
+      event.preventDefault()
+      event.stopPropagation()
+      const direction = event.deltaY < 0 ? 1 : -1
+      const next = clamp(Math.round((valueRef.current + direction * 0.5) * 2) / 2, MIN_GAIN_DB, MAX_GAIN_DB)
+      valueRef.current = next
+      reveal(next)
+      onChange(next)
+    }}
+  >
+    <input
+      disabled={disabled}
+      type="range"
+      min={MIN_GAIN_DB}
+      max={MAX_GAIN_DB}
+      step="0.5"
+      value={value}
+      aria-label={`${label}滑块`}
+      aria-valuetext={`${formatGainDb(value)} dB`}
+      onPointerDown={() => reveal(value)}
+      onDoubleClick={() => { reveal(0); onChange(0) }}
+      onChange={(event) => commit(Number(event.target.value))}
+    />
+    {feedback !== null && <output className="track-gain-feedback" role="status">{formatGainDb(feedback)} dB</output>}
+  </span>
+}
+
 interface TrackRowProps extends TrackDragProps {
   name?: string
   type: StemType
@@ -417,10 +515,7 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
       <button className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onPatch(silenceToggle(state)) }}>M</button>
       <button className={state.solo ? 'active' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onPatch({ solo: !state.solo }) }}>S</button>
     </span>
-    <span className="track-gain">
-      <input disabled={!exists || locked} type="range" min={MIN_GAIN_DB} max={MAX_GAIN_DB} step="0.5" value={state.gainDb} aria-label={`${STEM_META[type].label}电平滑块`} onDoubleClick={() => onPatch({ gainDb: 0 })} onChange={(event) => onPatch({ gainDb: Number(event.target.value) })} />
-      <LevelInput label={`${STEM_META[type].label}电平`} value={state.gainDb} disabled={!exists || locked} onChange={(gainDb) => onPatch({ gainDb })} />
-    </span>
+    <TrackGainControl label={`${STEM_META[type].label}电平`} value={state.gainDb} disabled={!exists || locked} onChange={(gainDb) => onPatch({ gainDb })} />
     <span className="track-output-route" onClick={(event) => event.stopPropagation()}>
       <small>OUT</small>
       <SelectMenu
@@ -501,10 +596,7 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
       <button className={isSilenced(track) ? 'active' : isImpliedMuted(track, soloActive && Boolean(activeTake)) ? 'is-implied-muted' : ''} disabled={locked || !activeTake} onClick={() => onTrack({ ...silenceToggle(track), ...(isSilenced(track) ? {} : { solo: false }) })}>M</button>
       <button className={track.solo ? 'active' : ''} disabled={locked || !activeTake} onClick={() => onTrack({ solo: !track.solo, ...(!track.solo ? { muted: false } : {}) })}>S</button>
     </span>
-    <span className="track-gain">
-      <input disabled={locked || !activeTake} type="range" min={MIN_GAIN_DB} max={MAX_GAIN_DB} step="0.5" value={track.gainDb} aria-label={`${track.name || '录音轨'}电平滑块`} onDoubleClick={() => onTrack({ gainDb: 0 })} onChange={(event) => onTrack({ gainDb: Number(event.target.value) })} />
-      <LevelInput label={`${track.name || '录音轨'}电平`} value={track.gainDb} disabled={locked || !activeTake} onChange={(gainDb) => onTrack({ gainDb })} />
-    </span>
+    <TrackGainControl label={`${track.name || '录音轨'}电平`} value={track.gainDb} disabled={locked || !activeTake} onChange={(gainDb) => onTrack({ gainDb })} />
     <div className="recording-wave-wrap">
       {!song.videoUrl && <Waveform
         stemType="recording"

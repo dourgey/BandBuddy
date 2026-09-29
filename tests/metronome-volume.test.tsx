@@ -35,7 +35,7 @@ afterEach(() => {
 async function openPractice(): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   render(<QueryClientProvider client={client}><App /></QueryClientProvider>)
-  fireEvent.click(screen.getByRole('button', { name: '打开练习室' }))
+  fireEvent.click(screen.getByRole('button', { name: '练习室' }))
   await screen.findByRole('button', { name: '设置 A 点' })
 }
 

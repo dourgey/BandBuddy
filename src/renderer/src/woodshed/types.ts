@@ -1,4 +1,5 @@
 import type { Instrument, Position } from './theory.js'
+import type { DrumDraft, DrumPresetId } from './drum-patterns.js'
 export type Section = 'learn' | 'lab' | 'practice' | 'tools'
 export type Pattern =
   | 'scale'
@@ -86,7 +87,9 @@ export interface Preferences {
   exercise: ExerciseConfig
   a4: number
   inputDevice: string
+  inputChannel: number
   droneFifth: boolean
+  drumMachine: { selectedPresetId: DrumPresetId; drafts: Partial<Record<DrumPresetId, DrumDraft>> }
   scrollPositions: Record<Section, number>
 }
 export const DEFAULT_EXERCISE: ExerciseConfig = {
