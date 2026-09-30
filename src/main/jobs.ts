@@ -44,6 +44,7 @@ interface ExportPayload {
 
 export class JobScheduler {
   private running = false
+  private stopping = false
   private active: { id: string; songId: string | null; controller: AbortController } | null = null
   private exporter: ExportService | null = null
 
@@ -71,7 +72,7 @@ export class JobScheduler {
   }
 
   kick(): void {
-    if (this.running) return
+    if (this.running || this.stopping) return
     this.running = true
     queueMicrotask(() => void this.drain())
   }
@@ -81,6 +82,20 @@ export class JobScheduler {
       while (!this.active) {
         const job = this.database.nextQueuedJob()
         if (!job) break
+        if (job.type === 'separate' || job.type === 'guitarSplit') {
+          try { await this.runtime.ensureDetected() }
+          catch (error) {
+            if (this.stopping) break
+            this.logger.warn('runtime detection failed before job', error)
+            if (this.database.getJob(job.id)?.status === 'queued') {
+              this.database.setJobState(job.id, 'blockedRuntime', '运行环境检测失败，请在设置中重新检测', 0)
+              this.changed()
+            }
+            continue
+          }
+        }
+        if (this.stopping) break
+        if (this.database.getJob(job.id)?.status !== 'queued') continue
         if ((job.type === 'separate' || job.type === 'guitarSplit') && this.runtime.getInfo().status !== 'ready') {
           this.database.setJobState(job.id, 'blockedRuntime', '等待安装本地分离环境', 0)
           this.changed()
@@ -100,7 +115,7 @@ export class JobScheduler {
       }
     } finally {
       this.running = false
-      if (!this.active && this.database.nextQueuedJob()) this.kick()
+      if (!this.stopping && !this.active && this.database.nextQueuedJob()) this.kick()
     }
   }
 
@@ -495,6 +510,7 @@ export class JobScheduler {
   }
 
   interruptForExit(): void {
+    this.stopping = true
     if (!this.active) return
     const job = this.database.getJob(this.active.id)
     this.active.controller.abort()

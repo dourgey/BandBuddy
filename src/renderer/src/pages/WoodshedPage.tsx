@@ -5,44 +5,46 @@ import {
   Grid2X2,
   Dumbbell,
   Wrench,
-  Search,
-  Bookmark,
   ArrowRight,
   ChevronRight,
   Music2,
   Compass,
   Volume2,
   Square,
-  ListMusic,
   Mic,
   Timer,
   CircleHelp,
   RotateCcw,
-  Drum
+  Drum,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react'
-import { LESSONS, TRACKS, LEVELS, BLUES_ROLES } from '../woodshed/curriculum.js'
+import { LESSONS } from '../woodshed/curriculum.js'
 import { TUNINGS, SCALES, CHORDS, ROOTS, parseNote, noteName, type Tuning } from '../woodshed/theory.js'
 import {
   DEFAULT_EXERCISE,
   type Preferences,
   type ExerciseConfig,
-  type Lesson,
   type Section
 } from '../woodshed/types.js'
 import { readPreferences, savePreferences } from '../woodshed/preferences.js'
 import { Workbench, SelectField, NumberField } from '../woodshed/Workbench.js'
 import { HarmonyExplorer } from '../woodshed/HarmonyExplorer.js'
+import { ChordLookup } from '../woodshed/ChordLookup.js'
 import { Tuner } from '../woodshed/Tuner.js'
 import { SelectMenu } from '../components/SelectMenu.js'
 import { DrumMachine } from '../woodshed/DrumMachine.js'
 import { Metronome } from '../woodshed/Metronome.js'
 import { WoodshedAudio } from '../woodshed/audio.js'
 import '../woodshed/woodshed.css'
+import { Learning, LearningBreadcrumb, type LearningLocation } from '../woodshed/Learning.js'
+import { Practice, PracticeBreadcrumb } from '../woodshed/Practice.js'
+import type { PracticeLocation } from '../woodshed/practice-curriculum.js'
 const NAV = [
-  { id: 'learn', name: '系统学习', subtitle: '把知识连成体系', icon: BookOpen },
-  { id: 'lab', name: '指板实验室', subtitle: '看见每一个音', icon: Grid2X2 },
-  { id: 'practice', name: '专项练习', subtitle: '带着目标开始', icon: Dumbbell },
-  { id: 'tools', name: '工具箱', subtitle: '随手打开，即刻使用', icon: Wrench }
+  { id: 'learn', name: '系统学习', icon: BookOpen },
+  { id: 'lab', name: '指板实验室', icon: Grid2X2 },
+  { id: 'practice', name: '专项练习', icon: Dumbbell },
+  { id: 'tools', name: '工具箱', icon: Wrench }
 ] as const
 const TOOLS = [
   { id: 'metronome', name: '节拍器', icon: Timer },
@@ -61,10 +63,28 @@ export default function WoodshedPage({
 }): React.JSX.Element {
   const [p, setP] = useState<Preferences>(readPreferences),
     [audio, setAudio] = useState<WoodshedAudio | null>(null)
-  const [query, setQuery] = useState(''),
-    [track, setTrack] = useState('all'),
-    [level, setLevel] = useState('all'),
-    [onlyFavorites, setOnlyFavorites] = useState(false)
+  const [practice, setPractice] = useState<PracticeLocation>({ instrument: null, exercise: null })
+  const navigatePractice = (next: PracticeLocation): void => {
+    setPractice(next)
+    setP(old => ({ ...old, section: 'practice' }))
+    scrollPositions.current.practice = 0
+    scroll.current?.scrollTo(0, 0)
+  }
+  const [learning, setLearning] = useState<LearningLocation>({ system: null, node: null })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('bandbuddy-woodshed-sidebar') === 'collapsed' } catch { return false }
+  })
+  const toggleSidebar = (): void => {
+    const next = !sidebarCollapsed
+    setSidebarCollapsed(next)
+    try { localStorage.setItem('bandbuddy-woodshed-sidebar', next ? 'collapsed' : 'expanded') } catch { /* Session state remains usable. */ }
+  }
+  const navigateLearning = (next: LearningLocation): void => {
+    setLearning(next)
+    scrollPositions.current.learn = 0
+    setP(old => ({ ...old, section: 'learn' }))
+    scroll.current?.scrollTo(0, 0)
+  }
   const [tool, setTool] = useState<string | null>(null),
     [customOpen, setCustomOpen] = useState(false),
     [customText, setCustomText] = useState(''),
@@ -135,50 +155,6 @@ export default function WoodshedPage({
     [preset, p.customNotes]
   )
   const lesson = LESSONS.find((l) => l.id === p.lessonId) ?? LESSONS[0]!
-  const visible = useMemo(
-    () =>
-      LESSONS.filter(
-        (l) =>
-          (track === 'all' || l.track === track) &&
-          (level === 'all' || String(l.level) === level) &&
-          (!onlyFavorites || p.favorites.includes(l.id)) &&
-          `${l.title} ${l.category} ${l.goal} ${l.explanation}`.toLowerCase().includes(query.trim().toLowerCase())
-      ),
-    [track, level, onlyFavorites, p.favorites, query]
-  )
-  const selectLesson = (next: Lesson): void => {
-    audio?.stop()
-    const target =
-      next.track === 'shared' || next.track === 'blues' || next.track === preset.instrument
-        ? p.tuningId
-        : next.track === 'guitar'
-          ? 'guitar'
-          : next.track === 'bass'
-            ? 'bass'
-            : 'uke-high'
-    const targetPreset = TUNINGS.find((t) => t.id === target)!
-    setP((old) => ({
-      ...old,
-      lessonId: next.id,
-      tuningId: target,
-      customNotes: target !== old.tuningId ? null : old.customNotes,
-      capo: target !== old.tuningId ? 0 : old.capo,
-      exercise: {
-        ...DEFAULT_EXERCISE,
-        ...next.exercise,
-        chord:
-          next.exercise.chord ??
-          (next.track === 'blues'
-            ? '7'
-            : SCALES[next.exercise.scale ?? 'major']!.semitones.includes(3)
-              ? 'minor'
-              : 'major'),
-        bass: targetPreset.instrument === 'bass' ? 0 : DEFAULT_EXERCISE.bass,
-        minFret: Math.min(next.exercise.minFret ?? 0, targetPreset.frets - (target === old.tuningId ? old.capo : 0)),
-        maxFret: Math.min(targetPreset.frets - (target === old.tuningId ? old.capo : 0), next.exercise.maxFret ?? 5)
-      }
-    }))
-  }
   const selectInstrument = (id: string): void => {
     audio?.stop()
     const next = TUNINGS.find((t) => t.id === id)!
@@ -204,13 +180,10 @@ export default function WoodshedPage({
   }
   const navigate = (section: Section): void => {
     if (section === 'tools') setTool(null)
+    if (section === 'practice') { setPractice({ instrument: null, exercise: null }); scrollPositions.current.practice = 0; scroll.current?.scrollTo(0, 0) }
+    if (section === 'learn') { setLearning({ system: null, node: null }); scroll.current?.scrollTo(0, 0) }
     setP((old) => ({ ...old, section }))
   }
-  const favorite = (id: string): void =>
-    setP((old) => ({
-      ...old,
-      favorites: old.favorites.includes(id) ? old.favorites.filter((x) => x !== id) : [...old.favorites, id]
-    }))
   const applyCustom = (): void => {
     const parts = customText.trim().split(/[\s,，]+/)
     const notes = parts.map(parseNote)
@@ -224,10 +197,6 @@ export default function WoodshedPage({
     setCustomError('')
     setCustomOpen(false)
   }
-  const openPractice = (): void => {
-    navigate('practice')
-    scroll.current?.scrollTo(0, 0)
-  }
   const renderWorkbench = (metronomeOnly = false): React.JSX.Element => (
     <Workbench
       tuning={tuning}
@@ -236,7 +205,6 @@ export default function WoodshedPage({
       onLabels={labels}
       audio={audio}
       onError={error}
-      technique={p.section === 'learn' || p.section === 'practice' ? lesson.technique : undefined}
       metronomeOnly={metronomeOnly}
     />
   )
@@ -278,71 +246,41 @@ export default function WoodshedPage({
     </div>
   )
   return (
-    <main className="ws-page">
+    <main className={`ws-page ${sidebarCollapsed ? 'ws-sidebar-collapsed' : ''}`}>
       <aside className="ws-sidebar">
+        <button className="ws-sidebar-toggle" aria-label={sidebarCollapsed ? '展开左侧菜单' : '折叠左侧菜单'} title={sidebarCollapsed ? '展开左侧菜单' : '折叠左侧菜单'} aria-expanded={!sidebarCollapsed} aria-controls="woodshed-navigation" onClick={toggleSidebar}>
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
         <div className="ws-sidebar-brand">
           <div className="ws-brand-icon">
             <Guitar size={23} />
           </div>
           <div>
             <h1>练功房</h1>
-            <span>THE WOODSHED</span>
           </div>
         </div>
-        <nav aria-label="练功房导航">
+        <nav id="woodshed-navigation" aria-label="练功房导航">
           {NAV.map((item) => (
-            <button key={item.id} className={p.section === item.id ? 'selected' : ''} onClick={() => navigate(item.id)}>
+            <button key={item.id} aria-label={item.name} title={sidebarCollapsed ? item.name : undefined} className={p.section === item.id ? 'selected' : ''} onClick={() => navigate(item.id)}>
               <item.icon size={19} />
               <span>
                 <b>{item.name}</b>
-                <small>{item.subtitle}</small>
               </span>
               {p.section === item.id && <ChevronRight size={15} />}
             </button>
           ))}
         </nav>
-        <div className="ws-sidebar-divider" />
-        <button
-          className={`ws-favorites-nav ${onlyFavorites ? 'selected' : ''}`}
-          onClick={() => {
-            setOnlyFavorites((v) => !v)
-            navigate('learn')
-          }}
-        >
-          <Bookmark size={17} />
-          <span>我的收藏</span>
-          <b>{p.favorites.length}</b>
-        </button>
-        <div className="ws-sidebar-note">
-          <span className="ws-eyebrow">PRACTICE WITH PURPOSE</span>
-          <h3>
-            慢一点，
-            <br />
-            听清每个音。
-          </h3>
-          <p>
-            一次专注一个目标。
-            <br />
-            在理解之后练习，
-            <br />
-            在音乐之中应用。
-          </p>
-          <div className="ws-string-decoration">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <i key={n} />
-            ))}
-          </div>
-        </div>
         <div className="ws-local">
           <span /> 本地可用 · 自由练习
         </div>
       </aside>
       <section className="ws-main">
         <header className="ws-topbar">
-          <div className="ws-breadcrumb">
-            练功房 <ChevronRight size={13} /> <b>{NAV.find((n) => n.id === p.section)?.name}</b>
-            {p.section === 'tools' && tool && <><ChevronRight size={13} /> <b>{TOOLS.find((item) => item.id === tool)?.name}</b></>}
-          </div>
+          <nav className="ws-breadcrumb" aria-label="页面路径">
+            <button onClick={() => navigateLearning({ system: null, node: null })}>练功房</button><ChevronRight size={13} />
+            {p.section === 'learn' ? <LearningBreadcrumb location={learning} onNavigate={navigateLearning} /> : p.section === 'practice' ? <PracticeBreadcrumb location={practice} onNavigate={navigatePractice} /> : <button onClick={() => navigate(p.section)}>{NAV.find(n => n.id === p.section)?.name}</button>}
+            {p.section === 'tools' && tool && <><ChevronRight size={13} /><span aria-current="page">{TOOLS.find(item => item.id === tool)?.name}</span></>}
+          </nav>
         </header>
         <div
           className={`ws-scroll ${p.section === 'tools' && tool ? 'ws-scroll-tool' : ''} ${tool === 'tuner' && p.section === 'tools' ? 'ws-scroll-tuner' : ''}`}
@@ -353,232 +291,31 @@ export default function WoodshedPage({
             scrollTimer.current = setTimeout(persistScroll, 200)
           }}
         >
-          {(p.section !== 'tools' || !tool) && <div className="ws-hero">
+          {(p.section === 'lab' || p.section === 'tools') && (p.section !== 'tools' || !tool) && <div className="ws-hero">
             <div>
               <span className="ws-eyebrow">
-                {p.section === 'learn'
-                  ? 'LEARN THE WHY. PLAY THE HOW.'
-                  : p.section === 'lab'
+                {p.section === 'lab'
                     ? 'A MAP FOR YOUR MUSIC.'
-                    : p.section === 'practice'
-                      ? 'SMALL STEPS. REAL PROGRESS.'
                       : 'READY WHEN YOU ARE.'}
               </span>
               <h2>
-                {p.section === 'learn'
-                  ? '把知识，弹进手里。'
-                  : p.section === 'lab'
+                {p.section === 'lab'
                     ? '在指板上，找到音乐。'
-                    : p.section === 'practice'
-                      ? '每一次练习，都有方向。'
                       : '小工具，随手就好。'}
               </h2>
               <p>
-                {p.section === 'learn'
-                  ? '从第一个清晰的音，到有表达的乐句。循序渐进，也可以随时探索。'
-                  : p.section === 'lab'
+                {p.section === 'lab'
                     ? '音名、音级、和弦与把位，在同一张指板上建立联系。'
-                    : p.section === 'practice'
-                      ? '选一个目标，慢速听示范，再把它放进真实的节奏与和声。'
                       : '调准音、稳住拍点，让注意力回到演奏本身。'}
               </p>
             </div>
             <div className="ws-hero-stat">
-              <b>{p.section === 'learn' ? '72' : p.section === 'tools' ? '06' : '12'}</b>
-              <span>{p.section === 'learn' ? '学习单元' : p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
+              <b>{p.section === 'tools' ? '06' : '12'}</b>
+              <span>{p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
             </div>
           </div>}
-          {p.section !== 'tools' && instrumentSettings()}
-          {p.section === 'learn' && (
-            <>
-              <div className="ws-learning-filters">
-                <div className="ws-track-tabs">
-                  {[['all', '全部路线'], ...Object.entries(TRACKS)].map(([id, name]) => (
-                    <button key={id} aria-pressed={track === id} onClick={() => setTrack(id!)}>
-                      {name}
-                      {id === 'blues' && <i />}
-                    </button>
-                  ))}
-                </div>
-                <div className="ws-search-row">
-                  <label className="ws-search">
-                    <Search size={16} />
-                    <input
-                      aria-label="搜索知识"
-                      placeholder="搜索知识、技法或练习目标…"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                  </label>
-                  <select aria-label="难度筛选" value={level} onChange={(e) => setLevel(e.target.value)}>
-                    <option value="all">全部难度</option>
-                    {Object.entries(LEVELS).map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="ws-button"
-                    aria-pressed={onlyFavorites}
-                    onClick={() => setOnlyFavorites((v) => !v)}
-                  >
-                    <Bookmark size={14} />
-                    {onlyFavorites ? '仅看收藏' : '收藏筛选'}
-                  </button>
-                </div>
-              </div>
-              <div className="ws-learn-layout">
-                <aside className="ws-lesson-list">
-                  <div className="ws-list-heading">
-                    <span>{onlyFavorites ? '我的收藏' : '学习目录'}</span>
-                    <small>{visible.length} 个单元</small>
-                  </div>
-                  {visible.map((item, i) => (
-                    <button
-                      key={item.id}
-                      className={`ws-lesson-item ${item.id === lesson.id ? 'selected' : ''}`}
-                      onClick={() => selectLesson(item)}
-                    >
-                      <span className="ws-lesson-number">{String(i + 1).padStart(2, '0')}</span>
-                      <span>
-                        <small>
-                          {TRACKS[item.track]} · {item.category}
-                        </small>
-                        <b>{item.title}</b>
-                        <em>{LEVELS[item.level]}</em>
-                      </span>
-                      {p.favorites.includes(item.id) && <Bookmark size={12} fill="currentColor" />}
-                    </button>
-                  ))}
-                  {!visible.length && (
-                    <div className="ws-empty">
-                      <Search size={24} />
-                      <p>没有匹配的学习单元。</p>
-                      <button
-                        className="ws-button"
-                        onClick={() => {
-                          setQuery('')
-                          setTrack('all')
-                          setLevel('all')
-                          setOnlyFavorites(false)
-                        }}
-                      >
-                        清除筛选
-                      </button>
-                    </div>
-                  )}
-                </aside>
-                <article className="ws-lesson-detail">
-                  <div className="ws-lesson-meta">
-                    <span className="ws-tag">{TRACKS[lesson.track]}</span>
-                    <span>{lesson.category}</span>
-                    <span>·</span>
-                    <span>{LEVELS[lesson.level]}</span>
-                    <button
-                      aria-label={p.favorites.includes(lesson.id) ? '取消收藏' : '收藏本单元'}
-                      aria-pressed={p.favorites.includes(lesson.id)}
-                      onClick={() => favorite(lesson.id)}
-                    >
-                      <Bookmark size={19} fill={p.favorites.includes(lesson.id) ? 'currentColor' : 'none'} />
-                    </button>
-                  </div>
-                  <h2>{lesson.title}</h2>
-                  <p className="ws-lesson-goal">{lesson.goal}</p>
-                  <div className="ws-prerequisites">
-                    <span>先了解</span>
-                    {lesson.prerequisites.length ? (
-                      lesson.prerequisites.map((id) => (
-                        <button key={id} onClick={() => selectLesson(LESSONS.find((l) => l.id === id)!)}>
-                          {LESSONS.find((l) => l.id === id)?.title}
-                          <ChevronRight size={12} />
-                        </button>
-                      ))
-                    ) : (
-                      <small>无需前置知识，从这里开始。</small>
-                    )}
-                  </div>
-                  <h3>理解它</h3>
-                  <p>{lesson.explanation}</p>
-                  <div className="ws-example">
-                    <span>举个例子</span>
-                    <p>{lesson.example}</p>
-                  </div>
-                  <h3>动手练习</h3>
-                  <ol className="ws-steps">
-                    {lesson.steps.map((step, i) => (
-                      <li key={i}>
-                        <span>{i + 1}</span>
-                        <p>{step}</p>
-                      </li>
-                    ))}
-                  </ol>
-                  {lesson.track === 'blues' && (
-                    <div className="ws-blues-role">
-                      <Guitar size={19} />
-                      <p>{BLUES_ROLES[tuning.instrument]}</p>
-                    </div>
-                  )}
-                  <div className="ws-lesson-checks">
-                    <div>
-                      <h4>留意这些问题</h4>
-                      <p>{lesson.mistakes}</p>
-                    </div>
-                    <div>
-                      <h4>如何自检</h4>
-                      <p>{lesson.check}</p>
-                    </div>
-                  </div>
-                  <div className="ws-difficulty">
-                    <div>
-                      <small>降低难度</small>
-                      <p>{lesson.easier}</p>
-                    </div>
-                    <div>
-                      <small>下一步挑战</small>
-                      <p>{lesson.harder}</p>
-                    </div>
-                  </div>
-                  <div className="ws-lesson-actions">
-                    <button className="ws-button primary" onClick={openPractice}>
-                      <PlayIcon />
-                      进入专项练习
-                      <ArrowRight size={15} />
-                    </button>
-                    <button className="ws-button" onClick={() => navigate('lab')}>
-                      在指板中探索
-                    </button>
-                  </div>
-                  {lesson.related.length > 0 && (
-                    <div className="ws-related">
-                      <small>继续探索</small>
-                      {lesson.related.map((id) => (
-                        <button key={id} onClick={() => selectLesson(LESSONS.find((l) => l.id === id)!)}>
-                          {LESSONS.find((l) => l.id === id)?.title}
-                          <ArrowRight size={13} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <details className="ws-source-note">
-                    <summary>内容与谱例说明</summary>
-                    <p>
-                      讲解与短谱例为原创练习材料。谱面下方为可调音型，文字中的专项步骤需结合实际演奏；听准与弹准分别自检，不自动评分。
-                    </p>
-                    <p>
-                      参考：Berklee Blues Guitar 课程、Fender
-                      布鲁斯音阶与尤克里里调弦教程。知识入口按前置关系组织，不限制自由浏览。
-                    </p>
-                  </details>
-                </article>
-              </div>
-              <div className="ws-section-caption">
-                <span>把刚学到的，放到指板上</span>
-                <small>所选单元的参考音型 · 可自由调整</small>
-              </div>
-              {renderWorkbench()}
-            </>
-          )}
+          {p.section === 'lab' && instrumentSettings()}
+          {p.section === 'learn' && <Learning location={learning} onNavigate={navigateLearning} onPractice={navigatePractice} />}
           {p.section === 'lab' && (
             <>
               <div className="ws-lab-intro">
@@ -590,43 +327,14 @@ export default function WoodshedPage({
                   </p>
                 </div>
                 <button className="ws-button" onClick={() => navigate('practice')}>
-                  生成专项练习
+                  浏览专项练习
                   <ArrowRight size={14} />
                 </button>
               </div>
               {renderWorkbench()}
             </>
           )}
-          {p.section === 'practice' && (
-            <>
-              <div className="ws-practice-selection">
-                <SelectField
-                  label="练习目标"
-                  value={lesson.id}
-                  options={Object.fromEntries(
-                    LESSONS.filter(
-                      (l) => l.track === 'shared' || l.track === 'blues' || l.track === tuning.instrument
-                    ).map((l) => [l.id, `${TRACKS[l.track]} · ${l.title}`])
-                  )}
-                  onChange={(id) => selectLesson(LESSONS.find((l) => l.id === id)!)}
-                />
-                <button className="ws-icon-button" aria-label="收藏当前练习" onClick={() => favorite(lesson.id)}>
-                  <Bookmark size={18} fill={p.favorites.includes(lesson.id) ? 'currentColor' : 'none'} />
-                </button>
-                <button className="ws-button" onClick={() => navigate('learn')}>
-                  <BookOpen size={15} />
-                  查看讲解
-                </button>
-              </div>
-              <div className="ws-goal-callout">
-                <span>本次只关注</span>
-                <b>{lesson.goal}</b>
-                <p>{lesson.check}</p>
-                {lesson.track === 'blues' && <small>{BLUES_ROLES[tuning.instrument]}</small>}
-              </div>
-              {renderWorkbench()}
-            </>
-          )}
+          {p.section === 'practice' && <Practice location={practice} onNavigate={navigatePractice} outputDeviceId={outputDeviceId} onError={error} />}
           {p.section === 'tools' && (
             <>
               {!tool ? <div className="ws-tool-cards">
@@ -635,7 +343,6 @@ export default function WoodshedPage({
                     key={item.id}
                     onClick={() => {
                       setTool(item.id)
-                      if (item.id === 'chords') patch({ material: 'chord', pattern: 'chord' })
                       scroll.current?.scrollTo(0, 0)
                     }}
                   >
@@ -669,7 +376,7 @@ export default function WoodshedPage({
                   onError={error}
                 />
               )}
-              {tool === 'chords' && renderWorkbench()}
+              {tool === 'chords' && <ChordLookup initialRoot={p.exercise.root} outputDeviceId={outputDeviceId} a4={p.a4} onError={error} />}
               {tool === 'circle' && (
                 <HarmonyExplorer root={p.exercise.root} onRoot={root => patch({ root })} outputDeviceId={outputDeviceId} a4={p.a4} onError={error} />
               )}
@@ -732,7 +439,7 @@ export default function WoodshedPage({
               )}
             </>
           )}
-          {p.section !== 'tools' && <footer className="ws-footer">
+          {p.section === 'lab' && <footer className="ws-footer">
             <CircleHelp size={14} />
             <span>理解 → 听见 → 找到 → 演奏。按自己的节奏探索。</span>
             <button
@@ -752,7 +459,4 @@ export default function WoodshedPage({
       </section>
     </main>
   )
-}
-function PlayIcon(): React.JSX.Element {
-  return <ListMusic size={16} />
 }

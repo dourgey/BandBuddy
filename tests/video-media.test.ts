@@ -67,9 +67,10 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     mkdirSync(paths.backupRoot, { recursive: true })
     database = new BandBuddyDatabase(paths)
     media = new MediaService(paths, database, logger as never)
-    expect(media.toolsReady()).toBe(true)
+
+    expect(await media.toolsReady()).toBe(true)
     source = path.join(root, '现场 测试 🎸.avi')
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=10:duration=1.2',
       '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:duration=1.2',
       '-c:v', 'mpeg4', '-c:a', 'pcm_s16le', '-shortest', source
@@ -84,11 +85,11 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
 
   it('imports uppercase AAC, detects duplicates and decodes it to playable audio', async () => {
     const input = path.join(root, '音频 支持.AAC')
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=880:duration=1', '-c:a', 'aac', '-f', 'adts', input
     ])
     expect(generated.code, generated.stderr).toBe(0)
-    const runtime = { getInfo: () => ({ status: 'ready' }) }
+    const runtime = { ensureDetected: async () => ({ status: 'ready' }), getInfo: () => ({ status: 'ready' }) }
     const imports = new ImportService(paths, database, media, runtime as never, logger as never, vi.fn(), vi.fn())
     const imported = await imports.importSource({ filePath: input })
     expect(imported.songId).toBeTruthy()
@@ -109,7 +110,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     ['ac3', 'ac3'], ['caf', 'pcm_s16le'], ['m4a', 'alac']
   ])('decodes %s (%s) into float WAV for inference', async (extension, codec) => {
     const input = path.join(root, `format-${codec}.${extension.toUpperCase()}`)
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000:duration=0.3',
       '-c:a', codec, input
     ])
@@ -117,7 +118,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     expect(SOURCE_MEDIA_EXTENSIONS.has(`.${extension}`)).toBe(true)
     const output = path.join(root, `${extension}-${codec}.wav`)
     await media.decodeAudio(input, `${output}.part`, output, new AbortController().signal)
-    const inspected = await runProcess(media.tool('ffprobe')!, [
+    const inspected = await runProcess((await media.tool('ffprobe'))!, [
       '-v', 'error', '-show_streams', '-of', 'json', output
     ])
     expect(JSON.parse(inspected.stdout).streams).toMatchObject([
@@ -137,7 +138,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     ['ogv', 'libtheora', 'libvorbis']
   ])('extracts audio and prepares playback from %s', async (extension, videoCodec, audioCodec) => {
     const input = path.join(root, `container.${extension}`)
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=96x64:rate=25:duration=0.4',
       '-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000:duration=0.4',
       '-c:v', videoCodec, '-c:a', audioCodec,
@@ -149,20 +150,20 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     await media.extractVideoAudio(input, `${output}.part`, output, new AbortController().signal)
     expect(await media.probe(output)).toMatchObject({ sampleRate: 44100, channels: 2, video: null })
     const playback = await media.prepareVideo(input, path.join(root, extension, 'tmp'), path.join(root, extension, 'playback'), new AbortController().signal)
-    const inspected = await runProcess(media.tool('ffprobe')!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
+    const inspected = await runProcess((await media.tool('ffprobe'))!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
     expect(JSON.parse(inspected.stdout).streams).toMatchObject([{ codec_type: 'video', codec_name: extension === 'webm' ? 'vp8' : 'vp9' }])
   })
 
   it('feeds decoded M4A to both separation stages without changing the original', async () => {
     const input = path.join(root, 'regression.m4a')
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=731:sample_rate=48000:duration=0.25', '-c:a', 'aac', input
     ])
     expect(generated.code, generated.stderr).toBe(0)
     const original = await readFile(input)
     const commands: string[] = []
     const runtime = {
-      onChange: vi.fn(), getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
+      onChange: vi.fn(), ensureDetected: async () => ({ status: 'ready' }), getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
       runWorker: vi.fn(async (args: string[]) => {
         commands.push(args[0]!)
         const workerInput = args[args.indexOf('--input') + 1]!
@@ -207,7 +208,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     const guitarGate = new Promise<void>((resolve) => { releaseGuitar = resolve })
     const runtime = {
       onChange: vi.fn(),
-      getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
+      ensureDetected: async () => ({ status: 'ready' }), getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
       runWorker: vi.fn(async (args: string[]) => {
         const command = args[0]
         const workerInput = args[args.indexOf('--input') + 1]!
@@ -273,7 +274,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     const mp3Files = database.getActiveStemFiles(song.id)
     expect(mp3Files).toHaveLength(9)
     expect(mp3Files.every((file) => file.relPath.endsWith('.mp3'))).toBe(true)
-    const mp3Inspect = await runProcess(media.tool('ffprobe')!, [
+    const mp3Inspect = await runProcess((await media.tool('ffprobe'))!, [
       '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,channels,bit_rate', '-of', 'json',
       paths.resolveLibraryPath(database.getSettings().libraryRoot, mp3Files[0]!.relPath)
     ])
@@ -285,7 +286,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     expect(database.getSong(song.id)?.practice.guitarSplitEnabled).toBe(true)
     expect(song.videoUrl).toBe(`bandbuddy-media://song/${song.id}/video`)
     const playbackPath = paths.resolveLibraryPath(database.getSettings().libraryRoot, database.getVideoRelative(song.id)!)
-    const inspected = await runProcess(media.tool('ffprobe')!, ['-v', 'error', '-show_streams', '-of', 'json', playbackPath])
+    const inspected = await runProcess((await media.tool('ffprobe'))!, ['-v', 'error', '-show_streams', '-of', 'json', playbackPath])
     const streams = JSON.parse(inspected.stdout).streams as Array<{ codec_type: string; codec_name: string }>
     expect(streams).toHaveLength(1)
     expect(streams[0]).toMatchObject({ codec_type: 'video', codec_name: 'vp9' })
@@ -313,7 +314,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     const flacFiles = database.getActiveStemFiles(song.id)
     expect(flacFiles).toHaveLength(9)
     expect(flacFiles.every((file) => file.relPath.endsWith('.flac'))).toBe(true)
-    const flacInspect = await runProcess(media.tool('ffprobe')!, [
+    const flacInspect = await runProcess((await media.tool('ffprobe'))!, [
       '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name,sample_rate,channels,bits_per_raw_sample', '-of', 'json',
       paths.resolveLibraryPath(database.getSettings().libraryRoot, flacFiles[0]!.relPath)
     ])
@@ -327,17 +328,17 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
   it('remuxes common H.264 MP4 without re-encoding or retaining its original audio', async () => {
     const input = path.join(root, 'common-h264.mp4')
     const encoder = process.platform === 'darwin' ? 'libx264' : 'libopenh264'
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-i', source, '-c:v', encoder, '-pix_fmt', 'yuv420p', '-c:a', 'aac', input
     ])
     expect(generated.code, generated.stderr).toBe(0)
     const playback = await media.prepareVideo(input, root, path.join(root, 'copied-h264'), new AbortController().signal)
     expect(playback).toMatch(/\.mp4$/)
-    const inspected = await runProcess(media.tool('ffprobe')!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
+    const inspected = await runProcess((await media.tool('ffprobe'))!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
     const streams = JSON.parse(inspected.stdout).streams
     expect(streams).toHaveLength(1)
     expect(streams[0]).toMatchObject({ codec_type: 'video', codec_name: 'h264', pix_fmt: 'yuv420p' })
-    const packets = await Promise.all([input, playback].map((file) => runProcess(media.tool('ffprobe')!, [
+    const packets = await Promise.all([input, playback].map(async (file) => runProcess((await media.tool('ffprobe'))!, [
       '-v', 'error', '-select_streams', 'v:0', '-show_packets', '-show_data_hash', 'sha256',
       '-show_entries', 'packet=data_hash', '-of', 'json', file
     ])))
@@ -350,7 +351,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
 
   it('preserves an audio track delayed relative to the picture', async () => {
     const input = path.join(root, 'delayed-audio.mkv')
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=96x64:rate=10:duration=1',
       '-itsoffset', '0.3', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:duration=0.7',
       '-c:v', 'libvpx', '-deadline', 'realtime', '-c:a', 'pcm_s16le', input
@@ -363,7 +364,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     expect(silence).toBeLessThanOrEqual(320)
     expect((await media.probe(output)).durationMs).toBeGreaterThanOrEqual(990)
     const playback = await media.prepareVideo(input, root, path.join(root, 'copied-vp8'), new AbortController().signal)
-    const inspected = await runProcess(media.tool('ffprobe')!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
+    const inspected = await runProcess((await media.tool('ffprobe'))!, ['-v', 'error', '-show_streams', '-of', 'json', playback])
     expect(JSON.parse(inspected.stdout).streams[0].codec_name).toBe('vp8')
   })
 
@@ -384,7 +385,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
 
     const runtime = {
       onChange: vi.fn(),
-      getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
+      ensureDetected: async () => ({ status: 'ready' }), getInfo: () => ({ status: 'ready', selectedDevice: 'cpu' }),
       runWorker: vi.fn(async () => ({ code: 1, result: {}, error: 'synthetic worker failure' }))
     }
     const imports = new ImportService(paths, database, media, runtime as never, logger as never, () => undefined, () => undefined)
@@ -410,7 +411,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     const first = path.join(root, 'import-lead.wav')
     const second = path.join(root, 'import-vocals.wav')
     for (const [file, duration] of [[first, '1.0'], [second, '1.8']] as const) {
-      const result = await runProcess(media.tool('ffmpeg')!, ['-y', '-v', 'error', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${duration}`, file])
+      const result = await runProcess((await media.tool('ffmpeg'))!, ['-y', '-v', 'error', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${duration}`, file])
       expect(result.code, result.stderr).toBe(0)
     }
     const runtime = { onChange: vi.fn(), getInfo: () => ({ status: 'missing' }) }
@@ -436,14 +437,14 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
       durationMs: 1_000, sampleRate: 44_100, channels: 2, artworkRelPath: null,
       status: 'ready', phase: null
     }, songId)
-    const runtime = { getInfo: () => ({ status: 'ready' }) }
+    const runtime = { ensureDetected: async () => ({ status: 'ready' }), getInfo: () => ({ status: 'ready' }) }
     const imports = new ImportService(paths, database, media, runtime as never, logger as never, () => undefined, () => undefined)
     expect(() => imports.requestGuitarSplit(songId)).toThrow('ORIGINAL_SOURCE_NOT_AVAILABLE')
   })
 
   it('rejects silent videos and cancels extraction without publishing partial output', async () => {
     const silent = path.join(root, 'silent.webm')
-    const generated = await runProcess(media.tool('ffmpeg')!, [
+    const generated = await runProcess((await media.tool('ffmpeg'))!, [
       '-y', '-v', 'error', '-i', source, '-an', '-c:v', 'libvpx', '-deadline', 'realtime', silent
     ])
     expect(generated.code, generated.stderr).toBe(0)

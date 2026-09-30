@@ -93,7 +93,7 @@ export class ImportService {
   }
 
   async importStems(options: ImportStemsOptions): Promise<ImportResult> {
-    if (!this.media.toolsReady()) throw new Error('FFMPEG_MISSING')
+    if (!(await this.media.toolsReady())) throw new Error('FFMPEG_MISSING')
     for (const file of options.files) await this.validateAudioFile(file.path, AUDIO_EXTENSIONS)
     const probes = await Promise.all(options.files.map((file) => this.media.probe(file.path)))
     if (probes.some((probe) => !Number.isFinite(probe.durationMs) || probe.durationMs <= 0)) throw new Error('无效的音轨时长')
@@ -166,7 +166,7 @@ export class ImportService {
     const sourcePath = path.resolve(selected.path)
     await this.validateAudioFile(sourcePath, SOURCE_MEDIA_EXTENSIONS)
     const videoSource = isVideoSource(sourcePath)
-    if (videoSource && !this.media.toolsReady()) throw new Error('FFMPEG_MISSING')
+    if (videoSource && !(await this.media.toolsReady())) throw new Error('FFMPEG_MISSING')
     // Validate streams before copying a potentially large video into the library.
     const sourceProbe = videoSource ? await this.media.probe(sourcePath) : null
     if (videoSource && !sourceProbe?.video) throw new Error('NO_VIDEO_STREAM')
@@ -201,7 +201,7 @@ export class ImportService {
     let artworkRelPath: string | null = null
     const artwork = path.join(songRoot, 'artwork', 'cover.jpg')
     if (await this.media.extractArtwork(copiedSource, artwork)) artworkRelPath = this.paths.toLibraryRelative(settings.libraryRoot, artwork)
-    const runtimeReady = this.runtime.getInfo().status === 'ready'
+    const runtimeReady = (await this.runtime.ensureDetected()).status === 'ready'
     this.database.createSong({
       title: options.title?.trim() || probe.title || path.basename(sourcePath, selectedExtension),
       artist: options.artist?.trim() || probe.artist || '',

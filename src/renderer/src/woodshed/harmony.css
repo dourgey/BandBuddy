@@ -21,12 +21,14 @@
 .he-engraving span:last-child{text-align:right;font-size:8px;line-height:1.7}
 .he-dial{width:100%;max-width:660px;overflow:visible;touch-action:none;cursor:grab;filter:drop-shadow(0 9px 6px #303a3066);margin:8px 0 0;user-select:none}
 .he-dial.dragging{cursor:grabbing}
+.harmony-explorer .he-dial:focus,.harmony-explorer .he-dial [role=button]:focus{outline:none}
 .he-disc{transition:transform .22s ease-out}
 .he-dial.dragging .he-disc{transition:none}
 .he-dial text{font-family:Georgia,'Times New Roman',serif;fill:#26352c;font-size:29px;pointer-events:none;transition:transform .22s ease-out}
 .he-dial.dragging text{transition:none}
 .he-dial [role=button]{cursor:pointer}
 .he-dial [role=button]:hover>path{fill:#f5f6dd55;stroke:#42684c;stroke-width:1.5}
+.he-dial [role=button]:focus-visible>path{fill:#f5f6dd88;stroke:#42684c;stroke-width:1.5}
 .he-dial .he-minor-label{font-size:18px}
 .he-dial .he-hub-title{font-size:37px;fill:#f3f0de}
 .he-dial .he-hub-relative{font-size:19px;fill:#f3f0de}

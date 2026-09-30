@@ -160,8 +160,7 @@ async function scanStartupAudioSettings(): Promise<AppSettings> {
 }
 
 export function loadStartupAudioSettings(): Promise<AppSettings> {
-  // Do not retain a process-wide device snapshot. A renderer can be recreated
-  // while the desktop process stays alive, and every such app open must query
-  // the hardware that is connected now.
+  // Called on first audio-feature use, not on library startup. Recreated
+  // renderers must query current hardware instead of reusing stale device IDs.
   return scanStartupAudioSettings()
 }

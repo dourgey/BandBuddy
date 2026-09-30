@@ -462,7 +462,7 @@ export class RehearsalRecordingService {
     output: string,
     signal: AbortSignal
   ): Promise<void> {
-    const ffmpeg = this.media.tool('ffmpeg')
+    const ffmpeg = await this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const sessionRoot = path.dirname(output)
     const byId = new Map(songs.map((song) => [song.id, song]))
@@ -571,7 +571,7 @@ export class RehearsalRecordingService {
     output: string,
     signal: AbortSignal
   ): Promise<void> {
-    const ffmpeg = this.media.tool('ffmpeg')
+    const ffmpeg = await this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const files = this.database.getActiveStemFiles(song.id)
     const activeRecordings = song.recordingTracks.flatMap((track) => {
@@ -691,7 +691,7 @@ export class RehearsalRecordingService {
     offsetMs: number,
     signal: AbortSignal
   ): Promise<void> {
-    const ffmpeg = this.media.tool('ffmpeg')
+    const ffmpeg = await this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const durationSeconds = Math.max(0.001, durationMs / 1000)
     const source = click
@@ -723,7 +723,7 @@ export class RehearsalRecordingService {
     this.patchState({ phase: 'finalizing', message: '正在生成整场录音与对齐预览' })
     try {
       if (!existsSync(session.capturePath) || result.frames <= 0) throw new Error('RECORDING_CAPTURE_EMPTY')
-      const ffmpeg = this.media.tool('ffmpeg')
+      const ffmpeg = await this.media.tool('ffmpeg')
       if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const settings = this.database.getSettings()
       const revision = this.database.getRehearsalRevision(session.revisionId)
@@ -818,7 +818,7 @@ export class RehearsalRecordingService {
     startPositionMs: number,
     alignmentOffsetMs: number
   ): Promise<void> {
-    const ffmpeg = this.media.tool('ffmpeg')
+    const ffmpeg = await this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const delayMs = startPositionMs + alignmentOffsetMs
     const durationSeconds = Math.max(0.05, totalDurationMs / 1000)

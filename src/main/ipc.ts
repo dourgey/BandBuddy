@@ -59,6 +59,10 @@ interface IpcServices {
 }
 
 export function registerIpc(services: IpcServices): void {
+  let recordingRecovery: Promise<void> | undefined
+  let rehearsalRecovery: Promise<void> | undefined
+  const recoverRecording = (): Promise<void> => recordingRecovery ??= services.recording.recoverInterruptedSessions()
+  const recoverRehearsal = (): Promise<void> => rehearsalRecovery ??= services.rehearsalRecording.recoverInterruptedSessions()
   const handle = <T>(channel: string, callback: (event: IpcMainInvokeEvent, input: T) => unknown | Promise<unknown>): void => {
     ipcMain.handle(channel, async (event, input: T) => {
       assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
@@ -96,7 +100,11 @@ export function registerIpc(services: IpcServices): void {
     const parsed = listSongsSchema.parse(input ?? {})
     return services.database.listSongs(parsed.query, parsed.filter)
   })
-  handle(IPC.libraryGet, (_event, input) => services.database.getSong(uuidSchema.parse(input)))
+  handle(IPC.libraryGet, async (_event, input) => {
+    const id = uuidSchema.parse(input)
+    await recoverRecording()
+    return services.database.getSong(id)
+  })
   handle(IPC.lanStatus, () => services.lan.status())
   handle(IPC.lanSetEnabled, (_event, input) => services.lan.setEnabled(z.boolean().parse(input)))
   handle(IPC.libraryChooseStems, (_event, input) => services.imports.chooseStems(z.enum(['files', 'folder']).default('files').parse(input)))
@@ -182,7 +190,6 @@ export function registerIpc(services: IpcServices): void {
     services.desktopLyrics.setFontSize(saved.desktopLyricsFontSize)
     services.logger.setDebugMode(saved.debugMode)
     services.emitSettings()
-    void services.runtime.detect()
     return saved
   })
 
@@ -210,7 +217,8 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.recordingDevices, () => services.recording.devices())
   handle(IPC.recordingStartTest, () => services.recording.startTest())
   handle(IPC.recordingStopTest, () => services.recording.stopTest())
-  handle(IPC.recordingStart, (_event, input) => {
+  handle(IPC.recordingStart, async (_event, input) => {
+    await recoverRecording()
     if (services.rehearsalRecording.isActive()) throw new Error('RECORDING_SESSION_BUSY')
     return services.recording.start(recordingStartSchema.parse(input))
   })
@@ -229,7 +237,11 @@ export function registerIpc(services: IpcServices): void {
   })
 
   handle(IPC.rehearsalList, () => services.rehearsals.list())
-  handle(IPC.rehearsalGet, (_event, input) => services.rehearsals.get(uuidSchema.parse(input)))
+  handle(IPC.rehearsalGet, async (_event, input) => {
+    const id = uuidSchema.parse(input)
+    await recoverRehearsal()
+    return services.rehearsals.get(id)
+  })
   handle(IPC.rehearsalCreate, (_event, input) => {
     const name = z.string().trim().min(1).max(100).optional().parse(input)
     return services.rehearsals.create(name)
@@ -264,7 +276,8 @@ export function registerIpc(services: IpcServices): void {
     return services.rehearsalRecording.deleteTake(uuidSchema.parse(input))
   })
   handle(IPC.rehearsalRecordingGetState, () => services.rehearsalRecording.getState())
-  handle(IPC.rehearsalRecordingStart, (_event, input) => {
+  handle(IPC.rehearsalRecordingStart, async (_event, input) => {
+    await recoverRehearsal()
     return services.rehearsalRecording.start(rehearsalRecordingStartSchema.parse(input))
   })
   handle(IPC.rehearsalRecordingPause, () => services.rehearsalRecording.pause())

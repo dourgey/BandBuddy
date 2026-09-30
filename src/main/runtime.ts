@@ -79,6 +79,20 @@ export class RuntimeManager {
   private listeners = new Set<RuntimeListener>()
   private installation: AbortController | null = null
   private info: RuntimeInfo
+  private detection: Promise<RuntimeInfo> | null = null
+  private detectedConfiguration: string | null = null
+
+  private configurationKey(): string {
+    const { runtimeRoot, modelRoot, preferredDevice } = this.database.getSettings()
+    return JSON.stringify([runtimeRoot, modelRoot, preferredDevice])
+  }
+
+  ensureDetected(): Promise<RuntimeInfo> {
+    if (this.detection) return this.detection
+    return this.detectedConfiguration === this.configurationKey()
+      ? Promise.resolve(this.getInfo())
+      : this.detect()
+  }
 
   constructor(
     private readonly paths: AppPaths,
@@ -184,7 +198,19 @@ export class RuntimeManager {
     }
   }
 
-  async detect(): Promise<RuntimeInfo> {
+  detect(): Promise<RuntimeInfo> {
+    if (this.installation) return Promise.resolve(this.getInfo())
+    if (!this.detection) {
+      const key = this.configurationKey()
+      this.detection = this.detectNow().then(info => {
+        this.detectedConfiguration = key
+        return info
+      }).finally(() => { this.detection = null })
+    }
+    return this.detection
+  }
+
+  private async detectNow(): Promise<RuntimeInfo> {
     if (this.installation) return this.getInfo()
     const settings = this.database.getSettings()
     this.update({

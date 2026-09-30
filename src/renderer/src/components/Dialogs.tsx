@@ -272,11 +272,11 @@ export function SettingsDrawer({
   }, [settings, open])
   useEffect(() => { if (open) setDebugLogError('') }, [open])
   useEffect(() => {
-    if (!open || !navigator.mediaDevices?.enumerateDevices) return
+    if (!open || activeCategory !== 'audio' || !navigator.mediaDevices?.enumerateDevices) return
     void navigator.mediaDevices.enumerateDevices().then((devices) => setAudioOutputs(devices.filter((device) => device.kind === 'audiooutput'))).catch(() => setAudioOutputs([]))
-  }, [open])
+  }, [open, activeCategory])
   useEffect(() => {
-    if (!open) return
+    if (!open || activeCategory !== 'audio') return
     setRecordingDeviceError('')
     void window.bandbuddy.recording.devices().then(setRecordingDevices).catch((error) => setRecordingDeviceError(toUserErrorMessage(error, '无法读取音频设备，请检查声卡后重试')))
     const unsubscribeState = window.bandbuddy.recording.onState((state) => {
@@ -285,7 +285,12 @@ export function SettingsDrawer({
     })
     const unsubscribeMeter = window.bandbuddy.recording.onMeter((meter) => setTestPeak(Math.max(...meter.peak, 0)))
     return () => { unsubscribeState(); unsubscribeMeter() }
-  }, [open])
+  }, [open, activeCategory])
+  useEffect(() => {
+    if (open && activeCategory === 'separation') {
+      void window.bandbuddy.runtime.detect().catch(error => setSaveError(toUserErrorMessage(error, '运行环境检测失败')))
+    }
+  }, [open, activeCategory])
   useEffect(() => {
     if ((!open || activeCategory !== 'audio') && inputTestRequested.current) {
       inputTestRequested.current = false

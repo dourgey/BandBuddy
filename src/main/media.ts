@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync } from 'node:fs'
 import { rename, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
@@ -49,28 +49,54 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
-  private readonly verifiedToolRoot: string | null
+  private verifiedToolRoot: string | null = null
+  private verification: Promise<void> | null = null
+  private verificationState: MediaCapabilities['ffmpegVerification'] = 'unchecked'
 
   constructor(
     private readonly paths: AppPaths,
     private readonly database: BandBuddyDatabase,
-    private readonly logger: Logger
-  ) {
-    this.verifiedToolRoot = this.findVerifiedToolRoot()
-    if (!this.verifiedToolRoot) this.logger.error('FFmpeg resources failed integrity verification')
+    private readonly logger: Logger,
+    private readonly onCapabilitiesChanged: (capabilities: MediaCapabilities) => void = () => undefined
+  ) {}
+
+  private ensureVerified(): Promise<void> {
+    // Only actual tool use triggers hashing; concurrent users share the check.
+    if (!this.verification) {
+      this.verificationState = 'checking'
+      this.verification = this.findVerifiedToolRoot().then(root => {
+        this.verifiedToolRoot = root
+        this.verificationState = root ? 'verified' : 'failed'
+        if (!root) this.logger.error('FFmpeg resources failed integrity verification')
+        this.onCapabilitiesChanged(this.capabilities())
+      }).catch(error => {
+        this.verificationState = 'failed'
+        this.logger.error('FFmpeg resources failed integrity verification', error)
+        this.onCapabilitiesChanged(this.capabilities())
+      })
+      this.onCapabilitiesChanged(this.capabilities())
+    }
+    return this.verification
   }
 
-  private findVerifiedToolRoot(): string | null {
+  private async findVerifiedToolRoot(): Promise<string | null> {
     const candidates = [
       this.paths.packagedResource('bin'),
       path.join(process.cwd(), 'resources', 'bin')
     ]
     for (const root of [...new Set(candidates)]) {
-      const valid = Object.entries(FFMPEG_FILE_HASHES).every(([name, expected]) => {
-        const file = path.join(root, name)
-        if (!existsSync(file)) return false
-        return createHash('sha256').update(readFileSync(file)).digest('hex') === expected
-      })
+      let valid = true
+      for (const [name, expected] of Object.entries(FFMPEG_FILE_HASHES)) {
+        try {
+          const hash = createHash('sha256')
+          for await (const chunk of createReadStream(path.join(root, name), { highWaterMark: 1024 * 1024 })) hash.update(chunk)
+          if (hash.digest('hex') === expected) continue
+        } catch {
+          // Missing/unreadable resources must never become executable tools.
+        }
+        valid = false
+        break
+      }
       if (valid) return root
       if (root === this.paths.packagedResource('bin')
         && Object.keys(FFMPEG_FILE_HASHES).every(name => existsSync(path.join(root, name)))
@@ -82,6 +108,7 @@ export class MediaService {
   capabilities(): MediaCapabilities {
     return {
       ffmpegReady: this.verifiedToolRoot !== null,
+      ffmpegVerification: this.verificationState,
       ffmpegVersion: TOOL_TARGET.ffmpegVersion,
       protocolVersion: 1,
       supportedInputFormats: [...SOURCE_MEDIA_EXTENSIONS].map((extension) => extension.slice(1)),
@@ -92,17 +119,19 @@ export class MediaService {
     }
   }
 
-  tool(name: 'ffmpeg' | 'ffprobe'): string | null {
+  async tool(name: 'ffmpeg' | 'ffprobe'): Promise<string | null> {
+    await this.ensureVerified()
     if (!this.verifiedToolRoot) return null
     return path.join(this.verifiedToolRoot, toolFile(TOOL_TARGET, name).output)
   }
 
-  toolsReady(): boolean {
-    return Boolean(this.tool('ffmpeg') && this.tool('ffprobe'))
+  async toolsReady(): Promise<boolean> {
+    await this.ensureVerified()
+    return this.verifiedToolRoot !== null
   }
 
   async probe(filePath: string): Promise<AudioProbe> {
-    const ffprobe = this.tool('ffprobe')
+    const ffprobe = await this.tool('ffprobe')
     if (!ffprobe) {
       return { durationMs: 0, sampleRate: null, channels: null, format: path.extname(filePath).slice(1), title: null, artist: null, video: null }
     }
@@ -126,7 +155,7 @@ export class MediaService {
   }
 
   async decodeAudio(input: string, temporaryOutput: string, finalOutput: string, signal: AbortSignal): Promise<void> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
     mkdirSync(path.dirname(temporaryOutput), { recursive: true })
@@ -147,7 +176,7 @@ export class MediaService {
   }
 
   async extractVideoAudio(input: string, temporaryOutput: string, finalOutput: string, signal: AbortSignal): Promise<void> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
     const probe = await this.probe(input)
@@ -172,7 +201,7 @@ export class MediaService {
   }
 
   async prepareVideo(input: string, temporaryRoot: string, outputRoot: string, signal: AbortSignal): Promise<string> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     if (signal.aborted) throw new Error('JOB_CANCELLED')
     const { video } = await this.probe(input)
@@ -204,7 +233,7 @@ export class MediaService {
   }
 
   async extractArtwork(input: string, output: string): Promise<boolean> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) return false
     mkdirSync(path.dirname(output), { recursive: true })
     const result = await runProcess(ffmpeg, ['-y', '-v', 'error', '-i', input, '-an', '-frames:v', '1', '-c:v', 'mjpeg', output])
@@ -212,7 +241,7 @@ export class MediaService {
   }
 
   async convertNcmToMp3(input: string, decrypted: string, temporaryOutput: string, finalOutput: string): Promise<void> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     let coverPath: string | null = null
     try {
@@ -250,7 +279,7 @@ export class MediaService {
   }
 
   async leadingSilenceMs(input: string): Promise<number | null> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) return null
     const sink = process.platform === 'win32' ? 'NUL' : '/dev/null'
     const result = await runProcess(ffmpeg, [
@@ -271,7 +300,7 @@ export class MediaService {
     storageFormat: StemStorageFormat = 'flac24',
     linearGain = 1
   ): Promise<AudioProbe> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     mkdirSync(path.dirname(temporaryOutput), { recursive: true })
     if (!Number.isFinite(linearGain) || linearGain <= 0 || linearGain > 1) throw new Error('INVALID_STEM_ENCODING_GAIN')
@@ -295,7 +324,7 @@ export class MediaService {
   }
 
   async generatePeaks(input: string, output: string, durationMs: number, bins = 1800): Promise<void> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) {
       await writeFile(output, JSON.stringify({ version: 1, sampleRate: 44100, min: [], max: [] }), 'utf8')
       return
@@ -333,7 +362,7 @@ export class MediaService {
   }
 
   async detectBpm(songId: string): Promise<BpmDetectionResult> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(songId)
     if (!song) throw new Error('SONG_NOT_FOUND')
@@ -403,7 +432,7 @@ export class MediaService {
   }
 
   async detectKey(songId: string): Promise<MusicalKeyAnalysis> {
-    const ffmpeg = this.tool('ffmpeg')
+    const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(songId)
     if (!song) throw new Error('SONG_NOT_FOUND')

@@ -49,6 +49,7 @@ export const CHORDS: Record<string, Material> = {
   dim: material('减三和弦', [0, 3, 6], '1 b3 b5'),
   aug: material('增三和弦', [0, 4, 8], '1 3 #5'),
   '7': material('属七和弦', [0, 4, 7, 10], '1 3 5 b7'),
+  '9': material('属九和弦', [0, 4, 7, 10, 14], '1 3 5 b7 9'),
   maj7: material('大七和弦', [0, 4, 7, 11], '1 3 5 7'),
   m7: material('小七和弦', [0, 3, 7, 10], '1 b3 5 b7'),
   m7b5: material('半减七和弦', [0, 3, 6, 10], '1 b3 b5 b7'),

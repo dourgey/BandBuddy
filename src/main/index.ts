@@ -30,6 +30,7 @@ import { DesktopLyricsWindow } from './desktop-lyrics.js'
 import { RuntimeManager } from './runtime.js'
 import { isTrustedRendererUrl } from './security.js'
 import { WindowState, type WindowSize } from './window-state.js'
+import { showStartupScreen, setStartupMessage, STARTUP_URL } from './startup-screen.js'
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'bandbuddy-media',
@@ -60,6 +61,19 @@ let desktopLyrics: DesktopLyricsWindow | null = null
 let quitAfterRecording = false
 let applicationIcon: NativeImage | null = null
 let windowState: WindowState | null = null
+const startupStarted = performance.now()
+let servicesReady = false
+function startupTiming(stage: string): void {
+  const detail = { stage, elapsedMs: Math.round(performance.now() - startupStarted) }
+  logger?.info('startup timing', detail)
+  if (smokeMode) process.stdout.write(`BAND_BUDDY_STARTUP ${JSON.stringify(detail)}\n`)
+}
+
+function loadApplication(window: BrowserWindow): Promise<void> {
+  return process.env.ELECTRON_RENDERER_URL
+    ? window.loadURL(process.env.ELECTRON_RENDERER_URL)
+    : window.loadFile(join(currentDirectory, '../renderer/index.html'))
+}
 
 const MIN_WINDOW_SIZE = { width: 1180, height: 760 }
 const DEFAULT_WINDOW_SIZE: WindowSize = { width: 1440, height: 960, maximized: false }
@@ -75,7 +89,7 @@ function emit(channel: string, payload?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
 }
 
-function createWindow(paths: AppPaths): BrowserWindow {
+function createWindow(paths: AppPaths, starting = false): BrowserWindow {
   const state = new WindowState(join(paths.localRoot, 'window-state.json'), MIN_WINDOW_SIZE)
   windowState = state
   const restored = state.restore(DEFAULT_WINDOW_SIZE)
@@ -119,6 +133,7 @@ function createWindow(paths: AppPaths): BrowserWindow {
   window.once('ready-to-show', () => {
     if (restored.maximized) window.maximize()
     window.show()
+    startupTiming('window-visible')
   })
   window.on('hide', () => emit(IPC.eventWindowHidden))
   window.on('maximize', () => emit(IPC.eventWindowMaximizedChanged, true))
@@ -141,8 +156,7 @@ function createWindow(paths: AppPaths): BrowserWindow {
     }
   })
   window.on('closed', () => { mainWindow = null })
-  if (process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
-  else void window.loadFile(join(currentDirectory, '../renderer/index.html'))
+  if (!starting) void loadApplication(window)
   if (smokeMode) {
     window.webContents.on('preload-error', (_event, preloadPath, error) => {
       process.stderr.write(`BAND_BUDDY_PRELOAD_ERROR ${preloadPath} ${String(error)}\n`)
@@ -150,7 +164,8 @@ function createWindow(paths: AppPaths): BrowserWindow {
     window.webContents.on('console-message', (_event, level, message) => {
       process.stderr.write(`BAND_BUDDY_RENDERER_CONSOLE ${level} ${message}\n`)
     })
-    window.webContents.once('did-finish-load', () => {
+    window.webContents.on('did-finish-load', () => {
+      if (window.webContents.getURL() === STARTUP_URL) return
       void window.webContents.executeJavaScript(`(() => {
         if (!window.bandbuddy) return { apiType: typeof window.bandbuddy, body: document.body.innerText.slice(0, 300) }
          return Promise.all([
@@ -170,6 +185,7 @@ function createWindow(paths: AppPaths): BrowserWindow {
            songs: songs.length,
            runtime: runtime.status,
            ffmpegReady: media.ffmpegReady,
+           ffmpegVerification: media.ffmpegVerification,
            desktopLyrics
          }))
       })()`).then((result: { apiType?: string }) => {
@@ -212,13 +228,21 @@ else {
   void app.whenReady().then(async () => {
     const paths = new AppPaths()
     paths.ensure()
+    logger = new Logger(paths.logsRoot)
+    startupTiming('electron-ready')
+    mainWindow = createWindow(paths, true)
+    const startupWindow = mainWindow
+    await showStartupScreen(startupWindow)
+    if (startupWindow.isDestroyed() || quitting) return
+    await setStartupMessage(startupWindow, '正在打开曲库…')
     database = new BandBuddyDatabase(paths)
+    startupTiming('database-ready')
     const applicationLogger = new Logger(paths.logsRoot, database.getSettings().debugMode)
     logger = applicationLogger
-    const media = new MediaService(paths, database, applicationLogger)
+    const media = new MediaService(paths, database, applicationLogger, capabilities => emit(IPC.eventMediaChanged, capabilities))
     media.registerProtocol()
+    if (startupWindow.isDestroyed() || quitting) return
     const runtime = new RuntimeManager(paths, database, applicationLogger)
-    mainWindow = createWindow(paths)
     const developmentLyricsUrl = process.env.ELECTRON_RENDERER_URL
       ? new URL('lyrics.html', process.env.ELECTRON_RENDERER_URL.endsWith('/') ? process.env.ELECTRON_RENDERER_URL : `${process.env.ELECTRON_RENDERER_URL}/`).href
       : null
@@ -236,9 +260,15 @@ else {
     const emitMedia = (): void => emit(IPC.eventMediaChanged, media.capabilities())
     const emitRehearsals = (): void => emit(IPC.eventRehearsalsChanged)
     scheduler = new JobScheduler(paths, database, runtime, media, applicationLogger, emitTasks, emitLibrary, emitGuitarSplitCompleted)
+    const kickJobs = (): void => {
+      scheduler?.kick()
+      if (database?.listJobs().some(job => job.status === 'blockedRuntime')) {
+        void runtime.ensureDetected().catch(error => applicationLogger.error('runtime detection failed', error))
+      }
+    }
     const exporter = new ExportService(paths, database, media, applicationLogger, emitTasks, () => scheduler?.kick())
     scheduler.setExporter(exporter)
-    const imports = new ImportService(paths, database, media, runtime, applicationLogger, () => { emitLibrary(); emitTasks() }, () => scheduler?.kick())
+    const imports = new ImportService(paths, database, media, runtime, applicationLogger, () => { emitLibrary(); emitTasks() }, kickJobs)
     const audioHost = new AudioHostClient(paths, applicationLogger)
     recording = new RecordingService(
       paths,
@@ -289,15 +319,24 @@ else {
     })
     emitMedia()
     runtime.onChange((info) => emit(IPC.eventRuntimeChanged, info))
-    void runtime.detect()
-    scheduler.kick()
-    void recording.recoverInterruptedSessions()
-    void rehearsalRecording.recoverInterruptedSessions()
+    servicesReady = true
+    await loadApplication(startupWindow)
+    startupTiming('renderer-loaded')
+    kickJobs()
     applicationLogger.info('application ready', { version: app.getVersion(), packaged: app.isPackaged })
+  }).catch(async (error: unknown) => {
+    logger?.error('application startup failed', error)
+    process.stderr.write(`BAND_BUDDY_STARTUP_FAILED ${String(error)}\n`)
+    if (mainWindow && !mainWindow.isDestroyed() && !quitting) {
+      await mainWindow.loadURL(STARTUP_URL).catch(() => undefined)
+      mainWindow.show()
+      await setStartupMessage(mainWindow, '启动失败，请关闭后重试。详情见日志：' + join(new AppPaths().logsRoot, 'bandbuddy.log'), true).catch(() => undefined)
+    }
   })
 }
 
 app.on('activate', () => {
+  if (!servicesReady) { mainWindow?.show(); return }
   if (!mainWindow) {
     const paths = new AppPaths()
     mainWindow = createWindow(paths)

@@ -508,6 +508,7 @@ export interface RuntimeInfo {
 
 export interface MediaCapabilities {
   ffmpegReady: boolean
+  ffmpegVerification: 'unchecked' | 'checking' | 'verified' | 'failed'
   ffmpegVersion: string
   protocolVersion: number
   supportedInputFormats: string[]

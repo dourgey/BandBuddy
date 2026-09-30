@@ -6,14 +6,29 @@ interface Props {
   events: MusicEvent[]
   tuning: Tuning
   config: ExerciseConfig
-  onSelect: (event: MusicEvent) => void
+  onSelect?: (event: MusicEvent) => void
+  compact?: boolean
 }
-export const Score = memo(function Score({ events, tuning, config, onSelect }: Props): React.JSX.Element {
+export const Score = memo(function Score({ events, tuning, config, onSelect, compact = false }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const callback = useRef(onSelect)
   callback.current = onSelect
   const [error, setError] = useState(''),
     [ready, setReady] = useState(false)
+  const [availableWidth, setAvailableWidth] = useState(0)
+  const compactLegend = ['第一弦在上', '数字为品位',
+    events.some(e => e.notes.some(n => n.fret === 0)) ? '0 空弦' : '',
+    events.some(e => e.technique === 'mute') ? 'X 闷音' : '',
+    events.some(e => e.technique === 'hammer' || e.technique === 'pull') ? 'h/p 击勾弦' : '',
+    events.some(e => e.technique === 'slide') ? '斜线 滑音' : '',
+    events.some(e => e.bend) ? 'full 全音推弦' : '',
+    events.some(e => e.notes.length === 0) ? '休止处停止发声' : '', '每轮循环演奏'].filter(Boolean).join(' · ')
+  useEffect(() => {
+    if (!host.current || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(entries => setAvailableWidth(Math.round(entries[0]?.contentRect.width ?? 0)))
+    observer.observe(host.current)
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     let cancelled = false
     const container = host.current
@@ -22,16 +37,30 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
     setError('')
     void (async () => {
       const V = await import('vexflow/bravura')
+      class ReadableTabNote extends V.TabNote {
+        override updateWidth(): void {
+          super.updateWidth()
+          if (!compact) return
+          this.width = 0
+          for (const fret of this.fretElement) {
+            fret.setFontSize(12)
+            fret.setYShift(fret.getHeight() / 2)
+            this.width = Math.max(this.width, fret.getWidth())
+          }
+        }
+      }
       await document.fonts.ready
       if (cancelled) return
       container.replaceChildren()
       const length = meterLength(config.meter)
       const bars = Math.ceil((events.at(-1)!.beat + events.at(-1)!.duration - 1e-6) / length)
       const rhythm = config.pattern === 'rhythm'
-      const width = Math.max(360, container.clientWidth || 660)
-      const columns = width >= 760 ? 2 : 1,
+      const maxNotesInBar = Math.max(...Array.from({ length: bars }, (_, bar) => events.filter(e => e.beat >= bar * length - 1e-6 && e.beat < (bar + 1) * length - 1e-6).length))
+      const minimumBarWidth = compact ? Math.max(260, maxNotesInBar * 26 + 100) : 360
+      const width = Math.max(minimumBarWidth, availableWidth || container.clientWidth || 660)
+      const columns = bars > 1 && width >= Math.max(760, minimumBarWidth * 2) ? 2 : 1,
         barWidth = width / columns,
-        rowHeight = rhythm ? 195 : tuning.notes.length * 17 + 140
+        rowHeight = rhythm ? 195 : tuning.notes.length * 17 + (compact ? 106 : 140)
       const renderer = new V.Renderer(container, V.Renderer.Backends.SVG)
       renderer.resize(width, Math.ceil(bars / columns) * rowHeight)
       const ctx = renderer.getContext()
@@ -41,7 +70,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
       for (let bar = 0; bar < bars; bar++) {
         const group = events.filter((e) => e.beat >= bar * length - 1e-6 && e.beat < (bar + 1) * length - 1e-6)
         const x = (bar % columns) * barWidth + 5,
-          y = Math.floor(bar / columns) * rowHeight + 75
+            y = Math.floor(bar / columns) * rowHeight + (compact ? 20 : 75)
         const stave = rhythm
           ? new V.Stave(x, y, barWidth - 12, { numLines: 1 })
           : new V.TabStave(x, y, barWidth - 12, { numLines: tuning.notes.length, spacingBetweenLinesPx: 17 })
@@ -53,9 +82,11 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
         ctx.fillText(String(bar + 1), x + 5, y - 3)
         const triplets: InstanceType<typeof V.Tuplet>[] = []
         const notes = group.map((e) => {
-          const triplet = Math.abs(e.duration - 1 / 3) < 0.001 || Math.abs(e.duration - 1 / 6) < 0.001
+          const triplet = [2 / 3, 1 / 3, 1 / 6].some(d => Math.abs(e.duration - d) < 0.001)
           let duration = triplet
-            ? e.duration > 0.2
+            ? e.duration > 0.5
+              ? 'q'
+              : e.duration > 0.2
               ? '8'
               : '16'
             : e.duration >= 4
@@ -78,15 +109,15 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
                   duration: duration + (rest ? 'r' : 's'),
                   dots: dotted ? 1 : 0
                 })
-              : new V.TabNote(
+              : new ReadableTabNote(
                   {
                     positions: e.notes.map((p) => ({ str: p.string, fret: e.technique === 'mute' ? 'X' : p.fret })),
                     duration,
                     dots: dotted ? 1 : 0
                   },
-                  true
+                  duration !== 'w'
                 )
-          if (dotted) V.Dot.buildAndAttach([note], { all: true })
+          if (dotted) V.Dot.buildAndAttach([note], rest || rhythm ? { all: true } : { index: 0 })
           note.setAttribute('id', `ws-note-${e.id}`)
           if (e.bend) note.addModifier(new V.Bend([{ type: V.Bend.UP, text: e.bend === 2 ? 'full' : '½' }]), 0)
           if (e.technique === 'vibrato') note.addModifier(new V.Vibrato(), 0)
@@ -95,6 +126,10 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
           return note
         })
         for (let i = 0; i < group.length; ) {
+          if (Math.abs(group[i]!.duration - 2 / 3) < 0.001 && Math.abs((group[i + 1]?.duration ?? 0) - 1 / 3) < 0.001) {
+            triplets.push(new V.Tuplet(notes.slice(i, i + 2), { numNotes: 3, notesOccupied: 2, bracketed: true }))
+            i += 2
+          } else
           if (
             Math.abs(group[i]!.duration - 1 / 3) < 0.001 &&
             i + 2 < notes.length &&
@@ -107,6 +142,14 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
         const voice = new V.Voice(config.meter).setMode(V.Voice.Mode.SOFT).addTickables(notes)
         new V.Formatter().joinVoices([voice]).format([voice], barWidth - (bar === 0 ? 100 : 38))
         voice.draw(ctx, stave)
+        if (compact && !rhythm) {
+          // TAB stems alone do not distinguish every sustained value clearly.
+          ctx.setFont('Academico', 9)
+          ctx.setFillStyle('#81735f')
+          group.forEach((e, i) => {
+            if (e.duration >= 1.5) ctx.fillText(`${e.duration}拍`, notes[i]!.getAbsoluteX() - 7, stave.getYForLine(tuning.notes.length - 1) + 22)
+          })
+        }
         triplets.forEach((t) => t.setContext(ctx).draw())
         for (let i = 0; i < notes.length - 1; i++) {
           const e = group[i]!,
@@ -123,17 +166,19 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
           if (element) {
             element.setAttribute('data-event', e.id)
             element.classList.add('ws-score-note')
-            element.setAttribute('role', 'button')
-            element.setAttribute('tabindex', '0')
+            if (callback.current) {
+              element.setAttribute('role', 'button')
+              element.setAttribute('tabindex', '0')
+            }
             element.setAttribute(
               'aria-label',
               e.notes.length
                 ? `第${bar + 1}小节 ${e.notes.map((p) => `${p.string}弦${p.fret}品`).join('，')}`
                 : `第${bar + 1}小节 休止`
             )
-            element.addEventListener('click', () => callback.current(e))
+            element.addEventListener('click', () => callback.current?.(e))
             element.addEventListener('keydown', (event) => {
-              if ((event as KeyboardEvent).key === 'Enter') callback.current(e)
+              if ((event as KeyboardEvent).key === 'Enter') callback.current?.(e)
             })
           }
         })
@@ -148,10 +193,10 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
     return () => {
       cancelled = true
     }
-  }, [events, tuning.notes.length, config.meter, config.pattern])
+  }, [events, tuning.notes.length, config.meter, config.pattern, compact, availableWidth])
   return (
     <section className="ws-score-section">
-      <div className="ws-panel-heading">
+      {!compact && <div className="ws-panel-heading">
         <div>
           <small>READ & PLAY</small>
           <h3>
@@ -168,7 +213,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
                 ? '二等分'
                 : '每拍一音'}
         </span>
-      </div>
+      </div>}
       {error ? (
         <p className="ws-error" role="alert">
           {error}
@@ -182,8 +227,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect }: P
         aria-label={config.pattern === 'rhythm' ? '节奏练习谱例' : `${tuning.notes.length}线练习谱例`}
       />
       <p className="ws-notation-key">
-        上方为第 1 弦 · 数字为相对品位 · 0 空弦 · X 闷音 · h 击弦 · p 勾弦 · 斜线 滑音 · full 全音推弦 · 弧线 延音／连奏
-        · ↑↓ 拨弦方向。点击音符可试听。
+        {compact ? compactLegend : '上方为第 1 弦 · 数字为相对品位 · 0 空弦 · X 闷音 · h 击弦 · p 勾弦 · 斜线 滑音 · full 全音推弦 · 弧线 延音／连奏 · ↑↓ 拨弦方向。点击音符可试听。'}
       </p>
     </section>
   )

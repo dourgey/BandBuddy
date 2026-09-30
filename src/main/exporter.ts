@@ -144,7 +144,7 @@ export class ExportService {
     signal: AbortSignal,
     onProgress: (progress: number, phase: string) => void
   ): Promise<void> {
-    const ffmpeg = this.media.tool('ffmpeg')
+    const ffmpeg = await this.media.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const settings = this.database.getSettings()
     const song = this.database.getSong(request.songId)

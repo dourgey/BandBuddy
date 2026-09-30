@@ -251,7 +251,7 @@ export class LanService {
     const signal = this.controller.signal
     const render = this.renderQueue.catch(() => undefined).then(async () => {
       if (signal.aborted) throw new Error('LAN_STOPPED')
-      const ffmpeg = this.media.tool('ffmpeg')
+      const ffmpeg = await this.media.tool('ffmpeg')
       if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const directory = path.join(root, key)
       await mkdir(directory, { recursive: true })

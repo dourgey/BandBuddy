@@ -83,7 +83,7 @@ export function installFixtureBridge(): void {
     },
     media: {
       prepareOutputDevice: async () => false,
-      capabilities: async () => ({ ffmpegReady: true, ffmpegVersion: '8.1.2', protocolVersion: 1, supportedInputFormats: [...SOURCE_MEDIA_EXTENSIONS].map(extension => extension.slice(1)), supportedExportFormats: ['wav', 'flac', 'mp3'], internalSampleRate: 44100, internalChannels: 2, internalBitDepth: 24 }),
+      capabilities: async () => ({ ffmpegReady: true, ffmpegVerification: 'verified', ffmpegVersion: '8.1.2', protocolVersion: 1, supportedInputFormats: [...SOURCE_MEDIA_EXTENSIONS].map(extension => extension.slice(1)), supportedExportFormats: ['wav', 'flac', 'mp3'], internalSampleRate: 44100, internalChannels: 2, internalBitDepth: 24 }),
       detectBpm: async () => ({ bpm: 124, confidence: 0.9, beatOffsetMs: 0, analyzedStem: 'drums' }),
       detectKey: async () => ({
         tonic: 'G', mode: 'major', label: 'G major', confidence: 0.62, lowConfidence: true,
