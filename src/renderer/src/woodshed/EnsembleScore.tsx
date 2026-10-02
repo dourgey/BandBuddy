@@ -1,10 +1,12 @@
 import { memo, useEffect, useRef, useState } from 'react'
+import { useResolvedTheme, themeColor } from '../appearance.js'
 import { DRUM_LABELS, measureBeats, type EnsembleEvent, type EnsembleScore as ScoreData } from './ensemble-material.js'
 
 const pitchKey = (midi: number): string => `${['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'][midi % 12]}/${Math.floor(midi / 12) - 1}`
 const durations: [number, string][] = [[4, 'w'], [3, 'h'], [2, 'h'], [1.5, 'q'], [1, 'q'], [.75, '8'], [.5, '8'], [.25, '16']]
 /** Grand staff uses independent hand timelines. Drum score uses a legend and explicit rhythm grid. */
 export const EnsembleScore = memo(function EnsembleScore({ score, drums }: { score: ScoreData; drums: boolean }): React.JSX.Element {
+ const theme = useResolvedTheme()
  const host = useRef<HTMLDivElement>(null), [error, setError] = useState('')
  useEffect(() => {
   if (drums || !host.current) return
@@ -21,12 +23,14 @@ export const EnsembleScore = memo(function EnsembleScore({ score, drums }: { sco
    const renderer = new V.Renderer(container, V.Renderer.Backends.SVG)
    renderer.resize(width, score.bars * 235)
    const ctx = renderer.getContext()
+   const ink = themeColor('--score-ink', '#534a40')
+   ctx.setFillStyle(ink).setStrokeStyle(ink)
    for (let bar = 0; bar < score.bars; bar++) {
     for (const [hand, clef, y] of [['R', 'treble', 20], ['L', 'bass', 120]] as const) {
      const stave = new V.Stave(10, bar * 235 + y, width - 25)
      stave.addClef(clef)
      if (!bar) stave.addTimeSignature(score.meter)
-     stave.setContext(ctx).draw()
+     stave.setStyle({ fillStyle: ink, strokeStyle: ink }).setContext(ctx).draw()
      const selected = score.events.filter(e => e.hand === hand && e.beat >= bar * length && e.beat < (bar + 1) * length).sort((a, b) => a.beat - b.beat)
      const timeline: { event?: EnsembleEvent; duration: number }[] = []
      let cursor = bar * length
@@ -39,6 +43,8 @@ export const EnsembleScore = memo(function EnsembleScore({ score, drums }: { sco
        const [beats, symbol] = durations.find(([d]) => d <= remaining + .001) ?? [.25, '16']
        const notes = item.event?.notes ?? [], rest = !notes.length
        const note = new V.StaveNote({ clef, keys: rest ? [clef === 'bass' ? 'd/3' : 'b/4'] : notes.map(pitchKey), duration: symbol + (rest ? 'r' : '') })
+       note.setStyle({ fillStyle: ink, strokeStyle: ink })
+       note.getStem()?.setStyle({ fillStyle: ink, strokeStyle: ink })
        if ([3, 1.5, .75].includes(beats)) V.Dot.buildAndAttach([note])
        notes.forEach((midi, i) => { if (pitchKey(midi).includes('#')) note.addModifier(new V.Accidental('#'), i) })
        refs.push({ id: item.event?.id, note }); remaining -= beats
@@ -52,7 +58,7 @@ export const EnsembleScore = memo(function EnsembleScore({ score, drums }: { sco
    container.setAttribute('data-rendered-score', score.name)
   })().catch(e => { if (!cancelled) setError(`谱面无法显示：${e instanceof Error ? e.message : String(e)}`) })
   return () => { cancelled = true }
- }, [score, drums])
+ }, [score, drums, theme])
  if (drums) {
   const voices = [...new Set(score.events.map(e => e.drum).filter((d): d is NonNullable<typeof d> => !!d))]
   const length = measureBeats(score.meter), steps = Math.round(length * 4)

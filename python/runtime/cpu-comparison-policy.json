@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "protocol": "bandbuddy-cpu-output-v1",
+  "inputAlgorithm": "integer-triangle-lcg-v1",
+  "seed": 20260922,
+  "sampleRate": 44100,
+  "frames": 44100,
+  "channels": 2,
+  "cpuThreads": 2,
+  "referencePackages": { "torch": "2.11.0", "torchaudio": "2.11.0", "demucs": "4.1.0", "onnxruntime": "1.28.0" },
+  "relativeRmsFloor": 1e-7,
+  "thresholds": { "maxAbs": 1e-4, "rmse": 1e-5, "relativeL2": 1e-3 },
+  "tracks": [
+    "six_stem/vocals", "six_stem/drums", "six_stem/bass", "six_stem/guitar", "six_stem/piano", "six_stem/other",
+    "fast/acoustic_guitar", "fast/lead_guitar", "fast/rhythm_guitar",
+    "balanced/acoustic_guitar", "balanced/lead_guitar", "balanced/rhythm_guitar",
+    "high/acoustic_guitar", "high/lead_guitar", "high/rhythm_guitar"
+  ]
+}

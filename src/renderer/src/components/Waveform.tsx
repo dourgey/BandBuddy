@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import type { RecordingMeter, StemType } from '@shared/domain.js'
+import { acquireWaveformPeaks } from '../waveform-peaks.js'
+import { themeColor, useResolvedTheme } from '../appearance.js'
+import { usePlayerStore } from '../player-store.js'
 import { clamp } from '../utils.js'
-
-interface PeaksData { min: number[]; max: number[] }
-interface LivePeak { positionMs: number; amplitude: number }
 
 export interface LiveWaveformInput {
   sessionId: string | null
@@ -12,15 +12,10 @@ export interface LiveWaveformInput {
   meter: RecordingMeter
 }
 
-function isPeaksData(value: unknown): value is PeaksData {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<PeaksData>
-  return Array.isArray(candidate.min) && Array.isArray(candidate.max) && candidate.min.length > 0 && candidate.max.length > 0
-}
-
 export function Waveform({
   peaksUrl,
-  color,
+  stemType,
+  color: fallbackColor,
   durationMs,
   currentMs,
   loopStartMs,
@@ -37,7 +32,7 @@ export function Waveform({
   peaksUrl: string | null
   color: string
   durationMs: number
-  currentMs: number
+  currentMs?: number
   loopStartMs: number | null
   loopEndMs: number | null
   zoom: number
@@ -48,11 +43,19 @@ export function Waveform({
   onRange(startMs: number, endMs: number): void
   onViewChange(zoom: number, scroll: number): void
 }): React.JSX.Element {
+  const theme = useResolvedTheme()
+  const color = useMemo(() => themeColor(`--stem-${stemType}`, fallbackColor), [theme, stemType, fallbackColor])
+  const faded = (value: string): string => /^#[a-f\d]{6}$/i.test(value) ? `${value}78` : value
   const container = useRef<HTMLDivElement>(null)
   const liveCanvas = useRef<HTMLCanvasElement>(null)
-  const livePeaks = useRef<LivePeak[]>([])
+  const livePeaks = useRef(new Float32Array(32768))
+  const liveRevision = useRef(0)
+  const drawn = useRef({ signature: '', revision: -1, columns: new Float32Array(0) })
+  const cursor = useRef<HTMLDivElement>(null)
   const liveSessionId = useRef<string | null>(null)
   const wave = useRef<WaveSurfer | null>(null)
+  const latestColor = useRef(color)
+  latestColor.current = color
   const dragStart = useRef<number | null>(null)
   const zoomRef = useRef(zoom)
   const scrollRef = useRef(scroll)
@@ -64,7 +67,7 @@ export function Waveform({
   scrollRef.current = scroll
   onViewChangeRef.current = onViewChange
 
-  const drawLiveWaveform = useCallback((): void => {
+  const drawLiveWaveform = useCallback((changedBucket?: number): void => {
     const canvas = liveCanvas.current
     const viewport = container.current
     if (!canvas || !viewport) return
@@ -78,23 +81,34 @@ export function Waveform({
     const context = canvas.getContext('2d')
     if (!context) return
     context.setTransform(scale, 0, 0, scale, 0, 0)
-    context.clearRect(0, 0, width, height)
-    if (durationMs <= 0 || livePeaks.current.length === 0) return
+    if (durationMs <= 0) return
     const visibleSpan = 1 / Math.max(1, zoom)
     const visibleStart = clamp(scroll, 0, 1) * (1 - visibleSpan)
-    const columns = new Float32Array(Math.ceil(width) + 1)
-    for (const point of livePeaks.current) {
-      const screen = ((point.positionMs / durationMs - visibleStart) / visibleSpan) * width
-      if (screen < 0 || screen > width) continue
-      const column = Math.min(columns.length - 1, Math.max(0, Math.round(screen)))
-      columns[column] = Math.max(columns[column] ?? 0, point.amplitude)
+    const signature = `${width}|${height}|${scale}|${durationMs}|${zoom}|${scroll}|${color}`
+    const incremental = changedBucket !== undefined && drawn.current.signature === signature && drawn.current.revision === liveRevision.current
+    const columns = incremental ? drawn.current.columns : new Float32Array(Math.ceil(width) + 1)
+    const project = (bucket: number): number => Math.round(((bucket / (livePeaks.current.length - 1) - visibleStart) / visibleSpan) * width)
+    let first = 0, last = columns.length - 1
+    if (incremental) {
+      const column = project(changedBucket)
+      if (column < 0 || column >= columns.length) return
+      columns[column] = Math.max(columns[column]!, livePeaks.current[changedBucket]!)
+      first = last = column
+      context.clearRect(column, 0, 1, height)
+    } else {
+      context.clearRect(0, 0, width, height)
+      for (let bucket = 0; bucket < livePeaks.current.length; bucket++) {
+        const column = project(bucket)
+        if (column >= 0 && column < columns.length) columns[column] = Math.max(columns[column]!, livePeaks.current[bucket]!)
+      }
+      drawn.current = { signature, revision: liveRevision.current, columns }
     }
     context.strokeStyle = color
     context.globalAlpha = 0.82
     context.lineWidth = 1
     context.beginPath()
     const middle = height / 2
-    for (let column = 0; column < columns.length; column += 1) {
+    for (let column = first; column <= last; column += 1) {
       const amplitude = columns[column] ?? 0
       if (amplitude <= 0) continue
       const halfHeight = Math.max(1, Math.min(height * 0.48, amplitude * height * 0.48))
@@ -109,28 +123,30 @@ export function Waveform({
     if (!live) {
       if (liveSessionId.current) {
         liveSessionId.current = null
-        livePeaks.current = []
+        livePeaks.current.fill(0)
+        liveRevision.current++
         drawLiveWaveform()
       }
       return
     }
     if (live.sessionId && liveSessionId.current !== live.sessionId) {
       liveSessionId.current = live.sessionId
-      livePeaks.current = []
+      livePeaks.current.fill(0)
+      liveRevision.current++
     }
     if (live.active && live.meter.recording && Number.isFinite(live.meter.sourcePositionMs)) {
       const amplitude = Math.max(...live.meter.peak, ...live.meter.rms, 0)
       const positionMs = clamp(live.meter.sourcePositionMs, 0, durationMs)
-      const last = livePeaks.current.at(-1)
-      if (last && Math.abs(last.positionMs - positionMs) < 12) last.amplitude = Math.max(last.amplitude, amplitude)
-      else livePeaks.current.push({ positionMs, amplitude })
-    }
-    drawLiveWaveform()
+      const bucket = Math.round((positionMs / Math.max(1, durationMs)) * (livePeaks.current.length - 1))
+      livePeaks.current[bucket] = Math.max(livePeaks.current[bucket]!, amplitude)
+      drawLiveWaveform(bucket)
+    } else drawLiveWaveform()
   }, [drawLiveWaveform, durationMs, live])
 
   useEffect(() => {
     if (peaksUrl && !live?.active) {
-      livePeaks.current = []
+      livePeaks.current.fill(0)
+      liveRevision.current++
       drawLiveWaveform()
     }
   }, [drawLiveWaveform, live?.active, peaksUrl])
@@ -182,22 +198,14 @@ export function Waveform({
     if (!container.current || !peaksUrl || durationMs <= 0) return
     let cancelled = false
     setLoadFailed(false)
-    void fetch(peaksUrl).then(async (response) => {
-      if (!response.ok) throw new Error(`PEAKS_HTTP_${response.status}`)
-      const data: unknown = await response.json()
-      if (!isPeaksData(data)) throw new Error('PEAKS_INVALID')
-      return data
-    }).then((data) => {
+    const lease = acquireWaveformPeaks(peaksUrl)
+    void lease.promise.then((points) => {
       if (cancelled || !container.current) return
-      const points = Float32Array.from(data.max, (max, index) => {
-        const min = data.min[index] ?? 0
-        return Math.abs(max) >= Math.abs(min) ? max / 32767 : min / 32767
-      })
       wave.current = WaveSurfer.create({
         container: container.current,
         height: Math.max(1, container.current.clientHeight),
-        waveColor: `${color}78`,
-        progressColor: `${color}78`,
+        waveColor: faded(latestColor.current),
+        progressColor: faded(latestColor.current),
         cursorWidth: 0,
         normalize: false,
         interact: false,
@@ -212,10 +220,15 @@ export function Waveform({
     }).catch(() => { if (!cancelled) setLoadFailed(true) })
     return () => {
       cancelled = true
+      lease.release()
       wave.current?.destroy()
       wave.current = null
     }
-  }, [peaksUrl, durationMs, color])
+  }, [peaksUrl, durationMs])
+
+  useEffect(() => {
+    wave.current?.setOptions({ waveColor: faded(color), progressColor: faded(color) })
+  }, [color])
 
   useEffect(() => {
     const viewport = container.current
@@ -230,7 +243,7 @@ export function Waveform({
     drawLiveWaveform()
     const viewport = container.current
     if (!viewport) return
-    const observer = new ResizeObserver(drawLiveWaveform)
+    const observer = new ResizeObserver(() => drawLiveWaveform())
     observer.observe(viewport)
     return () => observer.disconnect()
   }, [drawLiveWaveform])
@@ -244,9 +257,22 @@ export function Waveform({
   const visibleSpan = 1 / Math.max(1, zoom)
   const visibleStart = clamp(scroll, 0, 1) * (1 - visibleSpan)
   const toScreen = (fractionValue: number): number => ((fractionValue - visibleStart) / visibleSpan) * 100
-  const position = durationMs ? toScreen(clamp(currentMs / durationMs, 0, 1)) : 0
+  const position = durationMs ? toScreen(clamp((currentMs ?? usePlayerStore.getState().currentMs) / durationMs, 0, 1)) : 0
   const rangeLeft = loopStartMs !== null && durationMs ? toScreen(clamp(loopStartMs / durationMs, 0, 1)) : null
   const rangeRight = loopEndMs !== null && durationMs ? toScreen(clamp(loopEndMs / durationMs, 0, 1)) : null
+
+  useEffect(() => {
+    const update = (milliseconds: number): void => {
+      const element = cursor.current
+      if (!element) return
+      const next = durationMs ? ((milliseconds / durationMs - visibleStart) / visibleSpan) * 100 : 0
+      element.style.left = `${next}%`
+      element.style.display = next >= 0 && next <= 100 ? '' : 'none'
+    }
+    update(currentMs ?? usePlayerStore.getState().currentMs)
+    if (currentMs !== undefined) return
+    return usePlayerStore.subscribe((state, previous) => { if (state.currentMs !== previous.currentMs) update(state.currentMs) })
+  }, [currentMs, durationMs, visibleStart, visibleSpan])
 
   const fraction = (clientX: number): number => {
     const bounds = container.current!.getBoundingClientRect()
@@ -274,6 +300,6 @@ export function Waveform({
     {(!peaksUrl || loadFailed) && <div className="waveform-placeholder">{Array.from({ length: 72 }, (_, index) => <i key={index} style={{ height: `${12 + ((index * 19) % 35)}%` }} />)}</div>}
     <canvas ref={liveCanvas} className="live-waveform" aria-hidden="true" />
     {rangeLeft !== null && rangeRight !== null && rangeRight >= 0 && rangeLeft <= 100 && <div className="wave-range" style={{ left: `${clamp(rangeLeft, 0, 100)}%`, width: `${clamp(rangeRight, 0, 100) - clamp(rangeLeft, 0, 100)}%` }} />}
-    {position >= 0 && position <= 100 && <div className="wave-cursor" style={{ left: `${position}%` }} />}
+    <div ref={cursor} className="wave-cursor" style={{ left: `${position}%`, display: position >= 0 && position <= 100 ? undefined : 'none' }} />
   </div>
 }

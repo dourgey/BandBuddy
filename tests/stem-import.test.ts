@@ -16,7 +16,7 @@ describe('existing stems import', () => {
     const database = { getSettings: () => ({ libraryRoot: root }), createSong: vi.fn(), createJob: vi.fn(() => 'job'), deleteSongRecord: vi.fn() }
     const changed = vi.fn(); const kick = vi.fn()
     const service = new ImportService({ songDirectory: (_: string, id: string) => path.join(root, id), toLibraryRelative: (_: string, file: string) => path.relative(root, file) } as never,
-      database as never, { toolsReady: () => true, probe: vi.fn(async () => ({ durationMs: durations.shift() })) } as never, {} as never, {} as never, changed, kick)
+      database as never, { ready: async () => {}, toolsReady: () => true, probe: vi.fn(async () => ({ durationMs: durations.shift() })) } as never, {} as never, {} as never, changed, kick)
     return { service, files, database, changed, kick }
   }
   it('queues normalization without requiring a separation runtime and preserves custom names', async () => {

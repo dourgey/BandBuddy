@@ -20,6 +20,12 @@ $packagedBinaries = Get-ChildItem -LiteralPath (Join-Path $releaseRoot 'win-unpa
   ForEach-Object { $_.FullName }
 $targets = @($requiredArtifacts + $packagedBinaries | Sort-Object -Unique)
 $failures = @()
+$applicationSignature = Get-AuthenticodeSignature -LiteralPath (Join-Path $releaseRoot 'win-unpacked\BandBuddy.exe')
+if ($applicationSignature.Status -ne 'Valid' -or !$applicationSignature.SignerCertificate) {
+  throw 'The packaged application must have a trusted release signature.'
+}
+$hasher = [Security.Cryptography.SHA256]::Create()
+$publisherPin = [Convert]::ToBase64String($hasher.ComputeHash($applicationSignature.SignerCertificate.GetRawCertData()))
 
 foreach ($target in $targets) {
   $signature = Get-AuthenticodeSignature -LiteralPath $target
@@ -32,7 +38,12 @@ foreach ($target in $targets) {
   if ($algorithm -ne '1.2.840.113549.1.1.1') {
     $failures += "$relativePath : signer is not RSA"
   }
+  $targetPin = [Convert]::ToBase64String($hasher.ComputeHash($signature.SignerCertificate.GetRawCertData()))
+  if ($targetPin -cne $publisherPin) {
+    $failures += "$relativePath : signing certificate differs from the release application"
+  }
 }
+$hasher.Dispose()
 
 if ($failures.Count -gt 0) {
   throw "Windows release signature verification failed:`n$($failures -join "`n")"

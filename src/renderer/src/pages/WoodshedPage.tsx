@@ -61,6 +61,7 @@ const TOOLS = [
   { id: 'drone', name: '持续参考音', icon: Volume2 }
 ] as const
 export default function WoodshedPage({
+  active = true,
   outputDeviceId = '',
   onToast
 }: {
@@ -137,6 +138,7 @@ export default function WoodshedPage({
   useEffect(() => {
     audio?.setReference(p.a4)
   }, [audio, p.a4])
+  useEffect(() => { audio?.setVisualActive(active) }, [audio, active])
   useEffect(() => {
     if (!savePreferences({ ...p, scrollPositions: scrollPositions.current }) && !storageFailed.current) {
       storageFailed.current = true
@@ -341,7 +343,7 @@ export default function WoodshedPage({
                   </button>
                 ))}
               </div> : <button className="ws-tool-back" onClick={() => setTool(null)}><ChevronRight size={15} /> 返回工具箱</button>}
-              {tool === 'workshop' && <Suspense fallback={<div role="status">正在加载演奏工作台…</div>}><InstrumentWorkshopPage outputDeviceId={outputDeviceId} onToast={error} /></Suspense>}
+              {tool === 'workshop' && <Suspense fallback={<div role="status">正在加载演奏工作台…</div>}><InstrumentWorkshopPage active={active} outputDeviceId={outputDeviceId} onToast={error} /></Suspense>}
               {tool === 'sample-drums' && <SampleDrumMachine outputDeviceId={outputDeviceId} onError={error} onBack={() => setTool(null)} />}
               {tool === 'metronome' && <Metronome outputDeviceId={outputDeviceId} onError={error} />}
               {tool === 'drums' && (
@@ -353,7 +355,7 @@ export default function WoodshedPage({
                 />
               )}
               {tool === 'tuner' && (
-                <Tuner
+                <Tuner visible={active}
                   presetControl={<SelectMenu ariaLabel="调弦方案" value={p.tuningId} options={TUNINGS.map((item) => ({ value: item.id, label: item.name }))} menuAnchor="parent" menuClassName="ws-tuner-preset-menu" optionHeight={37} onChange={selectInstrument} />}
                   instrumentSettings={instrumentSettings()}
                   tuning={tuning}

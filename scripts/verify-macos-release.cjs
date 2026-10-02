@@ -66,9 +66,9 @@ async function verifyRelease(context) {
       report.smoke = await smokeApp(report.apps[0].app, smokeRoot)
     }
   } finally { await rm(temporary, { recursive: true, force: true }) }
-  await writeFile(path.join(outDir, 'SIGNATURE-REPORT.json'), `${JSON.stringify(report, null, 2)}\n`)
+  await writeFile(path.join(outDir, `SIGNATURE-REPORT-macos-${process.arch}.json`), `${JSON.stringify(report, null, 2)}\n`)
   if (artifacts.length) {
-    await writeFile(path.join(outDir, 'SHA256SUMS-macos-arm64.txt'), report.artifacts.map(artifact => `${artifact.sha256}  ${artifact.file}\n`).join(''))
+    await writeFile(path.join(outDir, `SHA256SUMS-macos-${process.arch}.txt`), report.artifacts.map(artifact => `${artifact.sha256}  ${artifact.file}\n`).join(''))
   }
   console.log(`Verified ${report.apps[0].binaries.length} signed Mach-O files, ${artifacts.length} distribution artifacts and isolated startup.`)
   return []

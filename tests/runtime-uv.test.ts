@@ -14,7 +14,7 @@ const fixture = vi.hoisted(() => ({
   fetch: vi.fn(),
   trustedBundle: vi.fn(() => false)
 }))
-vi.mock('electron', () => ({ net: { fetch: fixture.fetch } }))
+vi.mock('electron', () => ({ session: { fromPartition: () => ({ setProxy: async () => {}, fetch: fixture.fetch }) } }))
 vi.mock('../src/main/macos-bundle-integrity.js', () => ({ isTrustedMacBundle: fixture.trustedBundle }))
 vi.mock('../src/main/platform-tools.js', async () => {
   const { createHash } = await import('node:crypto')
@@ -44,14 +44,14 @@ const ensureUv = () => (manager as unknown as { ensureUv(signal: AbortSignal): P
 beforeEach(async () => {
   vi.clearAllMocks()
   fixture.trustedBundle.mockReturnValue(false)
-  fixture.fetch.mockImplementation(async () => ({ ok: true, arrayBuffer: async () => fixture.archive }))
+  fixture.fetch.mockImplementation(async () => new Response(fixture.archive))
   root = await mkdtemp(path.join(os.tmpdir(), 'bandbuddy-uv-'))
   packaged = path.join(root, 'packaged', 'uv')
   cached = path.join(root, 'tools', 'uv', 'uv')
   await Promise.all(['packaged', 'tools/uv', 'downloads'].map(dir => mkdir(path.join(root, dir), { recursive: true })))
   manager = new RuntimeManager({
     packagedResource: () => packaged, toolsRoot: path.join(root, 'tools'), downloadRoot: path.join(root, 'downloads')
-  } as never, { getSettings: () => ({}) } as never, logger as never)
+  } as never, { getSettings: () => ({ network: { proxyMode: 'none' } }) } as never, logger as never)
 })
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
 
@@ -90,7 +90,7 @@ describe('uv integrity and distribution signing fallback', () => {
 
   it('rejects a corrupt download even when a bundled binary exists', async () => {
     await writeFile(packaged, 'signed binary')
-    fixture.fetch.mockResolvedValue({ ok: true, arrayBuffer: async () => Buffer.from('corrupt archive') })
+    fixture.fetch.mockImplementation(async () => new Response('corrupt archive'))
     await expect(ensureUv()).rejects.toThrow('UV_HASH_MISMATCH')
     expect(existsSync(cached)).toBe(false)
     expect(existsSync(path.join(root, 'downloads', 'uv.zip.part'))).toBe(false)
@@ -108,7 +108,7 @@ describe('uv integrity and distribution signing fallback', () => {
     try {
       const { RuntimeManager: ReloadedManager } = await import('../src/main/runtime.js')
       Object.setPrototypeOf(manager, ReloadedManager.prototype)
-      fixture.fetch.mockResolvedValue({ ok: true, arrayBuffer: async () => archive })
+      fixture.fetch.mockImplementation(async () => new Response(new Uint8Array(archive)))
       await expect(ensureUv()).rejects.toThrow('UV_HASH_MISMATCH')
       expect(existsSync(cached)).toBe(false)
     } finally {
@@ -119,7 +119,7 @@ describe('uv integrity and distribution signing fallback', () => {
   it('reports download failures rather than running unverified packaged uv', async () => {
     await writeFile(packaged, 'signed binary')
     fixture.fetch.mockResolvedValue({ ok: false, status: 503 })
-    await expect(ensureUv()).rejects.toThrow('UV_DOWNLOAD_HTTP_503')
+    await expect(ensureUv()).rejects.toThrow('DOWNLOAD_HTTP_503')
     expect(existsSync(cached)).toBe(false)
   })
 })

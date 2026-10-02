@@ -1,0 +1,4011 @@
+{
+  "date": "2026-10-03",
+  "baseline": "3080025dbb313ffef9d2c1c24d59517ff5f569f0",
+  "packageVersion": "3.0.1",
+  "allDesktopFeaturesIntegrated": false,
+  "restoredArchive": "9a58174618a2743a06d9d1b736f9f217c6d42e9c",
+  "restoredLearningNavigation": true,
+  "method": "common ancestor plus working files; relocated modules checked; statuses record pre-fix audit",
+  "refs": {
+    "refs": [
+      {
+        "ref": "refs/codex/snapshots/44b3fcdad75f351ee048160240a103be57ccf10d",
+        "sha": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/codex/snapshots/467621a1e89e21cf349e1f8d306a93bfba49b0a6",
+        "sha": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/codex/snapshots/fbc9fa3a9a42fe1e36710ad5c608b9eaebdb8038",
+        "sha": "9a58174618a2743a06d9d1b736f9f217c6d42e9c",
+        "type": "commit",
+        "inHistory": false,
+        "base": "3080025dbb313ffef9d2c1c24d59517ff5f569f0",
+        "uniqueCommits": [
+          "9a58174 Codex worktree snapshot: archive-cleanup"
+        ],
+        "changed": [
+          "docs/woodshed-curriculum-plan.txt",
+          "src/renderer/src/woodshed/Practice.tsx",
+          "src/renderer/src/woodshed/practice-comprehensive.ts",
+          "src/renderer/src/woodshed/practice-curriculum.ts",
+          "src/renderer/src/woodshed/practice.css",
+          "tests/woodshed-practice.test.tsx"
+        ]
+      },
+      {
+        "ref": "refs/codex/turn-diffs/captures/1790966235160/41766c88-70bc-42f5-a7af-15395d202344/base",
+        "sha": "3c0870ee0ff7aa610f840adfe50c7896771d58e3",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/0c3b0bdaaa5448f1960f8bb25d1c02b2/02313660842e3538402cf10f6e8ee9bd/1790699567730/8af7aa55-d461-4a7c-aa7e-ad55174bf06b",
+        "sha": "5c34da290f849696fe1e0efa7eabcb110b0d9c3e",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/1962e7ce51d139056cc92dbead067183/8c7f3e6b19dd89eb88aa3391a12f9609/1790795217094/b3d49b3b-8815-4d6f-ab3e-e12bd2847ba1",
+        "sha": "d7aa7b9524c0028d39dcd5675b42fa6db6396cbf",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/2c0dc054013de89168188893089f9c90/674939e530176bd55f4d1f08d372655c/1790527471785/1b92630b-731e-4e98-9252-2117e68616fb",
+        "sha": "a477bc4c19bafcf95683f63bf29dcc86a3b4d280",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/3a068c7ddb0f74bf936fa2bb5694f800/10fb3035361e843a2b8480bfa2bc93b8/1790794086672/f26e87bb-7de4-4ab4-8818-b2eed45b62e1",
+        "sha": "55245174c26b81abaaf71502c525226e24a17a09",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/50c2bc27eb6f84491ea179a3eba35781/bff0d5fa1c2c45d93cd8d55d91d878c6/1790484422405/b3bd1293-5661-45e3-afa2-c17f46f49e24",
+        "sha": "1c01edf12bff448ab5fe177bd3ab239b4df2acc2",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/527e8fa4715052f38f64c1e85376b011/4204625a2abb135cb178b15dc0aebef9/1790695182026/17153363-1cfd-4329-9aab-0c0db061a8b0",
+        "sha": "d3e404ec5de892cb44e6f2ef717e17acd5dcaf80",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/5db5ec7f78ef1e8d7954c46cb7b99cd1/d30cf772fdd76afc8d325d1b6baeb730/1790796911978/b6c8b88d-3a5c-4dbb-be50-7e9ebc7fa236",
+        "sha": "f5ffe2932f2dd4fadd9bbf13601b513d2163d04e",
+        "type": "tree",
+        "missingPaths": [
+          "src/renderer/src/woodshed/drum-audio.ts"
+        ]
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/79f3234454eb6e3e9c5ac6a261099400/34fa096cf8a3c00ac526200142c0239c/1790818910076/a44da886-e7dc-4967-a355-0e58293e15df",
+        "sha": "b7332d63e2cf9e6c46a761c75d80e599a1f7262b",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/7bce1ae5d7b574eea55fdfe432b63feb/2695d0c09293b392bf297a8c42930df5/1790493832186/15ee85b5-cd49-4c6f-912b-34043195a259",
+        "sha": "40ee08d2c9ed3d0e3dd1ca1fdf236bf71d552f36",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/7d40607dd7d4c6da7f1054b45970f542/4e11e7b8bd52586c08943b83ccc27626/1790749891745/4423102d-51b5-4ce2-86db-666b1218295c",
+        "sha": "89f836d2a9dfc1baf484d37dc0418d0dea483ed8",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/8089e5e91465d7b53ea822ebf70323ee/331a99b6bf38a558e1b52d489c5fcab4/1790696612166/b56fc9bb-521d-4a9a-b81b-cf9027cb0edf",
+        "sha": "ef4d2e745d2556f58a83659935d35c5878bdd2d2",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/8b0aa9e5c70d88f3e3e29313e390bc32/e0928058ccbde41a36d519f40566f491/1790528692822/87f539f8-e96a-40ae-88f3-26497f8e6ee5",
+        "sha": "b2f4d89492775e3991efc8b081c4f2b690b3bb31",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/938d9d9434afab5d8cd40edafbccdfd8/e2dceb278834b0567b9de2b6391aa554/1790522200950/565c5878-9cbf-4735-b259-e2bd26fbc640",
+        "sha": "40ee08d2c9ed3d0e3dd1ca1fdf236bf71d552f36",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/94b7e6f23e30e9cee5a795e15a40a67d/809ff2d91ad542f2855a4aff760b50b0/1790824331340/f825d3f6-6356-4122-a0a3-278be495d9e7",
+        "sha": "f957e1ce5dc6af459adfa5210082c1acb8cc9a33",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/b99b2605b86d696945490d74a2063c18/8de639449e7ebcd3e88a0013c7ab674b/1790795206011/44f860d0-b78d-46d4-9b72-c5117b8a2b4e",
+        "sha": "0a2a7c3558cd0fd3205798711edf00e30ab4774b",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/c084f344ca31b9d0111a6a7683310bc3/2d7c0fbe245f761549c188ae479d55ba/1790738861603/9aaa51ce-428a-4892-ab29-e2e1912f00a0",
+        "sha": "89f836d2a9dfc1baf484d37dc0418d0dea483ed8",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/d9d223ba2d2dd8b86797e783a4d99368/c9b1c94e02c2aa3f75161f6c61522039/1790484950003/8926f4fa-47bd-4cb7-aa1f-ffe7b39afb4b",
+        "sha": "1c01edf12bff448ab5fe177bd3ab239b4df2acc2",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/codex/turn-diffs/checkpoints/eda62d719e53ab596817029772037bc6/90aaaabbb419c5419ed4f201dc903f3d/1790697427656/2a7c6033-d976-4d48-99ef-966ab83c1f1b",
+        "sha": "d2e763191345e2a6caaccff7228a2c9688b156fc",
+        "type": "tree",
+        "missingPaths": []
+      },
+      {
+        "ref": "refs/heads/codex/add-sponsor-section",
+        "sha": "e1fa14fa6a497cefede3fdaf85f66e55e3e8b958",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/heads/codex/android-demucs-poc",
+        "sha": "7c13f9b4c319d0217dc3d9641a16d245ff1e679f",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/heads/codex/github-pages-site",
+        "sha": "b415e6395219798f59825a1a846ce663e2eb9734",
+        "type": "commit",
+        "inHistory": false,
+        "base": "9481098ce33da9ca36410413d5c74881f4c20023",
+        "uniqueCommits": [
+          "b415e63 feat: add GitHub Pages site"
+        ],
+        "changed": [
+          ".github/workflows/pages.yml",
+          "README.md",
+          "site/assets/icon.png",
+          "site/assets/practice-room.png",
+          "site/index.html",
+          "site/privacy.html",
+          "site/robots.txt",
+          "site/sitemap.xml",
+          "site/styles.css"
+        ]
+      },
+      {
+        "ref": "refs/heads/codex/mobile-pages-note",
+        "sha": "fda991851e095a6ee260ab318d4fa34d96fe4bef",
+        "type": "commit",
+        "inHistory": false,
+        "base": "d6cd585e5b59d1be3adf64e204f269751b61ced6",
+        "uniqueCommits": [
+          "fda9918 docs: add mobile app coming soon note"
+        ],
+        "changed": [
+          "site/index.html",
+          "site/styles.css"
+        ]
+      },
+      {
+        "ref": "refs/heads/codex/performance-environment-themes",
+        "sha": "bb3a2102e36f6200c907887f18eee1d4f27e8e8b",
+        "type": "commit",
+        "inHistory": false,
+        "base": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "uniqueCommits": [
+          "bb3a210 docs: record optimization results and startup benchmarks",
+          "eeb12b8 build(release): gate Intel macOS artifacts and verify packaged runtime",
+          "ea57326 feat(app): integrate progressive startup and paginated library",
+          "2b3e0f8 feat(woodshed): expand instrument courses and ensemble practice",
+          "e199010 fix(audio): preserve playback recording and device routing across pages",
+          "65eac0b feat(ui): add appearance themes and shared controls",
+          "2c2e3a5 perf(main): move startup and media work off the main thread",
+          "ad2dcb6 fix(runtime): harden environment installation and process lifecycle",
+          "fbc1b0e feat(core): define appearance startup and library bridge contracts"
+        ],
+        "changed": [
+          ".github/workflows/macos.yml",
+          ".github/workflows/release.yml",
+          ".github/workflows/runtime-wheel-macos-x64.yml",
+          "README.md",
+          "docs/appearance.md",
+          "docs/benchmarks/interaction-2026-09.json",
+          "docs/benchmarks/startup-2026-09.json",
+          "docs/optimization-2026-09.md",
+          "docs/runtime-robustness.md",
+          "docs/startup-benchmark-2026-09.md",
+          "docs/woodshed.md",
+          "electron-builder.yml",
+          "electron.vite.config.ts",
+          "native/audio-host/src/main.cpp",
+          "package.json",
+          "packages/shared/src/appearance-schema.ts",
+          "packages/shared/src/appearance.ts",
+          "packages/shared/src/bridge.ts",
+          "packages/shared/src/channels.ts",
+          "packages/shared/src/domain.ts",
+          "packages/shared/src/ipc.ts",
+          "packages/shared/src/startup.ts",
+          "python/guitar_separator_hq/fast_inference.py",
+          "python/guitar_separator_hq/inference.py",
+          "python/guitar_separator_hq/memory.py",
+          "python/guitar_separator_hq/requirements-test.txt",
+          "python/guitar_separator_hq/separator.py",
+          "python/guitar_separator_hq/tests/test_hq_pipeline.py",
+          "python/runtime/cpu-comparison-policy.json",
+          "python/runtime/macos-x64-test.in",
+          "python/runtime/macos-x64.in",
+          "python/runtime/wheel-build-tools.lock",
+          "python/worker/cpu_reference.py",
+          "python/worker/model_download.py",
+          "python/worker/tests/test_cpu_reference.py",
+          "python/worker/tests/test_intel_wheel_build.py",
+          "python/worker/tests/test_runtime_health.py",
+          "python/worker/worker.py",
+          "resources/runtime-wheels.json",
+          "scripts/benchmark-startup.mjs",
+          "scripts/build-audio-host.mjs",
+          "scripts/build-intel-runtime-wheel.py",
+          "scripts/macos-signing.cjs",
+          "scripts/release-targets.mjs",
+          "scripts/runtime-cpu-reference.py",
+          "scripts/test-audio-host.mjs",
+          "scripts/verify-built-runtime.mjs",
+          "scripts/verify-macos-architecture.cjs",
+          "scripts/verify-macos-release.cjs",
+          "scripts/verify-macos-target.mjs",
+          "scripts/verify-windows-signatures.ps1",
+          "src/main/analysis-worker.ts",
+          "src/main/arsenal.ts",
+          "src/main/audio-host.ts",
+          "src/main/data-migration.ts",
+          "src/main/database-boot-worker.ts",
+          "src/main/database-preparation.ts",
+          "src/main/database.ts",
+          "src/main/desktop-lyrics.ts",
+          "src/main/exporter.ts",
+          "src/main/imports.ts",
+          "src/main/index.ts",
+          "src/main/ipc.ts",
+          "src/main/jobs.ts",
+          "src/main/lan.ts",
+          "src/main/logger.ts",
+          "src/main/macos-bundle-integrity.ts",
+          "src/main/media-analysis.ts",
+          "src/main/media.ts",
+          "src/main/process.ts",
+          "src/main/progress-coalescer.ts",
+          "src/main/recording.ts",
+          "src/main/rehearsal-recording.ts",
+          "src/main/runtime-dependencies.ts",
+          "src/main/runtime-device.ts",
+          "src/main/runtime-environments.ts",
+          "src/main/runtime-network.ts",
+          "src/main/runtime-proxy.ts",
+          "src/main/runtime-wheel-manifest.ts",
+          "src/main/runtime.ts",
+          "src/main/startup.ts",
+          "src/main/window-state.ts",
+          "src/main/windows-prerequisites.ts",
+          "src/main/windows-tool-integrity.ts",
+          "src/preload/index.ts",
+          "src/preload/lyrics.ts",
+          "src/renderer/index.html",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/appearance.ts",
+          "src/renderer/src/arsenal/ClassicControls.tsx",
+          "src/renderer/src/arsenal/DeviceFooter.tsx",
+          "src/renderer/src/arsenal/WhiteboxControls.tsx",
+          "src/renderer/src/arsenal/audio-routing.ts",
+          "src/renderer/src/audio-engine.ts",
+          "src/renderer/src/audio-session.ts",
+          "src/renderer/src/components/AppearanceSettings.tsx",
+          "src/renderer/src/components/BackgroundRecording.tsx",
+          "src/renderer/src/components/BackgroundTransport.tsx",
+          "src/renderer/src/components/Dialogs.tsx",
+          "src/renderer/src/components/Header.tsx",
+          "src/renderer/src/components/PlayerBar.tsx",
+          "src/renderer/src/components/RuntimePreparation.tsx",
+          "src/renderer/src/components/SelectMenu.tsx",
+          "src/renderer/src/components/Waveform.tsx",
+          "src/renderer/src/components/ui/AudioPreview.tsx",
+          "src/renderer/src/components/ui/Select.tsx",
+          "src/renderer/src/components/ui/confirm.tsx",
+          "src/renderer/src/lan/main.tsx",
+          "src/renderer/src/lan/style.css",
+          "src/renderer/src/lyrics.css",
+          "src/renderer/src/lyrics.ts",
+          "src/renderer/src/main.tsx",
+          "src/renderer/src/mock-bridge.ts",
+          "src/renderer/src/mount-app.tsx",
+          "src/renderer/src/pages/ArsenalPage.tsx",
+          "src/renderer/src/pages/LibraryPage.tsx",
+          "src/renderer/src/pages/PracticeRoom.tsx",
+          "src/renderer/src/pages/RehearsalRoom.tsx",
+          "src/renderer/src/pages/WoodshedPage.tsx",
+          "src/renderer/src/pages/arsenal.css",
+          "src/renderer/src/performance-diagnostics.ts",
+          "src/renderer/src/playback-media.css",
+          "src/renderer/src/player-store.ts",
+          "src/renderer/src/recording-session.ts",
+          "src/renderer/src/rehearsal-audio-engine.ts",
+          "src/renderer/src/startup-audio-devices.ts",
+          "src/renderer/src/startup.css",
+          "src/renderer/src/startup.ts",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/theme-tokens.css",
+          "src/renderer/src/theme.css",
+          "src/renderer/src/waveform-peaks.ts",
+          "src/renderer/src/woodshed/CourseGuide.tsx",
+          "src/renderer/src/woodshed/ElectricProjects.tsx",
+          "src/renderer/src/woodshed/EnsembleWorkbench.tsx",
+          "src/renderer/src/woodshed/Fretboard.tsx",
+          "src/renderer/src/woodshed/PianoScore.tsx",
+          "src/renderer/src/woodshed/PianoWorkbench.tsx",
+          "src/renderer/src/woodshed/Score.tsx",
+          "src/renderer/src/woodshed/Tuner.tsx",
+          "src/renderer/src/woodshed/ViolinScore.tsx",
+          "src/renderer/src/woodshed/Workbench.tsx",
+          "src/renderer/src/woodshed/advanced-curriculum.ts",
+          "src/renderer/src/woodshed/audio.ts",
+          "src/renderer/src/woodshed/course-plan.ts",
+          "src/renderer/src/woodshed/course.css",
+          "src/renderer/src/woodshed/curriculum.ts",
+          "src/renderer/src/woodshed/electric-curriculum.ts",
+          "src/renderer/src/woodshed/electric.css",
+          "src/renderer/src/woodshed/electric.ts",
+          "src/renderer/src/woodshed/ensemble-audio.ts",
+          "src/renderer/src/woodshed/ensemble-curriculum.ts",
+          "src/renderer/src/woodshed/ensemble.css",
+          "src/renderer/src/woodshed/ensemble.ts",
+          "src/renderer/src/woodshed/piano-curriculum.ts",
+          "src/renderer/src/woodshed/piano.css",
+          "src/renderer/src/woodshed/piano.ts",
+          "src/renderer/src/woodshed/preferences.ts",
+          "src/renderer/src/woodshed/types.ts",
+          "src/renderer/src/woodshed/woodshed.css",
+          "tests/appearance-ipc.test.ts",
+          "tests/appearance-renderer.test.tsx",
+          "tests/appearance.test.ts",
+          "tests/arsenal-device-routing.test.tsx",
+          "tests/arsenal-whitebox-ui.test.tsx",
+          "tests/audio-host-transport.test.ts",
+          "tests/audio-session-navigation.test.tsx",
+          "tests/audio-session.test.ts",
+          "tests/built-runtime.test.ts",
+          "tests/data-migration.test.ts",
+          "tests/database-performance.test.ts",
+          "tests/database-preparation.test.ts",
+          "tests/desktop-lyrics-window.test.ts",
+          "tests/dialogs.test.tsx",
+          "tests/helpers/analysis-worker.ts",
+          "tests/intel-release-contract.test.ts",
+          "tests/jobs-shutdown.test.ts",
+          "tests/lan.test.ts",
+          "tests/library-pagination-search.test.tsx",
+          "tests/logger.test.ts",
+          "tests/lyrics-preload.test.ts",
+          "tests/macos-bundle-integrity.test.ts",
+          "tests/macos-signing.test.ts",
+          "tests/media-analysis.test.ts",
+          "tests/media-integrity.test.ts",
+          "tests/playback-controls.test.tsx",
+          "tests/process-robustness.test.ts",
+          "tests/process-shutdown.test.ts",
+          "tests/progress-coalescer.test.ts",
+          "tests/recording-audio-guards.test.tsx",
+          "tests/recording-navigation.test.tsx",
+          "tests/rehearsal-audio-engine.test.ts",
+          "tests/rehearsal-palette.test.tsx",
+          "tests/rehearsal-recording-continuity.test.tsx",
+          "tests/rehearsal-visibility.test.tsx",
+          "tests/release-targets.test.ts",
+          "tests/renderer-update-isolation.test.tsx",
+          "tests/runtime-dependencies.test.ts",
+          "tests/runtime-device.test.ts",
+          "tests/runtime-environments.test.ts",
+          "tests/runtime-installation.test.ts",
+          "tests/runtime-network.test.ts",
+          "tests/runtime-preparation-ui.test.tsx",
+          "tests/runtime-proxy.test.ts",
+          "tests/runtime-uv.test.ts",
+          "tests/song-load-race.test.ts",
+          "tests/startup-audio-devices.test.ts",
+          "tests/startup-main.test.ts",
+          "tests/startup-preload.test.ts",
+          "tests/startup-renderer.test.tsx",
+          "tests/stem-import.test.ts",
+          "tests/ui-primitives.test.tsx",
+          "tests/video-media.test.ts",
+          "tests/waveform-peaks.test.ts",
+          "tests/waveform-rendering.test.tsx",
+          "tests/window-state.test.ts",
+          "tests/windows-tool-integrity.test.ts",
+          "tests/woodshed-audio.test.ts",
+          "tests/woodshed-background-audio.test.ts",
+          "tests/woodshed-electric.test.ts",
+          "tests/woodshed-ensemble-audio.test.ts",
+          "tests/woodshed-ensemble.test.ts",
+          "tests/woodshed-piano.test.ts",
+          "tests/woodshed-visibility.test.tsx",
+          "tests/woodshed.test.ts",
+          "tsconfig.node.json",
+          "tsconfig.web.json"
+        ]
+      },
+      {
+        "ref": "refs/heads/codex/practice-module-comprehensive",
+        "sha": "3080025dbb313ffef9d2c1c24d59517ff5f569f0",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/heads/codex/push-latest-feature-points",
+        "sha": "3080025dbb313ffef9d2c1c24d59517ff5f569f0",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/heads/codex/release-1.1.0",
+        "sha": "7110db719b2919c054fa15bb7b7208a6b4c4a5f9",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/heads/main",
+        "sha": "a2cf810e74294f53fb64e2ba26e4c9718ac62700",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/remotes/origin/HEAD",
+        "sha": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/remotes/origin/codex/add-sponsor-section",
+        "sha": "e1fa14fa6a497cefede3fdaf85f66e55e3e8b958",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/remotes/origin/codex/github-pages-site",
+        "sha": "b415e6395219798f59825a1a846ce663e2eb9734",
+        "type": "commit",
+        "inHistory": false,
+        "base": "9481098ce33da9ca36410413d5c74881f4c20023",
+        "uniqueCommits": [
+          "b415e63 feat: add GitHub Pages site"
+        ],
+        "changed": [
+          ".github/workflows/pages.yml",
+          "README.md",
+          "site/assets/icon.png",
+          "site/assets/practice-room.png",
+          "site/index.html",
+          "site/privacy.html",
+          "site/robots.txt",
+          "site/sitemap.xml",
+          "site/styles.css"
+        ]
+      },
+      {
+        "ref": "refs/remotes/origin/codex/mobile-pages-note",
+        "sha": "fda991851e095a6ee260ab318d4fa34d96fe4bef",
+        "type": "commit",
+        "inHistory": false,
+        "base": "d6cd585e5b59d1be3adf64e204f269751b61ced6",
+        "uniqueCommits": [
+          "fda9918 docs: add mobile app coming soon note"
+        ],
+        "changed": [
+          "site/index.html",
+          "site/styles.css"
+        ]
+      },
+      {
+        "ref": "refs/remotes/origin/codex/performance-environment-themes",
+        "sha": "bb3a2102e36f6200c907887f18eee1d4f27e8e8b",
+        "type": "commit",
+        "inHistory": false,
+        "base": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "uniqueCommits": [
+          "bb3a210 docs: record optimization results and startup benchmarks",
+          "eeb12b8 build(release): gate Intel macOS artifacts and verify packaged runtime",
+          "ea57326 feat(app): integrate progressive startup and paginated library",
+          "2b3e0f8 feat(woodshed): expand instrument courses and ensemble practice",
+          "e199010 fix(audio): preserve playback recording and device routing across pages",
+          "65eac0b feat(ui): add appearance themes and shared controls",
+          "2c2e3a5 perf(main): move startup and media work off the main thread",
+          "ad2dcb6 fix(runtime): harden environment installation and process lifecycle",
+          "fbc1b0e feat(core): define appearance startup and library bridge contracts"
+        ],
+        "changed": [
+          ".github/workflows/macos.yml",
+          ".github/workflows/release.yml",
+          ".github/workflows/runtime-wheel-macos-x64.yml",
+          "README.md",
+          "docs/appearance.md",
+          "docs/benchmarks/interaction-2026-09.json",
+          "docs/benchmarks/startup-2026-09.json",
+          "docs/optimization-2026-09.md",
+          "docs/runtime-robustness.md",
+          "docs/startup-benchmark-2026-09.md",
+          "docs/woodshed.md",
+          "electron-builder.yml",
+          "electron.vite.config.ts",
+          "native/audio-host/src/main.cpp",
+          "package.json",
+          "packages/shared/src/appearance-schema.ts",
+          "packages/shared/src/appearance.ts",
+          "packages/shared/src/bridge.ts",
+          "packages/shared/src/channels.ts",
+          "packages/shared/src/domain.ts",
+          "packages/shared/src/ipc.ts",
+          "packages/shared/src/startup.ts",
+          "python/guitar_separator_hq/fast_inference.py",
+          "python/guitar_separator_hq/inference.py",
+          "python/guitar_separator_hq/memory.py",
+          "python/guitar_separator_hq/requirements-test.txt",
+          "python/guitar_separator_hq/separator.py",
+          "python/guitar_separator_hq/tests/test_hq_pipeline.py",
+          "python/runtime/cpu-comparison-policy.json",
+          "python/runtime/macos-x64-test.in",
+          "python/runtime/macos-x64.in",
+          "python/runtime/wheel-build-tools.lock",
+          "python/worker/cpu_reference.py",
+          "python/worker/model_download.py",
+          "python/worker/tests/test_cpu_reference.py",
+          "python/worker/tests/test_intel_wheel_build.py",
+          "python/worker/tests/test_runtime_health.py",
+          "python/worker/worker.py",
+          "resources/runtime-wheels.json",
+          "scripts/benchmark-startup.mjs",
+          "scripts/build-audio-host.mjs",
+          "scripts/build-intel-runtime-wheel.py",
+          "scripts/macos-signing.cjs",
+          "scripts/release-targets.mjs",
+          "scripts/runtime-cpu-reference.py",
+          "scripts/test-audio-host.mjs",
+          "scripts/verify-built-runtime.mjs",
+          "scripts/verify-macos-architecture.cjs",
+          "scripts/verify-macos-release.cjs",
+          "scripts/verify-macos-target.mjs",
+          "scripts/verify-windows-signatures.ps1",
+          "src/main/analysis-worker.ts",
+          "src/main/arsenal.ts",
+          "src/main/audio-host.ts",
+          "src/main/data-migration.ts",
+          "src/main/database-boot-worker.ts",
+          "src/main/database-preparation.ts",
+          "src/main/database.ts",
+          "src/main/desktop-lyrics.ts",
+          "src/main/exporter.ts",
+          "src/main/imports.ts",
+          "src/main/index.ts",
+          "src/main/ipc.ts",
+          "src/main/jobs.ts",
+          "src/main/lan.ts",
+          "src/main/logger.ts",
+          "src/main/macos-bundle-integrity.ts",
+          "src/main/media-analysis.ts",
+          "src/main/media.ts",
+          "src/main/process.ts",
+          "src/main/progress-coalescer.ts",
+          "src/main/recording.ts",
+          "src/main/rehearsal-recording.ts",
+          "src/main/runtime-dependencies.ts",
+          "src/main/runtime-device.ts",
+          "src/main/runtime-environments.ts",
+          "src/main/runtime-network.ts",
+          "src/main/runtime-proxy.ts",
+          "src/main/runtime-wheel-manifest.ts",
+          "src/main/runtime.ts",
+          "src/main/startup.ts",
+          "src/main/window-state.ts",
+          "src/main/windows-prerequisites.ts",
+          "src/main/windows-tool-integrity.ts",
+          "src/preload/index.ts",
+          "src/preload/lyrics.ts",
+          "src/renderer/index.html",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/appearance.ts",
+          "src/renderer/src/arsenal/ClassicControls.tsx",
+          "src/renderer/src/arsenal/DeviceFooter.tsx",
+          "src/renderer/src/arsenal/WhiteboxControls.tsx",
+          "src/renderer/src/arsenal/audio-routing.ts",
+          "src/renderer/src/audio-engine.ts",
+          "src/renderer/src/audio-session.ts",
+          "src/renderer/src/components/AppearanceSettings.tsx",
+          "src/renderer/src/components/BackgroundRecording.tsx",
+          "src/renderer/src/components/BackgroundTransport.tsx",
+          "src/renderer/src/components/Dialogs.tsx",
+          "src/renderer/src/components/Header.tsx",
+          "src/renderer/src/components/PlayerBar.tsx",
+          "src/renderer/src/components/RuntimePreparation.tsx",
+          "src/renderer/src/components/SelectMenu.tsx",
+          "src/renderer/src/components/Waveform.tsx",
+          "src/renderer/src/components/ui/AudioPreview.tsx",
+          "src/renderer/src/components/ui/Select.tsx",
+          "src/renderer/src/components/ui/confirm.tsx",
+          "src/renderer/src/lan/main.tsx",
+          "src/renderer/src/lan/style.css",
+          "src/renderer/src/lyrics.css",
+          "src/renderer/src/lyrics.ts",
+          "src/renderer/src/main.tsx",
+          "src/renderer/src/mock-bridge.ts",
+          "src/renderer/src/mount-app.tsx",
+          "src/renderer/src/pages/ArsenalPage.tsx",
+          "src/renderer/src/pages/LibraryPage.tsx",
+          "src/renderer/src/pages/PracticeRoom.tsx",
+          "src/renderer/src/pages/RehearsalRoom.tsx",
+          "src/renderer/src/pages/WoodshedPage.tsx",
+          "src/renderer/src/pages/arsenal.css",
+          "src/renderer/src/performance-diagnostics.ts",
+          "src/renderer/src/playback-media.css",
+          "src/renderer/src/player-store.ts",
+          "src/renderer/src/recording-session.ts",
+          "src/renderer/src/rehearsal-audio-engine.ts",
+          "src/renderer/src/startup-audio-devices.ts",
+          "src/renderer/src/startup.css",
+          "src/renderer/src/startup.ts",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/theme-tokens.css",
+          "src/renderer/src/theme.css",
+          "src/renderer/src/waveform-peaks.ts",
+          "src/renderer/src/woodshed/CourseGuide.tsx",
+          "src/renderer/src/woodshed/ElectricProjects.tsx",
+          "src/renderer/src/woodshed/EnsembleWorkbench.tsx",
+          "src/renderer/src/woodshed/Fretboard.tsx",
+          "src/renderer/src/woodshed/PianoScore.tsx",
+          "src/renderer/src/woodshed/PianoWorkbench.tsx",
+          "src/renderer/src/woodshed/Score.tsx",
+          "src/renderer/src/woodshed/Tuner.tsx",
+          "src/renderer/src/woodshed/ViolinScore.tsx",
+          "src/renderer/src/woodshed/Workbench.tsx",
+          "src/renderer/src/woodshed/advanced-curriculum.ts",
+          "src/renderer/src/woodshed/audio.ts",
+          "src/renderer/src/woodshed/course-plan.ts",
+          "src/renderer/src/woodshed/course.css",
+          "src/renderer/src/woodshed/curriculum.ts",
+          "src/renderer/src/woodshed/electric-curriculum.ts",
+          "src/renderer/src/woodshed/electric.css",
+          "src/renderer/src/woodshed/electric.ts",
+          "src/renderer/src/woodshed/ensemble-audio.ts",
+          "src/renderer/src/woodshed/ensemble-curriculum.ts",
+          "src/renderer/src/woodshed/ensemble.css",
+          "src/renderer/src/woodshed/ensemble.ts",
+          "src/renderer/src/woodshed/piano-curriculum.ts",
+          "src/renderer/src/woodshed/piano.css",
+          "src/renderer/src/woodshed/piano.ts",
+          "src/renderer/src/woodshed/preferences.ts",
+          "src/renderer/src/woodshed/types.ts",
+          "src/renderer/src/woodshed/woodshed.css",
+          "tests/appearance-ipc.test.ts",
+          "tests/appearance-renderer.test.tsx",
+          "tests/appearance.test.ts",
+          "tests/arsenal-device-routing.test.tsx",
+          "tests/arsenal-whitebox-ui.test.tsx",
+          "tests/audio-host-transport.test.ts",
+          "tests/audio-session-navigation.test.tsx",
+          "tests/audio-session.test.ts",
+          "tests/built-runtime.test.ts",
+          "tests/data-migration.test.ts",
+          "tests/database-performance.test.ts",
+          "tests/database-preparation.test.ts",
+          "tests/desktop-lyrics-window.test.ts",
+          "tests/dialogs.test.tsx",
+          "tests/helpers/analysis-worker.ts",
+          "tests/intel-release-contract.test.ts",
+          "tests/jobs-shutdown.test.ts",
+          "tests/lan.test.ts",
+          "tests/library-pagination-search.test.tsx",
+          "tests/logger.test.ts",
+          "tests/lyrics-preload.test.ts",
+          "tests/macos-bundle-integrity.test.ts",
+          "tests/macos-signing.test.ts",
+          "tests/media-analysis.test.ts",
+          "tests/media-integrity.test.ts",
+          "tests/playback-controls.test.tsx",
+          "tests/process-robustness.test.ts",
+          "tests/process-shutdown.test.ts",
+          "tests/progress-coalescer.test.ts",
+          "tests/recording-audio-guards.test.tsx",
+          "tests/recording-navigation.test.tsx",
+          "tests/rehearsal-audio-engine.test.ts",
+          "tests/rehearsal-palette.test.tsx",
+          "tests/rehearsal-recording-continuity.test.tsx",
+          "tests/rehearsal-visibility.test.tsx",
+          "tests/release-targets.test.ts",
+          "tests/renderer-update-isolation.test.tsx",
+          "tests/runtime-dependencies.test.ts",
+          "tests/runtime-device.test.ts",
+          "tests/runtime-environments.test.ts",
+          "tests/runtime-installation.test.ts",
+          "tests/runtime-network.test.ts",
+          "tests/runtime-preparation-ui.test.tsx",
+          "tests/runtime-proxy.test.ts",
+          "tests/runtime-uv.test.ts",
+          "tests/song-load-race.test.ts",
+          "tests/startup-audio-devices.test.ts",
+          "tests/startup-main.test.ts",
+          "tests/startup-preload.test.ts",
+          "tests/startup-renderer.test.tsx",
+          "tests/stem-import.test.ts",
+          "tests/ui-primitives.test.tsx",
+          "tests/video-media.test.ts",
+          "tests/waveform-peaks.test.ts",
+          "tests/waveform-rendering.test.tsx",
+          "tests/window-state.test.ts",
+          "tests/windows-tool-integrity.test.ts",
+          "tests/woodshed-audio.test.ts",
+          "tests/woodshed-background-audio.test.ts",
+          "tests/woodshed-electric.test.ts",
+          "tests/woodshed-ensemble-audio.test.ts",
+          "tests/woodshed-ensemble.test.ts",
+          "tests/woodshed-piano.test.ts",
+          "tests/woodshed-visibility.test.tsx",
+          "tests/woodshed.test.ts",
+          "tsconfig.node.json",
+          "tsconfig.web.json"
+        ]
+      },
+      {
+        "ref": "refs/remotes/origin/codex/push-latest-feature-points",
+        "sha": "3080025dbb313ffef9d2c1c24d59517ff5f569f0",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/remotes/origin/codex/release-1.1.0",
+        "sha": "7110db719b2919c054fa15bb7b7208a6b4c4a5f9",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/remotes/origin/main",
+        "sha": "f4842830c385fb319f859bb0da1b2de2859a4d55",
+        "type": "commit",
+        "inHistory": true
+      },
+      {
+        "ref": "refs/tags/v1.0.0",
+        "sha": "c6c1d50ef93a716936286d06a83103b25512eeef",
+        "type": "tag"
+      },
+      {
+        "ref": "refs/tags/v1.1.0",
+        "sha": "709791b6ef94580b6a5fb787c462fe99e4b0ab7c",
+        "type": "tag"
+      },
+      {
+        "ref": "refs/tags/v2.0.1",
+        "sha": "166efe6792285160e0d51046d845df39ada74156",
+        "type": "tag"
+      },
+      {
+        "ref": "refs/tags/v2.0.3",
+        "sha": "e5877c353736af29da8c0e4fbf0bbd25e5dccdee",
+        "type": "commit",
+        "inHistory": true
+      }
+    ],
+    "reflogOrphans": [
+      {
+        "sha": "a3059f9ed12424d78c9123bf84c5e0166e1c2c79",
+        "subject": "Add configurable guitar separation quality policies"
+      },
+      {
+        "sha": "75873ceba7017b0dee0b3b6d4ebd3334a930c398",
+        "subject": "feat: open source BandBuddy 1.0.0"
+      }
+    ],
+    "checkpointMissing": [
+      {
+        "file": "src/renderer/src/woodshed/drum-audio.ts",
+        "refs": [
+          "refs/codex/turn-diffs/checkpoints/5db5ec7f78ef1e8d7954c46cb7b99cd1/d30cf772fdd76afc8d325d1b6baeb730/1790796911978/b6c8b88d-3a5c-4dbb-be50-7e9ebc7fa236"
+        ]
+      }
+    ]
+  },
+  "files": [
+    {
+      "source": "themes",
+      "file": ".github/workflows/macos.yml",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": ".github/workflows/release.yml",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": ".github/workflows/runtime-wheel-macos-x64.yml",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "README.md",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "docs/appearance.md",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/benchmarks/interaction-2026-09.json",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/benchmarks/startup-2026-09.json",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/optimization-2026-09.md",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/runtime-robustness.md",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/startup-benchmark-2026-09.md",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "docs/woodshed.md",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "electron-builder.yml",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "electron.vite.config.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "native/audio-host/src/main.cpp",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "package.json",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/appearance-schema.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/appearance.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/bridge.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/channels.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/domain.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/ipc.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/startup.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/fast_inference.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/inference.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/memory.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/requirements-test.txt",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/separator.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/guitar_separator_hq/tests/test_hq_pipeline.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/runtime/cpu-comparison-policy.json",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/runtime/macos-x64-test.in",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/runtime/macos-x64.in",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/runtime/wheel-build-tools.lock",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/cpu_reference.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/model_download.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/tests/test_cpu_reference.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/tests/test_intel_wheel_build.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/tests/test_runtime_health.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "python/worker/worker.py",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "resources/runtime-wheels.json",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/benchmark-startup.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/build-audio-host.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/build-intel-runtime-wheel.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/macos-signing.cjs",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/release-targets.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/runtime-cpu-reference.py",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/test-audio-host.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/verify-built-runtime.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/verify-macos-architecture.cjs",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/verify-macos-release.cjs",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/verify-macos-target.mjs",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/verify-windows-signatures.ps1",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/analysis-worker.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/arsenal.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/audio-host.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/data-migration.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/database-boot-worker.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/database-preparation.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/database.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/desktop-lyrics.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/exporter.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/imports.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/index.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/ipc.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/jobs.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/lan.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/logger.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/macos-bundle-integrity.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/media-analysis.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/media.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/process.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/progress-coalescer.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/recording.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/rehearsal-recording.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-dependencies.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-device.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-environments.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-network.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-proxy.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime-wheel-manifest.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/runtime.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/startup.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/window-state.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/windows-prerequisites.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/main/windows-tool-integrity.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/preload/index.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/preload/lyrics.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/index.html",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/App.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/appearance.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/ClassicControls.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/DeviceFooter.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/WhiteboxControls.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/audio-routing.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/audio-engine.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/audio-session.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/AppearanceSettings.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/BackgroundRecording.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/BackgroundTransport.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/Dialogs.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/Header.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/PlayerBar.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/RuntimePreparation.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/SelectMenu.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/Waveform.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/ui/AudioPreview.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/ui/Select.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/ui/confirm.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/lan/main.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/lan/style.css",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/lyrics.css",
+      "committed": true,
+      "dirty": false,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/lyrics.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/main.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/mock-bridge.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/mount-app.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/ArsenalPage.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/LibraryPage.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/PracticeRoom.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/RehearsalRoom.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/WoodshedPage.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/pages/arsenal.css",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/performance-diagnostics.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/playback-media.css",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/player-store.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/recording-session.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/rehearsal-audio-engine.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/startup-audio-devices.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/startup.css",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/startup.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/styles.css",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/theme-tokens.css",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/theme.css",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/waveform-peaks.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/CourseGuide.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/CourseGuide.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ElectricProjects.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/ElectricProjects.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/EnsembleWorkbench.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/EnsembleWorkbench.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/Fretboard.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/PianoScore.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/PianoScore.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/PianoWorkbench.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/PianoWorkbench.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/Score.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/Tuner.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ViolinScore.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/ViolinScore.tsx"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/Workbench.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/advanced-curriculum.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/advanced-curriculum.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/audio.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/course-plan.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/course-plan.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/course.css",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/course.css"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/curriculum.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/electric-curriculum.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/electric-curriculum.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/electric.css",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/electric.css"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/electric.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/electric.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ensemble-audio.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ensemble-curriculum.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ensemble.css",
+      "committed": true,
+      "dirty": false,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/ensemble.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/ensemble.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/piano-curriculum.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/piano-curriculum.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/piano.css",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/piano.css"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/piano.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/piano.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/preferences.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/types.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/woodshed.css",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "tests/appearance-ipc.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/appearance-renderer.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/appearance.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-device-routing.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-whitebox-ui.test.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/audio-host-transport.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/audio-session-navigation.test.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/audio-session.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/built-runtime.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/data-migration.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/database-performance.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/database-preparation.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/desktop-lyrics-window.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/dialogs.test.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "tests/helpers/analysis-worker.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/intel-release-contract.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/jobs-shutdown.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/lan.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/library-pagination-search.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/logger.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/lyrics-preload.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/macos-bundle-integrity.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/macos-signing.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/media-analysis.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/media-integrity.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/playback-controls.test.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "tests/process-robustness.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/process-shutdown.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/progress-coalescer.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/recording-audio-guards.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/recording-navigation.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/rehearsal-audio-engine.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/rehearsal-palette.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/rehearsal-recording-continuity.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/rehearsal-visibility.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/release-targets.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/renderer-update-isolation.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-dependencies.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-device.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-environments.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-installation.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-network.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-preparation-ui.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-proxy.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/runtime-uv.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/song-load-race.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/startup-audio-devices.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "tests/startup-main.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/startup-preload.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/startup-renderer.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/stem-import.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/ui-primitives.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/video-media.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "tests/waveform-peaks.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/waveform-rendering.test.tsx",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/window-state.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tests/windows-tool-integrity.test.ts",
+      "committed": true,
+      "dirty": false,
+      "status": "absent"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-audio.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-background-audio.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-electric.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-ensemble-audio.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-ensemble.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-piano.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed-visibility.test.tsx",
+      "committed": true,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/woodshed.test.ts",
+      "committed": true,
+      "dirty": true,
+      "status": "additional-source-changes"
+    },
+    {
+      "source": "themes",
+      "file": "tsconfig.node.json",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "tsconfig.web.json",
+      "committed": true,
+      "dirty": false,
+      "status": "source-change-missing"
+    },
+    {
+      "source": "themes",
+      "file": "docs/arsenal-classic-models.md",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/audio-host/CMakeLists.txt",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/effects/classic.cpp",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/effects/classic.h",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/effects/effects.cpp",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/effects/whitebox.cpp",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "native/effects/whitebox.h",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "packages/shared/src/arsenal.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "pnpm-lock.yaml",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-classic.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-whitebox.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/lan-pitch.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/metronome-volume.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "included-with-later-changes"
+    },
+    {
+      "source": "themes",
+      "file": "tests/track-level-input.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "themes",
+      "file": "docs/modular-effects-and-practice.md",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "docs/sample-assets.json",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/prepare-practice-samples.mjs",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "scripts/test-hotone-input.mjs",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-29.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-30.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-31.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-32.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-33.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-34.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-36.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-37.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-38.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-39.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-40.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-42.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-43.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-44.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-45.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-46.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-47.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-48.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-49.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-51.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-53.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-54.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-55.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-56.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-57.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-62.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-64.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-66.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-67.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-68.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-69.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-70.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-71.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/drums-72.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-40.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-41.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-42.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-43.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-44.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-45.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-46.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-47.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-48.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-49.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-50.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-51.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-52.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-53.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-54.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-55.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-56.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-57.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-58.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-59.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-60.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-61.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-62.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-63.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-64.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-65.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-66.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-67.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-68.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-69.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-70.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-71.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-72.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-73.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-74.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-75.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-clean-76.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-40.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-41.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-42.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-43.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-44.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-45.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-46.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-47.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-48.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-49.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-50.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-51.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-52.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-53.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-54.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-55.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-56.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-57.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-58.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-59.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-60.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-61.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-62.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-63.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-64.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-65.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-66.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-67.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-68.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-69.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-70.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-71.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-72.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-73.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-74.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-75.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/electric-distorted-76.ogg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/public/samples/index.json",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/Knob.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/ModuleControls.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/arsenal/RecordingEffects.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/components/TrackMeter.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/track-levels.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/gear-curriculum.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/gear-curriculum.ts"
+    },
+    {
+      "source": "themes",
+      "file": "src/renderer/src/woodshed/samples.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-instrument-workshop",
+      "target": "src/renderer/src/instrument-workshop/samples.ts"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-modular-native.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/arsenal-monitor-lifecycle.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/practice-samples.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "themes",
+      "file": "tests/recording-delete-track.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "themes",
+      "file": "tests/recording-effects-ui.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/components/SelectMenu.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/pages/WoodshedPage.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/Score.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/Tuner.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/audio.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/pitch.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/preferences.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/theory.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/types.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/woodshed.css",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "learning",
+      "file": "tests/woodshed.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "learning",
+      "file": "docs/woodshed-ensemble.md",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/AnalogTunerGauge.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ChordLookup.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/DrumMachine.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/EnsembleKeyboard.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/EnsemblePractice.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/EnsembleScore.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/HarmonyDial.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/HarmonyExplorer.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/HarmonyInstruments.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/Learning.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition",
+      "resolution": "updated in this run; preserve newer controls and current ensemble routes"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/Metronome.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/PolyTunerGauge.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/Practice.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition",
+      "resolution": "updated in this run; preserve newer controls and current ensemble routes"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/assets/instrument-grain.svg",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/chord-lookup.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/drum-patterns.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble-audio.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble-curriculum.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble-material.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble-notes.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble-source.json",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/ensemble.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/guitar-knowledge.json",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/harmony-audio.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/harmony.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/harmony.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/input-channel.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/instrument-knowledge.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/knowledge.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/learning.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/metronome-engine.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/metronome.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/poly-pitch.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/practice-curriculum.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition",
+      "resolution": "updated in this run; preserve newer controls and current ensemble routes"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/practice-expansion.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "src/renderer/src/woodshed/practice.css",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition",
+      "resolution": "updated in this run; preserve newer controls and current ensemble routes"
+    },
+    {
+      "source": "learning",
+      "file": "tests/ensemble-audio.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "tests/ensemble-curriculum.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "tests/woodshed-learning.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "learning",
+      "file": "tests/woodshed-practice.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "drums",
+      "file": "docs/woodshed.md",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "drums",
+      "file": "package.json",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "drums",
+      "file": "src/main/media.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/src/pages/WoodshedPage.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "drums",
+      "file": "scripts/verify-drum-samples.mjs",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "drums",
+      "file": "src/main/drum-assets.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/public/woodshed/drums/manifest.json",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/src/woodshed/DrumMachine.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-sample-drums",
+      "target": "src/renderer/src/sample-drums/DrumMachine.tsx"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/src/woodshed/drum-audio.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-sample-drums",
+      "target": "src/renderer/src/sample-drums/drum-audio.ts"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/src/woodshed/drum-machine.css",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-sample-drums",
+      "target": "src/renderer/src/sample-drums/drum-machine.css"
+    },
+    {
+      "source": "drums",
+      "file": "src/renderer/src/woodshed/drum-patterns.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "relocated-sample-drums",
+      "target": "src/renderer/src/sample-drums/drum-patterns.ts"
+    },
+    {
+      "source": "drums",
+      "file": "tests/drum-audio.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "drums",
+      "file": "tests/drum-machine.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "different-addition"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/pages/WoodshedPage.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "overlap-review"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/FretboardLab.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/LabBoard.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/LabControls.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/LabDetails.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/fretboard-lab.css",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/lab-model.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "src/renderer/src/woodshed/lab-settings.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "tests/fretboard-lab-ui.test.tsx",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "lab",
+      "file": "tests/fretboard-lab.test.ts",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    },
+    {
+      "source": "packaging",
+      "file": "native/audio-host/CMakeLists.txt",
+      "committed": false,
+      "dirty": true,
+      "status": "identical"
+    }
+  ],
+  "tests": {
+    "files": 88,
+    "passed": 503,
+    "skipped": 1
+  },
+  "packageSourceVerification": {
+    "previous": {
+      "version": "3.0.0",
+      "files": {
+        "src/renderer/src/woodshed/practice-curriculum.ts": {
+          "included": true,
+          "sha256": "ee79bfff566155fd9bcc8466b466919783ec867341ebdb05c03eb31b65936586"
+        },
+        "src/renderer/src/woodshed/Learning.tsx": {
+          "included": true,
+          "sha256": "48a579b1afec52e3278be46b59514219c9b44604b4416aeca08c50dec7b2e7c3"
+        },
+        "src/renderer/src/woodshed/EnsemblePractice.tsx": {
+          "included": true,
+          "sha256": "ee717603bc329a6bca53600b4005cb5f38a8ebfd82db36519da47eb766e159d8"
+        },
+        "src/renderer/src/woodshed/Practice.tsx": {
+          "included": true,
+          "sha256": "06aefac7761aa676011cb440b1bd3b8c7b96c1cb60f7a7169fd4e11e839197a2"
+        },
+        "src/renderer/src/pages/WoodshedPage.tsx": {
+          "included": true,
+          "sha256": "12d36cafa1b749173a81290cdb4efd449450323f08c9289fbed0ec03b1cf71e9"
+        }
+      }
+    },
+    "current": {
+      "version": "3.0.1",
+      "files": {
+        "src/renderer/src/woodshed/practice-comprehensive.ts": {
+          "included": true,
+          "sha256": "7cffe408267196f720c603553d0f6028165de95564d5e6eb44f99ce94b3b212d"
+        },
+        "src/renderer/src/woodshed/practice-curriculum.ts": {
+          "included": true,
+          "sha256": "f50ec11193e2c0b68db38b3b4805dde24d980e65a4e079b692ac084cf24e5b4f"
+        },
+        "src/renderer/src/woodshed/Learning.tsx": {
+          "included": true,
+          "sha256": "9daaf5da052a36e49665fdf61274e92249d63e2c97b5527d5db2a1f3477f974d"
+        },
+        "src/renderer/src/woodshed/EnsemblePractice.tsx": {
+          "included": true,
+          "sha256": "ee717603bc329a6bca53600b4005cb5f38a8ebfd82db36519da47eb766e159d8"
+        },
+        "src/renderer/src/woodshed/Practice.tsx": {
+          "included": true,
+          "sha256": "1c675f32f1ee9c5192ee64f8551925ec3e998d11127ecaf0c016087230b91afa"
+        },
+        "src/renderer/src/pages/WoodshedPage.tsx": {
+          "included": true,
+          "sha256": "823a71a5e18ef682a7048cd46b923ec4e4721c41f9c2e7b89eaf282a0660b0d0"
+        }
+      }
+    }
+  }
+}

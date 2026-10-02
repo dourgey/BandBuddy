@@ -1,3 +1,4 @@
+import { allowAudioAction, useRecordingSession } from '../recording-session.js'
 import { useEffect, useRef, useState } from 'react'
 import { Guitar, Mic, MicOff, Settings } from 'lucide-react'
 import { detectPitch, pitchReading } from './pitch.js'
@@ -8,6 +9,7 @@ import { AnalogTunerGauge } from './AnalogTunerGauge.js'
 import { PolyTunerGauge } from './PolyTunerGauge.js'
 import { SelectMenu } from '../components/SelectMenu.js'
 export function Tuner({
+  visible = true,
   presetControl,
   instrumentSettings,
   tuning,
@@ -20,6 +22,7 @@ export function Tuner({
   onChannel,
   onError
 }: {
+  visible?: boolean
   presetControl: React.ReactNode
   instrumentSettings: React.ReactNode
   tuning: Tuning
@@ -49,6 +52,9 @@ export function Tuner({
     context = useRef<AudioContext | null>(null),
     timer = useRef<ReturnType<typeof setInterval> | null>(null),
     token = useRef(0)
+  const recording = useRecordingSession()
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
   const current = useRef({ a4, target, tuning, capo, inputChannel })
   const devicePreference = useRef({ inputDevice, onDevice })
   devicePreference.current = { inputDevice, onDevice }
@@ -93,6 +99,7 @@ export function Tuner({
     return () => navigator.mediaDevices?.removeEventListener('devicechange', refresh)
   }, [])
   const start = async (): Promise<void> => {
+    if (!allowAudioAction()) return
     stop()
     setBusy(true)
     const ticket = token.current
@@ -159,6 +166,7 @@ export function Tuner({
         if (remembered) onDevice(remembered)
       }
       timer.current = setInterval(() => {
+        if (!visibleRef.current) return
         const levels = analysers.map((analyser, index) => {
           const data = channelSamples[index]!
           analyser.getFloatTimeDomainData(data)
@@ -263,9 +271,10 @@ export function Tuner({
     }
   }
   useEffect(() => {
-    void start()
+    if (!recording && visible) void start()
+    else stop()
     return () => stop(false)
-  }, [inputDevice])
+  }, [inputDevice, Boolean(recording), visible])
   const detectedIndex = reading ? tuning.notes.findIndex((note) => note + capo === reading.midi) : -1
   const currentString = target ?? (detectedIndex < 0 ? null : tuning.notes.length - detectedIndex)
   return (

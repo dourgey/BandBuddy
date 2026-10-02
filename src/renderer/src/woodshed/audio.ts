@@ -45,6 +45,8 @@ export class WoodshedAudio {
   private sources = new Set<AudioScheduledSourceNode>()
   private timer: ReturnType<typeof setInterval> | null = null
   private animation = 0
+  private visualActive = true
+  private resumeDrawing: () => void = () => {}
   private generation = 0
   private disposed = false
   private origin = 0
@@ -64,6 +66,21 @@ export class WoodshedAudio {
   private drumBuffers = new Map<number, AudioBuffer>()
   onFrame(listener: (frame: TransportFrame) => void): void {
     this.frameListener = listener
+  }
+  setVisualActive(active: boolean): void {
+    if (active === this.visualActive || this.disposed) return
+    this.visualActive = active
+    cancelAnimationFrame(this.animation)
+    this.consumeHiddenFrames()
+    if (active) {
+      this.frameListener(this.currentFrame)
+      this.drumStepListener(this.currentFrame.beat)
+      this.resumeDrawing()
+    }
+  }
+  private consumeHiddenFrames(): void {
+    if (!this.context) return
+    while (this.queue.length && this.queue[0]!.time <= this.context.currentTime) this.currentFrame = this.queue.shift()!.frame
   }
   async setOutput(id: string): Promise<void> {
     this.output = id
@@ -166,6 +183,7 @@ export class WoodshedAudio {
     this.frameListener(this.currentFrame)
     this.drumStepListener(-1)
     this.drumStepListener = () => {}
+    this.resumeDrawing = () => {}
   }
   async loadDrumSamples(samples: Array<{ midiNote: number; file: string }>, baseUrl: string): Promise<Map<number, AudioBuffer>> {
     const context = await this.ready()
@@ -233,14 +251,16 @@ export class WoodshedAudio {
       }
     }
     schedule()
-    this.timer = setInterval(schedule, 25)
+    this.timer = setInterval(() => { schedule(); if (!this.visualActive) this.consumeHiddenFrames() }, 25)
     const draw = (): void => {
-      if (!this.active || token !== this.generation) return
+      if (!this.active || !this.visualActive || token !== this.generation) return
       while (this.queue.length && this.queue[0]!.time <= context.currentTime) {
-        onStep(this.queue.shift()!.frame.beat)
+        this.currentFrame = this.queue.shift()!.frame
+        onStep(this.currentFrame.beat)
       }
       this.animation = requestAnimationFrame(draw)
     }
+    this.resumeDrawing = draw
     draw()
   }
   pause(): void {
@@ -271,17 +291,18 @@ export class WoodshedAudio {
     this.active = true
     this.scheduled = 0
     this.queue = []
-    const run = () => this.schedule()
+    const run = () => { this.schedule(); if (!this.visualActive) this.consumeHiddenFrames() }
     run()
     this.timer = setInterval(run, 25)
     const draw = () => {
-      if (!this.active || !this.context) return
+      if (!this.active || !this.context || !this.visualActive) return
       while (this.queue.length && this.queue[0]!.time <= this.context.currentTime) {
         this.currentFrame = this.queue.shift()!.frame
         this.frameListener(this.currentFrame)
       }
       this.animation = requestAnimationFrame(draw)
     }
+    this.resumeDrawing = draw
     draw()
   }
   private schedule(): void {

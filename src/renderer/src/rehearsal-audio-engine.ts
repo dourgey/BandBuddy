@@ -35,6 +35,9 @@ export class RehearsalAudioEngine {
   private preparation: Promise<boolean> | null = null
   private currentSegmentId: string | null = null
   private frame = 0
+  private backgroundTimer: ReturnType<typeof setTimeout> | null = null
+  private visualActive = true
+  private lastTimeEmission = -Infinity
   private clockStartedAt = 0
   private clockPositionMs = 0
   private timeListener: ((position: RehearsalTimelinePosition, playing: boolean) => void) | null = null
@@ -67,6 +70,16 @@ export class RehearsalAudioEngine {
 
   onError(listener: (error: unknown) => void): void {
     this.errorListener = listener
+  }
+
+  setVisualActive(active: boolean): void {
+    if (this.visualActive === active) return
+    this.visualActive = active
+    this.cancelMonitor()
+    // Segment changes and count-in clicks share this clock. Keep advancing it
+    // even when the page has no animation frames to render.
+    if (this.playing) this.monitorTick()
+    else if (active) this.emitTime()
   }
 
   async configure(configuration: RehearsalPlaybackConfiguration): Promise<void> {
@@ -105,7 +118,7 @@ export class RehearsalAudioEngine {
     const total = this.configuration?.timeline.totalDurationMs ?? this.currentMs
     this.currentMs = Math.max(0, Math.min(this.currentMs, total))
     this.playing = false
-    cancelAnimationFrame(this.frame)
+    this.cancelMonitor()
     this.songEngine.pause()
     for (const overlay of this.overlays.values()) overlay.element.pause()
     this.emitTime()
@@ -232,38 +245,55 @@ export class RehearsalAudioEngine {
   }
 
   private monitor(): void {
+    this.cancelMonitor()
+    this.scheduleMonitorTick()
+  }
+
+  private cancelMonitor(): void {
     cancelAnimationFrame(this.frame)
-    const tick = (): void => {
-      if (!this.playing || !this.configuration) return
-      const timeline = this.configuration.timeline
-      const nextMs = this.clockPositionMs + (performance.now() - this.clockStartedAt)
-      if (nextMs >= timeline.totalDurationMs) {
-        this.currentMs = timeline.totalDurationMs
-        this.playing = false
-        this.songEngine.pause()
-        for (const overlay of this.overlays.values()) overlay.element.pause()
-        this.emitTime()
-        this.endedListener?.()
-        return
-      }
-      const previous = rehearsalTimelinePosition(timeline, this.currentMs)
-      this.currentMs = nextMs
-      const current = rehearsalTimelinePosition(timeline, this.currentMs)
-      if (current.segment?.id !== previous.segment?.id) {
+    this.frame = 0
+    if (this.backgroundTimer !== null) clearTimeout(this.backgroundTimer)
+    this.backgroundTimer = null
+  }
+
+  private scheduleMonitorTick(): void {
+    this.cancelMonitor()
+    if (!this.playing) return
+    if (this.visualActive) this.frame = requestAnimationFrame(this.monitorTick)
+    else this.backgroundTimer = setTimeout(this.monitorTick, 16)
+  }
+
+  private monitorTick = (): void => {
+    this.frame = 0
+    this.backgroundTimer = null
+    if (!this.playing || !this.configuration) return
+    const timeline = this.configuration.timeline
+    const nextMs = this.clockPositionMs + (performance.now() - this.clockStartedAt)
+    if (nextMs >= timeline.totalDurationMs) {
+      this.currentMs = timeline.totalDurationMs
+      this.playing = false
+      this.songEngine.pause()
+      for (const overlay of this.overlays.values()) overlay.element.pause()
+      this.emitTime()
+      this.endedListener?.()
+      return
+    }
+    const previous = rehearsalTimelinePosition(timeline, this.currentMs)
+    this.currentMs = nextMs
+    const current = rehearsalTimelinePosition(timeline, this.currentMs)
+    if (current.segment?.id !== previous.segment?.id) {
+      this.clockPositionMs = this.currentMs
+      this.clockStartedAt = performance.now()
+      void this.prepareCurrentSegment(this.generation).then((prepared) => {
+        if (!prepared || !this.playing) return
         this.clockPositionMs = this.currentMs
         this.clockStartedAt = performance.now()
-        void this.prepareCurrentSegment(this.generation).then((prepared) => {
-          if (!prepared || !this.playing) return
-          this.clockPositionMs = this.currentMs
-          this.clockStartedAt = performance.now()
-        })
-      } else if (current.segment?.kind === 'countIn') {
-        this.maybeClickCountIn(current)
-      }
-      this.emitTime()
-      this.frame = requestAnimationFrame(tick)
+      })
+    } else if (current.segment?.kind === 'countIn') {
+      this.maybeClickCountIn(current)
     }
-    this.frame = requestAnimationFrame(tick)
+    this.emitTime(false)
+    this.scheduleMonitorTick()
   }
 
   private async finishCurrentSegment(): Promise<void> {
@@ -365,8 +395,11 @@ export class RehearsalAudioEngine {
     for (const overlay of this.overlays.values()) void overlay.element.play().catch(() => undefined)
   }
 
-  private emitTime(): void {
+  private emitTime(force = true): void {
     if (!this.configuration) return
+    const now = performance.now()
+    if (!force && !this.visualActive && this.playing && now - this.lastTimeEmission < 80) return
+    this.lastTimeEmission = now
     this.timeListener?.(
       rehearsalTimelinePosition(this.configuration.timeline, this.currentMs),
       this.playing

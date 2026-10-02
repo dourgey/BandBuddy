@@ -1,5 +1,6 @@
-import { getAppearance } from '../appearance.js'
+import { RuntimePreparation } from './RuntimePreparation.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
+import { getAppearance } from '../appearance.js'
 import { Select } from './ui/Select.js'
 import { LanSettings } from './LanSettings.js'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -171,10 +172,10 @@ export function ImportDialog({
         <p className="dialog-lead">源文件会复制到受管曲库。视频会先提取音频再分轨，所有处理均在本机完成。</p>
         <div className="dialog-tabs"><button disabled={busy} className={mode === 'source' ? 'active' : ''} onClick={() => { setMode('source'); setError(''); setPadding(null) }}>歌曲 / 视频</button><button disabled={busy} className={mode === 'stems' ? 'active' : ''} onClick={() => { setMode('stems'); setError(''); setDuplicate(null) }}>已分轨数据</button></div>
         {mode === 'stems' ? <div className="stem-import"><button disabled={busy} className="outline-button" onClick={() => void chooseStems()}><FolderOpen size={16} />选择分轨文件</button> <button disabled={busy} className="outline-button" onClick={() => void chooseStems('folder')}><FolderOpen size={16} />选择文件夹</button><p>导入 2–9 条音轨，无需安装分离模型。选择预设名称或输入自定义名称。各轨从同一时间点开始，较短音轨将在末尾补静音。</p>
-          {stemFiles.map((file, index) => <div className="stem-import-row" key={file.path}><small title={file.path}>{file.path.split(/[\\/]/).pop()}</small><select disabled={busy} aria-label={`轨道 ${index + 1} 预设名称`} value={STEM_ORDER.find((type) => STEM_META[type].label === file.name) ?? 'custom'} onChange={(event) => {
+          {stemFiles.map((file, index) => <div className="stem-import-row" key={file.path}><small title={file.path}>{file.path.split(/[\\/]/).pop()}</small><Select disabled={busy} aria-label={`轨道 ${index + 1} 预设名称`} value={STEM_ORDER.find((type) => STEM_META[type].label === file.name) ?? 'custom'} onChange={(event) => {
             const value = event.target.value
             setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: value === 'custom' ? '' : STEM_META[value as StemType].label } : item)); setPadding(null)
-          }}><option value="custom">自定义名称</option>{STEM_ORDER.map((type) => <option value={type} key={type}>{STEM_META[type].label}</option>)}</select><input disabled={busy} aria-label={`轨道 ${index + 1} 名称`} maxLength={80} value={file.name} placeholder="输入轨道名称" onChange={(event) => { setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item)); setPadding(null) }} /></div>)}
+          }}><option value="custom">自定义名称</option>{STEM_ORDER.map((type) => <option value={type} key={type}>{STEM_META[type].label}</option>)}</Select><input disabled={busy} aria-label={`轨道 ${index + 1} 名称`} maxLength={80} value={file.name} placeholder="输入轨道名称" onChange={(event) => { setStemFiles((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item)); setPadding(null) }} /></div>)}
         </div> : <div className={`drop-zone ${source ? 'selected' : ''} ${dragging ? 'is-dragging' : ''}`} role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
           onClick={() => void chooseSource()}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void chooseSource() } }}
@@ -193,11 +194,12 @@ export function ImportDialog({
   </Dialog.Root>
 }
 
-export function TasksDrawer({ open, onOpenChange, jobs, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; onRefresh(): void }): React.JSX.Element {
+export function TasksDrawer({ open, onOpenChange, jobs, runtime, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; runtime?: RuntimeInfo; onRefresh(): void }): React.JSX.Element {
   const active = jobs.filter((job) => ['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(job.status))
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer" data-dialog-open="true" aria-describedby={undefined}>
     <Dialog.Title>任务</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">分离任务单线程运行，导出与标准化会依次进入队列。</p>
     <div className="drawer-summary"><Gauge /><span><b>{active.length ? `${active.length} 个进行中任务` : '当前没有活动任务'}</b><small>{jobs.length} 条任务记录</small></span></div>
+    {runtime && <RuntimePreparation runtime={runtime} />}
     <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>任务列表是空的</b><span>导入歌曲后，分离进度会显示在这里。</span></div> : jobs.map((job) => <article key={job.id}>
       <header><span className={`task-dot ${job.status}`} /> <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b><em>{statusLabel(job.status)}</em></header>
       <p>{job.phase}</p><div className="progress-line"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><small>{Math.round(job.progress * 100)}% · {formatDate(job.createdAt)}</small>
@@ -242,6 +244,19 @@ function SettingsGroup({ title, description, summary, icon, open, onOpenChange, 
       </Dialog.Content>
     </Dialog.Portal>
   </Dialog.Root>
+}
+
+/** During recording, only the appearance API is available from Settings. */
+export function AppearanceDialog({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }): React.JSX.Element {
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal>
+    <Dialog.Overlay className="dialog-overlay" data-dialog-open="true" />
+    <Dialog.Content className="dialog-content bb-recording-appearance" data-dialog-open="true" aria-describedby="recording-appearance-note">
+      <Dialog.Title>外观设置</Dialog.Title>
+      <Dialog.Description id="recording-appearance-note">录音持续进行。外观立即生效，其他设置可在录音结束后调整。</Dialog.Description>
+      <AppearanceSettings />
+      <footer className="dialog-footer"><Dialog.Close className="outline-button">关闭</Dialog.Close></footer>
+    </Dialog.Content>
+  </Dialog.Portal></Dialog.Root>
 }
 
 export function SettingsDrawer({

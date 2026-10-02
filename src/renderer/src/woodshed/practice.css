@@ -1,58 +1,58 @@
 .ws-practice-modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
-.ws-practice-modules section { min-width: 0; padding: 22px; border: 1px solid #ddd5c7; border-radius: 14px; background: #f0ece3; box-shadow: 0 3px 12px #5c513408; }
-.ws-practice-modules h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #496d64; }
+.ws-practice-modules section { min-width: 0; padding: 22px; border: 1px solid light-dark(#ddd5c7, var(--border)); border-radius: 14px; background: light-dark(#f0ece3, var(--paper)); box-shadow: 0 3px 12px #5c513408; }
+.ws-practice-modules h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: light-dark(#496d64, var(--success)); }
 .ws-practice-modules section > div { display: grid; gap: 8px; }
-.ws-practice-modules button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 13px 15px; color: #524d42; font-size: 13px; line-height: 1.6; background: #fcfaf5; border: 1px solid #d8d2c5; border-radius: 7px; }
-.ws-practice-modules button:hover { background: #eaf0e6; border-color: #8fa397; }
+.ws-practice-modules button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 13px 15px; color: light-dark(#524d42, var(--ink)); font-size: 13px; line-height: 1.6; background: light-dark(#fcfaf5, var(--paper)); border: 1px solid light-dark(#d8d2c5, var(--border)); border-radius: 7px; }
+.ws-practice-modules button:hover { background: light-dark(#eaf0e6, var(--paper)); border-color: light-dark(#8fa397, var(--border)); }
 .ws-practice-modules button svg { flex-shrink: 0; }
-.ws-practice-modules button:focus-visible { outline: 2px solid #496d64; outline-offset: 3px; }
-.ws-practice-modules .ws-practice-comprehensive { margin-top: 5px; background: #e5ece1; border-color: #b1bfa9; color: #3e5c4f; }
+.ws-practice-modules button:focus-visible { outline: 2px solid light-dark(#496d64, var(--border)); outline-offset: 3px; }
+.ws-practice-modules .ws-practice-comprehensive { margin-top: 5px; background: light-dark(#e5ece1, var(--surface)); border-color: light-dark(#b1bfa9, var(--border)); color: light-dark(#3e5c4f, var(--success)); }
 .ws-practice-comprehensive > span { display: grid; gap: 3px; min-width: 0; }
 .ws-practice-comprehensive b { font-size: 12px; font-weight: 600; }
-.ws-practice-comprehensive small { color: #6b7b62; font-size: 11px; }
+.ws-practice-comprehensive small { color: light-dark(#6b7b62, var(--success)); font-size: 11px; }
 .ws-practice-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; padding: 0; margin: 20px 0; list-style: none; }
-.ws-practice-stages li { padding: 12px 14px; border: 1px solid #ddd5c7; border-radius: 8px; background: #f0ece3; }
-.ws-practice-stages li[aria-current=step] { background: #e5ece1; border-color: #7f9c85; }
-.ws-practice-stages small { display: block; color: #7d725e; font-size: 11px; margin-bottom: 5px; }
-.ws-practice-stages b { font-size: 12px; font-weight: 600; color: #496d64; }
-.ws-practice-stages p { margin: 5px 0 0; font-size: 11px; line-height: 1.8; color: #716957; }
-.ws-practice-plan { margin: 16px 0; border-block: 1px solid #ddd5c7; }
-.ws-practice-plan summary { display: flex; justify-content: space-between; padding: 12px 2px; color: #496d64; font-size: 12px; cursor: pointer; list-style: none; }
+.ws-practice-stages li { padding: 12px 14px; border: 1px solid light-dark(#ddd5c7, var(--border)); border-radius: 8px; background: light-dark(#f0ece3, var(--paper)); }
+.ws-practice-stages li[aria-current=step] { background: light-dark(#e5ece1, var(--surface)); border-color: light-dark(#7f9c85, var(--border)); }
+.ws-practice-stages small { display: block; color: light-dark(#7d725e, var(--muted)); font-size: 11px; margin-bottom: 5px; }
+.ws-practice-stages b { font-size: 12px; font-weight: 600; color: light-dark(#496d64, var(--success)); }
+.ws-practice-stages p { margin: 5px 0 0; font-size: 11px; line-height: 1.8; color: light-dark(#716957, var(--muted)); }
+.ws-practice-plan { margin: 16px 0; border-block: 1px solid light-dark(#ddd5c7, var(--border)); }
+.ws-practice-plan summary { display: flex; justify-content: space-between; padding: 12px 2px; color: light-dark(#496d64, var(--success)); font-size: 12px; cursor: pointer; list-style: none; }
 .ws-practice-plan summary::-webkit-details-marker { display: none; }
 .ws-practice-plan[open] summary svg { transform: rotate(90deg); }
-.ws-practice-current-stage { padding: 12px 16px; margin-bottom: 12px; border-radius: 8px; background: #e5ece1; }
-.ws-practice-current-stage small { display: block; font-size: 11px; color: #6b7b62; margin-bottom: 4px; }
-.ws-practice-current-stage b { font-size: 13px; color: #3e5c4f; }
-.ws-practice-current-stage p { margin: 5px 0 0; font-size: 12px; color: #646f5b; line-height: 1.7; }
+.ws-practice-current-stage { padding: 12px 16px; margin-bottom: 12px; border-radius: 8px; background: light-dark(#e5ece1, var(--surface)); }
+.ws-practice-current-stage small { display: block; font-size: 11px; color: light-dark(#6b7b62, var(--success)); margin-bottom: 4px; }
+.ws-practice-current-stage b { font-size: 13px; color: light-dark(#3e5c4f, var(--success)); }
+.ws-practice-current-stage p { margin: 5px 0 0; font-size: 12px; color: light-dark(#646f5b, var(--success)); line-height: 1.7; }
 .ws-practice-detail { max-width: 1000px; margin: 4px auto 40px; }
 .ws-practice-title { text-align: center; }
 .ws-practice-title h2 { margin: 0 0 10px; font-family: var(--serif); font-size: 30px; font-weight: 600; line-height: 1.4; }
-.ws-practice-title p { margin: 0 auto 12px; max-width: 780px; font-size: 14px; color: #716957; line-height: 1.8; }
-.ws-practice-variants { display: inline-flex; flex-wrap: wrap; border: 1px solid #d8d2c5; border-radius: 20px; padding: 3px; gap: 4px; }
-.ws-practice-variants button { padding: 6px 20px; border-radius: 16px; color: #746b5b; background: transparent; font-size: 12px; line-height: 1.5; }
-.ws-practice-variants button[aria-pressed=true] { background: #496d64; color: #fffaf0; }
+.ws-practice-title p { margin: 0 auto 12px; max-width: 780px; font-size: 14px; color: light-dark(#716957, var(--muted)); line-height: 1.8; }
+.ws-practice-variants { display: inline-flex; flex-wrap: wrap; border: 1px solid light-dark(#d8d2c5, var(--border)); border-radius: 20px; padding: 3px; gap: 4px; }
+.ws-practice-variants button { padding: 6px 20px; border-radius: 16px; color: light-dark(#746b5b, var(--muted)); background: transparent; font-size: 12px; line-height: 1.5; }
+.ws-practice-variants button[aria-pressed=true] { background: light-dark(#496d64, var(--success-soft)); color: light-dark(#fffaf0, var(--inverse-text)); }
 .ws-practice-detail button:disabled { opacity: 0.55; cursor: default; }
 .ws-practice-score .ws-score-section { padding: 0; border: 0; background: transparent; margin: 0; }
 .ws-practice-score .ws-score { min-height: 0; overflow-x: auto; }
 .ws-practice-score .ws-score > svg { max-width: none; }
-.ws-practice-score .ws-notation-key { margin: 0; text-align: center; font-size: 10px; color: #9a8c77; }
+.ws-practice-score .ws-notation-key { margin: 0; text-align: center; font-size: 10px; color: light-dark(#9a8c77, var(--muted)); }
 .ws-practice-score .ws-score-note { cursor: default; }
-.ws-practice-score .ws-score-note.active { fill: #b46b42; stroke: #b46b42; }
+.ws-practice-score .ws-score-note.active { fill: light-dark(#b46b42, var(--muted)); stroke: light-dark(#b46b42, var(--muted)); }
 .ws-practice-transport { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 24px; margin: 18px 0; }
-.ws-practice-tempo { display: flex; align-items: center; gap: 10px; color: #68624f; font-size: 13px; }
-.ws-practice-tempo input { width: 76px; height: 37px; text-align: center; padding: 6px; border: 1px solid #d8d2c5; border-radius: 5px; color: #39352c; background: transparent; font-size: 15px; font-variant-numeric: tabular-nums; }
-.ws-practice-start { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 140px; height: 43px; padding: 10px 24px; border-radius: 23px; background: #496d64; color: #fffaf0; font-size: 15px; }
-.ws-practice-start:hover { background: #36584e; }
+.ws-practice-tempo { display: flex; align-items: center; gap: 10px; color: light-dark(#68624f, var(--muted)); font-size: 13px; }
+.ws-practice-tempo input { width: 76px; height: 37px; text-align: center; padding: 6px; border: 1px solid light-dark(#d8d2c5, var(--border)); border-radius: 5px; color: light-dark(#39352c, var(--ink)); background: transparent; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ws-practice-start { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 140px; height: 43px; padding: 10px 24px; border-radius: 23px; background: light-dark(#496d64, var(--success-soft)); color: light-dark(#fffaf0, var(--inverse-text)); font-size: 15px; }
+.ws-practice-start:hover { background: light-dark(#36584e, var(--success-soft)); }
 .ws-practice-timer { min-width: 66px; font-size: 21px; font-variant-numeric: tabular-nums; }
 .ws-practice-beats { display: flex; align-items: center; gap: 10px; }
-.ws-practice-beats i { height: 10px; width: 10px; border-radius: 50%; background: #d6cebe; }
-.ws-practice-beats i.active { background: #496d64; box-shadow: 0 0 0 3px #e0e7dc; }
+.ws-practice-beats i { height: 10px; width: 10px; border-radius: 50%; background: light-dark(#d6cebe, var(--surface)); }
+.ws-practice-beats i.active { background: light-dark(#496d64, var(--success-soft)); box-shadow: 0 0 0 3px #e0e7dc; }
 .ws-practice-fretboard { margin: 0; }
 .ws-practice-fretboard-scroll { width: 100%; overflow-x: auto; }
-.ws-practice-fretboard svg { width: 100%; display: block; max-height: 210px; fill: #81735d; }
-.ws-practice-fretboard figcaption { min-height: 22px; text-align: center; margin: 10px 0 22px; font-size: 12px; color: #80745f; line-height: 1.8; }
-.ws-practice-explanation { border-top: 1px solid #ddd5c5; border-bottom: 1px solid #ddd5c5; }
-.ws-practice-explanation summary { display: flex; justify-content: space-between; align-items: center; padding: 18px 2px; cursor: pointer; font-size: 13px; color: #655e4f; list-style: none; }
+.ws-practice-fretboard svg { width: 100%; display: block; max-height: 210px; fill: light-dark(#81735d, var(--muted)); }
+.ws-practice-fretboard figcaption { min-height: 22px; text-align: center; margin: 10px 0 22px; font-size: 12px; color: light-dark(#80745f, var(--muted)); line-height: 1.8; }
+.ws-practice-explanation { border-top: 1px solid light-dark(#ddd5c5, var(--border)); border-bottom: 1px solid light-dark(#ddd5c5, var(--border)); }
+.ws-practice-explanation summary { display: flex; justify-content: space-between; align-items: center; padding: 18px 2px; cursor: pointer; font-size: 13px; color: light-dark(#655e4f, var(--ink)); list-style: none; }
 .ws-practice-explanation summary::-webkit-details-marker { display: none; }
 .ws-practice-explanation[open] summary svg { transform: rotate(90deg); }
 .ws-practice-explanation > div { padding: 0 0 20px; }
@@ -60,9 +60,9 @@
 .ws-practice-explanation h3 { font-size: 14px; margin: 24px 0 14px; font-weight: 600; }
 .ws-practice-explanation ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .ws-practice-explanation li { display: flex; gap: 20px; font-size: 13px; line-height: 1.8; }
-.ws-practice-explanation li b { flex: 0 0 auto; color: #496d64; font-weight: 500; }
-.ws-practice-explanation .ws-practice-context { margin: 22px 0 0; color: #978b77; font-size: 11px; }
-.ws-knowledge-practice { display: inline-flex; align-items: center; gap: 9px; margin-top: 20px; padding: 9px 18px; font-size: 13px; color: #496d64; border: 1px solid #acb9a9; border-radius: 5px; background: transparent; }
-.ws-knowledge-practice:hover { background: #e1e7dd; }
+.ws-practice-explanation li b { flex: 0 0 auto; color: light-dark(#496d64, var(--success)); font-weight: 500; }
+.ws-practice-explanation .ws-practice-context { margin: 22px 0 0; color: light-dark(#978b77, var(--muted)); font-size: 11px; }
+.ws-knowledge-practice { display: inline-flex; align-items: center; gap: 9px; margin-top: 20px; padding: 9px 18px; font-size: 13px; color: light-dark(#496d64, var(--success)); border: 1px solid light-dark(#acb9a9, var(--border)); border-radius: 5px; background: transparent; }
+.ws-knowledge-practice:hover { background: light-dark(#e1e7dd, var(--surface)); }
 @media (max-width: 900px) { .ws-practice-modules { grid-template-columns: 1fr; gap: 24px; } .ws-practice-transport { gap: 16px; } }
 @media (max-width: 600px) { .ws-practice-modules section { padding: 16px; } .ws-practice-title h2 { font-size: 24px; } .ws-practice-title p { font-size: 13px; text-align: left; } .ws-practice-transport { justify-content: space-between; gap: 16px 10px; } .ws-practice-start { min-width: 100px; } .ws-practice-timer { font-size: 18px; } .ws-practice-variants button { padding: 6px 13px; } }

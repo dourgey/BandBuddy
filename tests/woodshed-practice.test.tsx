@@ -8,7 +8,7 @@ import { LEARNING_SYSTEMS } from '../src/renderer/src/woodshed/knowledge.js'
 import type { MusicEvent } from '../src/renderer/src/woodshed/types.js'
 
 vi.mock('../src/renderer/src/audio-engine.js', () => ({ setAudioContextOutputDevice: vi.fn(async () => {}) }))
-vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class { stop() {} destroy() {} setReference() {} async setOutput() {} } }))
+vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class { stop() {} destroy() {} setReference() {} setVisualActive() {} async setOutput() {} } }))
 // VexFlow itself is verified in the real browser. This test exercises audio scheduling and the React lifecycle.
 vi.mock('../src/renderer/src/woodshed/Score.js', () => ({ Score: ({ events }: { events: MusicEvent[] }) => <div aria-label="练习谱例">{events.map(e => <span key={e.id} data-event={e.id}>{e.notes.map(n => `${n.string}:${n.fret}`).join('+') || '休止'}</span>)}</div> }))
 class Param {

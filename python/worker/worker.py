@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 import platform
 import sys
 import traceback
+import time
 from typing import Any
 
 
@@ -88,8 +91,64 @@ def make_separator(
     )
 
 
+def test_onnx_cpu() -> None:
+    """Execute an ONNX Identity graph, without requiring the ONNX compiler package."""
+    import numpy as np
+    import onnxruntime as ort
+    # IR 8/opset 13, float32[2] Identity. Compatible with both Intel and current ORT.
+    model = base64.b64decode("CAg6SgoQCgF4EgF5IghJZGVudGl0eRIUYmFuZGJ1ZGR5X2NwdV9oZWFsdGhaDwoBeBIKCggIARIECgIIAmIPCgF5EgoKCAgBEgQKAggCQgIQDQ==")
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 1
+    options.inter_op_num_threads = 1
+    session = ort.InferenceSession(model, sess_options=options, providers=["CPUExecutionProvider"])
+    source = np.array([0.25, -0.5], dtype=np.float32)
+    result = session.run(None, {"x": source})[0]
+    if not np.array_equal(source, result):
+        raise RuntimeError("ONNXRUNTIME_CPU_SELF_TEST_FAILED")
+
+
+def test_guitar_qualities(repository: Path, device: str) -> list[str]:
+    """Release qualification runs all production policies, without reducing quality."""
+    import numpy as np
+    from guitar_separator_hq.separator import SAMPLE_RATE, separate_guitar_arrays, validate_audio_array
+    from guitar_separator_hq.specs import model_specs_for_quality
+    seconds = np.arange(SAMPLE_RATE, dtype=np.float32) / SAMPLE_RATE
+    wave = (0.02 * np.sin(2 * np.pi * 220 * seconds) + 0.01 * np.sin(2 * np.pi * 443 * seconds)).astype(np.float32)
+    source = np.stack([wave, wave * 0.8])
+    completed = []
+    for quality in ("fast", "balanced", "high"):
+        emit("progress", stage="verifying", progress=0.6 + len(completed) * 0.1, message=f"正在验证 {quality} 完整分轨链路")
+        weights = {spec.key: repository / spec.filename for spec in model_specs_for_quality(quality)}
+        result = separate_guitar_arrays(source, repository, device_name=device, download_missing=False, quality=quality, weights=weights)
+        for name in ("acoustic_guitar", "lead_guitar", "rhythm_guitar"):
+            validate_audio_array(getattr(result, name), name=name, frames=SAMPLE_RATE)
+        completed.append(quality)
+    return completed
+
+
 def command_probe(args: argparse.Namespace) -> None:
+    from model_download import verify_bundle
+    cache = Path(sys.prefix) / "bandbuddy-health.json"
+    packages = ("torch", "torchaudio", "demucs", "onnxruntime", "numpy", "librosa", "soundfile", "sphn")
+    versions = {}
+    for name in packages:
+        try:
+            versions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            versions[name] = None
+    full_self_test = getattr(args, "full_self_test", False)
+    if args.quick and not args.self_test and not full_self_test:
+        try:
+            cached = json.loads(cache.read_text("utf-8"))
+            if cached.get("schema") == 1 and cached.get("versions") == versions and 0 <= time.time() - cached.get("checkedAt", 0) < 86400:
+                verify_bundle(Path(args.model_root), full=False)
+                emit("result", **cached["result"])
+                return
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+            pass
     import torch
+    torch.set_num_threads(max(1, int(os.environ.get("BANDBUDDY_CPU_THREADS", "2"))))
+    torch.set_num_interop_threads(1)
 
     try:
         import onnxruntime as ort
@@ -99,35 +158,64 @@ def command_probe(args: argparse.Namespace) -> None:
     except (ImportError, OSError):
         onnxruntime_version = None
         onnxruntime_providers = []
+    dependency_errors = []
+    for name in ("demucs.api", "sphn", "librosa", "soundfile", "torchaudio"):
+        try:
+            __import__(name)
+        except (ImportError, OSError) as error:
+            dependency_errors.append(f"{name}: {error}")
+    dependencies_ready = not dependency_errors and onnxruntime_version is not None and "CPUExecutionProvider" in onnxruntime_providers
 
     model_root = Path(args.model_root).resolve()
     model_ready = False
     repository = None
     try:
-        repository = verified_bundle(model_root)
+        repository = verify_bundle(model_root, full=not args.quick)
         model_ready = True
     except RuntimeError:
         pass
     cuda_available = bool(torch.cuda.is_available())
-    mps_available = bool(hasattr(torch.backends, "mps") and torch.backends.mps.is_available())
+    mps_available = bool(platform.machine() not in ("x86_64", "AMD64") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available())
     self_test = {"ran": False, "device": "cpu", "ok": True, "modelInference": False}
-    if args.self_test:
-        device = "cuda" if cuda_available else "mps" if mps_available else "cpu"
+    if args.self_test or full_self_test:
+        if not dependencies_ready or not model_ready:
+            raise RuntimeError(f"RUNTIME_DEPENDENCIES_INCOMPLETE:{dependency_errors}")
+        requested = getattr(args, "device", "auto")
+        device = "cpu" if requested == "cpu" else "cuda" if cuda_available and requested in ("auto", "cuda") else "mps" if mps_available else "cpu"
         emit("progress", stage="verifying", progress=0.2, message="正在检查分轨环境")
-        a = torch.ones((128, 128), device=device)
-        b = torch.mm(a, a)
-        if device == "cuda":
-            torch.cuda.synchronize()
+        test_onnx_cpu()
+        try:
+            a = torch.ones((128, 128), device=device)
+            b = torch.mm(a, a)
+            if device == "cuda":
+                torch.cuda.synchronize()
+        except RuntimeError:
+            if device == "cpu":
+                raise
+            if device == "cuda": cuda_available = False
+            if device == "mps": mps_available = False
+            device = "cpu"
+            a = torch.ones((128, 128))
+            b = torch.mm(a, a)
         if float(b[0, 0].cpu()) != 128.0:
             raise RuntimeError("TORCH_SELF_TEST_FAILED")
         model_inference = False
         if model_ready:
             emit("progress", stage="verifying", progress=0.55, message="正在运行短推理检查")
-            separator = make_separator(model_root, device, repository=repository)
-            test_audio = torch.zeros(
-                (separator.audio_channels, separator.samplerate), dtype=torch.float32
-            )
-            _, test_stems = separator.separate_tensor(test_audio, sr=separator.samplerate)
+            def test_separator(selected):
+                separator = make_separator(model_root, selected, repository=repository)
+                test_audio = torch.zeros((separator.audio_channels, separator.samplerate), dtype=torch.float32)
+                return separator.separate_tensor(test_audio, sr=separator.samplerate)[1]
+            try:
+                test_stems = test_separator(device)
+            except (RuntimeError, NotImplementedError):
+                if device == "cpu":
+                    raise
+                if device == "cuda": cuda_available = False
+                if device == "mps": mps_available = False
+                device = "cpu"
+                emit("progress", stage="verifying", progress=0.55, message="加速设备自检未通过，正在检查 CPU 环境")
+                test_stems = test_separator(device)
             if set(test_stems) != set(SIX_STEMS):
                 raise RuntimeError("MODEL_SELF_TEST_STEMS_MISMATCH")
             if any(not torch.isfinite(stem).all() for stem in test_stems.values()):
@@ -140,9 +228,10 @@ def command_probe(args: argparse.Namespace) -> None:
             "device": device,
             "ok": True,
             "modelInference": model_inference,
+            "onnxCpuInference": True,
+            "guitarQualities": test_guitar_qualities(repository, device) if full_self_test else [],
         }
-    emit(
-        "result",
+    result = dict(
         pythonVersion=platform.python_version(),
         torchVersion=torch.__version__,
         cudaVersion=torch.version.cuda,
@@ -152,8 +241,18 @@ def command_probe(args: argparse.Namespace) -> None:
         onnxRuntimeVersion=onnxruntime_version,
         onnxRuntimeProviders=onnxruntime_providers,
         modelReady=model_ready,
+        dependenciesReady=dependencies_ready,
+        dependencyErrors=dependency_errors,
         selfTest=self_test,
     )
+    if dependencies_ready and model_ready:
+        try:
+            temporary = cache.with_suffix(".part")
+            temporary.write_text(json.dumps({"schema": 1, "versions": versions, "checkedAt": time.time(), "result": result}), "utf-8")
+            os.replace(temporary, cache)
+        except OSError:
+            pass  # Read-only old installations can still run normally.
+    emit("result", **result)
 
 
 def command_separate_demucs(args: argparse.Namespace) -> None:
@@ -484,6 +583,9 @@ def parser() -> argparse.ArgumentParser:
     probe = commands.add_parser("probe")
     probe.add_argument("--model-root", required=True)
     probe.add_argument("--self-test", action="store_true")
+    probe.add_argument("--full-self-test", action="store_true", help="Release validation: six stems, CPU ONNX, and all three production guitar policies.")
+    probe.add_argument("--quick", action="store_true")
+    probe.add_argument("--device", choices=("auto", "cuda", "mps", "cpu"), default="auto")
 
     ensure = commands.add_parser("ensure-model")
     ensure.add_argument("--model-root", required=True)
@@ -505,7 +607,13 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
+    if hasattr(args, "output"):
+        os.environ["BANDBUDDY_MEMORY_DIR"] = str(Path(args.output).resolve() / ".scratch")
     try:
+        if args.command not in ("ensure-model", "probe"):
+            import torch
+            torch.set_num_threads(max(1, int(os.environ.get("BANDBUDDY_CPU_THREADS", "2"))))
+            torch.set_num_interop_threads(1)
         if args.command == "probe":
             command_probe(args)
         elif args.command == "ensure-model":

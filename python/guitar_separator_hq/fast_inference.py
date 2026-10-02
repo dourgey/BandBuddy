@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import gc
+import os
 from pathlib import Path
 import time
 from typing import Callable, Sequence
@@ -12,6 +13,7 @@ import torch.nn.functional as torch_functional
 
 from .inference import load_config
 from .specs import ModelSpec
+from . import memory
 
 
 InferenceProgress = Callable[[float, str], None]
@@ -64,6 +66,8 @@ def _create_onnx_session(model_path: Path, device: torch.device):
     requested = select_onnx_providers(device, ort.get_available_providers())
     options = ort.SessionOptions()
     options.log_severity_level = 3
+    options.intra_op_num_threads = max(1, int(os.environ.get("BANDBUDDY_CPU_THREADS", "2")))
+    options.inter_op_num_threads = 1
     try:
         session = ort.InferenceSession(
             str(model_path),
@@ -174,8 +178,8 @@ def predict_mdx(
     )
     step = int((1.0 - overlap) * chunk_size)
     starts = list(range(0, mixture.shape[-1], step))
-    result = np.zeros((2, mixture.shape[-1]), dtype=np.float32)
-    divider = np.zeros_like(result)
+    result = memory.zeros((2, mixture.shape[-1]))
+    divider = memory.zeros(result.shape)
 
     session, requested_provider, active_providers = _create_onnx_session(model_path, device)
     input_name = session.get_inputs()[0].name
@@ -205,13 +209,12 @@ def predict_mdx(
             divider[:, start:end] += window[None]
             if progress:
                 progress((index + 1) / len(starts), "MDX-Net 分块推理")
-        estimate = np.divide(
-            result,
-            divider,
-            out=np.zeros_like(result),
-            where=divider > 1e-10,
-        )[:, trim:-trim]
-        estimate = np.ascontiguousarray(estimate[:, : mix.shape[-1]], dtype=np.float32)
+        for start in range(0, result.shape[-1], memory.BLOCK_FRAMES):
+            end = start + memory.BLOCK_FRAMES
+            valid = divider[:, start:end] > 1e-10
+            np.divide(result[:, start:end], divider[:, start:end], out=result[:, start:end], where=valid)
+            result[:, start:end][~valid] = 0
+        estimate = memory.contiguous(result[:, trim:-trim][:, : mix.shape[-1]])
         if not np.isfinite(estimate).all():
             raise RuntimeError(f"MODEL_OUTPUT_NON_FINITE:{spec.key}")
         if device.type == "cuda":
@@ -245,12 +248,17 @@ def predict_mdx(
 
 def adaptive_htdemucs_batch_size(device: torch.device) -> int:
     if device.type == "cuda":
-        gib = torch.cuda.get_device_properties(device).total_memory / (1024**3)
+        # Other apps share the GPU: installed VRAM is not the available budget.
+        try:
+            available, _total = torch.cuda.mem_get_info(device)
+        except (AttributeError, RuntimeError):
+            available = torch.cuda.get_device_properties(device).total_memory // 2
+        gib = available / (1024**3)
         if gib >= 4.0:
             return 8
         if gib >= 2.5:
             return 4
-        return 2
+        return 1
     if device.type == "mps":
         return 2
     return 1
@@ -306,8 +314,8 @@ def _run_htdemucs_chunks(
 ) -> np.ndarray:
     step = chunk_size // overlap
     starts = list(range(0, mix.shape[-1], step))
-    result = torch.zeros((2, 2, mix.shape[-1]), dtype=torch.float32)
-    counter = torch.zeros(mix.shape[-1], dtype=torch.float32)
+    result = torch.from_numpy(memory.zeros((2, 2, mix.shape[-1])))
+    counter = torch.from_numpy(memory.zeros(mix.shape[-1]))
 
     with torch.inference_mode():
         for batch_start in range(0, len(starts), batch_size):
@@ -329,7 +337,7 @@ def _run_htdemucs_chunks(
             if progress:
                 completed = min(len(starts), batch_start + len(selected))
                 progress(completed / len(starts), "HTDemucs 分块推理")
-    return (result / counter.clamp_min_(1e-10)[None, None]).numpy()
+    return memory.divide_in_place(result.numpy(), counter.numpy()[None, None])
 
 
 def predict_htdemucs(
@@ -359,15 +367,21 @@ def predict_htdemucs(
     started = time.perf_counter()
     try:
         try:
-            sources = _run_htdemucs_chunks(
-                model,
-                mix,
-                device,
-                chunk_size=chunk_size,
-                overlap=overlap,
-                batch_size=batch_size,
-                progress=progress,
-            )
+            while True:
+                try:
+                    sources = _run_htdemucs_chunks(model, mix, device, chunk_size=chunk_size,
+                        overlap=overlap, batch_size=batch_size, progress=progress)
+                    break
+                except RuntimeError as error:
+                    if device.type != "cuda" or batch_size <= 1 or "out of memory" not in str(error).lower():
+                        raise
+                    batch_size = max(1, batch_size // 2)
+                    # Release tensors held by the failed call's traceback before retrying.
+                    error.__traceback__ = None
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    if progress:
+                        progress(0.0, f"显存紧张，调整批量为 {batch_size} 后重试")
         except (NotImplementedError, RuntimeError) as error:
             if device.type != "mps":
                 raise

@@ -12,6 +12,12 @@ asar: true
 asarUnpack:
   - node_modules/better-sqlite3/**/*
 extraResources:
+  - from: resources/runtime-wheels.json
+    to: runtime-wheels.json
+  - from: python/runtime
+    to: runtime-locks
+    filter:
+      - "macos-x64.lock"
   - from: python/worker
     to: worker
     filter:
@@ -62,6 +68,7 @@ portable:
 mac:
   icon: build/icon.png
   category: public.app-category.music
+  minimumSystemVersion: '13.0'
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

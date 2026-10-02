@@ -9,9 +9,10 @@ describe('compute device selection', () => {
   })
 
   it('keeps the MPS branch scoped to macOS', () => {
-    expect(selectComputeDevice('mps', 'darwin', { nvidiaDetected: false, mpsAvailable: true })).toBe('mps')
+    expect(selectComputeDevice('mps', 'darwin', { nvidiaDetected: false, mpsAvailable: true }, 'arm64')).toBe('mps')
     expect(selectComputeDevice('mps', 'win32', { nvidiaDetected: false, mpsAvailable: true })).toBe('cpu')
-    expect(selectComputeDevice('cuda', 'darwin', { nvidiaDetected: false, mpsAvailable: true })).toBe('mps')
+    expect(selectComputeDevice('cuda', 'darwin', { nvidiaDetected: false, mpsAvailable: true }, 'arm64')).toBe('mps')
+    expect(selectComputeDevice('auto', 'darwin', { nvidiaDetected: false, mpsAvailable: true }, 'x64')).toBe('cpu')
   })
 
   it('retries unavailable or out-of-memory accelerators on CPU without reducing quality', () => {

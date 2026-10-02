@@ -1,0 +1,111 @@
+BandBuddy 桌面版代码整合审计（2026-10-03）
+
+结论
+3.0.0 不是所有开发分支的完整合集。已确认两类遗漏：归档快照没有进入上次来源列表；性能分支中已经提交的修改没有被完整导入。
+本次 3.0.1 恢复专项练习综合课程，并补齐鼓/钢琴/现代键盘的学习与练习双向导航。
+下列性能、环境和发布改动仍未完整整合。本报告不把“文件已复制”“分支在来源列表里”当作功能验收。
+
+审计范围和方法
+已执行 git fetch origin --prune；检查 9 个本地分支、全部远端引用、标签、3 个 Codex 快照引用、19 个自动树检查点、35 个 reflog 提交和全部 7 个本地工作区。
+共检查 43 个 Git 引用。按分支共同祖先比较已提交变化，再检查各工作区未提交/未跟踪文件；用原始内容和三方合并检查判断已包含、仍缺少或需人工辨认的重叠。
+对迁移到 instrument-workshop、sample-drums 的文件按新路径核对，再检查页面实际入口；旧分支名和缺少旧路径不直接算作功能遗漏。
+原始逐文件结果：.codex-tmp/integration-3.0.1/source-audit.json；引用与历史结果：同目录 ref-audit.json；本次修改前备份：同目录 before/。
+此范围不涵盖已经从本地及服务器完全删除、无法通过现存引用/reflog访问的历史，或其他独立 Android/iOS 仓库。
+
+本次恢复
+1. 归档快照 9a58174618a2743a06d9d1b736f9f217c6d42e9c。
+   分支 codex/practice-module-comprehensive 自身仍指向 3080025，实际新增代码在 refs/codex/snapshots/fbc9fa3a9a42fe1e36710ad5c608b9eaebdb8038。
+   恢复 practice-comprehensive.ts、practice-curriculum.ts、Practice.tsx、practice.css、对应测试和原课程说明。
+   吉他18、贝斯6、尤克里里6个模块，各一项综合练习；89项原练习保留，合计119项弦乐器专项练习和199份谱例，其中新增31份综合谱例。
+   保留完整阶段表、当前阶段、小节范围、三拍/四拍变体、内部谱面滚动、播放与计时。
+2. 3aa3 工作区 Learning.tsx 的界面扩展曾未被合入。
+   恢复鼓/钢琴/现代键盘图标、阶段成果、先修条件和知识正文中的相关专项入口；Practice → EnsemblePractice → Learning 的 onKnowledge 回调已接通。
+   保留当前独立的“跨乐器基础”卡片及 ensemble 知识路由，不覆盖成旧工作区的另一种共享基础结构。
+   新增知识→练习→知识的导航回归；避免 comprehensive 的 kind 字段误触 EnsemblePractice 分流。
+
+确认仍遗漏或只合入一部分的开发成果
+全部主要来自 codex/performance-environment-themes（HEAD bb3a210，共9个不在当前HEAD祖先链中的提交）。
+优先级表示后续整合顺序，不是当前每个场景必然失败。
+
+P1 曲库分页与搜索性能
+来源：ea57326、2c2e3a5、fbc1b0e。
+缺项：database.listSongsPage、library.listPage/onUpdated接口、分页/窗口化曲库、独立最近练习查询、中文输入法提交后150ms搜索防抖。
+证据：当前 LibraryPage.tsx 与共同祖先内容相同；当前 bridge.ts 没有 listPage/onUpdated；源码仍查询全部歌曲。
+涉及：src/main/database.ts、ipc.ts；packages/shared/src/bridge.ts/domain.ts；src/renderer/src/pages/LibraryPage.tsx、App.tsx、mock-bridge.ts。
+
+P1 数据库后台准备和完整启动协调
+来源：ea57326、2c2e3a5。
+缺项：database-boot-worker.ts、database-preparation.ts、main/startup.ts、renderer/startup.ts、mount-app.tsx均不存在。
+当前已有 startup-screen.ts，先显示窗口和FFmpeg按需验证；不能把这两项当作分支的数据库线程、服务就绪协调和轻量入口已整合。
+涉及：main/index.ts、electron.vite.config.ts、renderer/main.tsx、index.html、preload与startup桥接。
+
+P1 音频分析、进度与日志后台化
+来源：2c2e3a5。
+缺项：analysis-worker.ts、media-analysis.ts、progress-coalescer.ts均不存在；logger.ts仍为共同祖先版本。
+分支实现包括PCM/BPM/调性分析线程、有界异步日志、任务进度合并、任务ID更新及关闭时等待清理。
+涉及：main/imports.ts、media.ts、jobs.ts、logger.ts、process.ts、electron.vite.config.ts。
+
+P1 环境安装、代理与数据迁移
+来源：ad2dcb6、ea57326。
+缺项：runtime-environments.ts、runtime-network.ts、runtime-proxy.ts、data-migration.ts、windows-tool-integrity.ts均不存在。
+分支实现包括版本目录安装、自检后原子切换、保留旧环境、系统/PAC/手动代理策略和复制→逐文件校验→提交配置的迁移流程。
+当前已有部分镜像回退、UV/VC运行库准备与异步FFmpeg哈希；这些不替代以上完整功能。
+相关接口及settings更新需要一起整合，不能只复制辅助文件。
+
+P1 Windows特殊路径与子进程生命周期
+来源：ad2dcb6。
+当前 native/audio-host/src/main.cpp 缺少 pathFromUtf8 和 wmain，仍通过窄字符路径读取伴奏、写入录音/效果输出。
+当前 process.ts 没有分支中的连续UTF-8解码、输出上限/超时和进程树清理；audio-host.ts仍为共同祖先版本。
+具体影响面：中文/emoji/长路径和取消/退出清理，需原生重编译及特殊路径验收。
+
+P2 分轨低内存适配
+来源：ad2dcb6。
+缺项：python/guitar_separator_hq/memory.py；inference.py、fast_inference.py、separator.py与worker.py缺少分支改动。
+分支使用分块读写/磁盘映射、线程与显存预算；保留原质量策略。需要Python回归及实际推理验证，当前源码/打包通过不能替代。
+
+P2 外观同步完整性
+来源：65eac0b、fbc1b0e。
+当前已有 appearance.ts、主题CSS、独立外观设置和主窗口IPC。
+仍缺少桌面歌词及LAN外观同步、Waveform/Fretboard/谱面画布主题适配等已提交变更。
+证据：preload/lyrics.ts、lan/main.tsx、components/Waveform.tsx等仍为共同祖先版本；DesktopLyricsRendererApi无appearance接口。
+需要核对主进程广播、preload缓存和画布更新，不能把主题文件存在当作全表面完成。
+
+P2 播放与录音性能/竞态保护的剩余部分
+来源：e199010、ea57326。
+当前保留跨页音频会话、后台播放/录音控制、页面保活和部分录音保护。
+仍缺少已提交的 player-store.ts、rehearsal-audio-engine.ts及Waveform局部订阅变化；App.tsx仍订阅播放时钟。
+分支包含快速切歌代次检查、隐藏页绘制停止、同歌曲缓存更新和排练播放生命周期改进。部分共享代码已合入，不能整项判断为全部丢失，也不能判断已完整整合。
+
+P2 发布与Intel macOS运行环境验收工具
+来源：eeb12b8。
+缺项：runtime-wheel-macos-x64.yml、resources/runtime-wheels.json、runtime-wheel-manifest.ts、release-targets.mjs、verify-built-runtime.mjs、verify-macos-target.mjs、verify-macos-architecture.cjs、Intel wheel构建/CPU对照工具。
+对应GitHub工作流、签名验证脚本、tsconfig和生产构建完整性检查未整合。
+这批代码包含缺真实wheel/验收产物时阻止Intel发行的门禁；存在源代码不等于已经提供可用Intel安装包。
+
+已确认存在的功能与历史例外
+3aa3：鼓/钢琴/现代键盘的365项任务、130个知识节点和161份材料已在当前ensemble-*文件中；本次补齐界面导航遗漏。
+bf8b：指板实验室9个模块文件与工作区一致，WoodshedPage有实际入口。
+bbb6：采样鼓机搬到sample-drums，原drum-audio.ts在新目录中；34个FLAC采样、验证脚本与入口已存在。该路径也解释所有自动树检查点中唯一缺少的旧模块路径。
+themes：18个旧课程/工作台文件迁入instrument-workshop，其中15个内容一致，3个CSS为兼容新入口作了适配；电吉他项目、钢琴、小提琴、合奏/合成器、装备课程和采样模块保留，入口为工具箱→演奏工作台。
+ac34：native/audio-host/CMakeLists.txt改动已包含。
+codex/add-sponsor-section、codex/release-1.1.0、main：提交已在当前祖先链中，没有独立未合并提交。
+codex/push-latest-feature-points：当前基线；codex/practice-module-comprehensive分支头相同，归档新增内容已在本次恢复。
+codex/github-pages-site：网站内容保留且已演进；pages.yml被Vercel托管迁移主动移除，不恢复旧部署工作流。
+codex/mobile-pages-note：官网保留Android敬请期待并增加桌面/iOS信息；旧宣传文案属已替代内容。
+codex/android-demucs-poc：分支头已是祖先，但poc/android-demucs为独立未跟踪的移动端推理实验，未进入桌面包，属于平台分工。
+reflog两项非祖先：a3059f9是b795202的amend前版本，差别为排除实验音频及清理首行，产品功能已继承；75873ce是ad96790的旧开源版本，产品骨架已由后续历史替代。
+其余快照引用指向当前祖先f484283；19个自动树检查点未发现额外独立缺失的桌面模块路径。路径审计不意味着每份历史实现都应该覆盖后来的修复。
+
+验证边界
+本次执行node/web类型检查、全量Vitest、生产构建、11项桌面资源验证、34个鼓采样验证和原生音频自检。
+浏览器使用127.0.0.1:5194/?fixtures及系统Edge/Playwright（会话未提供Browser插件）；1440×960遍历30项/31份新增材料，验证播放阶段与停止；390×844折叠侧栏检查内部横向溢出；验证鼓的知识→练习→知识。
+浏览器未发现应用异常或警告；开发服务器/favicon.ico返回404，是预览图标资源问题。
+包启动检查、签名和SHA256记录在release-portable-3.0.1/build-manifest.json。真实乐器、外部声卡听感、干净Windows环境及Python整曲推理未在本轮验收。
+3.0.1完成练功房恢复；上列其他分支遗漏仍需后续成组整合，不应称为所有开发成果已合并。
+
+最终补充记录
+全量回归：88个文件，503项通过，1项跳过。node/web类型检查及生产构建通过。
+直接读取新旧app.asar：3.0.0不含practice-comprehensive.ts；3.0.1包含它，且本次6个关键模块的source map与当前源码一致。综合练习和阶段提示CSS已在包内核对。
+win-unpacked独立数据目录启动退出码0，preload及桌面歌词接口正常；独立测试目录没有分轨环境，runtime=missing且FFmpeg为按需验证的unchecked状态。
+最终Portable启动退出码0；应用日志记录3.0.1、packaged=true及renderer-loaded。Portable签名状态NotSigned，SHA256见同目录校验文件。
+另有两处配套入口未完整合入，归于上述运行环境/外观组：RuntimePreparation.tsx已复制但TasksDrawer未渲染；录音中专用AppearanceDialog及部分统一Select控件替换未合入。后续整合要保留当前按设置分类延迟探测、桌面歌词透明度及多格式歌词功能。

@@ -15,7 +15,7 @@ export interface AuthenticodeInfo {
   subject: string
 }
 
-type ProcessRunner = (command: string, args: readonly string[]) => Promise<ProcessResult>
+type ProcessRunner = (command: string, args: readonly string[], options?: { timeoutMs: number }) => Promise<ProcessResult>
 
 function versionParts(value: string): number[] | null {
   const normalized = value.trim().replace(/^v/i, '')
@@ -46,7 +46,7 @@ export function parseVcRuntimeRegistry(output: string, minimum = VC_RUNTIME_MIN_
 
 export async function detectWindowsVcRuntime(run: ProcessRunner): Promise<WindowsVcRuntimeInfo> {
   try {
-    const result = await run('reg.exe', ['query', VC_RUNTIME_REGISTRY_KEY, '/reg:64'])
+    const result = await run('reg.exe', ['query', VC_RUNTIME_REGISTRY_KEY, '/reg:64'], { timeoutMs: 8_000 })
     if (result.code !== 0) return { installed: false, version: null, supported: false }
     return parseVcRuntimeRegistry(result.stdout)
   } catch {

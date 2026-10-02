@@ -107,7 +107,6 @@ describe('cross-page audio session navigation', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog.textContent).toContain('外观')
     expect(dialog.textContent).not.toContain('音频输出')
-    fireEvent.click(screen.getByRole('button', { name: '通用与显示' }))
     fireEvent.click(screen.getByRole('button', { name: '暖纸色' }))
     await waitFor(() => expect(appearance).toHaveBeenCalledWith(expect.objectContaining({ theme: 'warm' })))
     expect(stop).not.toHaveBeenCalled()

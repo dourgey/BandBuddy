@@ -36,13 +36,13 @@ export const Fretboard = memo(function Fretboard({
         role="group"
         aria-label={`${tuning.name}可视化指板，${min} 至 ${max} 品`}
       >
-        <rect x="77" y="19" width={width - 106} height={height - 51} rx="8" fill="#efe3cc" />
+        <rect x="77" y="19" width={width - 106} height={height - 51} rx="8" fill="var(--fretboard-surface)" />
         {[3, 5, 7, 9, 12, 15, 17, 19, 21, 24]
           .filter((f) => f >= min && f <= max)
           .map((f) => (
             <g key={f}>
-              <circle cx={x(f)} cy={height / 2 - 5} r="4" fill="#d7c4a3" />
-              {f % 12 === 0 && <circle cx={x(f)} cy={height / 2 + 12} r="4" fill="#d7c4a3" />}
+              <circle cx={x(f)} cy={height / 2 - 5} r="4" fill="var(--score-muted)" />
+              {f % 12 === 0 && <circle cx={x(f)} cy={height / 2 + 12} r="4" fill="var(--score-muted)" />}
             </g>
           ))}
         {Array.from({ length: columns + 1 }, (_, i) => (
@@ -52,23 +52,23 @@ export const Fretboard = memo(function Fretboard({
             x2={80 + (i * (width - 110)) / columns}
             y1="20"
             y2={height - 34}
-            stroke={i === (preferences.leftHanded ? columns : 0) && min === 0 ? '#605246' : '#c4b497'}
+            stroke={i === (preferences.leftHanded ? columns : 0) && min === 0 ? 'var(--score-ink)' : 'var(--fretboard-line)'}
             strokeWidth={i === (preferences.leftHanded ? columns : 0) && min === 0 ? 4 : 1.5}
           />
         ))}
         {[...tuning.notes].reverse().map((midi, i) => (
           <g key={i}>
-            <text x="8" y={y(i + 1) + 4} fill="#827363" fontSize="11">
+            <text x="8" y={y(i + 1) + 4} fill="var(--muted)" fontSize="11">
               {i + 1}
             </text>
-            <text x="29" y={y(i + 1) + 4} fill="#51483e" fontSize="12">
+            <text x="29" y={y(i + 1) + 4} fill="var(--ink)" fontSize="12">
               {noteName(midi + preferences.capo)}
             </text>
-            <line x1="80" x2={width - 30} y1={y(i + 1)} y2={y(i + 1)} stroke="#ab9d87" strokeWidth={0.9 + i * 0.24} />
+            <line x1="80" x2={width - 30} y1={y(i + 1)} y2={y(i + 1)} stroke="var(--fretboard-line)" strokeWidth={0.9 + i * 0.24} />
           </g>
         ))}
         {Array.from({ length: columns }, (_, i) => (
-          <text key={i} x={x(min + i)} y={height - 9} textAnchor="middle" fill="#887a67" fontSize="11">
+          <text key={i} x={x(min + i)} y={height - 9} textAnchor="middle" fill="var(--muted)" fontSize="11">
             {min + i === 0 ? '空弦' : min + i}
           </text>
         ))}
@@ -110,21 +110,21 @@ export const Fretboard = memo(function Fretboard({
               {visible && (
                 <>
                   {isRoot ? (
-                    <rect x={x(p.fret) - 15} y={y(p.string) - 15} width="30" height="30" rx="7" fill="#927140" />
+                    <rect x={x(p.fret) - 15} y={y(p.string) - 15} width="30" height="30" rx="7" fill="var(--accent)" />
                   ) : (
                     <circle
                       cx={x(p.fret)}
                       cy={y(p.string)}
                       r="14"
-                      fill={isChord ? '#496d64' : '#faf7ef'}
-                      stroke={isChord ? '#496d64' : '#cfbfaa'}
+                      fill={isChord ? 'var(--success)' : 'var(--surface-raised)'}
+                      stroke={isChord ? 'var(--success)' : 'var(--border-strong)'}
                     />
                   )}
                   <text
                     x={x(p.fret)}
                     y={y(p.string) + 4}
                     textAnchor="middle"
-                    fill={isRoot || isChord ? '#fffaf0' : '#76654e'}
+                    fill={isRoot || isChord ? 'var(--on-accent)' : 'var(--ink)'}
                     fontSize={label.length > 3 ? '10' : '12'}
                     fontWeight="600"
                   >
@@ -133,7 +133,7 @@ export const Fretboard = memo(function Fretboard({
                 </>
               )}
               {current && (c.hint === 'all' || (c.hint === 'roots' && isRoot)) && (
-                <circle cx={x(p.fret)} cy={y(p.string)} r="19" fill="none" stroke="#b76042" strokeWidth="3" />
+                <circle cx={x(p.fret)} cy={y(p.string)} r="19" fill="none" stroke="var(--danger)" strokeWidth="3" />
               )}
             </g>
           )
@@ -169,7 +169,7 @@ export function ChordDiagram({
             x2="130"
             y1={45 + i * 24}
             y2={45 + i * 24}
-            stroke="#b6a991"
+            stroke="var(--fretboard-line)"
             strokeWidth={i === 0 && min === 1 ? 3 : 1}
           />
         ))}
@@ -179,7 +179,7 @@ export function ChordDiagram({
             pos = voicing.find((p) => p.string === string)
           return (
             <g key={string}>
-              <line x1={x} x2={x} y1="45" y2="141" stroke="#b6a991" />
+              <line x1={x} x2={x} y1="45" y2="141" stroke="var(--fretboard-line)" />
               <text x={x} y="35" textAnchor="middle" fontSize="12">
                 {!pos ? '×' : pos.fret === 0 ? '○' : ''}
               </text>
@@ -194,7 +194,7 @@ export function ChordDiagram({
                   cx={x}
                   cy={45 + (pos.fret - min + 0.5) * 24}
                   r="8"
-                  fill="#496d64"
+                  fill="var(--success)"
                   onClick={() => onNote(pos)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') onNote(pos)

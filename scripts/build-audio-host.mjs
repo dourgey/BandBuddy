@@ -49,6 +49,9 @@ if (process.env.BANDBUDDY_SKIP_AUDIO_HOST !== '1') {
     '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
     `-DCMAKE_INSTALL_PREFIX=${outputRoot}`
   ]
+  if (process.platform === 'darwin') {
+    configureArgs.push('-DCMAKE_OSX_DEPLOYMENT_TARGET=13.0', `-DCMAKE_OSX_ARCHITECTURES=${process.arch === 'x64' ? 'x86_64' : 'arm64'}`)
+  }
   if (process.env.BANDBUDDY_GITHUB_PROXY) {
     configureArgs.push(`-DBANDBUDDY_GITHUB_PROXY=${process.env.BANDBUDDY_GITHUB_PROXY}`)
   }

@@ -80,6 +80,21 @@ afterEach(() => {
 })
 const melody = () => sources.filter((s) => s.frequency.value < 350 && s.frequency.value > 250)
 describe('woodshed audio clock and lifecycle', () => {
+  it('keeps audio scheduling while hidden and restores only the current visual cue', async () => {
+    const audio = new WoodshedAudio()
+    const frames = vi.fn()
+    audio.onFrame(frames)
+    await audio.play(exercise, { ...DEFAULT_EXERCISE, bpm: 120, countIn: 0, rounds: 2, subdivision: 1 })
+    audio.setVisualActive(false)
+    frames.mockClear()
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(melody().length).toBeGreaterThan(1)
+    expect(frames).not.toHaveBeenCalled()
+    audio.setVisualActive(true)
+    expect(frames).toHaveBeenCalledOnce()
+    expect(frames.mock.calls[0]![0]).toMatchObject({ eventId: 'e2', playing: true })
+    audio.destroy()
+  })
   it('schedules notes on the audio clock at exact beat intervals across two rounds', async () => {
     const audio = new WoodshedAudio()
     const frames: unknown[] = []

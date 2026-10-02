@@ -27,4 +27,11 @@ describe('window state', () => {
   it('falls back to the default size when nothing usable is stored', () => {
     expect(new WindowState('/nonexistent-dir/window-state.json', limits).restore(fallback)).toEqual(fallback)
   })
+
+  it('fits a saved large-monitor window inside a smaller work area', () => {
+    expect(normalizeWindowSize({ width: 2560, height: 1600 }, limits, { width: 1366, height: 728 }))
+      .toEqual({ width: 1366, height: 728, maximized: false })
+    expect(new WindowState('/nonexistent-dir/window-state.json', limits, { width: 1024, height: 700 }).restore(fallback))
+      .toEqual({ width: 1024, height: 700, maximized: false })
+  })
 })

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -14,7 +15,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from guitar_separator_hq import fast_inference, inference, separator
+from guitar_separator_hq import fast_inference, inference, separator, memory
 from guitar_separator_hq.inference import InferenceReport
 from guitar_separator_hq.specs import HQ_MODEL_SPECS, MODEL_SPECS, config_path
 
@@ -25,6 +26,31 @@ class IdentityStem(torch.nn.Module):
 
 
 class HqPipelineTests(unittest.TestCase):
+    def test_disk_backed_overlap_buffers_preserve_samples(self) -> None:
+        mix = np.random.default_rng(9).normal(0, 0.05, (2, 150_000)).astype(np.float32)
+        with patch.dict(os.environ, {"BANDBUDDY_MEMMAP_MB": "1"}):
+            disk = memory.zeros(mix.shape)
+            self.assertIsInstance(disk, np.memmap)
+            self.assertEqual(float(disk.sum()), 0.0)
+            estimate = inference._demix_once(IdentityStem(), mix, chunk_size=10_000, overlap=2,
+                use_amp=False, device=torch.device("cpu"), progress=None)
+            np.testing.assert_allclose(estimate, mix, atol=2e-7, rtol=2e-6)
+
+    def test_gpu_batch_uses_current_free_memory(self) -> None:
+        with patch.object(torch.cuda, "mem_get_info", return_value=(1024**3, 24 * 1024**3)):
+            self.assertEqual(fast_inference.adaptive_htdemucs_batch_size(torch.device("cuda")), 1)
+        with patch.object(torch.cuda, "mem_get_info", return_value=(5 * 1024**3, 24 * 1024**3)):
+            self.assertEqual(fast_inference.adaptive_htdemucs_batch_size(torch.device("cuda")), 8)
+
+    def test_predecoded_unicode_audio_loads_in_blocks_without_resampling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            file = Path(temporary) / "中文 空格 🎸.wav"
+            source = np.random.default_rng(8).normal(0, 0.01, (2000, 2)).astype(np.float32)
+            sf.write(file, source, 44100, subtype="FLOAT")
+            with patch.object(separator.librosa, "load", side_effect=AssertionError("unnecessary full decode")):
+                actual = separator.load_audio(file)
+            np.testing.assert_array_equal(actual, source.T)
+
     def test_configs_are_pinned_and_targets_match(self) -> None:
         for spec in MODEL_SPECS:
             path = config_path(spec)

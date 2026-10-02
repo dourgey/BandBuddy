@@ -36,6 +36,20 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 namespace {
+fs::path pathFromUtf8(const std::string& text) {
+  auto value = fs::path(std::u8string(text.begin(), text.end()));
+#ifdef _WIN32
+  value = fs::absolute(value).lexically_normal();
+  const auto native = value.native();
+  if (native.size() >= 240 && native.rfind(L"\\\\?\\", 0) != 0) {
+    return native.rfind(L"\\\\", 0) == 0
+      ? fs::path(L"\\\\?\\UNC\\" + native.substr(2))
+      : fs::path(L"\\\\?\\" + native);
+  }
+#endif
+  return value;
+}
+
 constexpr double kPi = 3.14159265358979323846;
 std::mutex outputMutex;
 
@@ -1009,12 +1023,12 @@ class Host {
     session->simulateInputClockPpm = params.value("simulateInputClockPpm", 0.0);
     session->simulateTimeScale = std::clamp(params.value("simulateTimeScale", 1.0), 0.01, 10.0);
     if (!testing) {
-      session->backingStream = std::make_unique<WaveStream>(params.at("backingPath").get<std::string>());
+      session->backingStream = std::make_unique<WaveStream>(pathFromUtf8(params.at("backingPath").get<std::string>()));
       if (session->backingStream->sampleRate() != session->sampleRate) throw std::runtime_error("BACKING_SAMPLE_RATE_MISMATCH");
       session->backingScratch.resize(
         static_cast<std::size_t>(262144) * session->backingStream->channels()
       );
-      session->writer = std::make_unique<WaveWriter>(params.at("capturePath").get<std::string>(), session->sampleRate, session->inputChannels);
+      session->writer = std::make_unique<WaveWriter>(pathFromUtf8(params.at("capturePath").get<std::string>()), session->sampleRate, session->inputChannels);
     }
     if (simulate_) {
       const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
@@ -1335,11 +1349,11 @@ class Host {
 };
 } // namespace
 
-int main(int argc, char** argv) {
+int runMain(int argc, char** argv) {
   if(argc == 3 && std::string(argv[1]) == "--render-effects") {
     try {
-      std::ifstream manifest(argv[2]); json job; manifest >> job;
-      auto input=readFloatWaveFile(job.at("input").get<std::string>());
+      std::ifstream manifest(pathFromUtf8(argv[2])); json job; manifest >> job;
+      auto input=readFloatWaveFile(pathFromUtf8(job.at("input").get<std::string>()));
       bb::Effects effects(job.at("prepared"),input.sampleRate);
       const size_t frames=input.samples.size()/input.channels;
       const size_t tail=size_t(job.value("tailSeconds",0.)*input.sampleRate);
@@ -1348,7 +1362,7 @@ int main(int argc, char** argv) {
       effects.process(input.samples.data(),result.samples.data(),static_cast<unsigned>(frames),input.channels);
       effects.process(nullptr,result.samples.data()+frames*2,static_cast<unsigned>(tail+latency),input.channels);
       result.samples.erase(result.samples.begin(),result.samples.begin()+latency*2);
-      writeFloatWaveFile(job.at("output").get<std::string>(),result);
+      writeFloatWaveFile(pathFromUtf8(job.at("output").get<std::string>()),result);
       return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<std::endl;return 1;}
   }
@@ -1360,13 +1374,13 @@ int main(int argc, char** argv) {
       const std::string value = argv[4];
       const auto semitones = std::stoi(value, &parsed);
       if (parsed != value.size()) throw std::runtime_error("PITCH_SEMITONES_INVALID");
-      result = pitchShiftFile(argv[2], argv[3], semitones);
+      result = pitchShiftFile(pathFromUtf8(argv[2]), pathFromUtf8(argv[3]), semitones);
       emit({{"ok", true}, {"result", result}});
       return 0;
     } catch (const std::exception& error) {
       if (argc > 3) {
         std::error_code ignored;
-        fs::remove(argv[3], ignored);
+        fs::remove(pathFromUtf8(argv[3]), ignored);
       }
       emit({{"ok", false}, {"error", error.what()}});
       return 1;
@@ -1462,3 +1476,20 @@ int main(int argc, char** argv) {
   }
   return 0;
 }
+
+#ifdef _WIN32
+// The narrow CRT argv uses the system code page and loses Chinese/emoji paths.
+int wmain(int argc, wchar_t** argv) {
+  std::vector<std::string> arguments;
+  arguments.reserve(argc);
+  for (int index = 0; index < argc; ++index) {
+    const auto utf8 = fs::path(argv[index]).u8string();
+    arguments.emplace_back(utf8.begin(), utf8.end());
+  }
+  std::vector<char*> pointers;
+  for (auto& argument : arguments) pointers.push_back(argument.data());
+  return runMain(argc, pointers.data());
+}
+#else
+int main(int argc, char** argv) { return runMain(argc, argv); }
+#endif

@@ -86,7 +86,7 @@ describe('library dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: '已分轨数据' }))
     fireEvent.click(screen.getByRole('button', { name: '选择分轨文件' }))
     await screen.findByLabelText('轨道 1 名称')
-    fireEvent.change(screen.getByLabelText('轨道 1 预设名称'), { target: { value: 'piano' } })
+    chooseSelect('轨道 1 预设名称', '钢琴')
     expect((screen.getByLabelText('轨道 1 名称') as HTMLInputElement).value).toBe('钢琴')
     fireEvent.change(screen.getByLabelText('轨道 2 名称'), { target: { value: '我的节奏吉他' } })
     fireEvent.click(screen.getByRole('button', { name: '导入并处理' }))

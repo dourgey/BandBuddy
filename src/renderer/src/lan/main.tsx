@@ -1,3 +1,5 @@
+import '../theme-tokens.css'
+import { applyAppearance } from '../appearance.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -7,6 +9,18 @@ import { LanPlayer, type MixState } from './player.js'
 import './style.css'
 
 const base = new URL('./', location.href)
+const systemTheme = matchMedia('(prefers-color-scheme: dark)')
+let themeMode = document.documentElement.dataset.themeMode ?? 'warm'
+let density = document.documentElement.dataset.density ?? 'normal'
+let effects = document.documentElement.dataset.effects ?? 'standard'
+const applyLanAppearance = (): void => applyAppearance({ theme: themeMode, density, effects })
+applyLanAppearance()
+systemTheme.addEventListener('change', () => { if (themeMode === 'system') applyLanAppearance() })
+const appearanceEvents = new EventSource(new URL('api/v1/appearance-events', base))
+appearanceEvents.onmessage = event => {
+  try { const data = JSON.parse(event.data); if (['warm', 'dark', 'system'].includes(data.theme)) { themeMode = data.theme; density = data.density === 'compact' ? 'compact' : 'normal'; effects = data.effects === 'reduced' ? 'reduced' : 'standard'; applyLanAppearance() } } catch { /* Keep the current theme on malformed or interrupted events. */ }
+}
+window.addEventListener('pagehide', () => appearanceEvents.close(), { once: true })
 const time = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
 async function get<T>(route: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(new URL(route, base), { signal })

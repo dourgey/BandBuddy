@@ -11,6 +11,7 @@ from typing import Callable, Mapping
 
 import librosa
 import numpy as np
+from . import memory
 import soundfile as sf
 import torch
 
@@ -84,12 +85,23 @@ def validate_audio_array(audio: np.ndarray, *, name: str, frames: int | None = N
         raise RuntimeError(
             f"AUDIO_LENGTH_MISMATCH:{name}:expected={frames}:actual={audio.shape[1]}"
         )
-    if not np.isfinite(audio).all():
+    if not memory.finite(audio):
         raise RuntimeError(f"AUDIO_NON_FINITE:{name}")
-    return np.ascontiguousarray(audio, dtype=np.float32)
+    return memory.contiguous(audio)
 
 
 def load_audio(path: Path) -> np.ndarray:
+    try:
+        info = sf.info(path)
+    except RuntimeError:
+        info = None
+    if info is not None and info.samplerate == SAMPLE_RATE and info.channels in (1, 2):
+        audio = memory.zeros((2, info.frames))
+        with sf.SoundFile(path) as source:
+            for start in range(0, info.frames, memory.BLOCK_FRAMES):
+                block = source.read(memory.BLOCK_FRAMES, dtype="float32", always_2d=True).T
+                audio[:, start:start + block.shape[1]] = block
+        return validate_audio_array(audio, name="input")
     audio, sample_rate = librosa.load(
         path,
         sr=SAMPLE_RATE,

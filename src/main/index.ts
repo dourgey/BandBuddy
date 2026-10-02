@@ -1,3 +1,6 @@
+import { StartupCoordinator, readStartupAppearance } from './startup.js'
+import { databaseNeedsPreparation, startDatabasePreparation } from './database-preparation.js'
+import { normalizeAppearance, resolveTheme, themeBackground, type Appearance } from '@shared/appearance.js'
 import { ArsenalService } from './arsenal.js'
 import { ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { join } from 'node:path'
@@ -7,6 +10,8 @@ import {
   BrowserWindow,
   Menu,
   nativeImage,
+  nativeTheme,
+  screen,
   protocol,
   Tray,
   type NativeImage
@@ -28,9 +33,10 @@ import { RehearsalService } from './rehearsals.js'
 import { RehearsalRecordingService } from './rehearsal-recording.js'
 import { DesktopLyricsWindow } from './desktop-lyrics.js'
 import { RuntimeManager } from './runtime.js'
+import { shutdownProcesses } from './process.js'
+import { shutdownMediaAnalysis } from './media-analysis.js'
 import { isTrustedRendererUrl } from './security.js'
 import { WindowState, type WindowSize } from './window-state.js'
-import { showStartupScreen, setStartupMessage, STARTUP_URL } from './startup-screen.js'
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'bandbuddy-media',
@@ -39,12 +45,19 @@ protocol.registerSchemesAsPrivileged([{
 
 app.setName('BandBuddy')
 const smokeMode = process.env.BANDBUDDY_SMOKE === '1'
+const benchmarkMode = process.env.BANDBUDDY_BENCHMARK === '1' && !app.isPackaged
+const benchmarkPhases = new Set<string>()
+function benchmarkMetric(phase: string): void {
+  if (!benchmarkMode || benchmarkPhases.has(phase)) return
+  benchmarkPhases.add(phase)
+  process.stdout.write(`BAND_BUDDY_METRIC ${JSON.stringify({ phase })}\n`)
+  if (['window-visible', 'library-interactive', 'backend-ready'].every(value => benchmarkPhases.has(value))) setTimeout(() => app.quit(), 50)
+}
 const developmentTestRoot = smokeMode || !app.isPackaged ? process.env.BANDBUDDY_TEST_ROOT : undefined
 app.setPath('userData', developmentTestRoot ? join(developmentTestRoot, 'appdata') : join(app.getPath('appData'), 'BandBuddy'))
 if (process.platform === 'win32') app.setAppUserModelId('com.bandbuddy.desktop')
 
 let lan: LanService | null = null
-let stoppingLanForQuit = false
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url))
 const rendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/index.html')).href
 const lyricsRendererFileUrl = pathToFileURL(join(currentDirectory, '../renderer/lyrics.html')).href
@@ -55,10 +68,13 @@ let quitting = false
 let database: BandBuddyDatabase | null = null
 let logger: Logger | null = null
 let scheduler: JobScheduler | null = null
+let runtimeManager: RuntimeManager | null = null
 let recording: RecordingService | null = null
 let rehearsalRecording: RehearsalRecordingService | null = null
 let desktopLyrics: DesktopLyricsWindow | null = null
-let quitAfterRecording = false
+let shutdownTask: Promise<void> | null = null
+let shutdownComplete = false
+let startupRecoveries: Promise<unknown> = Promise.resolve()
 let applicationIcon: NativeImage | null = null
 let windowState: WindowState | null = null
 const startupStarted = performance.now()
@@ -74,8 +90,10 @@ function loadApplication(window: BrowserWindow): Promise<void> {
     ? window.loadURL(process.env.ELECTRON_RENDERER_URL)
     : window.loadFile(join(currentDirectory, '../renderer/index.html'))
 }
+let startup: StartupCoordinator | null = null
+let databasePreparation: ReturnType<typeof startDatabasePreparation> | null = null
 
-const MIN_WINDOW_SIZE = { width: 1180, height: 760 }
+const MIN_WINDOW_SIZE = { width: 800, height: 500 }
 const DEFAULT_WINDOW_SIZE: WindowSize = { width: 1440, height: 960, maximized: false }
 
 function getApplicationIcon(): NativeImage {
@@ -89,18 +107,20 @@ function emit(channel: string, payload?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
 }
 
-function createWindow(paths: AppPaths, starting = false): BrowserWindow {
-  const state = new WindowState(join(paths.localRoot, 'window-state.json'), MIN_WINDOW_SIZE)
+function createWindow(paths: AppPaths): BrowserWindow {
+  const workArea = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workAreaSize
+  const limits = { width: Math.min(MIN_WINDOW_SIZE.width, workArea.width), height: Math.min(MIN_WINDOW_SIZE.height, workArea.height) }
+  const state = new WindowState(join(paths.localRoot, 'window-state.json'), limits, workArea)
   windowState = state
   const restored = state.restore(DEFAULT_WINDOW_SIZE)
   const window = new BrowserWindow({
     width: restored.width,
     height: restored.height,
-    minWidth: MIN_WINDOW_SIZE.width,
-    minHeight: MIN_WINDOW_SIZE.height,
+    minWidth: limits.width,
+    minHeight: limits.height,
     show: false,
     frame: false,
-    backgroundColor: '#F5F1EA',
+    backgroundColor: themeBackground(resolveTheme(startup?.snapshot().appearance ?? normalizeAppearance(database?.getSettings().appearance), nativeTheme.shouldUseDarkColors)),
     icon: getApplicationIcon(),
     webPreferences: {
       preload: join(currentDirectory, '../preload/index.cjs'),
@@ -127,6 +147,9 @@ function createWindow(paths: AppPaths, starting = false): BrowserWindow {
     if (!trustedRendererUrl(url)) event.preventDefault()
   })
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (benchmarkMode && message.startsWith('BAND_BUDDY_METRIC ')) {
+      try { const metric = JSON.parse(message.slice('BAND_BUDDY_METRIC '.length)); if (metric.phase === 'library-interactive') benchmarkMetric(metric.phase) } catch { /* Ignore unrelated diagnostic output. */ }
+    }
     const logLevel = level >= 3 ? 'error' : level === 2 ? 'warn' : level === 0 ? 'debug' : 'info'
     logger?.capture(logLevel, 'renderer console', { message, line, sourceId })
   })
@@ -142,6 +165,9 @@ function createWindow(paths: AppPaths, starting = false): BrowserWindow {
     if (restored.maximized) window.maximize()
     window.show()
     startupTiming('window-visible')
+    startup?.markVisible()
+    benchmarkMetric('window-visible')
+    if (smokeMode) process.stdout.write(`BAND_BUDDY_METRIC ${JSON.stringify({ phase: 'window-visible' })}\n`)
   })
   window.on('hide', () => emit(IPC.eventWindowHidden))
   window.on('maximize', () => emit(IPC.eventWindowMaximizedChanged, true))
@@ -164,7 +190,7 @@ function createWindow(paths: AppPaths, starting = false): BrowserWindow {
     }
   })
   window.on('closed', () => { mainWindow = null })
-  if (!starting) void loadApplication(window)
+  void loadApplication(window)
   if (smokeMode) {
     window.webContents.on('preload-error', (_event, preloadPath, error) => {
       process.stderr.write(`BAND_BUDDY_PRELOAD_ERROR ${preloadPath} ${String(error)}\n`)
@@ -173,7 +199,7 @@ function createWindow(paths: AppPaths, starting = false): BrowserWindow {
       process.stderr.write(`BAND_BUDDY_RENDERER_CONSOLE ${level} ${message}\n`)
     })
     window.webContents.on('did-finish-load', () => {
-      if (window.webContents.getURL() === STARTUP_URL) return
+
       void window.webContents.executeJavaScript(`(() => {
         if (!window.bandbuddy) return { apiType: typeof window.bandbuddy, body: document.body.innerText.slice(0, 300) }
          return Promise.all([
@@ -235,38 +261,72 @@ else {
 
   void app.whenReady().then(async () => {
     const paths = new AppPaths()
+    startup = new StartupCoordinator(readStartupAppearance(paths.databasePath), () => mainWindow, trustedRendererUrl)
+    startup.register()
+    nativeTheme.on('updated', () => {
+      const appearance = startup?.snapshot().appearance ?? normalizeAppearance(null)
+      if (appearance.theme !== 'system') return
+      mainWindow?.setBackgroundColor(themeBackground(resolveTheme(appearance, nativeTheme.shouldUseDarkColors)))
+      startup?.setState({ appearance })
+      emit(IPC.eventAppearanceChanged, appearance)
+      desktopLyrics?.setAppearance(appearance)
+    })
+    // Chromium snapshots handled schemes when the first document loads. Register
+    // before creating the startup shell, while keeping service setup deferred.
+    let mediaService: MediaService | null = null
+    protocol.handle('bandbuddy-media', (request) => mediaService
+      ? mediaService.handleProtocolRequest(request)
+      : new Response('Media service is starting', { status: 503 }))
+    mainWindow = createWindow(paths)
+    // The shell has genuinely rendered and been shown before any migrations,
+    // recovery updates or filesystem preparation begin.
+    await startup.firstPaint
+    if (quitting) return
     paths.ensure()
-    logger = new Logger(paths.logsRoot)
-    startupTiming('electron-ready')
-    let startupMedia: MediaService | null = null
-    protocol.handle('bandbuddy-media', request => startupMedia ? startupMedia.handleProtocolRequest(request) : new Response('Media service is starting', { status: 503 }))
-    mainWindow = createWindow(paths, true)
-    const startupWindow = mainWindow
-    await showStartupScreen(startupWindow)
-    if (startupWindow.isDestroyed() || quitting) return
-    await setStartupMessage(startupWindow, '正在打开曲库…')
-    database = new BandBuddyDatabase(paths)
-    startupTiming('database-ready')
+    if (databaseNeedsPreparation(paths)) {
+      databasePreparation = startDatabasePreparation(paths)
+      try { await databasePreparation.ready }
+      finally { databasePreparation = null }
+    }
+    if (quitting) return
+    database = new BandBuddyDatabase(paths, { prepared: true })
+    const appearance = normalizeAppearance(database.getSettings().appearance)
+    startup.setState({ phase: 'initializing-services', appearance, message: '曲库已准备好，正在连接本地服务…' })
+    mainWindow?.setBackgroundColor(themeBackground(resolveTheme(appearance, nativeTheme.shouldUseDarkColors)))
     const applicationLogger = new Logger(paths.logsRoot, database.getSettings().debugMode)
     logger = applicationLogger
     const media = new MediaService(paths, database, applicationLogger, capabilities => emit(IPC.eventMediaChanged, capabilities))
-    startupMedia = media
-    if (startupWindow.isDestroyed() || quitting) return
+    mediaService = media
     const runtime = new RuntimeManager(paths, database, applicationLogger)
+    runtimeManager = runtime
     const developmentLyricsUrl = process.env.ELECTRON_RENDERER_URL
       ? new URL('lyrics.html', process.env.ELECTRON_RENDERER_URL.endsWith('/') ? process.env.ELECTRON_RENDERER_URL : `${process.env.ELECTRON_RENDERER_URL}/`).href
       : null
     desktopLyrics = new DesktopLyricsWindow({
       preloadPath: join(currentDirectory, '../preload/lyrics.cjs'),
       rendererUrl: developmentLyricsUrl ?? lyricsRendererFileUrl,
-      logger: applicationLogger
+      logger: applicationLogger,
+      appearance: () => normalizeAppearance(database?.getSettings().appearance)
     })
     createTray(paths)
 
     const emitLibrary = (): void => emit(IPC.eventLibraryChanged)
     const emitGuitarSplitCompleted = (songId: string): void => emit(IPC.eventGuitarSplitCompleted, songId)
-    const emitTasks = (): void => emit(IPC.eventTasksChanged)
+    const emitTasks = (jobId?: string): void => {
+      const row = jobId ? database?.getJob(jobId) : null
+      if (row) {
+        const { payload: _payload, ...job } = row
+        emit(IPC.eventTasksChanged, job)
+      } else emit(IPC.eventTasksChanged)
+    }
     const emitSettings = (): void => emit(IPC.eventSettingsChanged, database?.getSettings())
+    const emitAppearance = (appearance: Appearance): void => {
+      startup?.setState({ appearance })
+      mainWindow?.setBackgroundColor(themeBackground(resolveTheme(appearance, nativeTheme.shouldUseDarkColors)))
+      emit(IPC.eventAppearanceChanged, appearance)
+      desktopLyrics?.setAppearance(appearance)
+      lan?.appearanceChanged(appearance)
+    }
     const emitMedia = (): void => emit(IPC.eventMediaChanged, media.capabilities())
     const emitRehearsals = (): void => emit(IPC.eventRehearsalsChanged)
     scheduler = new JobScheduler(paths, database, runtime, media, applicationLogger, emitTasks, emitLibrary, emitGuitarSplitCompleted)
@@ -321,6 +381,7 @@ else {
 
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     registerIpc({
+      windowControlsRegistered: true,
       arsenal,
       lan,
       getWindow: () => mainWindow,
@@ -337,28 +398,29 @@ else {
       logger: applicationLogger,
       isTrustedUrl: trustedRendererUrl,
       emitSettings,
+      emitAppearance,
+      emitLibraryUpdate: (update) => emit(IPC.eventLibraryUpdated, update),
       emitLibrary,
       emitTasks
     })
-    emitMedia()
+    startup.setState({ phase: 'ready', message: '正在打开曲库…' })
     runtime.onChange((info) => emit(IPC.eventRuntimeChanged, info))
     servicesReady = true
-    await loadApplication(startupWindow)
-    startupTiming('renderer-loaded')
+    startupTiming('services-ready')
+    benchmarkMetric('backend-ready')
     kickJobs()
     applicationLogger.info('application ready', { version: app.getVersion(), packaged: app.isPackaged })
-  }).catch(async (error: unknown) => {
+  }).catch(error => {
+    if (quitting) return
+    const message = error instanceof Error ? error.message : String(error)
     logger?.error('application startup failed', error)
-    process.stderr.write(`BAND_BUDDY_STARTUP_FAILED ${String(error)}\n`)
-    if (mainWindow && !mainWindow.isDestroyed() && !quitting) {
-      await mainWindow.loadURL(STARTUP_URL).catch(() => undefined)
-      mainWindow.show()
-      await setStartupMessage(mainWindow, '启动失败，请关闭后重试。详情见日志：' + join(new AppPaths().logsRoot, 'bandbuddy.log'), true).catch(() => undefined)
-    }
+    process.stderr.write(`BAND_BUDDY_STARTUP_FAILED ${message}\n`)
+    startup?.setState({ phase: 'failed', message: '曲库准备未完成，请关闭后重试。', error: message })
   })
 }
 
 app.on('activate', () => {
+  if (quitting) return
   if (!servicesReady) { mainWindow?.show(); return }
   if (!mainWindow) {
     const paths = new AppPaths()
@@ -373,37 +435,39 @@ app.on('window-all-closed', () => {
 app.on('before-quit', (event) => {
   windowState?.flush()
   desktopLyrics?.destroy()
-  if (!quitAfterRecording && (recording?.isActive() || rehearsalRecording?.isActive())) {
-    event.preventDefault()
-    const finish = rehearsalRecording?.isActive()
-      ? rehearsalRecording.stop()
-      : recording?.finishForTransition()
-    void finish?.finally(() => {
-      quitAfterRecording = true
-      quitting = true
-      app.quit()
-    })
-    return
-  }
-  if (lan?.status().enabled) {
-    event.preventDefault()
-    if (!stoppingLanForQuit) {
-      stoppingLanForQuit = true
-      void lan.setEnabled(false).finally(() => app.quit())
-    }
-    return
-  }
+  if (shutdownComplete) return
+  event.preventDefault()
+  if (shutdownTask) return
   quitting = true
+  startup?.cancelWait()
   scheduler?.interruptForExit()
+  runtimeManager?.cancelInstall()
+  shutdownTask = (async () => {
+    await databasePreparation?.cancel().catch(error => logger?.error('database preparation cancellation failed', error))
+    databasePreparation = null
+    // Finalize recordings before disabling subprocess creation. Recovery also
+    // writes the database, so it must finish before will-quit closes SQLite.
+    await startupRecoveries
+    // Both recording services share one native host; finish rehearsal captures
+    // before RecordingService closes that host.
+    for (const stop of [() => rehearsalRecording?.shutdown(true), () => recording?.shutdown(true)]) {
+      try { await stop() } catch (error) { logger?.error('recording shutdown failed', error) }
+    }
+    const workers = await Promise.allSettled([
+      lan?.setEnabled(false), runtimeManager?.shutdown(), scheduler?.shutdown(),
+      shutdownMediaAnalysis(), shutdownProcesses()
+    ])
+    for (const result of workers) if (result.status === 'rejected') logger?.error('worker shutdown failed', result.reason)
+    await logger?.flush()
+  })().finally(() => { shutdownComplete = true; app.quit() })
+  void shutdownTask.catch(error => { logger?.error('application shutdown failed', error) })
 })
 
 app.on('will-quit', () => {
-  void lan?.stop()
   lan = null
-  void rehearsalRecording?.shutdown(false)
   rehearsalRecording = null
-  void recording?.shutdown(false)
   recording = null
+  runtimeManager = null
   desktopLyrics?.destroy()
   desktopLyrics = null
   database?.close()

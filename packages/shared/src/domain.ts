@@ -1,3 +1,4 @@
+import type { Appearance } from './appearance.js'
 import type { TrackEffects, EffectChainSnapshot } from './arsenal.js'
 export const LEGACY_STEM_ORDER = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'] as const
 export const GUITAR_SPLIT_STEMS = ['acoustic_guitar', 'lead_guitar', 'rhythm_guitar'] as const
@@ -541,7 +542,7 @@ export interface NetworkSettings {
 }
 
 export interface AppSettings {
-  appearance?: import("./appearance.js").Appearance
+  appearance: Appearance
   desktopLyricsBackgroundTransparency: number
   desktopLyricsFontSize: number
   libraryRoot: string
@@ -717,4 +718,27 @@ export const SILENT_GAIN_DB = -60
 export function dbToGain(db: number): number {
   if (!Number.isFinite(db) || db <= SILENT_GAIN_DB) return 0
   return 10 ** (db / 20)
+}
+
+export interface LibraryPageInput {
+  query?: string
+  filter?: 'all' | 'favorite' | 'processing' | 'recent'
+  offset?: number
+  limit?: number
+}
+export interface LibraryPageResult {
+  items: SongSummary[]
+  total: number
+  offset: number
+  limit: number
+}
+export interface LibraryUpdate {
+  songId: string
+  song?: SongSummary
+  kind: 'added' | 'updated' | 'deleted'
+}
+export interface ReconcileAudioRequest {
+  expected: Pick<AppSettings, 'audioOutputDeviceId' | 'recordingAudio'>
+  audioOutputDeviceId: string
+  recordingAudio: RecordingAudioSettings
 }

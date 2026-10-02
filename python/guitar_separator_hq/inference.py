@@ -14,6 +14,7 @@ import yaml
 
 from ._vendor.msst import BSRoformer, MelBandRoformer
 from .specs import GuitarQuality, ModelSpec, config_path
+from . import memory
 
 
 PassKey = tuple[str, int]
@@ -161,8 +162,8 @@ def _demix_once(
         padded = torch_functional.pad(padded, (border, border), mode="reflect")
 
     window_template = _linear_window(chunk_size)
-    result = torch.zeros((num_stems, 2, padded.shape[-1]), dtype=torch.float32)
-    counter = torch.zeros(padded.shape[-1], dtype=torch.float32)
+    result = torch.from_numpy(memory.zeros((num_stems, 2, padded.shape[-1])))
+    counter = torch.from_numpy(memory.zeros(padded.shape[-1]))
     starts = list(range(0, padded.shape[-1], step))
     amp_enabled = use_amp and device.type == "cuda"
 
@@ -199,13 +200,13 @@ def _demix_once(
             if progress:
                 progress((index + 1) / len(starts), "分块推理")
 
-    estimate = (result / counter.clamp_min_(1e-10)[None, None]).numpy()
+    estimate = memory.divide_in_place(result.numpy(), counter.numpy()[None, None])
     if used_border:
         estimate = estimate[..., border:-border]
     estimate = estimate[..., :original_length]
-    if not np.isfinite(estimate).all():
+    if not memory.finite(estimate):
         raise RuntimeError("MODEL_OUTPUT_NON_FINITE")
-    estimate = np.ascontiguousarray(estimate, dtype=np.float32)
+    estimate = memory.contiguous(estimate)
     return estimate[0] if num_stems == 1 else estimate
 
 
@@ -242,7 +243,7 @@ def _predict_passes(
     progress: InferenceProgress | None,
 ) -> np.ndarray:
     shape = (num_stems, *mix.shape) if num_stems > 1 else mix.shape
-    accumulation = np.zeros(shape, dtype=np.float32)
+    accumulation = memory.zeros(shape)
     shift_size = mix.shape[-1] // 2
     policy_name = f"HQ{len(passes)}"
 
@@ -272,7 +273,7 @@ def _predict_passes(
             estimate = np.roll(estimate, -shift, axis=-1)
         accumulation += _undo_augment(estimate, variant)
     accumulation /= float(len(passes))
-    return np.ascontiguousarray(accumulation, dtype=np.float32)
+    return memory.contiguous(accumulation)
 
 
 def _high_quality_predict(

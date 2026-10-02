@@ -18,7 +18,7 @@ import {
   Trash2,
   Upload
 } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
 import {
   getStemTypeFromTrackOrderKey,
   isStemVisible,
@@ -36,7 +36,7 @@ import {
   type TrackOrderKey,
   type TrackState
 } from '@shared/domain.js'
-import { usePlayerStore } from '../player-store.js'
+import { usePlayerStore, useRecordingMeterStore } from '../player-store.js'
 import { promptAction } from '../components/ui/confirm.js'
 import { MAX_GAIN_DB, MIN_GAIN_DB } from '../components/LevelInput.js'
 import { SelectMenu } from '../components/SelectMenu.js'
@@ -59,13 +59,13 @@ const icons: Record<StemType, typeof Mic2> = {
 interface PracticeRoomProps {
   song: SongDetail
   practice: PracticeState
-  currentMs: number
+  currentMs?: number
   playing: boolean
   selectedStem: StemType
   availableOutputChannelPairs: number
   outputLatencyMs?: number
   recordingState: RecordingState
-  recordingMeter: RecordingMeter
+  recordingMeter?: RecordingMeter
   locked: boolean
   guitarSplitPending?: boolean
   guitarSplitReady?: boolean
@@ -238,7 +238,8 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
     if ((!playing && !recordingTimelineActive) || practice.zoom <= 1 || song.durationMs <= 0) return
     const span = 1 / practice.zoom
     const visibleStart = clamp(practice.scroll, 0, 1) * (1 - span)
-    const position = clamp(currentMs / song.durationMs, 0, 1)
+    const follow = (positionMs: number): void => {
+    const position = clamp(positionMs / song.durationMs, 0, 1)
     let nextStart: number | null = null
     if (position > visibleStart + span) nextStart = position - span * 0.2
     else if (position < visibleStart) nextStart = position - span * 0.8
@@ -246,9 +247,14 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
       const boundedStart = clamp(nextStart, 0, 1 - span)
       onPatch({ scroll: boundedStart / (1 - span) })
     }
+    }
+    follow(currentMs ?? usePlayerStore.getState().currentMs)
+    if (currentMs !== undefined) return
+    return usePlayerStore.subscribe((state, previous) => { if (state.currentMs !== previous.currentMs) follow(state.currentMs) })
   }, [currentMs, onPatch, playing, practice.scroll, practice.zoom, recordingState.phase, song.durationMs])
 
   return <main className="page practice-page">
+    <div className="practice-song-caption"><b>{song.title}</b><span>{song.artist || '未知艺术家'}</span></div>
     <section className="practice-heading">
       <button className="outline-button" onClick={onBack}><ArrowLeft size={17} />{backLabel}</button>
       <button className="outline-button" disabled={locked} onClick={onEdit}><Pencil size={16} />编辑信息</button>
@@ -426,7 +432,7 @@ interface TrackRowProps extends TrackDragProps {
   availableOutputChannelPairs: number
   peaksUrl: string | null
   durationMs: number
-  currentMs: number
+  currentMs?: number
   practice: PracticeState
   onSeek(milliseconds: number): void
   onRange(start: number, end: number): void
@@ -487,9 +493,9 @@ interface RecordingTrackRowProps extends TrackDragProps {
   recordingTrack: RecordingTrackState
   takes: RecordingTake[]
   practice: PracticeState
-  currentMs: number
+  currentMs?: number
   state: RecordingState
-  meter: RecordingMeter
+  meter?: RecordingMeter
   soloActive: boolean
   locked: boolean
   onRecord(): void
@@ -507,9 +513,11 @@ interface RecordingTrackRowProps extends TrackDragProps {
 
 function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   const {
-    song, recordingTrack: track, takes, practice, currentMs, state, meter, soloActive, locked, onRecord, onStop, onCancel, onSelectTake,
+    song, recordingTrack: track, takes, practice, currentMs, state, meter: suppliedMeter, soloActive, locked, onRecord, onStop, onCancel, onSelectTake,
     onUpdateTake, onDeleteTake, onDeleteTrack, onEffectsChanged, onTrack, onUseTakePractice, onSeek, onRange, onViewChange, ...dragProps
   } = props
+  const liveMeter = useRecordingMeterStore((store) => state.recordingTrackId === track.id ? store.meter : null)
+  const meter = suppliedMeter ?? liveMeter ?? useRecordingMeterStore.getState().meter
   const activeTake = takes.find((take) => take.id === track.activeTakeId) ?? null
   const practiceMatches = !activeTake || (
     Math.abs(activeTake.playbackRate - practice.playbackRate) < 0.0001
@@ -518,8 +526,8 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   const running = !['idle', 'failed'].includes(state.phase)
   const activeRunning = running && state.recordingTrackId === track.id
   const peak = activeRunning ? Math.max(...meter.peak, 0) : 0
-  const renameTake = (take: RecordingTake): void => {
-    const name = window.prompt('录音名称', take.name)?.trim()
+  const renameTake = async (take: RecordingTake): Promise<void> => {
+    const name = (await promptAction({ title: '录音名称', defaultValue: take.name }))?.trim()
     if (name && name !== take.name) onUpdateTake(take.id, { name })
   }
 

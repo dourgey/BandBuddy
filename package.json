@@ -1,6 +1,6 @@
 {
   "name": "bandbuddy",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "description": "A local-first stem practice player for musicians",
   "main": "./out/main/index.js",
@@ -26,7 +26,7 @@
   "scripts": {
     "dev": "pnpm native:electron && pnpm native:audio && electron-vite dev",
     "dev:renderer": "vite --config vite.renderer.config.ts",
-    "build": "pnpm verify:resources && pnpm verify:drums && pnpm typecheck && electron-vite build",
+    "build": "pnpm verify:resources && pnpm verify:drums && pnpm typecheck && electron-vite build && pnpm verify:built-runtime",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:whitebox": "node scripts/test-whitebox.mjs",
@@ -49,15 +49,22 @@
     "verify:drums": "node scripts/verify-drum-samples.mjs",
     "package:dir": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win dir --x64",
     "package:unsigned": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win nsis portable --x64",
-    "package:mac": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --arm64",
-    "package:mac:dir": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dir --arm64",
+    "package:mac": "node scripts/verify-macos-target.mjs arm64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --arm64",
+    "package:mac:dir": "node scripts/verify-macos-target.mjs arm64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dir --arm64",
     "package:store": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.store.cjs --win appx --x64",
     "package": "pnpm native:audio && pnpm build && electron-builder --win nsis portable --x64 && pnpm verify:signatures",
     "verify:signatures": "powershell -NoProfile -NonInteractive -File scripts/verify-windows-signatures.ps1",
     "postinstall": "electron-builder install-app-deps",
-    "package:mac:unsigned": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos-unsigned.yml --mac dmg zip --arm64",
-    "package:mac:notarized": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --arm64 -c.mac.notarize=true",
-    "verify:mac:signatures": "node scripts/verify-macos-release.cjs"
+    "package:mac:unsigned": "node scripts/verify-macos-target.mjs arm64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos-unsigned.yml --mac dmg zip --arm64",
+    "package:mac:notarized": "node scripts/verify-macos-target.mjs arm64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --arm64 -c.mac.notarize=true",
+    "verify:mac:signatures": "node scripts/verify-macos-release.cjs",
+    "package:mac:x64": "node scripts/verify-macos-target.mjs x64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --x64",
+    "package:mac:x64:dir": "node scripts/verify-macos-target.mjs x64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dir --x64",
+    "package:mac:x64:unsigned": "node scripts/verify-macos-target.mjs x64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos-unsigned.yml --mac dmg zip --x64",
+    "package:mac:x64:notarized": "node scripts/verify-macos-target.mjs x64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --x64 -c.mac.notarize=true",
+    "runtime:wheel:mac:x64": "python3 scripts/build-intel-runtime-wheel.py",
+    "verify:mac:target": "node scripts/verify-macos-target.mjs",
+    "verify:built-runtime": "node scripts/verify-built-runtime.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.19",
@@ -71,7 +78,6 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "signalsmith-stretch": "1.3.2",
-    "vexflow": "5.0.0",
     "wavesurfer.js": "7.12.11",
     "zod": "4.4.3",
     "zustand": "5.0.14"
@@ -92,6 +98,7 @@
     "jsdom": "29.1.1",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
+    "vexflow": "file:C:/Users/zhaoj/AppData/Local/Temp/vexflow-5.0.0.tgz",
     "vite": "8.1.5",
     "vitest": "4.1.10"
   }

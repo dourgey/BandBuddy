@@ -1,0 +1,865 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-09-22T08:20:36.211Z",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "cpu": "Apple M4",
+    "memoryGB": 16
+  },
+  "methodology": "Development Electron production builds; process spawn to phase arrival; one excluded warmup per variant and size; warm filesystem cache; fresh isolated Chinese-path database with migrations already applied per variant/size; six stems/song and one completed guitar job per five songs; missing Python/model runtime; no simulated audio files; results do not measure first install, migration latency or OS cold boot; median averages the two center samples, p95 uses nearest rank (maximum with 10 runs).",
+  "bundles": {
+    "baseline": {
+      "mainSha256": "fc2c2bcf8d20ad39170f020dc4696f461deb32a4be889defa46d3a26497b152d"
+    },
+    "current": {
+      "mainSha256": "b3ea39900b4ce50833781792b70d8fc7b72d7476ac76b124a26e7998709b26bf"
+    }
+  },
+  "records": [
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "backend-ready": 673.72,
+        "window-visible": 788.91,
+        "library-interactive": 940.02
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "window-visible": 470.8,
+        "library-interactive": 550.77,
+        "backend-ready": 669.16
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 455.85,
+        "window-visible": 547.64,
+        "library-interactive": 586.88
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 448.82,
+        "library-interactive": 533.43,
+        "backend-ready": 658.17
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 414.95,
+        "window-visible": 478.44,
+        "library-interactive": 539.22
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 445.72,
+        "library-interactive": 530.99,
+        "backend-ready": 629.99
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 413.96,
+        "window-visible": 507.08,
+        "library-interactive": 555.71
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 449.48,
+        "library-interactive": 518.47,
+        "backend-ready": 658.56
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 422.7,
+        "window-visible": 483.14,
+        "library-interactive": 534.4
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 482.26,
+        "library-interactive": 565.45,
+        "backend-ready": 698
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 417.47,
+        "window-visible": 505.2,
+        "library-interactive": 542.87
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 447.82,
+        "library-interactive": 517.33,
+        "backend-ready": 645.05
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 407.13,
+        "window-visible": 504.26,
+        "library-interactive": 525.31
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 461.24,
+        "library-interactive": 531.09,
+        "backend-ready": 637.67
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 406.13,
+        "window-visible": 471.81,
+        "library-interactive": 536.57
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 480.76,
+        "library-interactive": 566.42,
+        "backend-ready": 708.89
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 418.87,
+        "window-visible": 510.07,
+        "library-interactive": 547.82
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 442.69,
+        "library-interactive": 531.16,
+        "backend-ready": 630.23
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 398.35,
+        "window-visible": 491.03,
+        "library-interactive": 528.51
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 447.27,
+        "library-interactive": 516.74,
+        "backend-ready": 624.95
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 415.47,
+        "window-visible": 507.72,
+        "library-interactive": 532.36
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 464.38,
+        "library-interactive": 546.61,
+        "backend-ready": 653.84
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "backend-ready": 413.6,
+        "window-visible": 462.2,
+        "library-interactive": 782
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "window-visible": 453.2,
+        "library-interactive": 551.45,
+        "backend-ready": 672.79
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 441.09,
+        "window-visible": 487.44,
+        "library-interactive": 761.46
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 467.63,
+        "library-interactive": 583.43,
+        "backend-ready": 672.94
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 423.59,
+        "window-visible": 472.15,
+        "library-interactive": 765.59
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 451.76,
+        "library-interactive": 554.18,
+        "backend-ready": 681.27
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 452.27,
+        "window-visible": 497.79,
+        "library-interactive": 792.87
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 476.47,
+        "library-interactive": 578.8,
+        "backend-ready": 697.54
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 425.72,
+        "window-visible": 475.96,
+        "library-interactive": 768.05
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 443.86,
+        "library-interactive": 528.72,
+        "backend-ready": 653.08
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 425.47,
+        "window-visible": 476.89,
+        "library-interactive": 771.43
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 469.74,
+        "library-interactive": 554.15,
+        "backend-ready": 700.89
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 420.24,
+        "window-visible": 468.86,
+        "library-interactive": 763.08
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 431.38,
+        "library-interactive": 520.46,
+        "backend-ready": 679.66
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 443.09,
+        "window-visible": 490.52,
+        "library-interactive": 781.77
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 454.69,
+        "library-interactive": 539.09,
+        "backend-ready": 687.98
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 441.88,
+        "window-visible": 486.29,
+        "library-interactive": 777.45
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 475.87,
+        "library-interactive": 582.81,
+        "backend-ready": 698.77
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 422.26,
+        "window-visible": 468.3,
+        "library-interactive": 760.41
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 451.6,
+        "library-interactive": 554.41,
+        "backend-ready": 686.37
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 433.93,
+        "window-visible": 480.98,
+        "library-interactive": 775.75
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 441.15,
+        "library-interactive": 539.03,
+        "backend-ready": 686.53
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "backend-ready": 1060.36,
+        "window-visible": 1847.15,
+        "library-interactive": 3724.03
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 0,
+      "warmup": true,
+      "metrics": {
+        "window-visible": 464.12,
+        "library-interactive": 627.78,
+        "backend-ready": 777.35
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1063.34,
+        "window-visible": 1131.13,
+        "library-interactive": 3716.94
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 1,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 472.49,
+        "library-interactive": 633.74,
+        "backend-ready": 794.4
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1060.48,
+        "window-visible": 1131.89,
+        "library-interactive": 3807.88
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 2,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 454.34,
+        "library-interactive": 618.82,
+        "backend-ready": 764.56
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1085.23,
+        "window-visible": 1151.24,
+        "library-interactive": 3729.03
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 3,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 457.92,
+        "library-interactive": 626.33,
+        "backend-ready": 742.26
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1071.25,
+        "window-visible": 1137.87,
+        "library-interactive": 3730.69
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 4,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 466.75,
+        "library-interactive": 632.71,
+        "backend-ready": 779.74
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1079.05,
+        "window-visible": 1145.15,
+        "library-interactive": 3865.43
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 5,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 458.71,
+        "library-interactive": 611.72,
+        "backend-ready": 744.72
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1065.48,
+        "window-visible": 1130.72,
+        "library-interactive": 3690.95
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 6,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 448.18,
+        "library-interactive": 606.92,
+        "backend-ready": 757.64
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1060.05,
+        "window-visible": 1133.88,
+        "library-interactive": 3701.31
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 7,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 468.79,
+        "library-interactive": 634.55,
+        "backend-ready": 775.32
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1077.69,
+        "window-visible": 1151.78,
+        "library-interactive": 3775.38
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 8,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 452.41,
+        "library-interactive": 617.05,
+        "backend-ready": 761.91
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1048.35,
+        "window-visible": 1116.17,
+        "library-interactive": 3726.14
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 9,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 464.1,
+        "library-interactive": 631.94,
+        "backend-ready": 740.56
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "backend-ready": 1067.14,
+        "window-visible": 1136.65,
+        "library-interactive": 3734.47
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "iteration": 10,
+      "warmup": false,
+      "metrics": {
+        "window-visible": 462.58,
+        "library-interactive": 627.6,
+        "backend-ready": 776.57
+      }
+    }
+  ],
+  "summary": [
+    {
+      "variant": "baseline",
+      "songs": 0,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 504.73,
+          "p95Ms": 547.64
+        },
+        "library-interactive": {
+          "medianMs": 537.9,
+          "p95Ms": 586.88
+        },
+        "backend-ready": {
+          "medianMs": 415.21,
+          "p95Ms": 455.85
+        }
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 1000,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 478.94,
+          "p95Ms": 497.79
+        },
+        "library-interactive": {
+          "medianMs": 769.74,
+          "p95Ms": 792.87
+        },
+        "backend-ready": {
+          "medianMs": 429.83,
+          "p95Ms": 452.27
+        }
+      }
+    },
+    {
+      "variant": "baseline",
+      "songs": 10000,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 1135.27,
+          "p95Ms": 1151.78
+        },
+        "library-interactive": {
+          "medianMs": 3729.86,
+          "p95Ms": 3865.43
+        },
+        "backend-ready": {
+          "medianMs": 1066.31,
+          "p95Ms": 1085.23
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 0,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 449.15,
+          "p95Ms": 482.26
+        },
+        "library-interactive": {
+          "medianMs": 531.13,
+          "p95Ms": 566.42
+        },
+        "backend-ready": {
+          "medianMs": 649.44,
+          "p95Ms": 708.89
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 1000,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 453.23,
+          "p95Ms": 476.47
+        },
+        "library-interactive": {
+          "medianMs": 554.17,
+          "p95Ms": 583.43
+        },
+        "backend-ready": {
+          "medianMs": 686.45,
+          "p95Ms": 700.89
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "songs": 10000,
+      "runs": 10,
+      "metrics": {
+        "window-visible": {
+          "medianMs": 460.65,
+          "p95Ms": 472.49
+        },
+        "library-interactive": {
+          "medianMs": 626.97,
+          "p95Ms": 634.55
+        },
+        "backend-ready": {
+          "medianMs": 763.23,
+          "p95Ms": 794.4
+        }
+      }
+    }
+  ],
+  "privacyNote": "Local absolute workspace and bundle directories omitted; measurements and artifact hashes retained."
+}

@@ -1,3 +1,4 @@
+import { useResolvedTheme, themeColor } from '../appearance.js'
 import { memo, useEffect, useRef, useState } from 'react'
 import { meterLength } from './generator.js'
 import type { ExerciseConfig, MusicEvent } from './types.js'
@@ -10,6 +11,7 @@ interface Props {
   compact?: boolean
 }
 export const Score = memo(function Score({ events, tuning, config, onSelect, compact = false }: Props): React.JSX.Element {
+  const theme = useResolvedTheme()
   const host = useRef<HTMLDivElement>(null)
   const callback = useRef(onSelect)
   callback.current = onSelect
@@ -64,9 +66,10 @@ export const Score = memo(function Score({ events, tuning, config, onSelect, com
       const renderer = new V.Renderer(container, V.Renderer.Backends.SVG)
       renderer.resize(width, Math.ceil(bars / columns) * rowHeight)
       const ctx = renderer.getContext()
+      ctx.setBackgroundFillStyle(themeColor('--score-paper', '#fffdfa'))
       ctx.setFont('Academico', 11)
-      ctx.setFillStyle('#534a40')
-      ctx.setStrokeStyle('#8f806b')
+      ctx.setFillStyle(themeColor('--score-ink', '#534a40'))
+      ctx.setStrokeStyle(themeColor('--score-ink', '#8f806b'))
       for (let bar = 0; bar < bars; bar++) {
         const group = events.filter((e) => e.beat >= bar * length - 1e-6 && e.beat < (bar + 1) * length - 1e-6)
         const x = (bar % columns) * barWidth + 5,
@@ -75,10 +78,10 @@ export const Score = memo(function Score({ events, tuning, config, onSelect, com
           ? new V.Stave(x, y, barWidth - 12, { numLines: 1 })
           : new V.TabStave(x, y, barWidth - 12, { numLines: tuning.notes.length, spacingBetweenLinesPx: 17 })
         if (bar === 0) stave.addClef(rhythm ? 'percussion' : 'tab').addTimeSignature(config.meter)
-        stave.setContext(ctx).draw()
+        stave.setStyle({ fillStyle: themeColor('--score-ink', '#534a40'), strokeStyle: themeColor('--score-ink', '#534a40') }).setContext(ctx).draw()
         // VexFlow modifiers change the shared context's font while drawing.
         ctx.setFont('Academico', 11)
-        ctx.setFillStyle('#81735f')
+        ctx.setFillStyle(themeColor('--score-muted', '#81735f'))
         ctx.fillText(String(bar + 1), x + 5, y - 3)
         const triplets: InstanceType<typeof V.Tuplet>[] = []
         const notes = group.map((e) => {
@@ -119,6 +122,8 @@ export const Score = memo(function Score({ events, tuning, config, onSelect, com
                 )
           if (dotted) V.Dot.buildAndAttach([note], rest || rhythm ? { all: true } : { index: 0 })
           note.setAttribute('id', `ws-note-${e.id}`)
+          note.setStyle({ fillStyle: themeColor('--score-ink', '#534a40'), strokeStyle: themeColor('--score-ink', '#534a40') })
+          note.getStem()?.setStyle({ fillStyle: themeColor('--score-ink', '#534a40'), strokeStyle: themeColor('--score-ink', '#534a40') })
           if (e.bend) note.addModifier(new V.Bend([{ type: V.Bend.UP, text: e.bend === 2 ? 'full' : '½' }]), 0)
           if (e.technique === 'vibrato') note.addModifier(new V.Vibrato(), 0)
           if (e.technique === 'up' || e.technique === 'down')
@@ -145,7 +150,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect, com
         if (compact && !rhythm) {
           // TAB stems alone do not distinguish every sustained value clearly.
           ctx.setFont('Academico', 9)
-          ctx.setFillStyle('#81735f')
+          ctx.setFillStyle(themeColor('--score-muted', '#81735f'))
           group.forEach((e, i) => {
             if (e.duration >= 1.5) ctx.fillText(`${e.duration}拍`, notes[i]!.getAbsoluteX() - 7, stave.getYForLine(tuning.notes.length - 1) + 22)
           })
@@ -193,7 +198,7 @@ export const Score = memo(function Score({ events, tuning, config, onSelect, com
     return () => {
       cancelled = true
     }
-  }, [events, tuning.notes.length, config.meter, config.pattern, compact, availableWidth])
+  }, [events, tuning.notes.length, config.meter, config.pattern, compact, availableWidth, theme])
   return (
     <section className="ws-score-section">
       {!compact && <div className="ws-panel-heading">

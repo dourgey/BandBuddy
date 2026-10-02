@@ -130,9 +130,11 @@ export class AudioHostClient {
     this.expectedExit = false
     const child = spawnSafe(executable, [])
     this.child = child
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
     const lines = createInterface({ input: child.stdout })
     lines.on('line', (line) => this.receive(line))
-    child.stderr.on('data', (chunk: Buffer) => this.logger.warn('audio host stderr', chunk.toString('utf8').slice(-1200)))
+    child.stderr.on('data', (chunk: string) => this.logger.warn('audio host stderr', chunk.slice(-1200)))
     child.once('error', (error) => this.failAll(error))
     child.once('exit', (code, signal) => {
       lines.close()

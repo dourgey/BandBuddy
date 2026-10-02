@@ -1,7 +1,7 @@
 .ws-page.ws-lab-page {
   display: block;
-  background: #fafaf8;
-  color: #1f2529;
+  background: light-dark(#fafaf8, var(--paper));
+  color: light-dark(#1f2529, var(--ink));
   overflow: auto;
 }
 .fl-page {
@@ -28,7 +28,7 @@
 }
 .fl-page button:focus-visible,
 .fl-page input:focus-visible {
-  outline: 2px solid #78997d;
+  outline: 2px solid light-dark(#78997d, var(--border));
   outline-offset: 3px;
 }
 .fl-page h1,
@@ -53,7 +53,7 @@
   letter-spacing: 2px;
 }
 .fl-title p {
-  color: #757972;
+  color: light-dark(#757972, var(--muted));
   font-size: 9px;
   letter-spacing: 1.1px;
   margin-top: 4px;
@@ -62,7 +62,7 @@
   color: var(--fl-green);
 }
 .fl-motto {
-  color: #898d85;
+  color: light-dark(#898d85, var(--muted));
   font-size: 11px;
   letter-spacing: 4px;
   margin-right: 10px;
@@ -75,20 +75,20 @@
   height: 39px;
   padding: 0;
   background: transparent;
-  color: #38473c;
+  color: light-dark(#38473c, var(--success));
   border: 1px solid var(--fl-border);
   border-radius: 7px;
   flex: none;
 }
 .fl-icon[aria-pressed="true"],
 .fl-icon:hover {
-  background: #e4ece3;
+  background: light-dark(#e4ece3, var(--surface));
 }
 .fl-workspace {
-  border: 1px solid #d8dcd4;
+  border: 1px solid light-dark(#d8dcd4, var(--border));
   border-radius: 18px;
   padding: 18px;
-  background: #f7f6f2;
+  background: light-dark(#f7f6f2, var(--paper));
 }
 .fl-top-row {
   display: flex;
@@ -109,8 +109,8 @@
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--fl-border);
-  background: #fbfaf7;
-  color: #272e27;
+  background: light-dark(#fbfaf7, var(--paper));
+  color: light-dark(#272e27, var(--success));
   min-height: 38px;
   padding: 8px 13px;
   border-radius: 7px;
@@ -138,11 +138,11 @@
   min-width: 0;
 }
 .fl-segments button {
-  background: #f6f5f1;
+  background: light-dark(#f6f5f1, var(--paper));
   border: 1px solid var(--fl-border);
   border-radius: 6px;
   padding: 8px 14px;
-  color: #343d34;
+  color: light-dark(#343d34, var(--success));
   white-space: nowrap;
   min-height: 34px;
 }
@@ -150,10 +150,10 @@
 .fl-tabs button[aria-selected="true"] {
   background: var(--fl-green);
   border-color: var(--fl-green);
-  color: #fff;
+  color: light-dark(#fff, var(--inverse-text));
 }
 .fl-top-row > .fl-segments {
-  background: #eeeee7;
+  background: light-dark(#eeeee7, var(--paper));
   border: 1px solid var(--fl-border);
   border-radius: 9px;
   padding: 3px;
@@ -200,8 +200,8 @@
   justify-content: center;
   gap: 3px;
   padding: 10px 15px;
-  background: #f4f3ee;
-  color: #242e26;
+  background: light-dark(#f4f3ee, var(--paper));
+  color: light-dark(#242e26, var(--success));
   border: 1px solid var(--fl-border);
   border-radius: 9px;
 }
@@ -225,7 +225,7 @@
 }
 .fl-control-group > span {
   font-size: 12px;
-  background: #f7f6f2;
+  background: light-dark(#f7f6f2, var(--paper));
   padding: 0 5px;
   align-self: flex-start;
   margin-top: -7px;
@@ -275,14 +275,14 @@
   justify-content: center;
   font-family: var(--serif);
   font-size: 20px;
-  border: 1px solid #d9dcd4;
+  border: 1px solid light-dark(#d9dcd4, var(--border));
   border-radius: 6px;
-  background: #faf9f5;
+  background: light-dark(#faf9f5, var(--paper));
 }
 .fl-board {
   position: relative;
-  background: #eeede7;
-  border: 1px solid #bfc5b9;
+  background: light-dark(#eeede7, var(--paper));
+  border: 1px solid light-dark(#bfc5b9, var(--border));
   border-radius: 5px;
   overflow: hidden;
 }
@@ -295,7 +295,7 @@
 .fl-string::before {
   content: "";
   height: var(--fl-wire);
-  background: #9b9e94;
+  background: light-dark(#9b9e94, var(--surface-muted));
   position: absolute;
   top: 50%;
   left: 0;
@@ -306,23 +306,23 @@
   position: relative;
   background: transparent;
   border: 0;
-  border-right: 2px solid #ced1c6;
+  border-right: 2px solid light-dark(#ced1c6, var(--border));
   border-radius: 0;
   padding: 0;
   display: grid;
   place-items: center;
-  color: #343d32;
+  color: light-dark(#343d32, var(--success));
 }
 .fl-cell.is-open {
-  border-right: 5px solid #6f796b;
+  border-right: 5px solid light-dark(#6f796b, var(--border));
   background: #e3e4dc70;
 }
 .fl-board.is-left .fl-cell {
   border-right: 0;
-  border-left: 2px solid #ced1c6;
+  border-left: 2px solid light-dark(#ced1c6, var(--border));
 }
 .fl-board.is-left .fl-cell.is-open {
-  border-left: 5px solid #6f796b;
+  border-left: 5px solid light-dark(#6f796b, var(--border));
 }
 .fl-cell:hover {
   background: #49675210;
@@ -337,9 +337,9 @@
   place-items: center;
   width: 29px;
   height: 29px;
-  background: #fcfcf6;
-  border: 1px solid #b8bdae;
-  color: #4b5145;
+  background: light-dark(#fcfcf6, var(--paper));
+  border: 1px solid light-dark(#b8bdae, var(--border));
+  color: light-dark(#4b5145, var(--success));
   border-radius: 50%;
   font-family: var(--serif);
   font-size: 16px;
@@ -349,47 +349,47 @@
 .fl-marker.root {
   width: 33px;
   height: 33px;
-  background: #496752;
-  border: 2px solid #e9f3e6;
+  background: light-dark(#496752, var(--success-soft));
+  border: 2px solid light-dark(#e9f3e6, var(--border));
   color: white;
-  outline: 1px solid #496752;
+  outline: 1px solid light-dark(#496752, var(--border));
 }
 .fl-marker.tone {
-  background: #e1e9db;
-  border-color: #a5b69c;
+  background: light-dark(#e1e9db, var(--surface));
+  border-color: light-dark(#a5b69c, var(--border));
 }
 .fl-marker.guide {
-  background: #91aa8e;
-  border-color: #6b8968;
-  color: #fff;
+  background: light-dark(#91aa8e, var(--success-soft));
+  border-color: light-dark(#6b8968, var(--border));
+  color: light-dark(#fff, var(--inverse-text));
 }
 .fl-marker.accidental {
-  background: #d7d9d0;
-  border-color: #bec1b7;
-  color: #74796c;
+  background: light-dark(#d7d9d0, var(--surface));
+  border-color: light-dark(#bec1b7, var(--border));
+  color: light-dark(#74796c, var(--muted));
 }
 .fl-marker.ghost {
   opacity: 0.24;
 }
 .fl-marker.target {
-  background: #496752;
+  background: light-dark(#496752, var(--success-soft));
   color: white;
-  border-color: #496752;
+  border-color: light-dark(#496752, var(--border));
 }
 .fl-marker.correct {
-  color: #fff;
-  background: #496752;
-  border-color: #496752;
+  color: light-dark(#fff, var(--inverse-text));
+  background: light-dark(#496752, var(--success-soft));
+  border-color: light-dark(#496752, var(--border));
 }
 .fl-marker.wrong {
-  background: #f1d9cc;
-  border-color: #bd8169;
+  background: light-dark(#f1d9cc, var(--surface));
+  border-color: light-dark(#bd8169, var(--border));
 }
 .fl-marker.heat {
-  border-color: #b5c1af;
+  border-color: light-dark(#b5c1af, var(--border));
 }
 .fl-cell.is-selected .fl-marker {
-  outline: 2px solid #78997d;
+  outline: 2px solid light-dark(#78997d, var(--border));
   outline-offset: 3px;
 }
 .fl-inlays {
@@ -410,7 +410,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #d1d3c9;
+  background: light-dark(#d1d3c9, var(--surface));
 }
 .fl-fret-numbers {
   grid-column: 2;
@@ -419,7 +419,7 @@
   margin-top: 10px;
   text-align: center;
   font-size: 12px;
-  color: #4d5549;
+  color: light-dark(#4d5549, var(--success));
 }
 .fl-details {
   display: grid;
@@ -432,7 +432,7 @@
   border-radius: 12px;
   padding: 15px;
   min-width: 0;
-  background: #faf9f6;
+  background: light-dark(#faf9f6, var(--paper));
 }
 .fl-card h2,
 .fl-advice h2 {
@@ -477,8 +477,8 @@
   height: 48px;
   flex: none;
   border-radius: 50%;
-  border: 1px solid #35553c;
-  background: #496752;
+  border: 1px solid light-dark(#35553c, var(--border));
+  background: light-dark(#496752, var(--success-soft));
   color: white;
 }
 .fl-current-bottom {
@@ -554,7 +554,7 @@
   font-size: 12px;
 }
 .fl-note-content dt {
-  color: #7b8075;
+  color: light-dark(#7b8075, var(--muted));
 }
 .fl-note-content dd {
   margin: 0;
@@ -572,7 +572,7 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--fl-border);
-  background: #f6f5f1;
+  background: light-dark(#f6f5f1, var(--paper));
   min-height: 43px;
   border-radius: 6px;
   font-size: 11px;
@@ -597,8 +597,8 @@
   border-radius: 5px;
   padding: 7px 0;
   min-height: 35px;
-  color: #363d32;
-  background: #f6f5f1;
+  color: light-dark(#363d32, var(--success));
+  background: light-dark(#f6f5f1, var(--paper));
   font-family: var(--serif);
   font-size: 14px;
 }
@@ -620,7 +620,7 @@
 }
 .fl-advice p {
   font-size: 12px;
-  color: #787e72;
+  color: light-dark(#787e72, var(--muted));
   line-height: 1.6;
 }
 .fl-button {
@@ -632,14 +632,14 @@
   border-radius: 7px;
   border: 1px solid var(--fl-border);
   padding: 9px 16px;
-  background: #faf9f5;
-  color: #334332;
+  background: light-dark(#faf9f5, var(--paper));
+  color: light-dark(#334332, var(--success));
   white-space: nowrap;
 }
 .fl-button.primary {
   background: var(--fl-green);
   border-color: var(--fl-green);
-  color: #fff;
+  color: light-dark(#fff, var(--inverse-text));
 }
 .fl-advice .fl-button {
   min-width: 210px;
@@ -655,7 +655,7 @@
   border-radius: 9px;
   padding: 14px;
   margin-bottom: 14px;
-  background: #edf1e8;
+  background: light-dark(#edf1e8, var(--paper));
 }
 .fl-inline-panel b {
   white-space: nowrap;
@@ -686,8 +686,8 @@
 }
 .fl-settings input:not([type="checkbox"]) {
   border: 1px solid var(--fl-border);
-  background: #fafaf8;
-  color: #344133;
+  background: light-dark(#fafaf8, var(--paper));
+  color: light-dark(#344133, var(--success));
   padding: 8px 10px;
   border-radius: 6px;
   min-height: 36px;
@@ -727,13 +727,13 @@
 .fl-degree-picker button {
   border: 1px solid var(--fl-border);
   padding: 5px 9px;
-  background: #faf9f5;
+  background: light-dark(#faf9f5, var(--paper));
   border-radius: 5px;
   min-width: 32px;
   font-size: 12px;
 }
 .fl-error {
-  color: #a76042;
+  color: light-dark(#a76042, var(--muted));
   font-size: 12px;
   width: 100%;
 }
@@ -774,14 +774,14 @@
   margin: 5px 0 8px;
 }
 .fl-task p {
-  color: #7c8375;
+  color: light-dark(#7c8375, var(--muted));
   font-size: 13px;
 }
 .fl-task > strong {
   font-size: 24px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  color: #6c7963;
+  color: light-dark(#6c7963, var(--success));
 }
 .fl-training-footer {
   margin-top: 17px;
@@ -792,7 +792,7 @@
   text-align: center;
 }
 .fl-answer-area p {
-  color: #7a8272;
+  color: light-dark(#7a8272, var(--success));
   font-size: 13px;
 }
 .fl-answer-area .fl-note-buttons button {
@@ -804,21 +804,21 @@
   padding: 13px 0 0;
 }
 .fl-answer-area .fl-feedback {
-  color: #496752;
+  color: light-dark(#496752, var(--success));
 }
 .fl-answer-area .fl-feedback.is-wrong {
-  color: #a9654b;
+  color: light-dark(#a9654b, var(--muted));
 }
 .fl-session {
   display: flex;
   justify-content: center;
   gap: 36px;
   margin: 18px 0;
-  color: #7e8675;
+  color: light-dark(#7e8675, var(--success));
   font-size: 13px;
 }
 .fl-session b {
-  color: #43563b;
+  color: light-dark(#43563b, var(--success));
   margin-left: 5px;
   font-weight: 500;
   font-size: 18px;
@@ -874,7 +874,7 @@
   margin-top: 20px;
   gap: 15px;
   font-size: 13px;
-  color: #737c69;
+  color: light-dark(#737c69, var(--success));
 }
 .fl-weaknesses {
   display: flex;
@@ -883,7 +883,7 @@
   gap: 8px;
   margin-top: 18px;
   font-size: 12px;
-  color: #737c69;
+  color: light-dark(#737c69, var(--success));
 }
 .fl-weaknesses b {
   font-weight: 500;

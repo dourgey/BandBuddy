@@ -1,6 +1,9 @@
+import { Select } from '../components/ui/Select.js'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
   CheckCircle2,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   Clock3,
   Grid2X2,
@@ -51,8 +54,20 @@ export function LibraryPage({
   onOpen,
   onPlay,
   onFavorite,
-  onMenu
+  onMenu,
+  recentSongs, recentTotal, recentOffset = 0, onRecentPage,
+  total, offset = 0, pageSize = 50, onPage, error, onRetry
 }: {
+  recentSongs?: SongSummary[]
+  recentTotal?: number
+  recentOffset?: number
+  onRecentPage?(offset: number): void
+  total?: number
+  offset?: number
+  pageSize?: number
+  onPage?(offset: number): void
+  error?: string
+  onRetry?(): void
   songs: SongSummary[]
   loading: boolean
   query: string
@@ -67,37 +82,66 @@ export function LibraryPage({
   onFavorite(song: SongSummary): void
   onMenu(song: SongSummary): void
 }): React.JSX.Element {
-  const recent = songs.slice(0, 3)
-  return <main className="page library-page">
+  const recent = recentSongs ?? songs.slice(0, 3)
+  const resultTotal = total ?? songs.length
+  const [search, setSearch] = useState(query)
+  const [composing, setComposing] = useState(false)
+  const [shortViewport, setShortViewport] = useState(() => window.innerHeight <= 600)
+  const [recentPreference, setRecentPreference] = useState<boolean | null>(() => {
+    try { const saved = localStorage.getItem('bandbuddy.library.recentExpanded'); return saved === 'true' ? true : saved === 'false' ? false : null } catch { return null }
+  })
+  const recentExpanded = recentPreference ?? !shortViewport
+  const recentId = useId()
+  const page = useRef<HTMLElement>(null)
+  const onQueryRef = useRef(onQuery)
+  onQueryRef.current = onQuery
+  useEffect(() => {
+    const resize = (): void => setShortViewport(window.innerHeight <= 600)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  useEffect(() => { if (page.current) page.current.scrollTop = 0 }, [offset, query, filter])
+  useEffect(() => { setSearch(query) }, [query])
+  useEffect(() => {
+    if (composing || search === query) return
+    const timer = window.setTimeout(() => onQueryRef.current(search), 150)
+    return () => window.clearTimeout(timer)
+  }, [search, query, composing])
+  return <main ref={page} className="page library-page">
     <div className="library-decoration" aria-hidden><div className="record-lines" /><span>♩</span></div>
     <section className="library-hero">
       <div><h1>曲库</h1><p>管理你的歌曲，随时开启高效练习</p></div>
       <div className="library-tools">
-        <label className="search-box"><Search size={20} /><input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="搜索歌曲、艺术家或风格…" /></label>
+        <label className="search-box"><Search size={20} /><input aria-label="搜索歌曲或艺术家" value={search} onChange={(event) => setSearch(event.target.value)} onCompositionStart={() => setComposing(true)} onCompositionEnd={(event) => { setSearch(event.currentTarget.value); setComposing(false) }} placeholder="搜索歌曲、艺术家…" /></label>
         <button className="primary-button" onClick={onImport}><Plus size={20} />导入歌曲</button>
       </div>
     </section>
 
-    {loading ? <LibrarySkeleton /> : songs.length === 0 ? <EmptyLibrary onImport={onImport} /> : <>
-      <section className="recent-section">
-        <div className="section-heading"><h2><Clock3 size={23} />最近练习</h2><span><button aria-label="上一组"><ChevronLeft /></button><button aria-label="下一组"><ChevronRight /></button></span></div>
-        <div className="recent-grid">
+    {recent.length > 0 && <section className={`recent-section ${recentExpanded ? '' : 'is-collapsed'}`}>
+        <div className="section-heading"><h2><button className="recent-toggle" aria-label={`${recentExpanded ? '收起' : '展开'}最近练习`} aria-expanded={recentExpanded} aria-controls={recentExpanded ? recentId : undefined} onClick={() => { const next = !recentExpanded; setRecentPreference(next); try { localStorage.setItem('bandbuddy.library.recentExpanded', String(next)) } catch { /* Storage limits must not prevent expanding the list. */ } }}><Clock3 size={23} />最近练习{recentExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button></h2>{recentExpanded && <span><button aria-label="上一组" disabled={recentOffset === 0 || !onRecentPage} onClick={() => onRecentPage?.(Math.max(0, recentOffset - 3))}><ChevronLeft /></button><button aria-label="下一组" disabled={!onRecentPage || recentOffset + 3 >= (recentTotal ?? recent.length)} onClick={() => onRecentPage?.(recentOffset + 3)}><ChevronRight /></button></span>}</div>
+        {recentExpanded && <div id={recentId} className="recent-grid library-recent-strip">
           {recent.map((song) => <SongCard key={song.id} song={song} onOpen={() => onOpen(song)} onPlay={() => onPlay(song)} onMenu={() => onMenu(song)} />)}
-        </div>
-      </section>
-      <div className="cable-divider"><i /></div>
+        </div>}
+      </section>}
       <section className="all-songs">
         <div className="section-heading all-heading">
-          <div><h2><Music2 size={24} />全部歌曲</h2>
-            <select value={filter} onChange={(event) => onFilter(event.target.value as typeof filter)} aria-label="筛选歌曲">
+          <div><h2><Music2 size={24} />{filter === 'all' ? '全部歌曲' : filter === 'favorite' ? '已收藏' : filter === 'processing' ? '处理中' : '最近练习'}</h2><small className="library-result-count">{resultTotal} 首</small>
+            <Select value={filter} onChange={(event) => onFilter(event.target.value as typeof filter)} aria-label="筛选歌曲">
               <option value="all">全部状态</option><option value="favorite">已收藏</option><option value="processing">处理中</option><option value="recent">最近练习</option>
-            </select>
+            </Select>
           </div>
-          <span className="layout-toggle"><button className={layout === 'grid' ? 'active' : ''} onClick={() => onLayout('grid')}><Grid2X2 size={17} /></button><button className={layout === 'list' ? 'active' : ''} onClick={() => onLayout('list')}><List size={18} /></button></span>
+          <span className="layout-toggle"><button aria-label="网格视图" aria-pressed={layout === 'grid'} className={layout === 'grid' ? 'active' : ''} onClick={() => onLayout('grid')}><Grid2X2 size={17} /></button><button aria-label="列表视图" aria-pressed={layout === 'list'} className={layout === 'list' ? 'active' : ''} onClick={() => onLayout('list')}><List size={18} /></button></span>
         </div>
-        {layout === 'list' ? <SongTable songs={songs} onOpen={onOpen} onPlay={onPlay} onFavorite={onFavorite} onMenu={onMenu} /> : <div className="song-grid">{songs.map((song) => <SongCard key={song.id} song={song} onOpen={() => onOpen(song)} onPlay={() => onPlay(song)} onMenu={() => onMenu(song)} />)}</div>}
+        {error ? <div className="library-error" role="alert"><p>{error}</p><button className="outline-button" onClick={onRetry}>重试</button></div> : loading ? <LibrarySkeleton /> : songs.length === 0 ? (query || filter !== 'all' ? <p className="library-no-results" role="status">没有找到匹配的歌曲，试试其他关键词或筛选条件。</p> : <EmptyLibrary onImport={onImport} />) : layout === 'list' ? <SongTable key={`${query}:${filter}:${offset}`} songs={songs} rowOffset={offset} rowCount={resultTotal} layoutRevision={recentExpanded} onOpen={onOpen} onPlay={onPlay} onFavorite={onFavorite} onMenu={onMenu} /> : <div className="song-grid">{songs.map((song) => <SongCard key={song.id} song={song} onOpen={() => onOpen(song)} onPlay={() => onPlay(song)} onMenu={() => onMenu(song)} />)}</div>}
+        <footer className="library-results-footer">
+          <span role="status">{resultTotal && songs.length ? `${offset + 1}–${Math.min(offset + songs.length, resultTotal)} / ${resultTotal} 首` : '0 首歌曲'}</span>
+          <nav className="library-pagination" aria-label="曲库分页">
+            <button className="outline-button" aria-label="上一页" disabled={!onPage || offset === 0 || loading} onClick={() => onPage?.(Math.max(0, offset - pageSize))}><ChevronLeft size={16} />上一页</button>
+            <span>{Math.floor(offset / pageSize) + 1} / {Math.max(1, Math.ceil(resultTotal / pageSize))}</span>
+            <button className="outline-button" aria-label="下一页" disabled={!onPage || offset + pageSize >= resultTotal || loading} onClick={() => onPage?.(offset + pageSize)}>下一页<ChevronRight size={16} /></button>
+          </nav>
+        </footer>
       </section>
-    </>}
   </main>
 }
 
@@ -124,17 +168,51 @@ function SongCard({ song, onOpen, onPlay, onMenu }: { song: SongSummary; onOpen(
   </article>
 }
 
-function SongTable({ songs, onOpen, onPlay, onFavorite, onMenu }: { songs: SongSummary[]; onOpen(song: SongSummary): void; onPlay(song: SongSummary): void; onFavorite(song: SongSummary): void; onMenu(song: SongSummary): void }): React.JSX.Element {
-  return <div className="song-table" role="table">
-    <div className="song-table-head" role="row"><span>歌曲</span><span>艺术家</span><span>时长</span><span>分轨</span><span>状态</span><span>最近练习</span><span /></div>
-    {songs.map((song) => <div className="song-row" role="row" key={song.id} onDoubleClick={() => onOpen(song)}>
-      <span className="song-cell"><button className={`heart ${song.favorite ? 'active' : ''}`} onClick={() => onFavorite(song)} aria-label="收藏"><Heart size={13} fill={song.favorite ? 'currentColor' : 'none'} /></button><Vinyl size="tiny" artworkUrl={song.artworkUrl} showFallbackText={false} /><b>{song.title}</b></span>
-      <span>{song.artist || '—'}</span><span><Clock3 size={14} />{formatTime(song.durationMs)}</span>
-      <span className="stem-pills compact">{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</span>
-      <span className={`status-cell ${song.status}`}><CheckCircle2 size={16} />{statusLabel(song.status)}{song.status === 'processing' && ` ${Math.round(song.progress * 100)}%`}</span>
-      <span>{formatDate(song.lastPracticedAt)}</span>
-      <span className="row-actions"><button onClick={() => onPlay(song)}><Play size={15} fill="currentColor" /></button><button aria-label="歌曲菜单" onClick={() => onMenu(song)}><MoreHorizontal size={19} /></button></span>
+function SongTable({ songs, rowOffset, rowCount, layoutRevision, onOpen, onPlay, onFavorite, onMenu }: { songs: SongSummary[]; rowOffset: number; rowCount: number; layoutRevision: boolean; onOpen(song: SongSummary): void; onPlay(song: SongSummary): void; onFavorite(song: SongSummary): void; onMenu(song: SongSummary): void }): React.JSX.Element {
+  const table = useRef<HTMLDivElement>(null)
+  const [windowed, setWindowed] = useState({ start: 0, end: Math.min(12, songs.length), rowHeight: 56 })
+  const [focused, setFocused] = useState(false)
+  useLayoutEffect(() => {
+    const element = table.current
+    const scroller = element?.closest<HTMLElement>('.library-page')
+    if (!element || !scroller) return
+    let frame = 0
+    const measure = (): void => {
+      frame = 0
+      const rowHeight = element.querySelector('.song-row')?.getBoundingClientRect().height || 56
+      const headerHeight = element.querySelector('.song-table-head')?.getBoundingClientRect().height || 37
+      const rowsTop = element.getBoundingClientRect().top + headerHeight
+      const top = scroller.getBoundingClientRect().top
+      const bottom = top + (scroller.clientHeight || Math.max(200, window.innerHeight - 60))
+      const start = Math.max(0, Math.min(songs.length - 1, Math.floor((top - rowsTop) / rowHeight) - 4))
+      const end = Math.min(songs.length, Math.max(start + 1, Math.ceil((bottom - rowsTop) / rowHeight) + 4))
+      setWindowed(previous => previous.start === start && previous.end === end && previous.rowHeight === rowHeight ? previous : { start, end, rowHeight })
+    }
+    const schedule = (): void => { if (!frame) frame = window.requestAnimationFrame(measure) }
+    measure()
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null
+    observer?.observe(scroller)
+    observer?.observe(element)
+    scroller.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    document.addEventListener('bandbuddy:theme-changed', schedule)
+    return () => { if (frame) window.cancelAnimationFrame(frame); observer?.disconnect(); scroller.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule); document.removeEventListener('bandbuddy:theme-changed', schedule) }
+  }, [songs.length, layoutRevision, focused])
+  // A page is bounded to 50 rows. Keep it intact during keyboard traversal so Tab never skips a song.
+  const start = focused ? 0 : windowed.start
+  const end = focused ? songs.length : windowed.end
+  return <div ref={table} className="song-table" role="table" aria-label="曲库歌曲" aria-rowcount={rowCount + 1} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false) }}>
+    <div className="song-table-head" role="row" aria-rowindex={1}><span role="columnheader">歌曲</span><span role="columnheader">艺术家</span><span role="columnheader">时长</span><span role="columnheader">分轨</span><span role="columnheader">状态</span><span role="columnheader">最近练习</span><span role="columnheader" aria-label="操作" /></div>
+    {start > 0 && <div className="song-window-spacer" aria-hidden="true" style={{ height: start * windowed.rowHeight }} />}
+    {songs.slice(start, end).map((song, index) => <div className="song-row" role="row" aria-rowindex={rowOffset + start + index + 2} key={song.id} onDoubleClick={() => onOpen(song)}>
+      <span role="cell" className="song-cell"><button aria-pressed={song.favorite} className={`heart ${song.favorite ? 'active' : ''}`} onClick={() => onFavorite(song)} aria-label="收藏"><Heart size={13} fill={song.favorite ? 'currentColor' : 'none'} /></button><Vinyl size="tiny" artworkUrl={song.artworkUrl} showFallbackText={false} /><b>{song.title}</b></span>
+      <span role="cell">{song.artist || '—'}</span><span role="cell"><Clock3 size={14} />{formatTime(song.durationMs)}</span>
+      <span role="cell" className="stem-pills compact">{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</span>
+      <span role="cell" className={`status-cell ${song.status}`}><CheckCircle2 size={16} />{statusLabel(song.status)}{song.status === 'processing' && ` ${Math.round(song.progress * 100)}%`}</span>
+      <span role="cell">{formatDate(song.lastPracticedAt)}</span>
+      <span role="cell" className="row-actions"><button aria-label={`播放 ${song.title}`} onClick={() => onPlay(song)}><Play size={15} fill="currentColor" /></button><button aria-label="歌曲菜单" onClick={() => onMenu(song)}><MoreHorizontal size={19} /></button></span>
     </div>)}
+    {end < songs.length && <div className="song-window-spacer" aria-hidden="true" style={{ height: (songs.length - end) * windowed.rowHeight }} />}
   </div>
 }
 

@@ -12,6 +12,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-targets:
+    name: Select explicitly enabled release targets
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      intel: ${{ steps.targets.outputs.intel }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Preserve existing targets and require readiness before enabling Intel
+        id: targets
+        env:
+          # Opt in only after committing the reviewed wheel lock and native CPU evidence.
+          ENABLE_INTEL_MAC_RELEASE: ${{ vars.ENABLE_INTEL_MAC_RELEASE }}
+        run: node scripts/release-targets.mjs
+
   windows-release:
     runs-on: windows-2025
     timeout-minutes: 90
@@ -92,39 +110,28 @@ jobs:
           }
           $lines | Out-File "$env:PACKAGE_DIR/SHA256SUMS.txt" -Encoding ascii
 
-      - name: Create GitHub Release
+      - name: Preserve signing status and upload verified Windows artifacts
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = $env:GITHUB_REF_NAME
-          $version = $tag.TrimStart('v')
-          $assets = @(Get-ChildItem "$env:PACKAGE_DIR/BandBuddy-*.exe" | Sort-Object Name | ForEach-Object FullName)
-          $assets += (Resolve-Path "$env:PACKAGE_DIR/SHA256SUMS.txt").Path
-          $notes = "Windows 10/11 x64 · $env:SIGNING_STATE.`nmacOS Apple Silicon · Developer ID signed, not notarized.`n`n请使用随附的 SHA-256 文件校验下载；macOS 构建会在 Windows Release 创建后自动附加。"
-          $versionNotes = "docs/release-notes/$tag.md"
-          $notesFile = Join-Path $env:RUNNER_TEMP "BandBuddy-$tag-release-notes.md"
+        run: $env:SIGNING_STATE | Out-File "$env:PACKAGE_DIR/SIGNING-STATE-windows.txt" -Encoding utf8
 
-          $notes | Out-File $notesFile -Encoding utf8
-          if (Test-Path $versionNotes) {
-            Get-Content $versionNotes -Raw | Add-Content $notesFile -Encoding utf8
-          }
-
-          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag @assets --clobber --repo $env:GITHUB_REPOSITORY
-          } else {
-            if (Test-Path $versionNotes) {
-              gh release create $tag @assets --verify-tag --title "BandBuddy $version" --notes-file $notesFile --repo $env:GITHUB_REPOSITORY
-            } else {
-              gh release create $tag @assets --verify-tag --title "BandBuddy $version" --generate-notes --notes $notes --repo $env:GITHUB_REPOSITORY
-            }
-          }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-windows
+          path: |
+            ${{ env.PACKAGE_DIR }}/BandBuddy-*.exe
+            ${{ env.PACKAGE_DIR }}/SHA256SUMS.txt
+            ${{ env.PACKAGE_DIR }}/SIGNING-STATE-windows.txt
+          if-no-files-found: error
 
   macos-release:
-    name: macOS Apple Silicon release
-    needs: windows-release
-    runs-on: macos-15
+    name: macOS ${{ matrix.arch }} release
+    needs: release-targets
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-targets.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
     timeout-minutes: 90
 
     steps:
@@ -136,7 +143,7 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version")"
           test "$GITHUB_REF_NAME" = "v$version"
-          test "$(uname -m)" = "arm64"
+          test "$(uname -m)" = "${{ matrix.native }}"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -159,7 +166,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install HQ6 test dependencies
-        run: python -m pip install --disable-pip-version-check -r python/guitar_separator_hq/requirements-test.txt
+        run: |
+          if test "${{ matrix.arch }}" = x64; then
+            python -m pip install --disable-pip-version-check --only-binary=:all: -r python/runtime/macos-x64-test.in
+          else
+            python -m pip install --disable-pip-version-check -r python/guitar_separator_hq/requirements-test.txt
+          fi
 
       - name: Fetch verified native desktop tools
         run: pnpm tools:fetch
@@ -178,7 +190,7 @@ jobs:
         run: |
           test -n "$CSC_LINK" || { echo "MACOS_CSC_LINK is required for a signed release"; exit 1; }
           test -n "$CSC_KEY_PASSWORD" || { echo "MACOS_CSC_KEY_PASSWORD is required for a signed release"; exit 1; }
-          pnpm package:mac
+          pnpm ${{ matrix.package_script }}
 
       - name: Verify package and generate checksum
         shell: bash
@@ -188,25 +200,67 @@ jobs:
           test -x "$app_path/Contents/Resources/bin/uv"
           test -x "$app_path/Contents/Resources/bin/ffmpeg"
           test -x "$app_path/Contents/Resources/bin/ffprobe"
-          test -x "$app_path/Contents/Resources/audio-host/darwin-arm64/bandbuddy-audio-host"
+          test -x "$app_path/Contents/Resources/audio-host/darwin-${{ matrix.arch }}/bandbuddy-audio-host"
           test -f "$app_path/Contents/Resources/worker/guitar_separator_hq/separator.py"
           "$app_path/Contents/Resources/bin/uv" --version
           "$app_path/Contents/Resources/bin/ffmpeg" -version
-          "$app_path/Contents/Resources/audio-host/darwin-arm64/bandbuddy-audio-host" --self-test
+          "$app_path/Contents/Resources/audio-host/darwin-${{ matrix.arch }}/bandbuddy-audio-host" --self-test
           shopt -s nullglob
-          files=(release-macos/BandBuddy-*-macos-arm64.dmg release-macos/BandBuddy-*-macos-arm64.zip)
+          files=(release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip)
           test "${#files[@]}" -eq 2
-          shasum -a 256 "${files[@]}" | sed 's#release-macos/##' > "release-macos/SHA256SUMS-macos-arm64.txt"
+          shasum -a 256 "${files[@]}" | sed 's#release-macos/##' > "release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt"
 
-      - name: Upload macOS assets to GitHub Release
-        shell: bash
+      - name: Upload verified macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: |
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.dmg
+            release-macos/BandBuddy-*-macos-${{ matrix.arch }}.zip
+            release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt
+            release-macos/SIGNATURE-REPORT-macos-${{ matrix.arch }}.json
+          if-no-files-found: error
+
+  publish-complete-release:
+    name: Publish only after every supported architecture passed
+    needs: [release-targets, windows-release, macos-release]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-complete
+      - name: Check complete release and publish
         env:
           GH_TOKEN: ${{ github.token }}
+          INCLUDE_INTEL: ${{ needs.release-targets.outputs.intel }}
+        shell: bash
         run: |
-          assets=(
-            release-macos/BandBuddy-*-macos-arm64.dmg
-            release-macos/BandBuddy-*-macos-arm64.zip
-            release-macos/SHA256SUMS-macos-arm64.txt
-            release-macos/SIGNATURE-REPORT.json
-          )
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          set -euo pipefail
+          shopt -s nullglob
+          windows=(release-complete/BandBuddy-*.exe)
+          arm=(release-complete/BandBuddy-*-macos-arm64.dmg release-complete/BandBuddy-*-macos-arm64.zip)
+          intel=(release-complete/BandBuddy-*-macos-x64.dmg release-complete/BandBuddy-*-macos-x64.zip)
+          test "${#windows[@]}" -eq 2
+          test "${#arm[@]}" -eq 2
+          test -s release-complete/SIGNATURE-REPORT-macos-arm64.json
+          notes="$RUNNER_TEMP/release-notes.md"
+          if test "$INCLUDE_INTEL" = true; then
+            test "${#intel[@]}" -eq 2
+            test -s release-complete/SIGNATURE-REPORT-macos-x64.json
+            printf '%s\n' 'Windows 10/11 x64; macOS 13+ Intel and Apple Silicon.' > "$notes"
+          else
+            test "${#intel[@]}" -eq 0
+            test ! -e release-complete/SIGNATURE-REPORT-macos-x64.json
+            printf '%s\n' 'Windows 10/11 x64; macOS 13+ Apple Silicon. Intel Mac support is pending native runtime and CPU reference validation; this release includes no Intel package.' > "$notes"
+          fi
+          printf '%s\n' 'macOS artifacts are Developer ID signed; see signature reports and checksum files. Windows signing status is included in SIGNING-STATE-windows.txt.' >> "$notes"
+          if test -f "docs/release-notes/$GITHUB_REF_NAME.md"; then cat "docs/release-notes/$GITHUB_REF_NAME.md" >> "$notes"; fi
+          assets=(release-complete/*)
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --title "BandBuddy ${GITHUB_REF_NAME#v}" --notes-file "$notes" --repo "$GITHUB_REPOSITORY"
+          fi

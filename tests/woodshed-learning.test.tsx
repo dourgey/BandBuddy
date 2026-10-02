@@ -5,7 +5,7 @@ import WoodshedPage from '../src/renderer/src/pages/WoodshedPage.js'
 import { GUITAR_READING, LEARNING_SYSTEMS } from '../src/renderer/src/woodshed/knowledge.js'
 
 vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class {
-  stop() {} destroy() {} setReference() {} async setOutput() {}
+  stop() {} destroy() {} setReference() {} setVisualActive() {} async setOutput() {}
 } }))
 beforeEach(() => { localStorage.clear(); Element.prototype.scrollTo = vi.fn() })
 afterEach(cleanup)

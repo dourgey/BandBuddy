@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
-const { selectIdentity, scanCode, assertRequiredCode, policy } = require('../scripts/macos-signing.cjs')
+const { selectIdentity, scanCode, assertRequiredCode, deploymentTargets, policy } = require('../scripts/macos-signing.cjs')
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 const hashA = 'A'.repeat(40)
@@ -13,6 +13,9 @@ const hashB = 'B'.repeat(40)
 const certificate = `Developer ID Application: Jie Zhao (${policy.teamId})`
 
 describe('macOS release signing', () => {
+  it('reads both deployment load-command forms without confusing linked library versions', () => {
+    expect(deploymentTargets(`Load command 1\n cmd LC_BUILD_VERSION\n minos 13.0\n sdk 15.0\nLoad command 2\n cmd LC_LOAD_DYLIB\n current version 120.0.0\nLoad command 3\n cmd LC_VERSION_MIN_MACOSX\n version 12.0\n sdk 15.0`)).toEqual(['13.0', '12.0'])
+  })
   it('selects a fingerprint deterministically when names are duplicated', () => {
     const output = `1) ${hashB} "${certificate}"\n2) ${hashA} "${certificate}"`
     expect(selectIdentity(output).hash).toBe(hashA)
@@ -60,5 +63,8 @@ describe('macOS release signing', () => {
     expect(unsigned).toContain('identity: null')
     expect(pkg.scripts['package:mac']).toContain('--config electron-builder.macos.yml')
     expect(pkg.scripts['package:mac:unsigned']).toContain('--config electron-builder.macos-unsigned.yml')
+    expect(pkg.scripts['package:mac:x64']).toContain('verify-macos-target.mjs x64')
+    expect(pkg.scripts['package:mac:x64']).toContain('--x64')
+    expect(pkg.scripts['package:mac:x64:unsigned']).toContain('--config electron-builder.macos-unsigned.yml')
   })
 })
