@@ -1,3 +1,4 @@
+import { appearanceSchema } from './appearance-schema.js'
 import { z } from 'zod'
 import {
   METRONOME_OFFSET_MAX_MS,
@@ -136,6 +137,8 @@ export const listSongsSchema = z.object({
 export const uuidSchema = z.string().uuid()
 
 export const desktopLyricsPayloadSchema = z.object({
+  cueId: z.string().max(250).optional(),
+  wordLines: z.array(z.array(z.object({ text: z.string().max(1000), progress: z.number().min(0).max(1) })).max(1000)).max(4).optional(),
   title: z.string().max(200),
   artist: z.string().max(200),
   currentLines: z.array(z.string().max(1000)).max(4),
@@ -155,6 +158,8 @@ export const networkSettingsSchema = z.object({
 })
 
 export const appSettingsSchema = z.object({
+  appearance: appearanceSchema.optional(),
+  desktopLyricsBackgroundTransparency: z.number().int().min(0).max(100).default(20),
   desktopLyricsFontSize: z.number().int().min(16).max(64).default(24),
   libraryRoot: z.string().min(3).max(1000),
   runtimeRoot: z.string().min(3).max(1000),

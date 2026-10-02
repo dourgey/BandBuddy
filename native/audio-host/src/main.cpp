@@ -1153,7 +1153,7 @@ class Host {
       const auto latencyMs = (inputStream->inputLatency + outputStream->outputLatency) * 1000.0;
       const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
         {"latencyMs", latencyMs}, {"splitDevices", session->splitDevices},
-        {"streamingBacking", true}, {"backingBufferFrames", session->backingStream->bufferFrames()}};
+        {"streamingBacking", !testing}, {"backingBufferFrames", session->backingStream ? session->backingStream->bufferFrames() : 0}};
       { std::lock_guard lock(sessionMutex_); session_ = std::move(session); }
       return result;
     }
@@ -1192,7 +1192,7 @@ class Host {
     if (actualRate && actualRate != session->sampleRate) throw std::runtime_error("AUDIO_SAMPLE_RATE_CHANGED");
     const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
       {"latencyMs", latency > 0 ? latency * 1000.0 / session->sampleRate : 0.0}, {"splitDevices", session->splitDevices},
-      {"streamingBacking", true}, {"backingBufferFrames", session->backingStream->bufferFrames()}};
+      {"streamingBacking", !testing}, {"backingBufferFrames", session->backingStream ? session->backingStream->bufferFrames() : 0}};
     { std::lock_guard lock(sessionMutex_); session_ = std::move(session); }
     return result;
   }

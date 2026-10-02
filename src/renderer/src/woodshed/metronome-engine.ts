@@ -1,3 +1,5 @@
+import { claimAudioSession, releaseAudioSession } from '../audio-session.js'
+import { allowAudioAction } from '../recording-session.js'
 import { setAudioContextOutputDevice } from '../audio-engine.js'
 
 export interface MetronomeSettings {
@@ -34,6 +36,7 @@ export interface MetronomePulse { time: number; duration: number; index: number;
 
 /** Audio-clock lookahead; visual motion consumes the very same scheduled pulse times. */
 export class MetronomeEngine {
+  private audioSession: number | undefined
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private sources = new Set<OscillatorNode>()
@@ -61,7 +64,8 @@ export class MetronomeEngine {
   }
   async start(settings: MetronomeSettings): Promise<boolean> {
     this.stop()
-    if (this.disposed) return false
+    if (this.disposed || !allowAudioAction()) return false
+    this.audioSession = claimAudioSession('woodshed', '节拍器', () => this.stop())
     const token = this.generation
     if (!this.context) {
       this.context = new AudioContext({ latencyHint: 'interactive' })
@@ -122,6 +126,8 @@ export class MetronomeEngine {
     osc.onended = () => { this.sources.delete(osc); osc.disconnect(); envelope.disconnect() }
   }
   stop(): void {
+   if (this.audioSession !== undefined) releaseAudioSession('woodshed', this.audioSession)
+   this.audioSession = undefined
     this.generation++
     if (this.timer) clearInterval(this.timer)
     this.timer = null

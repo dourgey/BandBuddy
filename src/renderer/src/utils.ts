@@ -186,15 +186,19 @@ const USER_ERROR_MESSAGES: ReadonlyArray<{ pattern: RegExp; message: string }> =
   },
   {
     pattern: /UNSUPPORTED_LYRICS_FORMAT/,
-    message: '请选择 .lrc 格式的歌词文件'
+    message: '请选择 LRC、KRC、QRC、SRT、VTT 或 TTML 歌词文件'
+  },
+  {
+    pattern: /LYRICS_DECODE_FAILED/,
+    message: '歌词解码失败，请检查文件是否完整'
   },
   {
     pattern: /LYRICS_FILE_TOO_LARGE/,
-    message: '歌词文件过大，请选择小于 2 MB 的 LRC 文件'
+    message: '歌词文件过大，请选择小于 2 MB 的歌词文件'
   },
   {
-    pattern: /LYRICS_FILE_EMPTY|LRC_NO_TIMESTAMPS/,
-    message: '没有读取到带时间标签的歌词，请检查 LRC 文件'
+    pattern: /LYRICS_FILE_EMPTY|LRC_NO_TIMESTAMPS|INVALID_LYRICS_XML|INVALID_LYRICS_TIME/,
+    message: '没有读取到带时间标签的歌词，请检查歌词文件'
   },
   {
     pattern: /EMPTY_AUDIO_FILE|NO_AUDIO_STREAM|EMPTY_NCM_AUDIO/,

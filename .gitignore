@@ -1,4 +1,5 @@
 node_modules/
+src/renderer/public/woodshed/drums/**/*.flac
 .codex-tmp/
 out/
 dist/

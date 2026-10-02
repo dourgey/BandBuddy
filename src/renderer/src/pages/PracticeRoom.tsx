@@ -1,3 +1,6 @@
+import { RecordingEffects } from '../arsenal/RecordingEffects.js'
+import { TrackMeter } from '../components/TrackMeter.js'
+import { Select } from '../components/ui/Select.js'
 import {
   ArrowLeft,
   Circle,
@@ -33,10 +36,12 @@ import {
   type TrackOrderKey,
   type TrackState
 } from '@shared/domain.js'
-import { formatGainDb, MAX_GAIN_DB, MIN_GAIN_DB } from '../components/LevelInput.js'
+import { usePlayerStore } from '../player-store.js'
+import { promptAction } from '../components/ui/confirm.js'
+import { MAX_GAIN_DB, MIN_GAIN_DB } from '../components/LevelInput.js'
 import { SelectMenu } from '../components/SelectMenu.js'
 import { Waveform } from '../components/Waveform.js'
-import { VideoPlayer } from '../components/VideoPlayer.js'
+import { VolumeControl } from '../components/VolumeControl.js'
 import { clamp, hasEffectiveSolo, isImpliedMuted, isSilenced, silenceToggle } from '../utils.js'
 
 const icons: Record<StemType, typeof Mic2> = {
@@ -84,6 +89,8 @@ interface PracticeRoomProps {
   onCancelRecording(): void
   onSelectTake(recordingTrackId: string, takeId: string | null): void
   onUpdateTake(takeId: string, patch: { name?: string; alignmentOffsetMs?: number }): void
+  onDeleteRecordingTrack?(trackId: string): void
+  onEffectsChanged?(): void
   onDeleteTake(takeId: string): void
   onRecordingTrack(
     recordingTrackId: string,
@@ -267,14 +274,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
       {song.musicalKey && <div className="practice-key-badge"><Sparkles size={15} /><span><b>{practice.pitchSemitones === 0 ? song.musicalKey : `${song.musicalKey} → ${transposeMusicalKey(song.musicalKey, practice.pitchSemitones)}`}</b><small>{song.musicalKeySource === 'manual' ? '手动纠正' : song.keyAnalysis ? `识别 ${Math.round(song.keyAnalysis.confidence * 100)}%` : '歌曲调'}{song.keyAnalysis?.segments.some((segment) => segment.possibleModulation) ? ` · 可能转调 ${song.keyAnalysis.segments.filter((segment) => segment.possibleModulation).length} 处` : ''}</small></span></div>}
     </section>
 
-    <div className={`practice-workspace ${song.videoUrl ? 'has-video' : ''}`}>
-      {song.videoUrl && <VideoPlayer
-        key={song.id} src={song.videoUrl} title={song.title} currentMs={currentMs} durationMs={song.durationMs}
-        playing={playing || recordingState.phase === 'recording'} practice={practice}
-        outputLatencyMs={playing ? outputLatencyMs : 0} locked={locked}
-        onToggle={onTogglePlayback} onSeek={onSeek} onRestart={onRestart} onCycleLoop={onCycleLoop}
-        onRateChange={(playbackRate) => onPatch({ playbackRate })}
-      />}
+    <div className="practice-workspace">
       <section className="mixer-card">
         <div className="track-list" ref={trackListRef}>
           {renderedVisibleTrackOrder.map((key) => {
@@ -297,7 +297,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 name={stem?.name ?? undefined}
                 state={state}
                 exists={Boolean(stem)}
-                showWaveform={!song.videoUrl}
+                showWaveform={true}
                 selected={selectedStem === type}
                 soloActive={soloActive}
                 locked={locked}
@@ -332,6 +332,8 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
               onCancel={onCancelRecording}
               onSelectTake={(takeId) => onSelectTake(recordingTrack.id, takeId)}
               onUpdateTake={onUpdateTake}
+              onDeleteTrack={() => props.onDeleteRecordingTrack?.(recordingTrack.id)}
+              onEffectsChanged={props.onEffectsChanged}
               onDeleteTake={onDeleteTake}
               onTrack={(patch) => onRecordingTrack(recordingTrack.id, patch)}
               onUseTakePractice={onUseTakePractice}
@@ -341,9 +343,8 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
             />
           })}
         </div>
-        {!song.videoUrl && <WaveformNavigator zoom={practice.zoom} scroll={practice.scroll} onScroll={(scroll) => onPatch({ scroll })} />}
+        {<WaveformNavigator zoom={practice.zoom} scroll={practice.scroll} onScroll={(scroll) => onPatch({ scroll })} />}
         {availableOutputChannelPairs > 1 && <p className="routing-note">多通道输出已启用 · 节拍器与录音预听固定到 1–2</p>}
-        <p className="piano-note"><Sparkles size={13} />Piano 是实验性分轨，复杂编曲中可能与 Guitar / Other 存在串音。</p>
       </section>
     </div>
 
@@ -410,61 +411,7 @@ function TrackGainControl({ label, value, disabled, onChange }: {
   disabled: boolean
   onChange(value: number): void
 }): React.JSX.Element {
-  const valueRef = useRef(value)
-  const hideTimer = useRef<number | null>(null)
-  const [feedback, setFeedback] = useState<number | null>(null)
-
-  useEffect(() => { valueRef.current = value }, [value])
-  useEffect(() => () => {
-    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current)
-  }, [])
-
-  const reveal = (next: number): void => {
-    valueRef.current = next
-    setFeedback(next)
-    if (hideTimer.current !== null) window.clearTimeout(hideTimer.current)
-    hideTimer.current = window.setTimeout(() => {
-      hideTimer.current = null
-      setFeedback(null)
-    }, 900)
-  }
-
-  const commit = (next: number): void => {
-    const bounded = clamp(Math.round(next * 2) / 2, MIN_GAIN_DB, MAX_GAIN_DB)
-    reveal(bounded)
-    if (bounded !== valueRef.current) onChange(bounded)
-    else if (bounded !== value) onChange(bounded)
-  }
-
-  return <span
-    className={`track-gain ${feedback !== null ? 'is-adjusting' : ''}`}
-    onClick={(event) => event.stopPropagation()}
-    onWheel={(event) => {
-      if (disabled) return
-      event.preventDefault()
-      event.stopPropagation()
-      const direction = event.deltaY < 0 ? 1 : -1
-      const next = clamp(Math.round((valueRef.current + direction * 0.5) * 2) / 2, MIN_GAIN_DB, MAX_GAIN_DB)
-      valueRef.current = next
-      reveal(next)
-      onChange(next)
-    }}
-  >
-    <input
-      disabled={disabled}
-      type="range"
-      min={MIN_GAIN_DB}
-      max={MAX_GAIN_DB}
-      step="0.5"
-      value={value}
-      aria-label={`${label}滑块`}
-      aria-valuetext={`${formatGainDb(value)} dB`}
-      onPointerDown={() => reveal(value)}
-      onDoubleClick={() => { reveal(0); onChange(0) }}
-      onChange={(event) => commit(Number(event.target.value))}
-    />
-    {feedback !== null && <output className="track-gain-feedback" role="status">{formatGainDb(feedback)} dB</output>}
-  </span>
+  return <VolumeControl label={label.replace('电平', '音量')} value={value} disabled={disabled} onChange={onChange} />
 }
 
 interface TrackRowProps extends TrackDragProps {
@@ -529,11 +476,13 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
         onChange={(pair) => onPatch({ outputChannelPair: pair })}
       />
     </span>
-    {showWaveform && <Waveform stemType={type} peaksUrl={peaksUrl} color={STEM_META[type].color} durationMs={durationMs} currentMs={currentMs} loopStartMs={practice.loopStartMs} loopEndMs={practice.loopEndMs} zoom={practice.zoom} scroll={practice.scroll} disabled={!exists || locked} onSeek={onSeek} onRange={onRange} onViewChange={onViewChange} />}
+    {showWaveform && <div className="meter-wave"><TrackMeter id={type} /><Waveform stemType={type} peaksUrl={peaksUrl} color={STEM_META[type].color} durationMs={durationMs} currentMs={currentMs} loopStartMs={practice.loopStartMs} loopEndMs={practice.loopEndMs} zoom={practice.zoom} scroll={practice.scroll} disabled={!exists || locked} onSeek={onSeek} onRange={onRange} onViewChange={onViewChange} /></div>}
   </SortableTrackRow>
 }
 
 interface RecordingTrackRowProps extends TrackDragProps {
+  onDeleteTrack?(): void
+  onEffectsChanged?(): void
   song: SongDetail
   recordingTrack: RecordingTrackState
   takes: RecordingTake[]
@@ -559,7 +508,7 @@ interface RecordingTrackRowProps extends TrackDragProps {
 function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   const {
     song, recordingTrack: track, takes, practice, currentMs, state, meter, soloActive, locked, onRecord, onStop, onCancel, onSelectTake,
-    onUpdateTake, onDeleteTake, onTrack, onUseTakePractice, onSeek, onRange, onViewChange, ...dragProps
+    onUpdateTake, onDeleteTake, onDeleteTrack, onEffectsChanged, onTrack, onUseTakePractice, onSeek, onRange, onViewChange, ...dragProps
   } = props
   const activeTake = takes.find((take) => take.id === track.activeTakeId) ?? null
   const practiceMatches = !activeTake || (
@@ -598,7 +547,7 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
     </span>
     <TrackGainControl label={`${track.name || '录音轨'}电平`} value={track.gainDb} disabled={locked || !activeTake} onChange={(gainDb) => onTrack({ gainDb })} />
     <div className="recording-wave-wrap">
-      {!song.videoUrl && <Waveform
+      {<div className="meter-wave"><TrackMeter id={track.id} livePeak={activeRunning ? peak : undefined} /><Waveform
         stemType="recording"
         peaksUrl={activeTake?.peaksUrl ?? null}
         color="#b84f45"
@@ -613,12 +562,14 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
         onSeek={onSeek}
         onRange={onRange}
         onViewChange={onViewChange}
-      />}
+      /></div>}
+      <RecordingEffects track={track} onChanged={running ? undefined : onEffectsChanged} busy={running && !activeRunning} />
       <div className="take-toolbar">
-        <select value={activeTake?.id ?? ''} disabled={running || takes.length === 0} onChange={(event) => onSelectTake(event.target.value || null)}>
+        <button disabled={running || locked} title="删除录音轨及全部 Take" onClick={onDeleteTrack}><Trash2 size={13} />删除轨道</button>
+        <Select aria-label={`${track.name} 的 Take`} value={activeTake?.id ?? ''} disabled={running || takes.length === 0} onChange={(event) => onSelectTake(event.target.value || null)}>
           <option value="">无活动 Take</option>
           {takes.map((take) => <option key={take.id} value={take.id}>{take.name} · {take.playbackRate.toFixed(2)}× · {(take.pitchSemitones ?? 0) === 0 ? '原调' : `${(take.pitchSemitones ?? 0) > 0 ? '+' : '−'}${Math.abs(take.pitchSemitones ?? 0)} 半音`}{take.interrupted ? ' · 中断恢复' : ''}</option>)}
-        </select>
+        </Select>
         {activeTake && <>
           <button disabled={running} title="重命名" onClick={() => renameTake(activeTake)}><Pencil size={13} /></button>
           <button disabled={running} title="删除" onClick={() => onDeleteTake(activeTake.id)}><Trash2 size={13} /></button>

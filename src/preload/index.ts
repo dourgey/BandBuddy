@@ -10,6 +10,7 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 }
 
 const api: BandBuddyApi = {
+  appearance: { get: () => ipcRenderer.invoke("bandbuddy:appearance:get"), set: value => ipcRenderer.invoke("bandbuddy:appearance:set", value), onChanged: callback => subscribe("bandbuddy:appearance:changed", callback) },
   arsenal: {
     list: () => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'list' }),
     importAsset: (kind, sampleRate) => ipcRenderer.invoke(ARSENAL_CHANNEL, { op: 'import', kind, sampleRate }),
@@ -62,6 +63,7 @@ const api: BandBuddyApi = {
     setEnabled: (enabled) => ipcRenderer.invoke(IPC.lanSetEnabled, enabled)
   },
   settings: {
+    reconcileAudio: input => ipcRenderer.invoke("bandbuddy:settings:reconcile-audio", input),
     get: () => ipcRenderer.invoke(IPC.settingsGet),
     chooseDataRoot: (currentLibraryRoot) => ipcRenderer.invoke(IPC.settingsChooseDataRoot, currentLibraryRoot),
     update: (settings) => ipcRenderer.invoke(IPC.settingsUpdate, settings),
@@ -91,6 +93,7 @@ const api: BandBuddyApi = {
     updateTake: (input) => ipcRenderer.invoke(IPC.recordingUpdateTake, input),
     deleteTake: (takeId) => ipcRenderer.invoke(IPC.recordingDeleteTake, takeId),
     selectTake: (input) => ipcRenderer.invoke(IPC.recordingSelectTake, input),
+    deleteTrack: (trackId) => ipcRenderer.invoke(IPC.recordingDeleteTrack, trackId),
     createTrack: (songId) => ipcRenderer.invoke(IPC.recordingCreateTrack, songId),
     updateTrack: (input) => ipcRenderer.invoke(IPC.recordingUpdateTrack, input),
     onState: (callback) => subscribe(IPC.eventRecordingState, callback),

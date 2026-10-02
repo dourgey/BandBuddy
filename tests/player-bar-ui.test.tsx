@@ -51,9 +51,9 @@ describe('player bar compact controls', () => {
     render(<PlayerBar {...baseProps} />)
     expect(screen.queryByRole('button', { name: /主音量增益/ })).toBeNull()
     expect(screen.getByRole('slider', { name: '总音量' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '静音' }))
+    fireEvent.click(screen.getByRole('button', { name: '总音量：静音' }))
     expect(usePlayerStore.getState().practice?.masterGainDb).toBe(-60)
-    fireEvent.click(screen.getByRole('button', { name: '取消静音' }))
+    fireEvent.click(screen.getByRole('button', { name: '总音量：取消静音' }))
     expect(usePlayerStore.getState().practice?.masterGainDb).toBe(0)
   })
 

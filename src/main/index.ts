@@ -114,7 +114,15 @@ function createWindow(paths: AppPaths, starting = false): BrowserWindow {
     }
   })
   window.setMenuBarVisibility(false)
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (frameName !== 'bandbuddy-video') return { action: 'deny' }
+    const videoUrl = new URL('video.html', window.webContents.getURL()).href
+    if (frameName !== 'bandbuddy-video' || url !== videoUrl) return { action: 'deny' }
+    return { action: 'allow', overrideBrowserWindowOptions: {
+      width: 960, height: 600, minWidth: 360, minHeight: 240, autoHideMenuBar: true,
+      webPreferences: { preload: join(currentDirectory, '../preload/video.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false }
+    } }
+  })
   window.webContents.on('will-navigate', (event, url) => {
     if (!trustedRendererUrl(url)) event.preventDefault()
   })
@@ -230,6 +238,8 @@ else {
     paths.ensure()
     logger = new Logger(paths.logsRoot)
     startupTiming('electron-ready')
+    let startupMedia: MediaService | null = null
+    protocol.handle('bandbuddy-media', request => startupMedia ? startupMedia.handleProtocolRequest(request) : new Response('Media service is starting', { status: 503 }))
     mainWindow = createWindow(paths, true)
     const startupWindow = mainWindow
     await showStartupScreen(startupWindow)
@@ -240,7 +250,7 @@ else {
     const applicationLogger = new Logger(paths.logsRoot, database.getSettings().debugMode)
     logger = applicationLogger
     const media = new MediaService(paths, database, applicationLogger, capabilities => emit(IPC.eventMediaChanged, capabilities))
-    media.registerProtocol()
+    startupMedia = media
     if (startupWindow.isDestroyed() || quitting) return
     const runtime = new RuntimeManager(paths, database, applicationLogger)
     const developmentLyricsUrl = process.env.ELECTRON_RENDERER_URL
@@ -281,6 +291,19 @@ else {
       emitLibrary
     )
     const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => emit(ARSENAL_MONITOR_EVENT, state), emitLibrary, () => rehearsalRecording?.isActive() ?? false)
+    const previewRenders = new Map<string, Promise<string>>()
+    media.recordingPreviewEffect = async (source, takeId) => {
+      const take = database!.getRecordingTake(takeId)
+      const effects = take ? database!.getRecordingTrack(take.recordingTrackId)?.effects : null
+      if (!effects?.enabled) return source
+      const key = JSON.stringify([source, effects])
+      let render = previewRenders.get(key)
+      if (!render) {
+        render = arsenal.render(source, effects, new AbortController().signal).finally(() => previewRenders.delete(key))
+        previewRenders.set(key, render)
+      }
+      return render
+    }
     recording.arsenal = arsenal
     exporter.arsenal = arsenal
     const rehearsals = new RehearsalService(paths, database, emitRehearsals)

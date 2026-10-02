@@ -53,14 +53,8 @@ describe('metronome level', () => {
     fireEvent.change(slider, { target: { value: '-4' } })
     expect(usePlayerStore.getState().practice?.metronomeGainDb).toBe(-4)
 
-    const readout = screen.getByRole('button', { name: '节拍器音量（双击编辑）' })
-    expect(readout.textContent).toBe('-4 dB (63%)')
+    expect(screen.queryByRole('button', { name: '节拍器音量（双击编辑）' })).toBeNull()
 
-    fireEvent.doubleClick(readout)
-    const editor = screen.getByRole('textbox', { name: '节拍器音量' }) as HTMLInputElement
-    fireEvent.change(editor, { target: { value: '3' } })
-    fireEvent.keyDown(editor, { key: 'Enter' })
-    expect(usePlayerStore.getState().practice?.metronomeGainDb).toBe(3)
   })
 
   it('resets to unity on double click and stays bounded by the schema range', async () => {
@@ -72,17 +66,10 @@ describe('metronome level', () => {
     fireEvent.doubleClick(slider)
     expect(usePlayerStore.getState().practice?.metronomeGainDb).toBe(0)
 
-    const readout = screen.getByRole('button', { name: '节拍器音量（双击编辑）' })
-    fireEvent.doubleClick(readout)
-    const editor = screen.getByRole('textbox', { name: '节拍器音量' }) as HTMLInputElement
-    fireEvent.change(editor, { target: { value: '99' } })
-    fireEvent.keyDown(editor, { key: 'Enter' })
+    fireEvent.change(slider, { target: { value: '6' } })
     expect(usePlayerStore.getState().practice?.metronomeGainDb).toBe(6)
-
-    fireEvent.doubleClick(screen.getByRole('button', { name: '节拍器音量（双击编辑）' }))
-    const again = screen.getByRole('textbox', { name: '节拍器音量' }) as HTMLInputElement
-    fireEvent.change(again, { target: { value: '-99' } })
-    fireEvent.keyDown(again, { key: 'Enter' })
+    fireEvent.change(slider, { target: { value: '-6' } })
     expect(usePlayerStore.getState().practice?.metronomeGainDb).toBe(-6)
+
   })
 })

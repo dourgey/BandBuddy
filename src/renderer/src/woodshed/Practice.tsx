@@ -1,5 +1,9 @@
+import { EnsemblePractice } from './EnsemblePractice.js'
+import { ENSEMBLE_INSTRUMENTS, ENSEMBLE_EXERCISES } from './ensemble-curriculum.js'
+import { WheelNumberInput } from '../components/WheelNumberInput.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AudioLines, ChevronRight, Guitar, Play, Square } from 'lucide-react'
+import { AudioLines, ChevronRight, Guitar, Drum, Piano, KeyboardMusic, Play, Square } from 'lucide-react'
+import type { LearningLocation } from './Learning.js'
 import { Score } from './Score.js'
 import { DEFAULT_EXERCISE, type MusicEvent } from './types.js'
 import { noteName, type Tuning } from './theory.js'
@@ -9,8 +13,8 @@ import './practice.css'
 
 interface NavigationProps { location: PracticeLocation; onNavigate: (next: PracticeLocation) => void }
 export function PracticeBreadcrumb({ location, onNavigate }: NavigationProps): React.JSX.Element {
-  const instrument = PRACTICE_INSTRUMENTS.find(i => i.id === location.instrument)
-  const exercise = PRACTICE_EXERCISES.find(e => e.id === location.exercise && e.instrument === instrument?.id)
+  const instrument = [...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].find(i => i.id === location.instrument)
+  const exercise = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].find(e => e.id === location.exercise && e.instrument === instrument?.id)
   return <>
     <button onClick={() => onNavigate({ instrument: null, exercise: null })}>专项练习</button>
     {instrument && <><ChevronRight size={13} /><button onClick={() => onNavigate({ instrument: instrument.id, exercise: null })} aria-current={!exercise ? 'page' : undefined}>{instrument.title}</button></>}
@@ -18,27 +22,30 @@ export function PracticeBreadcrumb({ location, onNavigate }: NavigationProps): R
   </>
 }
 
-export function Practice({ location, onNavigate, outputDeviceId, onError }: NavigationProps & { outputDeviceId: string; onError: (message: string) => void }): React.JSX.Element {
-  const instrument = PRACTICE_INSTRUMENTS.find(i => i.id === location.instrument)
-  const exercise = PRACTICE_EXERCISES.find(e => e.id === location.exercise && e.instrument === instrument?.id)
+export function Practice({ location, onNavigate, outputDeviceId, onError, onKnowledge }: NavigationProps & { outputDeviceId: string; onError: (message: string) => void; onKnowledge?: (location: LearningLocation) => void }): React.JSX.Element {
+  const instrument = [...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].find(i => i.id === location.instrument)
+  const exercise = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].find(e => e.id === location.exercise && e.instrument === instrument?.id)
   if (!instrument) return <div className="ws-learning-home ws-practice-home"><h2>专项练习</h2>
-    <div className="ws-system-cards">{PRACTICE_INSTRUMENTS.map(i => {
-      const Icon = i.id === 'bass' ? AudioLines : Guitar
+    <div className="ws-system-cards">{[...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].map(i => {
+      const Icon = i.id === 'bass' ? AudioLines : i.id === 'drums' ? Drum : i.id === 'piano' ? Piano : i.id === 'keyboard' ? KeyboardMusic : Guitar
       return <button className="ws-system-card" aria-label={i.title} key={i.id} onClick={() => onNavigate({ instrument: i.id, exercise: null })}>
         <Icon size={29} strokeWidth={1.4} /><span><strong>{i.title}</strong><small>{i.description}</small></span><ChevronRight size={17} />
       </button>
     })}</div>
   </div>
   if (!exercise) {
-    const items = PRACTICE_EXERCISES.filter(e => e.instrument === instrument.id)
+    const items = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].filter(e => e.instrument === instrument.id)
     const modules = [...new Set(items.map(e => e.module))]
     return <div className="ws-learning-map ws-practice-overview"><h2>{instrument.title}</h2>
-      <div className="ws-practice-modules" aria-label={`${instrument.title}练习总览`}>{modules.map(module => <section key={module}>
+      <div className="ws-practice-modules" aria-label={`${instrument.title}练习总览`}>{modules.map(module => <section key={module} aria-label={module}>
         <h3>{module}</h3>
-        <div>{items.filter(e => e.module === module).map(e => <button key={e.id} onClick={() => onNavigate({ instrument: instrument.id, exercise: e.id })}>{e.title}<ChevronRight size={14} /></button>)}</div>
+        <div>{items.filter(e => e.module === module).map(e => <button key={e.id} className={e.kind === 'comprehensive' ? 'ws-practice-comprehensive' : undefined} onClick={() => onNavigate({ instrument: instrument.id, exercise: e.id })}>
+          {e.kind === 'comprehensive' ? <span><b>版块综合练习</b><span>{e.title.replace('综合练习 · ', '')}</span><small>{e.variants.map(v => `${v.beats / Number(v.meter.split('/')[0])} 小节${e.variants.length > 1 ? ` · ${v.meter}` : ''}`).join(' / ')}</small></span> : e.title}<ChevronRight size={14} />
+        </button>)}</div>
       </section>)}</div>
     </div>
   }
+  if ('sourceId' in exercise) return <EnsemblePractice key={exercise.id} exercise={exercise} outputDeviceId={outputDeviceId} onError={onError} onKnowledge={onKnowledge} />
   return <PracticeDetail key={exercise.id} exercise={exercise} outputDeviceId={outputDeviceId} onError={onError} />
 }
 
@@ -131,13 +138,18 @@ export function PracticeDetail({ exercise, outputDeviceId, onError }: { exercise
   }
   const minutes = String(Math.floor(display.seconds / 60)).padStart(2, '0')
   const seconds = String(display.seconds % 60).padStart(2, '0')
+  const currentStage = variant.stages?.find(stage => (running ? display.bar : 1) >= stage.startBar && (running ? display.bar : 1) <= stage.endBar)
   return <article className="ws-practice-detail">
     <header className="ws-practice-title"><h2>{exercise.title}</h2><p>{variant.description}</p>
       {exercise.variants.length > 1 && <div className="ws-practice-variants" role="group" aria-label="练习变体">{exercise.variants.map((v, index) => <button key={v.name} aria-pressed={index === variantIndex} disabled={running || busy} onClick={() => { stop(); setVariantIndex(index); setDisplay(idle) }}>{v.name}</button>)}</div>}
     </header>
+    {variant.stages && <details className="ws-practice-plan"><summary>本轮 {variant.beats / beatsPerBar} 小节 · {variant.stages.length} 个阶段<ChevronRight size={16} /></summary><ol className="ws-practice-stages" aria-label="综合练习阶段">{variant.stages.map(stage => <li key={stage.startBar} aria-current={running && display.bar >= stage.startBar && display.bar <= stage.endBar ? 'step' : undefined}>
+      <small>{stage.startBar}–{stage.endBar} 小节</small><b>{stage.name}</b><p>{stage.description}</p>
+    </li>)}</ol></details>}
+    {currentStage && <div className="ws-practice-current-stage" aria-live="off"><small>{running ? '当前阶段' : '起始阶段'} · {currentStage.startBar}–{currentStage.endBar} 小节</small><b>{currentStage.name}</b><p>{currentStage.description}</p></div>}
     <div ref={scoreHost} className="ws-practice-score"><Score events={variant.events} tuning={tuning} config={config} compact /></div>
     <div className="ws-practice-transport">
-      <label className="ws-practice-tempo">速度 <input aria-label="节拍器速度" type="number" min={30} max={240} step={1} value={bpm} disabled={running || busy} onChange={e => {
+      <label className="ws-practice-tempo">速度 <WheelNumberInput onWheelValue={setBpm} aria-label="节拍器速度" type="number" min={30} max={240} step={1} value={bpm} disabled={running || busy} onChange={e => {
         const value = Number(e.target.value)
         if (Number.isFinite(value)) setBpm(Math.max(30, Math.min(240, Math.round(value))))
       }} /><span>BPM</span></label>

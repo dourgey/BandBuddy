@@ -484,7 +484,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
       expect(song.practice.tracks).toHaveLength(9)
       expect(song.practice.tracks.find((track) => track.stemType === 'guitar')).toMatchObject({ gainDb: -5, solo: true, outputChannelPair: 3 })
       expect(song.practice.tracks.find((track) => track.stemType === 'lead_guitar')).toMatchObject({ gainDb: 0, muted: false, solo: false })
-      expect(upgraded.getSettings()).toMatchObject({ debugMode: true, highQualityStems: false, desktopLyricsFontSize: 24 })
+      expect(upgraded.getSettings()).toMatchObject({ debugMode: true, highQualityStems: false, desktopLyricsFontSize: 24, desktopLyricsBackgroundTransparency: 20 })
     } finally { upgraded.close() }
   })
 })

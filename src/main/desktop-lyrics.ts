@@ -15,6 +15,12 @@ export class DesktopLyricsWindow {
   private latestPayload: DesktopLyricsPayload | null = null
   private shouldBeVisible = false
   private fontSize = 24
+  private backgroundTransparency = 20
+
+  setBackgroundTransparency(value: number): void {
+    this.backgroundTransparency = Math.max(0, Math.min(100, value))
+    if (this.latestPayload) this.update(this.latestPayload)
+  }
 
   setFontSize(size: number): void {
     this.fontSize = size
@@ -42,7 +48,7 @@ export class DesktopLyricsWindow {
   update(payload: DesktopLyricsPayload): void {
     const layoutChanged = this.latestPayload?.fontSize !== this.fontSize
       || this.latestPayload?.currentLines.length !== payload.currentLines.length
-    payload = { ...payload, fontSize: this.fontSize }
+    payload = { ...payload, fontSize: this.fontSize, backgroundTransparency: this.backgroundTransparency }
     this.latestPayload = payload
     const window = this.window
     if (!window || window.isDestroyed() || window.webContents.isLoading()) return

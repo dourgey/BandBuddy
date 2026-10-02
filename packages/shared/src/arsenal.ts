@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
-export const EFFECT_BLOCKS = ['drive', 'amp', 'eq', 'mod', 'delay', 'reverb'] as const
+export const EFFECT_BLOCKS = ['dynamic', 'drive', 'amp', 'cab', 'eq', 'mod', 'delay', 'reverb'] as const
 export const CLASSIC_AMPS = [
+  { id: 'orange', name: 'Orange 风格 · 英式厚声', description: '高通耦合、四级三极管和后置音调网络的结构近似。' },
+  { id: 'mesa', name: 'MESA 风格 · 高增益', description: '级间低频收紧、多级饱和与后置音调网络的结构近似。' },
+  { id: 'vox', name: 'VOX 风格 · 清亮', description: '两级增益、较小阴极旁路电容和明亮音调的结构近似。' },
   { id: 'ab763-pre', name: 'AB763 · 美式清音前级', description: '两级 12AX7、前置 FMV 音调网络；不含功放、变压器和弹簧混响。' },
   { id: '2203-pre', name: '2203 · 英式过载前级', description: '三级 12AX7、10kΩ 无旁路冷削波级、后置 FMV；阴极跟随器作理想缓冲近似。' }
 ] as const
@@ -11,6 +14,7 @@ export const CLASSIC_CABS = [
   { id: 'sealed412', name: 'C12N · 4×12 密闭', description: '四只扬声器与共用密闭空气弹簧，箱内容积改变共振。' }
 ] as const
 export const CLASSIC_MODS = [
+  { id: 'vibrato', name: 'Vibrato', description: '仅输出调制延迟的湿声，形成周期性音高变化。' },
   { id: 'phase90', name: 'Phase 90 · 移相电路', description: '四级 47nF 全通网络、三角 LFO；JFET 电阻曲线为降阶近似。' },
   { id: 'optical-tremolo', name: '光耦 Tremolo · 电路原型', description: 'LDR 分压器与光敏电阻不同的点亮、恢复时间。' },
   { id: 'chorus', name: 'BBD Chorus · 结构近似', description: '三角 LFO、可变延迟、前后低通；未逐级模拟 BBD 时钟和电荷转移。' },
@@ -20,7 +24,7 @@ export const CLASSIC_MODS = [
 ] as const
 const unit = z.number().finite().min(0).max(1)
 export const classicAmpSchema = z.object({
-  device: z.enum(['ab763-pre', '2203-pre']).default('ab763-pre'),
+  device: z.enum(['ab763-pre', '2203-pre', 'orange', 'mesa', 'vox']).default('ab763-pre'),
   gain: unit.default(.35), bass: unit.default(.5), middle: unit.default(.5), treble: unit.default(.5), master: unit.default(.5),
   inputVolts: z.number().finite().min(.1).max(10).default(1)
 })
@@ -31,12 +35,14 @@ export const classicCabSchema = z.object({
   micAngle: z.number().finite().min(0).max(75).default(0)
 })
 export const modulationSchema = z.object({
-  enabled: z.boolean().default(false), device: z.enum(['phase90', 'optical-tremolo', 'chorus', 'flanger', 'wah', 'ota-compressor']).default('phase90'),
+  enabled: z.boolean().default(false), device: z.enum(['phase90', 'optical-tremolo', 'chorus', 'flanger', 'wah', 'ota-compressor', 'vibrato']).default('phase90'),
   rateHz: z.number().finite().min(.05).max(10).default(.7), depth: unit.default(.6), mix: unit.default(.5),
   feedback: z.number().finite().min(0).max(.85).default(.3), manual: unit.default(.5)
 })
 export type ModulationSettings = z.infer<typeof modulationSchema>
 export const WHITEBOX_DEVICES = [
+  { id: 'ds1', name: 'BOSS DS-1 风格', description: '晶体管增益、运放放大、二极管对地削波和中频凹陷音调网络。' },
+  { id: 'bd2', name: 'BOSS BD-2 风格', description: '两级不对称宽带饱和与被动音调的结构近似。' },
   { id: 'ts808', name: 'TS808 · 反馈过载', description: '对称反馈削波，Drive 调整反馈电阻；适合放在 NAM 前推动箱头。' },
   { id: 'sd1', name: 'SD-1 · 不对称过载', description: '1:2 二极管反馈削波，独立增益范围、线性 Drive 和音调网络。' },
   { id: 'rat', name: 'RAT · 对地失真', description: '双 RC 增益支路、有限带宽和转换速率；Filter 越大越暗。' },
@@ -45,7 +51,7 @@ export const WHITEBOX_DEVICES = [
   { id: 'distortion-plus', name: 'Distortion+ · 锗削波', description: '1MΩ 反馈、可变增益支路与独立锗二极管对地削波；原机没有 Tone 旋钮。' }
 ] as const
 export const whiteboxSchema = z.object({
-  enabled: z.boolean(), device: z.enum(['ts808', 'sd1', 'rat', 'microamp', 'distortion-plus', 'fuzzface']), revision: z.literal(1),
+  enabled: z.boolean(), device: z.enum(['ts808', 'sd1', 'rat', 'microamp', 'distortion-plus', 'fuzzface', 'ds1', 'bd2']), revision: z.literal(1),
   drive: z.number().finite().min(0).max(1), tone: z.number().finite().min(0).max(1),
   level: z.number().finite().min(0).max(1),
   inputVolts: z.number().finite().min(.1).max(10),
@@ -59,28 +65,56 @@ export type EffectBlock = typeof EFFECT_BLOCKS[number]
 export type MonitorMode = 'off' | 'dry' | 'wet'
 const db = z.number().finite().min(-60).max(24)
 const asset = z.string().regex(/^[a-f0-9]{64}$/).nullable()
-export const effectChainSchema = z.object({
+const legacyChainSchema = z.object({
   version: z.literal(1),
-  order: z.array(z.enum(EFFECT_BLOCKS)).refine(v =>
-    new Set(v).size === v.length && ['amp', 'eq', 'delay', 'reverb'].every(b => v.includes(b as typeof v[number]))
-  ).transform(v => { const order = v.includes('drive') ? [...v] : ['drive' as const, ...v]; if (!order.includes('mod')) order.splice(order.indexOf('delay'), 0, 'mod'); return order }),
+  order: z.array(z.enum(EFFECT_BLOCKS)).max(24).refine(order => new Set(order).size === order.length, '重复模块请使用独立模块 ID').transform(order => {
+    // Single-module prepared chains intentionally contain one block.
+    if (order.length <= 1) return order
+    const next = [...order]
+    if (!next.includes('drive')) next.unshift('drive')
+    if (!next.includes('mod')) next.splice(next.indexOf('amp') >= 0 ? next.indexOf('amp') + 1 : 1, 0, 'mod')
+    return next
+  }),
+  dynamic: z.object({ enabled: z.boolean().default(false), device: z.enum(['compressor', 'boost', 'gate']).default('compressor'), threshold: z.number().min(-80).max(0).default(-24), ratio: z.number().min(1).max(20).default(4), attack: z.number().min(.1).max(100).default(10), release: z.number().min(10).max(1000).default(120), gainDb: db.default(0) }).default(() => ({ enabled: false, device: 'compressor' as const, threshold: -24, ratio: 4, attack: 10, release: 120, gainDb: 0 })),
   drive: whiteboxSchema.default(defaultWhitebox),
   mod: modulationSchema.default(() => modulationSchema.parse({})),
   inputGainDb: db, outputGainDb: db,
   amp: z.object({ enabled: z.boolean(), assetId: asset, quality: z.enum(['full', 'lite']), engine: z.enum(['nam', 'classic']).default('nam'), classic: classicAmpSchema.default(() => classicAmpSchema.parse({})) }),
   cab: z.object({ enabled: z.boolean(), assetId: asset, gainDb: db, lowCut: z.number().min(20).max(500), highCut: z.number().min(1000).max(20000), engine: z.enum(['ir', 'physical']).default('ir'), physical: classicCabSchema.default(() => classicCabSchema.parse({})) }),
-  eq: z.object({ enabled: z.boolean(), bands: z.array(z.number().min(-15).max(15)).length(7), gainDb: db }),
-  delay: z.object({ enabled: z.boolean(), timeMs: z.number().min(1).max(2000), feedback: z.number().min(0).max(.95), mix: z.number().min(0).max(1), tone: z.number().min(200).max(16000), sync: z.boolean(), division: z.enum(['1/4', '1/8', '1/8d', '1/16']), bpm: z.number().min(20).max(400) }),
-  reverb: z.object({ enabled: z.boolean(), decay: z.number().min(.1).max(10), preDelayMs: z.number().min(0).max(200), damping: z.number().min(0).max(1), mix: z.number().min(0).max(1) })
+  eq: z.object({ bandCount: z.union([z.literal(5), z.literal(7)]).default(7), enabled: z.boolean(), bands: z.array(z.number().min(-15).max(15)).length(7), gainDb: db }),
+  delay: z.object({ style: z.enum(['digital', 'analog', 'tape', 'reverse']).default('digital'), enabled: z.boolean(), timeMs: z.number().min(1).max(2000), feedback: z.number().min(0).max(.95), mix: z.number().min(0).max(1), tone: z.number().min(200).max(16000), sync: z.boolean(), division: z.enum(['1/4', '1/8', '1/8d', '1/16']), bpm: z.number().min(20).max(400) }),
+  reverb: z.object({ style: z.enum(['room', 'hall', 'plate', 'spring']).default('hall'), enabled: z.boolean(), decay: z.number().min(.1).max(10), preDelayMs: z.number().min(0).max(200), damping: z.number().min(0).max(1), mix: z.number().min(0).max(1) })
 })
+export const effectModuleSchema = z.object({ id: z.string().min(1).max(80), type: z.enum(EFFECT_BLOCKS), settings: legacyChainSchema })
+export type EffectModule = z.infer<typeof effectModuleSchema>
+export const effectChainSchema = legacyChainSchema.extend({ modules: z.array(effectModuleSchema).max(24).refine(modules => new Set(modules.map(m => m.id)).size === modules.length, '模块 ID 不可重复').optional() })
 export type EffectChainSnapshot = z.infer<typeof effectChainSchema>
+export function chainModules(chain: EffectChainSnapshot): EffectModule[] {
+  if (chain.modules) return chain.modules
+  const order = [...chain.order]
+  if (!order.includes('cab')) order.splice(order.indexOf('amp') + 1, 0, 'cab')
+  return order.map((type, i) => ({ id: `legacy-${type}-${i}`, type, settings: legacyChainSchema.parse(chain) }))
+}
+export function moduleChain(module: EffectModule): EffectChainSnapshot {
+  const chain = legacyChainSchema.parse(module.settings)
+  chain.order = [module.type]; chain.inputGainDb = 0; chain.outputGainDb = 0
+  for (const type of EFFECT_BLOCKS) if (type !== module.type) chain[type].enabled = false
+  return chain
+}
+export function createEffectModule(type: EffectBlock): EffectModule {
+  const settings = legacyChainSchema.parse(defaultEffectChain())
+  settings[type].enabled = true
+  if (type === 'amp') settings.amp.engine = 'classic'
+  if (type === 'cab') settings.cab.engine = 'physical'
+  return { id: crypto.randomUUID(), type, settings }
+}
 export interface ToneAsset { id: string; kind: 'nam' | 'ir'; name: string; sampleRate: number; channels: number; durationMs: number; architecture?: string; slimmable?: boolean; metadata: Record<string, unknown>; createdAt: string }
 export interface ArsenalPreset { id: string; name: string; chain: EffectChainSnapshot; revision: number; createdAt: string; updatedAt: string }
 export interface TrackEffects { enabled: boolean; presetId: string | null; chain: EffectChainSnapshot; monitorMode: MonitorMode }
 export const trackEffectsSchema = z.object({ enabled: z.boolean(), presetId: z.string().uuid().nullable(), chain: effectChainSchema, monitorMode: z.enum(['off', 'dry', 'wet']) })
 export interface ArsenalState { presets: ArsenalPreset[]; assets: ToneAsset[] }
 export interface ArsenalMonitorState { active: boolean; mode: MonitorMode; sampleRate: number; bufferFrames: number; latencyMs: number; peak: number[]; outputPeak: number; xruns: number; error: string | null }
-export interface PreparedEffects { chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number }
+export interface PreparedEffects { modules?: PreparedEffects[]; chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number }
 export interface ArsenalApi {
   list(): Promise<ArsenalState>
   importAsset(kind: 'nam' | 'ir', sampleRate?: number): Promise<ToneAsset | null>
@@ -94,15 +128,16 @@ export interface ArsenalApi {
   onMonitor(callback: (state: ArsenalMonitorState) => void): () => void
 }
 export function defaultEffectChain(): EffectChainSnapshot {
-  return { version: 1, order: [...EFFECT_BLOCKS], inputGainDb: 0, outputGainDb: -6,
+  return legacyChainSchema.parse({ version: 1, order: [...EFFECT_BLOCKS], inputGainDb: 0, outputGainDb: -6,
     drive: defaultWhitebox(), mod: modulationSchema.parse({}),
     amp: { enabled: false, assetId: null, quality: 'full', engine: 'nam', classic: classicAmpSchema.parse({}) },
     cab: { enabled: false, assetId: null, gainDb: 0, lowCut: 20, highCut: 20000, engine: 'ir', physical: classicCabSchema.parse({}) },
     eq: { enabled: false, bands: [0,0,0,0,0,0,0], gainDb: 0 },
     delay: { enabled: false, timeMs: 350, feedback: .3, mix: .2, tone: 6000, sync: false, division: '1/4', bpm: 120 },
-    reverb: { enabled: false, decay: 2.5, preDelayMs: 20, damping: .5, mix: .2 } }
+    reverb: { enabled: false, decay: 2.5, preDelayMs: 20, damping: .5, mix: .2 } })
 }
 export function effectStructureKey(chain: EffectChainSnapshot): string {
+  if (chain.modules) return JSON.stringify(chain.modules.map(m => [m.id, m.type, effectStructureKey(moduleChain(m))]))
   return JSON.stringify([chain.order, chain.amp.assetId, chain.amp.quality, chain.cab.assetId, chain.drive?.device, chain.drive?.revision, chain.drive?.oversampling, chain.amp.engine, chain.amp.classic.device, chain.cab.engine, chain.cab.physical.device, chain.mod.device])
 }
 export const ARSENAL_CHANNEL = 'arsenal:request'

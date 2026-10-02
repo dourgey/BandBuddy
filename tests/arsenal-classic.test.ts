@@ -15,9 +15,9 @@ describe('classic device snapshots', () => {
     expect(result.cab.engine).toBe('ir')
     expect(effectChainSchema.parse(result)).toEqual(result)
   })
-  it('requires all original blocks and rejects duplicates and unknown circuits', () => {
+  it('accepts sparse chains and rejects ambiguous duplicates and unknown circuits', () => {
     const c = defaultEffectChain()
-    for (const order of [['amp', 'eq', 'mod', 'reverb'], ['amp', 'eq', 'delay', 'reverb', 'mod', 'mod']])
+    for (const order of [['unknown'], ['amp', 'eq', 'delay', 'reverb', 'mod', 'mod']])
       expect(effectChainSchema.safeParse({ ...c, order }).success).toBe(false)
     for (const bad of [NaN, Infinity, -.1, 1.1])
       expect(effectChainSchema.safeParse({ ...c, amp: { ...c.amp, classic: { ...c.amp.classic, bass: bad } } }).success).toBe(false)

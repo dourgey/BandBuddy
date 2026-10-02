@@ -79,32 +79,30 @@ describe('parseGainDb', () => {
 })
 
 describe('track level input', () => {
-  const slider = () => screen.getByRole('slider', { name: '人声电平滑块' }) as HTMLInputElement
+  const slider = () => screen.getByRole('slider', { name: '人声音量', hidden: true }) as HTMLInputElement
 
   it('keeps the dB value hidden until the level is adjusted', () => {
     render(<PracticeRoom {...practiceRoomProps()} />)
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByText('0 dB')).toBeNull()
-    expect(slider().getAttribute('aria-valuetext')).toBe('0 dB')
+    expect(slider().value).toBe('100')
+    expect(screen.getByRole('button', { name: '人声音量：静音' })).toBeTruthy()
   })
 
-  it('shows a transient value popover while dragging the slider', () => {
+  it('changes track volume from the shared percentage slider', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.change(slider(), { target: { value: '-6' } })
-    expect(onTrack).toHaveBeenCalledWith('vocals', { gainDb: -6 })
-    expect(screen.getByRole('status').textContent).toBe('-6 dB')
+    fireEvent.change(slider(), { target: { value: '50' } })
+    expect(onTrack.mock.calls[0]![1].gainDb).toBeCloseTo(-6.0206)
   })
 
   it('adjusts in half-decibel steps with the wheel while hovered', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} onTrack={onTrack} />)
-    fireEvent.wheel(slider(), { deltaY: -100 })
+    fireEvent.wheel(screen.getByRole('button', { name: /人声音量：/ }), { deltaY: -100 })
     expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: 0.5 })
-    expect(screen.getByRole('status').textContent).toBe('+0.5 dB')
     fireEvent.wheel(slider(), { deltaY: 100 })
     expect(onTrack).toHaveBeenLastCalledWith('vocals', { gainDb: 0 })
-    expect(screen.getByRole('status').textContent).toBe('0 dB')
   })
 
   it('still resets the track to unity on double click', () => {
@@ -114,15 +112,14 @@ describe('track level input', () => {
     render(<PracticeRoom {...practiceRoomProps(song)} onTrack={onTrack} />)
     fireEvent.doubleClick(slider())
     expect(onTrack).toHaveBeenCalledWith('vocals', { gainDb: 0 })
-    expect(screen.getByRole('status').textContent).toBe('0 dB')
   })
 
   it('locks wheel and slider adjustment during recording', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} locked onTrack={onTrack} />)
     expect(slider().disabled).toBe(true)
-    expect([slider().min, slider().max, slider().step]).toEqual(['-60', '6', '0.5'])
-    fireEvent.wheel(slider(), { deltaY: -100 })
+    expect([slider().min, slider().max, slider().step]).toEqual(['0', '150', ''])
+    fireEvent.wheel(screen.getByRole('button', { name: /人声音量：/ }), { deltaY: -100 })
     expect(onTrack).not.toHaveBeenCalled()
     expect(screen.queryByRole('status')).toBeNull()
   })

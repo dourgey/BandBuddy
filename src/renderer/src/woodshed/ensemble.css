@@ -1,0 +1,41 @@
+.ws-stage-goal { grid-column: 1 / -1; font-size: 12px; line-height: 1.8; color: #817867; margin: 0 0 5px; }
+.ensemble-practice { min-width: 0; }
+.ensemble-practice .ws-practice-title small { display: block; color: #827967; margin: 8px 0 15px; }
+.ensemble-task { margin: 24px 0; padding: 18px 22px; border-left: 3px solid #a7b7a0; background: #eceee4; line-height: 1.9; font-size: 14px; }
+.ensemble-task h3 { font-size: 14px; color: #496d64; margin: 0 0 10px; }
+.ensemble-task p { margin: 0; }
+.ensemble-score { margin: 22px 0; max-height: 500px; overflow: auto; border: 1px solid #ddd5c5; border-radius: 6px; background: #fbf9f3; padding: 12px; }
+.ensemble-score svg { width: 100%; height: auto; min-width: 480px; }
+.ensemble-score .ensemble-active { color: #216849; background: #dbe7d3; fill: #216849; }
+.ensemble-score .ensemble-active path { fill: #216849; stroke: #216849; }
+.ensemble-drum-score > p, .ensemble-caption { font-size: 12px; line-height: 1.8; color: #817867; }
+.ensemble-grid-scroll { overflow-x: auto; margin: 12px 0 22px; }
+.ensemble-drum-score table { border-collapse: collapse; min-width: 560px; width: 100%; font-size: 12px; text-align: center; }
+.ensemble-drum-score caption { text-align: left; padding: 8px 0; color: #496d64; }
+.ensemble-drum-score th, .ensemble-drum-score td { border: 1px solid #dcd5c8; min-width: 24px; height: 33px; padding: 3px; }
+.ensemble-drum-score th:first-child { min-width: 60px; }
+.ensemble-drum-score td small { display: block; font-size: 9px; }
+.ensemble-options, .ensemble-synth { border: 1px solid #dcd5c8; padding: 14px 18px; margin: 18px 0; display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; }
+.ensemble-options legend, .ensemble-synth legend { color: #817867; padding: 0 8px; }
+.ensemble-options label, .ensemble-synth label { display: flex; align-items: center; gap: 8px; }
+.ensemble-options input[type=number] { width: 48px; padding: 4px; border: 1px solid #c5bcac; border-radius: 4px; background: transparent; }
+.ensemble-log { margin-top: 24px; font-size: 13px; color: #655e4f; }
+.ensemble-log summary { cursor: pointer; padding: 10px 0; }
+.ensemble-log label { display: block; line-height: 1.8; }
+.ensemble-log textarea { display: block; width: 100%; box-sizing: border-box; min-height: 110px; padding: 12px; margin-top: 8px; border: 1px solid #c9c0ad; background: #fbf9f3; border-radius: 5px; resize: vertical; }
+.ensemble-related { display: flex; flex-wrap: wrap; gap: 12px; }
+.ensemble-hidden { display: none; }
+.ensemble-keyboard { margin: 20px 0; }
+.ensemble-keyboard > div { overflow-x: auto; }
+.ensemble-keyboard svg { width: 100%; max-height: 150px; }
+.ensemble-keyboard rect.ensemble-active { fill: #d0a253; }
+.ensemble-keyboard figcaption { font-size: 11px; color: #817867; line-height: 1.8; margin-top: 8px; }
+.ensemble-practice .ws-practice-explanation li label { min-width: 70px; display: flex; align-items: flex-start; gap: 6px; color: #496d64; }
+@media(max-width: 600px) { .ensemble-task { padding: 14px; } .ensemble-options { display: grid; } .ensemble-synth label { flex-wrap: wrap; } .ensemble-practice .ws-practice-transport { align-items: center; } .ensemble-practice .ws-practice-transport > output:last-child { width: 100%; font-size: 12px; } }
+@media(max-width: 720px) {
+ body:has(.ws-page) .titlebar { display: flex; gap: 12px; overflow-x: auto; padding-left: 12px; scrollbar-width: thin; }
+ body:has(.ws-page) .brand, body:has(.ws-page) .top-nav, body:has(.ws-page) .title-actions { flex-shrink: 0; }
+ body:has(.ws-page) .brand > span:last-child { display: none; }
+ body:has(.ws-page) .top-nav { gap: 0; }
+ body:has(.ws-page) .top-nav button { white-space: nowrap; padding: 0 10px; font-size: 12px; gap: 5px; }
+}

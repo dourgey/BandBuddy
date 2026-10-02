@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appSettingsSchema,
   desktopLyricsPayloadSchema,
   exportRequestSchema,
   practiceStateSchema,
@@ -11,6 +12,12 @@ import { createDefaultPracticeState } from '@shared/domain.js'
 const songId = '00000000-0000-4000-8000-000000000000'
 
 describe('IPC schemas', () => {
+  it('defaults desktop lyric transparency for older settings and bounds its percentage', () => {
+    const transparency = appSettingsSchema.shape.desktopLyricsBackgroundTransparency
+    expect(transparency.parse(undefined)).toBe(20)
+    for (const value of [0, 75, 100]) expect(transparency.parse(value)).toBe(value)
+    for (const value of [-1, 101, 20.5, NaN]) expect(transparency.safeParse(value).success).toBe(false)
+  })
   it('accepts a complete nine-track practice state and rejects duplicate tracks', () => {
     const state = createDefaultPracticeState(songId)
     expect(practiceStateSchema.safeParse(state).success).toBe(true)

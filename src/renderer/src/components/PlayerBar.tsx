@@ -1,4 +1,4 @@
-import { ArrowUpDown, ListMusic, LoaderCircle, Pause, Play, RotateCcw, RotateCw, SkipBack, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react'
+import { ArrowUpDown, ListMusic, LoaderCircle, Pause, Play, RotateCcw, RotateCw, SkipBack, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import {
   METRONOME_GAIN_LIMIT_DB,
@@ -12,11 +12,12 @@ import {
   type SongSummary
 } from '@shared/domain.js'
 import { usePlayerStore } from '../player-store.js'
+import { VolumeControl } from './VolumeControl.js'
+import { VideoWindowButton } from './VideoWindowButton.js'
 import { Vinyl } from './Vinyl.js'
 import { LoopButton } from './LoopButton.js'
 import { activeLoopRange } from '@shared/playback.js'
 import { clamp, formatTime } from '../utils.js'
-import { LevelInput } from './LevelInput.js'
 
 const PLAYBACK_RATES = [0.5, 0.8, 1, 1.2, 1.5] as const
 
@@ -38,8 +39,12 @@ export function PlayerBar({
   onCycleLoop,
   onPractice,
   songs,
-  onSelectSong
+  onSelectSong,
+  outputLatencyMs = 0,
+  recordingActive = false
 }: {
+  outputLatencyMs?: number
+  recordingActive?: boolean
   practiceMode: boolean
   countInRemaining: number
   locked: boolean
@@ -56,18 +61,8 @@ export function PlayerBar({
   const currentMs = usePlayerStore((state) => state.currentMs)
   const playing = usePlayerStore((state) => state.playing)
   const patchPractice = usePlayerStore((state) => state.patchPractice)
-  const lastAudibleGain = useRef(0)
-  const lastSongId = useRef<string | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
   const queuePanel = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!song || !practice) return
-    if (lastSongId.current !== song.id) {
-      lastSongId.current = song.id
-      lastAudibleGain.current = practice.masterGainDb > -60 ? practice.masterGainDb : 0
-    } else if (practice.masterGainDb > -60) lastAudibleGain.current = practice.masterGainDb
-  }, [song, practice])
 
   useEffect(() => {
     if (!queueOpen) return
@@ -85,8 +80,6 @@ export function PlayerBar({
     </footer>
   }
 
-  const muted = practice.masterGainDb <= -60
-  const volume = muted ? 0 : Math.round(100 * 10 ** (practice.masterGainDb / 20))
   const playbackActive = playing || countInRemaining > 0
   return <footer className={`player-bar ${practiceMode ? 'practice-player-bar' : ''} ${locked ? 'is-locked' : ''}`} aria-disabled={locked}>
     <div className={`player-main-row ${practiceMode ? 'has-practice-controls' : ''}`}>
@@ -103,28 +96,8 @@ export function PlayerBar({
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
-        <div className="master-volume-control">
-          <button
-            className={`volume-toggle ${muted ? 'is-muted' : ''}`}
-            aria-label={muted ? '取消静音' : '静音'}
-            aria-pressed={muted}
-            onClick={() => patchPractice({ masterGainDb: muted ? lastAudibleGain.current : -60 })}
-          >{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
-          <div className="master-volume-popover" role="group" aria-label="主音量调节">
-            <input
-              aria-label="总音量"
-              type="range"
-              min="0"
-              max="150"
-              value={Math.min(150, volume)}
-              onDoubleClick={() => patchPractice({ masterGainDb: 0 })}
-              onChange={(event) => {
-                const value = Number(event.target.value)
-                patchPractice({ masterGainDb: value === 0 ? -60 : Math.min(6, 20 * Math.log10(value / 100)) })
-              }}
-            />
-          </div>
-        </div>
+        <VolumeControl key={song.id} disabled={locked} label="总音量" value={practice.masterGainDb} onChange={masterGainDb => patchPractice({ masterGainDb })} />
+        {practiceMode && song.videoUrl && <VideoWindowButton key={song.id} songId={song.id} src={song.videoUrl} title={song.title} currentMs={currentMs} playing={playing || recordingActive} playbackRate={practice.playbackRate} seekPositionMs={practice.positionMs} outputLatencyMs={outputLatencyMs} />}
         <div className="practice-queue" ref={queuePanel}>
           <button className={`queue-button ${queueOpen ? 'active' : ''}`} aria-label="练习歌曲列表" aria-expanded={queueOpen} onClick={() => setQueueOpen((open) => !open)}><ListMusic size={21} /></button>
           {queueOpen && <div className="practice-queue-popover" role="dialog" aria-label="可练习列表">
@@ -385,7 +358,6 @@ function PracticeFooterControls({
         </div>
         <div className="metronome-volume-row">
           <span><b>音量</b><small>独立音量 · 不受主音量及静音影响</small></span>
-          <LevelInput label="节拍器音量" value={practice.metronomeGainDb} min={-METRONOME_GAIN_LIMIT_DB} max={METRONOME_GAIN_LIMIT_DB} onChange={(metronomeGainDb) => patchPractice({ metronomeGainDb })} />
         </div>
         <input
           className="metronome-volume-slider"
@@ -442,7 +414,7 @@ function PracticeFooterControls({
         aria-label={practice.desktopLyricsEnabled ? '关闭桌面歌词' : '打开桌面歌词'}
         aria-pressed={practice.desktopLyricsEnabled}
         disabled={!hasLyrics}
-        title={hasLyrics ? (practice.desktopLyricsEnabled ? '关闭桌面歌词' : '打开桌面歌词') : '请先在“更多”中导入 LRC 歌词'}
+        title={hasLyrics ? (practice.desktopLyricsEnabled ? '关闭桌面歌词' : '打开桌面歌词') : '请先在“更多”中导入歌词'}
         onClick={() => patchPractice({ desktopLyricsEnabled: !practice.desktopLyricsEnabled })}
       >词</button>
     </div>

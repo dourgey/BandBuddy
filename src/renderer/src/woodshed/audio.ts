@@ -1,3 +1,5 @@
+import { claimAudioSession, releaseAudioSession } from '../audio-session.js'
+import { allowAudioAction } from '../recording-session.js'
 import { setAudioContextOutputDevice } from '../audio-engine.js'
 import { frequency, CHORDS } from './theory.js'
 import { beatUnit, meterLength, progression, type GeneratedExercise } from './generator.js'
@@ -37,6 +39,7 @@ export function swingBeat(beat: number, config: ExerciseConfig): number {
 }
 /** One audio clock owns notes, backing and cursor. JS only fills the look-ahead queue. */
 export class WoodshedAudio {
+  private audioSession: number | undefined
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private sources = new Set<AudioScheduledSourceNode>()
@@ -140,6 +143,8 @@ export class WoodshedAudio {
     }
   }
   stop(): void {
+   if (this.audioSession !== undefined) releaseAudioSession('woodshed', this.audioSession)
+   this.audioSession = undefined
     this.generation++
     this.active = false
     this.elapsed = 0
@@ -174,6 +179,8 @@ export class WoodshedAudio {
   }
   async playDrums(getDraft: () => DrumDraft, buffers: Map<number, AudioBuffer>, onStep: (step: number) => void, startStep = 0): Promise<void> {
     this.stop()
+    if (!allowAudioAction()) return
+    this.audioSession = claimAudioSession('woodshed', '练功房', () => this.stop())
     const token = this.generation
     const context = await this.ready()
     if (token !== this.generation) return

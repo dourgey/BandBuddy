@@ -1,3 +1,4 @@
+import { WheelNumberInput } from '../components/WheelNumberInput.js'
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play, RotateCcw, Square } from 'lucide-react'
 import { DRUM_LANES, DRUM_PRESETS, DRUM_STEPS, defaultDrumDraft, toggleDrumStep, type DrumDraft, type DrumPresetId } from './drum-patterns.js'
@@ -107,7 +108,7 @@ export function DrumMachine({
           </select>
         </label>
         <label>速度 BPM
-          <input aria-label="鼓机速度 BPM" type="number" min="40" max="240" value={draft.bpm} onChange={(event) => {
+          <WheelNumberInput onWheelValue={bpm => changeDraft(old => ({ ...old, bpm }))} aria-label="鼓机速度 BPM" type="number" min="40" max="240" value={draft.bpm} onChange={(event) => {
             stop()
             changeDraft((current) => ({ ...current, bpm: Math.max(40, Math.min(240, Math.round(Number(event.target.value)) || 40)) }))
           }} />

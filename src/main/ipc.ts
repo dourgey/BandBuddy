@@ -1,3 +1,4 @@
+import { normalizeAppearance } from '@shared/appearance.js'
 import { ARSENAL_CHANNEL, effectChainSchema, trackEffectsSchema } from '@shared/arsenal.js'
 import type { ArsenalService } from './arsenal.js'
 import { mkdirSync } from 'node:fs'
@@ -18,6 +19,7 @@ import {
   rehearsalRecordingStartSchema,
   rehearsalRecordingTrackUpdateSchema,
   rehearsalSaveSchema,
+  recordingAudioSettingsSchema,
   recordingStartSchema,
   recordingTakeUpdateSchema,
   recordingTrackUpdateSchema,
@@ -188,11 +190,29 @@ export function registerIpc(services: IpcServices): void {
     }
     const saved = services.database.saveSettings(settings)
     services.desktopLyrics.setFontSize(saved.desktopLyricsFontSize)
+    services.desktopLyrics.setBackgroundTransparency(saved.desktopLyricsBackgroundTransparency)
     services.logger.setDebugMode(saved.debugMode)
     services.emitSettings()
     return saved
   })
 
+  handle('bandbuddy:settings:reconcile-audio', (_event, input) => {
+    const parsed = z.object({ expected: z.object({audioOutputDeviceId: z.string().max(500), recordingAudio: recordingAudioSettingsSchema}), audioOutputDeviceId: z.string().max(500), recordingAudio: recordingAudioSettingsSchema }).parse(input)
+    const current = services.database.getSettings()
+    if (current.audioOutputDeviceId !== parsed.expected.audioOutputDeviceId || JSON.stringify(current.recordingAudio) !== JSON.stringify(parsed.expected.recordingAudio)) return current
+    if (services.recording.isActive() || services.rehearsalRecording.isActive()) throw new Error('录音正在进行，请先停止录音再调整音频设备。')
+    const saved = services.database.saveSettings({ ...current, audioOutputDeviceId: parsed.audioOutputDeviceId, recordingAudio: parsed.recordingAudio })
+    services.emitSettings()
+    return saved
+  })
+  handle('bandbuddy:appearance:get', () => normalizeAppearance(services.database.getSettings().appearance))
+  handle('bandbuddy:appearance:set', (_event, input) => {
+    const appearance = normalizeAppearance(input)
+    services.database.saveSettings({ ...services.database.getSettings(), appearance })
+    services.emitSettings()
+    services.getWindow()?.webContents.send('bandbuddy:appearance:changed', appearance)
+    return appearance
+  })
   handle(IPC.mediaCapabilities, () => services.media.capabilities())
   handle(IPC.mediaPrepareOutputDevice, (_event, input) =>
     services.recording.prepareOutputDevice(z.string().min(1).max(500).nullable().parse(input)))
@@ -225,6 +245,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.recordingStop, () => services.recording.stop())
   handle(IPC.recordingCancel, () => services.recording.cancel())
   handle(IPC.recordingUpdateTake, (_event, input) => services.recording.updateTake(recordingTakeUpdateSchema.parse(input)))
+  handle(IPC.recordingDeleteTrack, (_event, input) => services.recording.deleteTrack(uuidSchema.parse(input)))
   handle(IPC.recordingDeleteTake, (_event, input) => services.recording.deleteTake(uuidSchema.parse(input)))
   handle(IPC.recordingSelectTake, (_event, input) => {
     const parsed = z.object({ recordingTrackId: uuidSchema, takeId: uuidSchema.nullable() }).parse(input)
@@ -287,7 +308,9 @@ export function registerIpc(services: IpcServices): void {
 
   handle(IPC.desktopLyricsSetVisible, (_event, input) => {
     const visible = z.boolean().parse(input)
-    services.desktopLyrics.setFontSize(services.database.getSettings().desktopLyricsFontSize)
+    const settings = services.database.getSettings()
+    services.desktopLyrics.setFontSize(settings.desktopLyricsFontSize)
+    services.desktopLyrics.setBackgroundTransparency(settings.desktopLyricsBackgroundTransparency)
     return services.desktopLyrics.setVisible(visible)
   })
   ipcMain.on(IPC.desktopLyricsUpdate, (event, input) => {

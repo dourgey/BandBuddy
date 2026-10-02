@@ -21,7 +21,9 @@ body {
 }
 
 #lyrics-card {
+  position: relative;
   --lyric-progress: 0%;
+  --lyric-background-opacity: .8;
   width: 100%;
   height: 100%;
   padding: 12px 28px 14px;
@@ -29,12 +31,17 @@ body {
   grid-template-rows: 16px minmax(44px, 1fr) calc(var(--lyric-font-size, 24px) * 0.6 + 6px);
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,calc(var(--lyric-background-opacity) * .175));
   border-radius: 22px;
-  background: linear-gradient(145deg, rgba(39,35,30,.84), rgba(10,9,8,.76));
-  box-shadow: inset 0 1px rgba(255,255,255,.08), 0 12px 35px rgba(0,0,0,.26);
-  backdrop-filter: blur(18px);
+  background: linear-gradient(145deg, rgba(39,35,30,var(--lyric-background-opacity)), rgba(10,9,8,var(--lyric-background-opacity)));
+  box-shadow: inset 0 1px rgba(255,255,255,calc(var(--lyric-background-opacity) * .1)), 0 12px 35px rgba(0,0,0,calc(var(--lyric-background-opacity) * .325));
+  backdrop-filter: blur(calc(22.5px * var(--lyric-background-opacity)));
 }
+
+#current-lyric.has-word-timing { background: none; -webkit-text-fill-color: #eee6da; }
+.lyric-word { position: relative; display: inline-block; white-space: pre-wrap; color: #eee6da; }
+.lyric-word-highlight { position: absolute; inset: 0; color: #f5c95f; -webkit-text-fill-color: #f5c95f; clip-path: inset(0 calc(100% - var(--word-progress, 0%)) 0 0); transition: clip-path 80ms linear; }
+.lyric-outgoing { position: absolute; left: 28px; right: 28px; text-align: center; font-size: var(--lyric-font-size, 24px); font-weight: 750; color: #eee6da; white-space: pre-line; pointer-events: none; }
 
 header {
   min-width: 0;

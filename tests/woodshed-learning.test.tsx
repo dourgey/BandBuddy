@@ -51,4 +51,20 @@ describe('learning navigation', () => {
     for (const id of Object.values(GUITAR_READING)) expect(nodes.some(n => n.id === id)).toBe(true)
     for (const node of nodes) { expect(node.paragraphs.join('').length).toBeGreaterThan(20); expect(node.example.length).toBeGreaterThan(10) }
   })
+  it('shows ensemble stage outcomes and prerequisites and links knowledge to practice and back', () => {
+    render(<WoodshedPage onToast={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '鼓', exact: true }))
+    expect(screen.getAllByText(/^阶段成果：/).length).toBe(8)
+    expect(screen.getByText('先修关系与进入条件')).toBeTruthy()
+    const node = LEARNING_SYSTEMS.find(s => s.id === 'drums')!.stages[0]!.nodes[0]!
+    fireEvent.click(screen.getByRole('button', { name: node.title, exact: true }))
+    const article = screen.getByRole('article')
+    expect(within(article).queryByText('练习工作台')).toBeNull()
+    const links = within(article).getAllByRole('button')
+    expect(links.length).toBeGreaterThan(0)
+    fireEvent.click(links[0]!)
+    expect(screen.getByText(/建议 S/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: `知识：${node.title}`, exact: true }))
+    expect(screen.getByRole('heading', { name: node.title, exact: true })).toBeTruthy()
+  })
 })

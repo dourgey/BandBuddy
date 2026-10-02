@@ -2455,3 +2455,7 @@
   .ws-tuner-input > span { font-size: 10px; }
   .ws-tuner-waveform { display: none !important; }
 }
+
+.ws-tuner-device-choice { min-width: 0; max-width: 62%; display: flex; align-items: center; gap: 8px; color: #424b3f; }
+.ws-tuner-device-choice > button { min-width: 0; max-width: 340px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #b1b5a9; border-radius: 9px; color: #424b3f; background: #edf0e6; font-size: clamp(11px, 1.35cqw, 16px); }
+.ws-tuner-device-choice > small { flex: 0 0 auto; font-size: 11px; }

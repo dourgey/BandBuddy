@@ -40,6 +40,7 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  appearance?: import("./appearance.js").AppearanceApi
   arsenal: ArsenalApi
   library: {
     list(input?: { query?: string; filter?: 'all' | 'favorite' | 'processing' | 'recent' }): Promise<SongSummary[]>
@@ -84,6 +85,7 @@ export interface BandBuddyApi {
     get(): Promise<AppSettings>
     chooseDataRoot(currentLibraryRoot?: string): Promise<StoragePaths | null>
     update(settings: AppSettings): Promise<AppSettings>
+    reconcileAudio?(input: { expected: Pick<AppSettings, "audioOutputDeviceId" | "recordingAudio">; audioOutputDeviceId: string; recordingAudio: AppSettings["recordingAudio"] }): Promise<AppSettings>
     setDebugMode(enabled: boolean): Promise<AppSettings>
     revealDebugLog(): Promise<void>
     onChanged(callback: (settings: AppSettings) => void): Unsubscribe
@@ -110,6 +112,7 @@ export interface BandBuddyApi {
     updateTake(input: { takeId: string; name?: string; alignmentOffsetMs?: number }): Promise<RecordingTake>
     deleteTake(takeId: string): Promise<void>
     selectTake(input: { recordingTrackId: string; takeId: string | null }): Promise<void>
+    deleteTrack(recordingTrackId: string): Promise<void>
     createTrack(songId: string): Promise<RecordingTrackState>
     updateTrack(input: {
       recordingTrackId: string

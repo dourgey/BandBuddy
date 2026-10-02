@@ -1,3 +1,5 @@
+import { WheelNumberInput } from '../components/WheelNumberInput.js'
+import { createTempoWheel } from '../components/tempo-wheel.js'
 import { useEffect, useId, useRef, useState } from 'react'
 import { AudioLines, ChevronDown, Minus, Play, Plus, Settings, Square, Timer, X } from 'lucide-react'
 import { clampBpm, MetronomeEngine, readMetronome, type MetronomeSettings, type MetronomePulse } from './metronome-engine.js'
@@ -19,6 +21,7 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
   const [tapCount, setTapCount] = useState(0)
   const engine = useRef<MetronomeEngine | null>(null), rod = useRef<SVGGElement>(null)
   const knob = useRef<HTMLDivElement>(null), taps = useRef<number[]>([])
+  const readout = useRef<SVGGElement>(null)
   const drag = useRef<{ x: number; y: number; bpm: number } | null>(null)
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null), repeats = useRef(0)
   const tapReset = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -46,12 +49,23 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
   }, [config])
   useEffect(() => {
     const el = knob.current
+    const display = readout.current
+    const tempo = createTempoWheel()
     const wheel = (event: WheelEvent): void => {
+      if (!event.deltaY) return
       event.preventDefault()
-      if (event.deltaY) setConfig(old => ({ ...old, bpm: clampBpm(old.bpm + (event.deltaY < 0 ? 1 : -1) * (event.shiftKey ? 5 : 1)) }))
+      event.stopPropagation()
+      const delta = tempo.delta(event)
+      setConfig(old => ({ ...old, bpm: clampBpm(old.bpm + delta) }))
     }
     el?.addEventListener('wheel', wheel, { passive: false })
-    return () => el?.removeEventListener('wheel', wheel)
+    display?.addEventListener('wheel', wheel, { passive: false })
+    el?.addEventListener('mouseleave', tempo.reset)
+    display?.addEventListener('mouseleave', tempo.reset)
+    return () => {
+      el?.removeEventListener('wheel', wheel); display?.removeEventListener('wheel', wheel)
+      el?.removeEventListener('mouseleave', tempo.reset); display?.removeEventListener('mouseleave', tempo.reset)
+    }
   }, [])
   useEffect(() => {
     if (!playing) { setPulse(null); rod.current?.setAttribute('transform', 'rotate(0 500 478)'); return }
@@ -129,7 +143,7 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
         <p>BPM 对应拍号分母的音符；6/8 每小节走六拍。</p>
       </> : <>
         <div className="metro-fields">
-          <label>速度 BPM<input type="number" min={30} max={240} value={config.bpm} onChange={e => setBpm(Number(e.target.value) || 30)} /></label>
+          <label>速度 BPM<WheelNumberInput onWheelValue={setBpm} type="number" min={30} max={240} value={config.bpm} onChange={e => setBpm(Number(e.target.value) || 30)} /></label>
           <label>细分<select value={config.subdivision} onChange={e => patch({ subdivision: Number(e.target.value) })}>{['每拍一次', '二等分', '三连音', '四等分'].map((text, i) => <option key={text} value={i + 1}>{text}</option>)}</select></label>
           <label>声音<select value={config.sound} onChange={e => patch({ sound: e.target.value as MetronomeSettings['sound'] })}><option value="wood">木质 · Wood</option><option value="click">清脆 · Click</option><option value="bell">铃声 · Bell</option></select></label>
           <label>预备拍<select value={config.countIn} onChange={e => patch({ countIn: Number(e.target.value) })}>{[0, 1, 2, 4].map(n => <option key={n} value={n}>{n ? `${n} 小节` : '关闭'}</option>)}</select></label>
@@ -138,7 +152,7 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
         </div>
         <label className="metro-accent"><input type="checkbox" checked={config.accent} onChange={e => patch({ accent: e.target.checked })} />第一拍重音</label>
         <label className="metro-volume">音量 <input aria-label="节拍器输出音量" type="range" min="0" max="1" step="0.01" value={config.volume} onChange={e => patch({ volume: Number(e.target.value) })} /><span>{Math.round(config.volume * 100)}%</span></label>
-        <p>旋钮拖动 / 滚轮调速 · Shift ±5 · 空格启停 · T 打拍</p>
+        <p>旋钮拖动 / 悬停滚轮调速，快滚加速 · 空格启停 · T 打拍</p>
       </>}
     </div>}
     <div className="metro-gauge">
@@ -164,7 +178,7 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
           <rect x="473" y="345" width="54" height="66" rx="6" fill={`url(#${id}-metal)`} stroke="#8e8672" strokeWidth="2" />
           <path d="M 477 353 H 523 M 477 402 H 523" stroke="#fff9e7" opacity=".65" /><path d="M 474 377 H 526" stroke="#756d59" opacity=".5" />
         </g>
-        <g textAnchor="middle" className="metro-readout"><text className="metro-bpm" x="500" y="244">{bpm}</text><text className="metro-unit" x="504" y="282">BPM</text><text className="metro-tempo" x="500" y="318">{tempoName(bpm)}</text></g>
+        <g ref={readout} textAnchor="middle" className="metro-readout"><text className="metro-bpm" x="500" y="244">{bpm}</text><text className="metro-unit" x="504" y="282">BPM</text><text className="metro-tempo" x="500" y="318">{tempoName(bpm)}</text></g>
         <circle cx="500" cy="478" r="34" fill="#35382f" stroke="#c5c0ae" strokeWidth="3" /><circle cx="500" cy="478" r="28" fill={`url(#${id}-metal)`} stroke="#f2eddf" strokeWidth="2" />
         <path d="M 40 476 A 460 443 0 0 1 960 476 Q 960 495 945 495 H 55 Q 40 495 40 476" fill={`url(#${id}-glass)`} pointerEvents="none" />
       </svg>

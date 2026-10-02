@@ -1,0 +1,19 @@
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
+.startup-shell { min-height: 100vh; display: flex; flex-direction: column; font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--paper); color: var(--ink); }
+.startup-titlebar { height: 64px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); -webkit-app-region: drag; }
+.startup-titlebar b { letter-spacing: -.4px; font-size: 19px; }
+.startup-titlebar b span { margin-left: 10px; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.startup-titlebar nav { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+.startup-titlebar button { width: 38px; height: 32px; border: 1px solid transparent; border-radius: 8px; font: 22px/1 sans-serif; color: var(--muted); background: transparent; cursor: pointer; }
+.startup-titlebar button:hover { color: var(--ink); background: var(--surface-sunken); }
+.startup-titlebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.startup-content { flex: 1; padding: 50px 28px 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.startup-mark { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; font-size: 46px; color: var(--on-accent); background: var(--accent); box-shadow: 0 0 0 10px var(--accent-soft); margin-bottom: 32px; }
+.startup-eyebrow { font-size: 10px; letter-spacing: 4px; color: var(--muted); }
+.startup-content h1 { font-size: clamp(24px, 3vw, 36px); font-weight: 500; letter-spacing: 1px; margin: 12px 0 32px; }
+.startup-status { margin: 0; font-size: 15px; color: var(--accent); }
+.startup-detail { max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--muted); margin: 12px 0; }
+.startup-error { max-width: min(640px, 90vw); max-height: 130px; overflow: auto; white-space: pre-wrap; word-break: break-word; text-align: left; color: var(--danger); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 12px; }
+.startup-error[hidden] { display: none; }
+.startup-shell footer { padding: 24px; text-align: center; font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+@media (max-height: 600px) { .startup-content { padding-top: 28px; }.startup-mark { width: 56px; height: 56px; font-size: 34px; margin-bottom: 20px; }.startup-content h1 { margin-bottom: 22px; } }

@@ -82,28 +82,34 @@ double ToneStack::tick(double input) {
   return v[4];
 }
 Amp::Amp(unsigned sr,const AmpControls& c):target(c),current(c),rate(sr*4.),smooth(1-std::exp(-1/(.01*sr))),wet(c.enabled?1:0) {
-  const bool lead=c.kind==AmpKind::Lead2203;
+  const bool lead=c.kind!=AmpKind::AB763&&c.kind!=AmpKind::Vox;
   stages[0].init(rate,lead?2700:1500,lead?.68e-6:25e-6);
   stages[1].init(rate,lead?10000:1500,lead?0:25e-6);
-  stages[2].init(rate,820,0);
+  stages[2].init(rate,820,0);stages[3].init(rate,1500,1e-6);
+  if(c.kind==AmpKind::Orange){stages[0].init(rate,1500,1e-6);stages[1].init(rate,2200,1e-6);}
+  if(c.kind==AmpKind::Mesa){stages[0].init(rate,1500,1e-6);stages[1].init(rate,1800,1e-6);stages[2].init(rate,1500,1e-6);}
+  if(c.kind==AmpKind::Vox){stages[0].init(rate,1500,1e-6);stages[1].init(rate,1500,1e-6);}
+
   stack.configure(rate,lead,c.bass,c.middle,c.treble);
   double sum=0;for(int i=0;i<129;++i) {const double d=i-64.;kernel[i]=(d==0?.225:std::sin(pi*.225*d)/(pi*d))*(.42-.5*std::cos(2*pi*i/128)+.08*std::cos(4*pi*i/128));sum+=kernel[i];}for(auto& k:kernel)k/=sum;
 }
 void Amp::update(const AmpControls& c) {if(c.kind!=target.kind)throw std::runtime_error("CLASSIC_REBUILD_REQUIRED");target=c;}
 double Amp::circuit(double x) {
-  const bool lead=target.kind==AmpKind::Lead2203;
+  const bool lead=target.kind!=AmpKind::AB763&&target.kind!=AmpKind::Vox;
   x=hp(coupling[0],x,rate,1e6,22e-9);
   // Fixed nominal Miller pole; capacitance is not a fitted device measurement.
   x=miller[0].tick(x,1/(2*rate*34000*120e-12));
   x=stages[0].tick(x);
   if(!lead)x=stack.tick(x); // early tone stack changes what reaches stage 2
-  x=hp(coupling[1],x,rate,1e6,22e-9)*pot(current.gain);
+  x=hp(coupling[1],x,rate,1e6,target.kind==AmpKind::Mesa?2.2e-9:22e-9)*pot(current.gain)*(target.kind==AmpKind::Mesa?1.8:1);
   x=miller[1].tick(x,1/(2*rate*100000*120e-12));
   x=stages[1].tick(x);
   if(lead) {
     x=hp(coupling[2],x,rate,470000,22e-9)*.5;
     x=miller[2].tick(x,1/(2*rate*100000*120e-12));
-    x=stages[2].tick(x);x=stack.tick(x); // ideal unity cathode-follower reduction
+    x=stages[2].tick(x);
+    if(target.kind==AmpKind::Orange||target.kind==AmpKind::Mesa){x=hp(coupling[4],x,rate,470000,target.kind==AmpKind::Mesa?4.7e-9:22e-9)*.18;x=miller[3].tick(x,1/(2*rate*100000*120e-12));x=stages[3].tick(x);}
+    x=stack.tick(x); // ideal unity cathode-follower reduction
   }
   return hp(coupling[3],x,rate,1e6,22e-9)*pot(current.master)/40;
 }
@@ -111,7 +117,7 @@ float Amp::tick(float input) {
   const double safe=std::isfinite(input)?input:0;
   auto approach=[&](double& v,double t){v+=(t-v)*smooth;};
   approach(current.gain,target.gain);approach(current.bass,target.bass);approach(current.middle,target.middle);approach(current.treble,target.treble);approach(current.master,target.master);approach(current.inputVolts,target.inputVolts);approach(wet,target.enabled?1:0);
-  if(++controlClock==16){controlClock=0;stack.configure(rate,target.kind==AmpKind::Lead2203,current.bass,current.middle,current.treble);}
+  if(++controlClock==16){controlClock=0;stack.configure(rate,target.kind!=AmpKind::AB763&&target.kind!=AmpKind::Vox,current.bass,current.middle,current.treble);}
   const double drySample=dry[dryPos];dry[dryPos]=float(safe);dryPos=(dryPos+1)%32;
   up[upPos]=std::clamp(safe*current.inputVolts,-20.,20.);double result=0;
   for(unsigned phase=0;phase<4;++phase) {
@@ -166,7 +172,7 @@ void Modulation::update(const ModControls& c) {if(c.kind!=target.kind)throw std:
 float Modulation::tick(float input) {
   const double dry=std::isfinite(input)?input:0;
   auto approach=[&](double& v,double t){v+=(t-v)*smooth;};
-  approach(current.rateHz,target.rateHz);approach(current.depth,target.depth);approach(current.mix,target.mix);approach(current.feedback,target.feedback);approach(current.manual,target.manual);approach(wet,target.enabled?1:0);
+  approach(current.rateHz,target.rateHz);approach(current.depth,target.depth);approach(current.mix,target.kind==ModKind::Vibrato?1:target.mix);approach(current.feedback,target.feedback);approach(current.manual,target.manual);approach(wet,target.enabled?1:0);
   phase+=current.rateHz/rate;phase-=std::floor(phase);
   const double triangle=1-4*std::abs(phase-.5);
   double result=dry;
@@ -182,7 +188,7 @@ float Modulation::tick(float input) {
     ldr+=(light-ldr)*(1-std::exp(-1/(tau*rate)));
     // LDR to ground with series resistor, positive conductances and optical lag.
     result=dry/(1+9*current.depth*ldr);
-  } else if(target.kind==ModKind::Chorus||target.kind==ModKind::Flanger) {
+  } else if(target.kind==ModKind::Chorus||target.kind==ModKind::Flanger||target.kind==ModKind::Vibrato) {
     const bool flange=target.kind==ModKind::Flanger;
     double v=dry;for(auto& pole:antiAlias)v=pole.tick(v,std::tan(pi*std::min(rate*.4,6000.)/rate));
     const double milliseconds=flange?(.4+7*current.manual+3*current.depth*(triangle+1)):(7+4*current.depth*triangle);

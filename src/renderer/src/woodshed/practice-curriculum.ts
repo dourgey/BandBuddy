@@ -1,15 +1,23 @@
 import { TUNINGS, type Instrument, type Tuning } from './theory.js'
 import type { MusicEvent, Technique } from './types.js'
 import { EXTRA_PRACTICE, PRACTICE_KNOWLEDGE } from './practice-expansion.js'
+import { buildComprehensiveExercises } from './practice-comprehensive.js'
 
 export type PracticeMeter = '4/4' | '3/4'
 
+export interface PracticeStage {
+  name: string
+  description: string
+  startBar: number
+  endBar: number
+}
 export interface PracticeVariant {
   name: string
   description: string
   events: MusicEvent[]
   beats: number
   meter: PracticeMeter
+  stages?: PracticeStage[]
 }
 export interface PracticeExercise {
   id: string
@@ -21,8 +29,10 @@ export interface PracticeExercise {
   explanation: string
   milestones: [string, string, string]
   knowledge: string[]
+  kind?: 'comprehensive'
+  sourceIds?: string[]
 }
-export interface PracticeLocation { instrument: Instrument | null; exercise: string | null }
+export interface PracticeLocation { instrument: Instrument | "drums" | "piano" | "keyboard" | null; exercise: string | null }
 export const PRACTICE_INSTRUMENTS = [
   { id: 'guitar' as const, title: '吉他', description: '动作、指板、音乐表达与声音实现', tuning: '六弦标准定弦 · E–A–D–G–B–E' },
   { id: 'bass' as const, title: '贝斯', description: '发音、制音、律动与低音连接', tuning: '四弦标准定弦 · E–A–D–G' },
@@ -235,7 +245,8 @@ for (const e of all) {
     if (stage) e.module = ['01 准备与清晰发音', e.instrument === 'bass' ? '02 时间与律动' : '02 和弦与稳定伴奏', e.instrument === 'bass' ? '03 指板与和声骨架' : '03 指板与旋律', e.instrument === 'bass' ? '04 低音线连接' : '04 和声与指弹', e.instrument === 'bass' ? '05 技法、听觉与表达' : '05 听觉、节奏与风格', '06 完整音乐任务'][Math.floor((Number(stage.split('-')[1]) - 1) / 4)]!
   }
 }
-export const PRACTICE_EXERCISES: readonly PracticeExercise[] = all.sort((a, b) => a.instrument.localeCompare(b.instrument) || a.module.localeCompare(b.module))
+all.push(...buildComprehensiveExercises(all, practiceScore))
+export const PRACTICE_EXERCISES: readonly PracticeExercise[] = all.sort((a, b) => a.instrument.localeCompare(b.instrument) || a.module.localeCompare(b.module) || Number(a.kind === 'comprehensive') - Number(b.kind === 'comprehensive'))
 export function exerciseForKnowledge(id: string): PracticeExercise | undefined {
   return PRACTICE_EXERCISES.find(e => e.knowledge.includes(id))
 }

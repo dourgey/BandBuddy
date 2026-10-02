@@ -1,10 +1,12 @@
-import { BookOpen, ChevronRight, Guitar, AudioLines, Music2 } from 'lucide-react'
+import { BookOpen, ChevronRight, Guitar, AudioLines, Music2, Drum, Piano, KeyboardMusic } from 'lucide-react'
 import { LEARNING_SYSTEMS, type Knowledge, type SystemId } from './knowledge.js'
 import { exerciseForKnowledge, type PracticeLocation } from './practice-curriculum.js'
+import { ENSEMBLE_EXERCISES, ENSEMBLE_INSTRUMENTS, ENSEMBLE_PREREQUISITES } from './ensemble-curriculum.js'
 import './learning.css'
+import './ensemble.css'
 
 export interface LearningLocation { system: SystemId | null; node: string | null }
-const icons = { shared: BookOpen, guitar: Guitar, bass: AudioLines, ukulele: Guitar, blues: Music2 }
+const icons = { shared: BookOpen, guitar: Guitar, bass: AudioLines, ukulele: Guitar, blues: Music2, drums: Drum, piano: Piano, keyboard: KeyboardMusic, ensemble: BookOpen }
 
 export function LearningBreadcrumb({ location, onNavigate }: { location: LearningLocation; onNavigate: (next: LearningLocation) => void }): React.JSX.Element {
   const system = LEARNING_SYSTEMS.find(s => s.id === location.system)
@@ -20,10 +22,12 @@ export function Learning({ location, onNavigate, onPractice }: { location: Learn
   const system = LEARNING_SYSTEMS.find(s => s.id === location.system)
   const node = system?.stages.flatMap(s => s.nodes).find(n => n.id === location.node)
   const practice = node ? exerciseForKnowledge(node.id) : undefined
+  const prefix = ENSEMBLE_INSTRUMENTS.find(i => i.id === system?.id)?.prefix
+  const related = node?.id.startsWith('ensemble-') ? ENSEMBLE_EXERCISES.filter(e => e.knowledge.includes(node.id)) : []
   if (!system) return <div className="ws-learning-home">
     <h2>系统学习</h2>
     <div className="ws-system-cards">{LEARNING_SYSTEMS.map(s => {
-      const Icon = icons[s.id]
+      const Icon = icons[s.id as keyof typeof icons] ?? icons.shared
       return <button className="ws-system-card" aria-label={s.title} key={s.id} onClick={() => onNavigate({ system: s.id, node: null })}>
         <Icon size={29} strokeWidth={1.4} /><span><strong>{s.title}</strong><small>{s.description}</small></span><ChevronRight size={17} />
       </button>
@@ -33,17 +37,19 @@ export function Learning({ location, onNavigate, onPractice }: { location: Learn
     <h2>{system.title}</h2>
     <ol className="ws-knowledge-roadmap" aria-label={`${system.title}知识路线图`}>{system.stages.map((stage, i) => <li key={stage.title}>
       <div className="ws-stage-label"><span>{String(i + 1).padStart(2, '0')}</span><h3>{stage.title}</h3></div>
-      <div className="ws-knowledge-nodes">{stage.nodes.map(n => <button key={n.id} onClick={() => onNavigate({ system: system.id, node: n.id })}>{n.title}<ChevronRight size={14} /></button>)}</div>
+      <div className="ws-knowledge-nodes">{stage.goal && <p className="ws-stage-goal">阶段成果：{stage.goal}</p>}{stage.nodes.map(n => <button key={n.id} onClick={() => onNavigate({ system: system.id, node: n.id })}>{n.title}<ChevronRight size={14} /></button>)}</div>
     </li>)}</ol>
+    {prefix && <details className="ensemble-log"><summary>先修关系与进入条件</summary><dl>{ENSEMBLE_PREREQUISITES.filter(p => p.prefix === prefix).map(p => <div key={p.title}><dt>{p.title}</dt><dd>{p.detail}</dd></div>)}</dl></details>}
   </div>
   return <article className="ws-knowledge-article" key={node.id}>
     <h2>{node.title}</h2>
     <p className="ws-knowledge-context">{system.context}</p>
     {node.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
-    <KnowledgeFigure id={node.id} system={system.id} figure={node.figure} />
+    {!node.id.startsWith('ensemble-') && <KnowledgeFigure id={node.id} system={system.id} figure={node.figure} />}
     <section><h3>举个例子</h3><p>{node.example}</p></section>
     {node.note && <section><h3>容易混淆的地方</h3><p>{node.note}</p></section>}
     {practice && onPractice && <button className="ws-knowledge-practice" onClick={() => onPractice({ instrument: practice.instrument, exercise: practice.id })}>练习<ChevronRight size={14} /></button>}
+    {related.length > 0 && onPractice && <details className="ensemble-log"><summary>相关专项练习</summary><div className="ensemble-related">{related.map(e => <button className="ws-knowledge-practice" key={e.id} onClick={() => onPractice({ instrument: e.instrument, exercise: e.id })}>{node.id.startsWith('ensemble-C') ? `${ENSEMBLE_INSTRUMENTS.find(i => i.id === e.instrument)!.title} · ` : ''}{e.title}<ChevronRight size={14} /></button>)}</div></details>}
   </article>
 }
 

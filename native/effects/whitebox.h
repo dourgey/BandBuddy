@@ -4,7 +4,7 @@
 
 namespace bb::whitebox {
 // Revision 1: documented reduced circuits, not measured replicas of a serial-numbered unit.
-enum class Device { TS808, SD1, RAT, MicroAmp, DistortionPlus, FuzzFace };
+enum class Device { TS808, SD1, RAT, MicroAmp, DistortionPlus, FuzzFace, DS1, BD2 };
 struct Controls {
   bool enabled = false;
   Device device = Device::TS808;

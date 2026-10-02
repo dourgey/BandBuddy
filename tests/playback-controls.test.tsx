@@ -98,15 +98,18 @@ describe('practice transport interaction', () => {
     expect(usePlayerStore.getState().practice?.loopEnabled).toBe(false)
   })
 
-  it('shows one video instead of six waveforms and keeps the mixer controls', async () => {
+  it('keeps video songs in the same waveform layout and opens their picture separately', async () => {
     const song = fixtureDetail(fixtureSongs[0]!)
+    vi.spyOn(window.bandbuddy.library, 'get').mockResolvedValue({ ...song, videoUrl: '/fixture-video.webm' })
     usePlayerStore.getState().loadSong({ ...song, videoUrl: '/fixture-video.webm' })
     await openPractice()
-    expect(document.querySelectorAll('video')).toHaveLength(1)
-    expect(document.querySelectorAll('.waveform')).toHaveLength(0)
+    expect(document.querySelectorAll('video')).toHaveLength(0)
+    await waitFor(() => expect(document.querySelectorAll('.waveform')).toHaveLength(6))
     expect(screen.getAllByRole('button', { name: 'M', exact: true })).toHaveLength(6)
-    expect(screen.getByRole('button', { name: '全屏播放视频' })).toBeTruthy()
-    expect(document.querySelector('video')?.muted).toBe(true)
+    const child = { closed: false, close: vi.fn(), focus: vi.fn(), postMessage: vi.fn() }
+    const popup = vi.spyOn(window, 'open').mockReturnValue(child as unknown as Window)
+    fireEvent.click(screen.getByRole('button', { name: '打开视频窗口' }))
+    expect(popup).toHaveBeenCalledWith(expect.stringContaining('video.html'), 'bandbuddy-video', expect.any(String))
   })
 })
 
@@ -152,7 +155,7 @@ it('M shortcut restores a track silenced at the gain floor', async () => {
 })
 it('output menu consumes transport keys while choosing a channel', async () => {
   await openPractice()
-  const menu = screen.getByRole('combobox', { name: '人声输出通道' })
+  const menu = await screen.findByRole('combobox', { name: /(?:人声|Vocal)输出通道/ })
   fireEvent.click(menu)
   audio.seek.mockClear()
   fireEvent.keyDown(menu, { key: 'ArrowRight', code: 'ArrowRight' })

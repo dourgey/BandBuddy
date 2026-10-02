@@ -19,7 +19,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          lyrics: resolve('src/preload/lyrics.ts')
+          lyrics: resolve('src/preload/lyrics.ts'),
+          video: resolve('src/preload/video.ts')
         },
         external: ['electron'],
         output: { format: 'cjs', entryFileNames: '[name].cjs' }
@@ -35,6 +36,7 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           lyrics: resolve('src/renderer/lyrics.html'),
+          video: resolve('src/renderer/video.html'),
           lan: resolve('src/renderer/lan.html')
         }
       }

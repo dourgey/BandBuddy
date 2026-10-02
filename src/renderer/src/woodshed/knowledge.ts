@@ -1,10 +1,11 @@
+import { ENSEMBLE_SYSTEMS, COMMON_STAGES } from './ensemble-curriculum.js'
 import { LESSONS } from './curriculum.js'
-import outline from './guitar-knowledge.json'
+import outline from './guitar-knowledge.json' with { type: 'json' }
 import { BASS_KNOWLEDGE, UKULELE_KNOWLEDGE } from './instrument-knowledge.js'
 
-export type SystemId = 'shared' | 'guitar' | 'bass' | 'ukulele' | 'blues'
+export type SystemId = 'shared' | 'guitar' | 'bass' | 'ukulele' | 'blues' | 'drums' | 'piano' | 'keyboard' | 'ensemble'
 export interface Knowledge { id: string; title: string; paragraphs: string[]; example: string; note?: string; figure?: 'fretboard' | 'rhythm' | 'signal' | 'chords' }
-export interface KnowledgeStage { title: string; nodes: Knowledge[] }
+export interface KnowledgeStage { goal?: string; title: string; nodes: Knowledge[] }
 export interface LearningSystem { id: SystemId; title: string; description: string; context: string; stages: KnowledgeStage[] }
 
 const stageNames = ['准备与发音', '入门', '基础节奏', '初级主奏', '中级整合', '独立音乐任务', '风格专长', '持续创作']
@@ -78,5 +79,7 @@ export const LEARNING_SYSTEMS: LearningSystem[] = [
   { id: 'guitar', title: '吉他', description: '从清晰发音，到演奏、音色与完整作品。', context: '六弦电吉他 · 标准定弦 E–A–D–G–B–E（低音到高音）', stages: stageNames.map((title, stage) => ({ title, nodes: outline.filter(n => n.stage === stage).map(n => ({ ...n, paragraphs: [...n.paragraphs, ...LESSONS.filter(l => GUITAR_READING[l.id] === n.id).map(l => l.explanation)], example: examples[outline.indexOf(n)]! })) })) },
   { id: 'bass', title: '贝斯', description: '用低音、音长与律动支撑音乐。', context: '四弦贝斯 · 标准定弦 E1–A1–D2–G2（第四弦到第一弦）', stages: BASS_KNOWLEDGE },
   { id: 'ukulele', title: '尤克里里', description: '从和弦伴奏到旋律与声部连接。', context: '四弦尤克里里 · 高 G 定弦 G4–C4–E4–A4（第四弦到第一弦）', stages: UKULELE_KNOWLEDGE },
-  { id: 'blues', title: '布鲁斯', description: '十二小节、Shuffle 与即兴句法。', context: '以六弦标准定弦吉他讲解布鲁斯语言。', stages: foundationStages('blues') }
+  { id: 'blues', title: '布鲁斯', description: '十二小节、Shuffle 与即兴句法。', context: '以六弦标准定弦吉他讲解布鲁斯语言。', stages: foundationStages('blues') },
+  { id: 'ensemble', title: '跨乐器基础', description: '拍点、听觉与合奏的共同基础', context: '鼓、钢琴与现代键盘的基础知识', stages: COMMON_STAGES },
+  ...ENSEMBLE_SYSTEMS
 ]

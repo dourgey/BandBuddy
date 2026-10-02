@@ -6,7 +6,7 @@ describe('whitebox snapshots', () => {
     const { drive: _, ...legacy } = defaultEffectChain()
     legacy.order = ['delay', 'amp', 'reverb', 'eq']
     const upgraded = effectChainSchema.parse(legacy)
-    expect(upgraded.order).toEqual(['drive', 'mod', ...legacy.order])
+    expect(upgraded.order).toEqual(['drive', 'delay', 'amp', 'mod', 'reverb', 'eq'])
     expect(upgraded.drive.enabled).toBe(false)
     expect(effectChainSchema.parse(upgraded)).toEqual(upgraded)
   })
@@ -15,7 +15,7 @@ describe('whitebox snapshots', () => {
     for (const patch of [{ drive: NaN }, { inputVolts: 0 }, { inputVolts: 11 }, { device: 'mystery' }, { revision: 2 }, { oversampling: 8 }]) {
       expect(effectChainSchema.safeParse({ ...chain, drive: { ...chain.drive, ...patch } }).success).toBe(false)
     }
-    for (const order of [['drive','amp','eq','delay'], ['amp','amp','eq','delay'], ['drive','amp','eq','delay','delay']]) {
+    for (const order of [['unknown'], ['amp','amp','eq','delay'], ['drive','amp','eq','delay','delay']]) {
       expect(effectChainSchema.safeParse({ ...chain, order }).success).toBe(false)
     }
   })

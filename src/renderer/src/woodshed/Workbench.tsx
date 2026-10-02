@@ -1,3 +1,4 @@
+import { WheelNumberInput } from '../components/WheelNumberInput.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Play, Pause, RotateCcw, Volume2, SlidersHorizontal } from 'lucide-react'
 import { CHORDS, SCALES, ROOTS, materialNotes, chordVoicings, type Position, type Tuning } from './theory.js'
@@ -48,7 +49,8 @@ export function NumberField({
   return (
     <label className="ws-field">
       {label}
-      <input
+      <WheelNumberInput
+        onWheelValue={onChange}
         aria-label={label}
         type="number"
         min={min}

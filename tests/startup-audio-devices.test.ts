@@ -18,6 +18,7 @@ function appSettings(): AppSettings {
     modelRoot: 'models',
     debugMode: false,
     desktopLyricsFontSize: 24,
+    desktopLyricsBackgroundTransparency: 20,
     highQualityStems: false,
     guitarSeparationQuality: 'balanced',
     preferredDevice: 'auto',

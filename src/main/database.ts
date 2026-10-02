@@ -31,7 +31,7 @@ import {
   type StemStorageFormat,
   type StemType
 } from '@shared/domain.js'
-import { parseLrc } from '@shared/lyrics.js'
+import { parseLyrics } from '@shared/lyrics.js'
 import { RUNTIME_SOURCE_PRESETS } from '@shared/runtime-sources.js'
 import type {
   RehearsalItem,
@@ -636,6 +636,7 @@ export class BandBuddyDatabase {
       modelRoot: this.paths.modelRoot,
       debugMode: false,
       desktopLyricsFontSize: 24,
+      desktopLyricsBackgroundTransparency: 20,
       preferredDevice: 'auto',
       audioOutputDeviceId: '',
       latencyMode: 'balanced',
@@ -746,7 +747,7 @@ export class BandBuddyDatabase {
       videoUrl: row.video_rel_path ? `bandbuddy-media://song/${row.id}/video` : null,
       sampleRate: row.sample_rate,
       channels: row.channels,
-      lyrics: row.lyrics_lrc ? parseLrc(row.lyrics_lrc, row.lyrics_file_name ?? 'lyrics.lrc') : null,
+      lyrics: row.lyrics_lrc ? parseLyrics(row.lyrics_lrc, row.lyrics_file_name ?? 'lyrics.lrc') : null,
       stems,
       practice,
       recordingTakes,
@@ -1311,7 +1312,7 @@ export class BandBuddyDatabase {
     inputChannels: JSON.parse(row.input_channels_json) as number[],
     deviceSnapshot: parseDeviceSnapshot(row),
     sourceMediaUrl: `bandbuddy-media://song/${row.song_id}/recording-source/${row.id}`,
-    previewMediaUrl: `bandbuddy-media://song/${row.song_id}/recording-preview/${row.id}?alignment=${row.alignment_offset_ms}`,
+    previewMediaUrl: `bandbuddy-media://song/${row.song_id}/recording-preview/${row.id}?alignment=${row.alignment_offset_ms}&effects=${encodeURIComponent(this.getRecordingTrack(row.recording_track_id ?? row.song_id)?.updatedAt ?? '')}`,
     peaksUrl: row.peaks_rel_path ? `bandbuddy-media://song/${row.song_id}/recording-peaks/${row.id}?alignment=${row.alignment_offset_ms}` : null,
     interrupted: Boolean(row.interrupted),
     createdAt: row.created_at

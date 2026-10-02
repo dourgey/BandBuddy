@@ -1,100 +1,37 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Cable, ChevronDown, ChevronLeft, ChevronRight, Gauge, Headphones, Plus, Save, Search, SlidersHorizontal, Upload, Volume2, X } from 'lucide-react'
-import { defaultEffectChain, effectChainSchema, WHITEBOX_DEVICES, type ArsenalPreset, type EffectBlock, type EffectChainSnapshot, type MonitorMode, type ToneAsset } from '@shared/arsenal.js'
-import { AmpCabControls, ModulationControls } from '../arsenal/ClassicControls.js'
-import { WhiteboxControls } from '../arsenal/WhiteboxControls.js'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Upload, Search } from 'lucide-react'
+import { chainModules, createEffectModule, defaultEffectChain, EFFECT_BLOCKS, type EffectBlock, type EffectChainSnapshot, type EffectModule, type ArsenalPreset, type ToneAsset, type MonitorMode } from '@shared/arsenal.js'
+import { useRecordingSession, allowAudioAction } from '../recording-session.js'
+import { DeviceFooter } from '../arsenal/DeviceFooter.js'
+import { ModuleControls } from '../arsenal/ModuleControls.js'
+import { Knob } from '../arsenal/Knob.js'
 import './arsenal.css'
-
-const labels: Record<EffectBlock, string> = { mod: '调制 / 动态', drive: '白盒单块', amp: 'AMP + CAB', eq: 'EQ', delay: 'DELAY', reverb: 'REVERB' }
-const colors: Record<EffectBlock, string> = { mod: '#745290', drive: '#587358', amp: '#252321', eq: '#d6d3cb', delay: '#efe2cf', reverb: '#286a9a' }
-
-export function ArsenalPage({ onToast }: { onToast(message: string): void }): React.JSX.Element {
-  const [presets, setPresets] = useState<ArsenalPreset[]>([])
-  const [assets, setAssets] = useState<ToneAsset[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [chain, setChain] = useState<EffectChainSnapshot>(defaultEffectChain)
-  const [selectedBlock, setSelectedBlock] = useState<EffectBlock>('amp')
-  const [monitor, setMonitor] = useState<MonitorMode>('off')
-  const [search, setSearch] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => { void window.bandbuddy.arsenal.list().then((state) => { setPresets(state.presets); setAssets(state.assets); const first = state.presets[0]; if (first) { setSelectedId(first.id); setChain(effectChainSchema.parse(first.chain)) } }) }, [])
-  useEffect(() => {
-    let mounted = true
-    void window.bandbuddy.arsenal.monitorState().then(s => { if (mounted) setMonitor(s.active ? s.mode : 'off') }).catch(() => undefined)
-    const unsubscribe = window.bandbuddy.arsenal.onMonitor(s => { if (mounted) setMonitor(s.active ? s.mode : 'off') })
-    return () => { mounted = false; unsubscribe() }
-  }, [])
-  useEffect(() => {
-    if (monitor === 'off') return
-    let stale = false
-    const timer = window.setTimeout(() => {
-      void window.bandbuddy.arsenal.monitor({ mode: monitor, chain }).catch(error => {
-        if (!stale) onToast(error instanceof Error ? error.message : '效果更新失败')
-      })
-    }, 60)
-    return () => { stale = true; window.clearTimeout(timer) }
-  }, [chain, monitor, onToast])
-  const visible = useMemo(() => presets.filter((p) => p.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())), [presets, search])
-  const update = (patch: Partial<EffectChainSnapshot>): void => { setChain((current) => ({ ...current, ...patch })); setDirty(true) }
-  const selectPreset = (preset: ArsenalPreset): void => { setSelectedId(preset.id); setChain(effectChainSchema.parse(preset.chain)); setDirty(false) }
-  const save = async (asNew = false): Promise<void> => {
-    try {
-      const current = presets.find((p) => p.id === selectedId)
-      const result = await window.bandbuddy.arsenal.savePreset({ id: asNew ? undefined : selectedId ?? undefined, name: asNew || !current ? `${current?.name ?? '新预设'} 副本` : current.name, chain })
-      setPresets((items) => [result, ...items.filter((p) => p.id !== result.id)]); setSelectedId(result.id); setDirty(false); onToast('预设已保存')
-    } catch (error) { onToast(error instanceof Error ? error.message : '预设保存失败') }
-  }
-  const changeMonitor = async (mode: MonitorMode): Promise<void> => {
-    setLoading(true)
-    try { await window.bandbuddy.arsenal.monitor({ mode, chain }); setMonitor(mode) } catch (error) { onToast(error instanceof Error ? error.message : '监听启动失败') } finally { setLoading(false) }
-  }
-  const importAsset = async (kind: 'nam' | 'ir'): Promise<void> => {
-    try { const asset = await window.bandbuddy.arsenal.importAsset(kind); if (asset) { onToast(`${kind === 'nam' ? 'NAM 音色' : '箱体 IR'} 已导入`); const state = await window.bandbuddy.arsenal.list(); setPresets(state.presets); setAssets(state.assets); if (kind === 'nam') update({ amp: { ...chain.amp, assetId: asset.id, engine: 'nam' } }); else update({ cab: { ...chain.cab, assetId: asset.id, engine: 'ir' } }) } } catch (error) { onToast(error instanceof Error ? error.message : '导入失败') }
-  }
-  const toggle = (block: EffectBlock): void => {
-    if (block === 'mod') update({ mod: { ...chain.mod, enabled: !chain.mod.enabled } })
-    if (block === 'drive') update({ drive: { ...chain.drive, enabled: !chain.drive.enabled } })
-    if (block === 'amp') update({ amp: { ...chain.amp, enabled: !chain.amp.enabled } })
-    if (block === 'eq') update({ eq: { ...chain.eq, enabled: !chain.eq.enabled } })
-    if (block === 'delay') update({ delay: { ...chain.delay, enabled: !chain.delay.enabled } })
-    if (block === 'reverb') update({ reverb: { ...chain.reverb, enabled: !chain.reverb.enabled } })
-  }
-  const moveBlock = (direction: -1 | 1): void => {
-    const index = chain.order.indexOf(selectedBlock); const next = index + direction
-    if (index < 0 || next < 0 || next >= chain.order.length) return
-    const order = [...chain.order]; [order[index], order[next]] = [order[next]!, order[index]!]; update({ order })
-  }
-  const enabled = (block: EffectBlock): boolean => block === 'mod' ? chain.mod.enabled : block === 'drive' ? chain.drive.enabled : block === 'amp' ? chain.amp.enabled : block === 'eq' ? chain.eq.enabled : block === 'delay' ? chain.delay.enabled : chain.reverb.enabled
-  return <main className="arsenal-page">
-    <aside className="arsenal-sidebar">
-      <div className="arsenal-sidebar-head"><div><h1>军火库</h1><p>我的声音，我的装备。</p></div><button aria-label="收起预设"><ChevronLeft size={17} /></button></div>
-      <label className="arsenal-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索预设..." /></label>
-      <div className="arsenal-preset-list">{visible.map((preset) => <button key={preset.id} className={`arsenal-preset ${preset.id === selectedId ? 'selected' : ''}`} onClick={() => selectPreset(preset)}><span className="preset-thumb" style={{ background: preset.id === selectedId ? 'linear-gradient(145deg,#9c7a55,#382d23)' : 'linear-gradient(145deg,#676159,#25221f)' }} /><span><b>{preset.name}</b><small>{preset.chain.drive.enabled ? preset.chain.drive.device.toUpperCase() : preset.chain.amp.enabled ? (preset.chain.amp.engine === 'classic' ? preset.chain.amp.classic.device : 'NAM') : '干声'} · {preset.chain.delay.enabled ? '延迟' : '直达'} · {preset.chain.reverb.enabled ? '空间' : '无混响'}</small></span><i>⋮</i></button>)}</div>
-      <div className="arsenal-sidebar-actions"><button onClick={() => { setSelectedId(null); setChain(defaultEffectChain()); setDirty(true) }}><Plus size={16} />新建预设</button><button onClick={() => void save()} disabled={!dirty}><Save size={16} />保存{dirty && <em>未保存</em>}</button><button onClick={() => void save(true)}><SlidersHorizontal size={16} />另存为</button></div>
-    </aside>
-    <section className={`arsenal-workspace ${['drive', 'amp', 'mod'].includes(selectedBlock) ? 'editing-whitebox' : ''}`}>
-      <header className="arsenal-toolbar"><div><span className="arsenal-kicker">SIGNAL WORKSHOP</span><h2>{presets.find((p) => p.id === selectedId)?.name ?? '新预设'}{dirty && <sup>未保存</sup>}</h2></div><div className="arsenal-toolbar-actions"><button className="outline-button compact" onClick={() => setSelectedBlock('drive')}>白盒设备</button><button className="outline-button compact" onClick={() => void importAsset('nam')}><Upload size={14} />导入 NAM</button><button className="outline-button compact" onClick={() => void importAsset('ir')}><Upload size={14} />导入 IR</button></div></header>
-      <div className="arsenal-studio" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}arsenal/studio-room.png")` }}>
-        <div className="studio-amp" onClick={() => setSelectedBlock('amp')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedBlock('amp') } }} aria-label="打开箱头和箱体"><img className="amp-head" src={`${import.meta.env.BASE_URL}arsenal/amp-head.png`} alt="NAM 箱头" draggable="false" /><img className="amp-cab" src={`${import.meta.env.BASE_URL}arsenal/amp-cab.png`} alt="箱体与 IR" draggable="false" /></div>
-        <div className="studio-cables"><Cable size={24} /><Cable size={18} /></div>
-        <div className="studio-pedals">{(['eq', 'delay', 'reverb'] as EffectBlock[]).map((block) => <button key={block} className={`studio-pedal pedal-${block} ${selectedBlock === block ? 'focused' : ''} ${!enabled(block) ? 'bypassed' : ''}`} onClick={() => setSelectedBlock(block)} aria-label={`编辑${labels[block]}`}><img className="pedal-asset" src={`${import.meta.env.BASE_URL}arsenal/${block}.png`} alt={labels[block]} draggable="false" /><span className="pedal-switch" role="switch" aria-label={`${labels[block]} ${enabled(block) ? '旁通' : '开启'}`} aria-checked={enabled(block)} onClick={(e) => { e.stopPropagation(); toggle(block) }} /></button>)}</div>
-        <div className="studio-sign">GOOD<br />MUSIC<br /><small>BETTER<br />PRACTICE</small></div>
-      </div>
-      <div className="arsenal-chain"><div className="chain-node input"><Volume2 size={15} />INPUT</div>{chain.order.map((block, index) => <span className="chain-step" key={block}><ChevronRight size={14} /><button className={`chain-node ${enabled(block) ? 'on' : ''} ${selectedBlock === block ? 'active' : ''}`} onClick={() => setSelectedBlock(block)} style={{ borderColor: colors[block] }}>{block === 'drive' ? WHITEBOX_DEVICES.find(d => d.id === chain.drive.device)?.name.split(' · ')[0] : labels[block]}<small>{enabled(block) ? 'ON' : 'BYPASS'}</small></button>{index === chain.order.length - 1 && <ChevronRight size={14} />}</span>)}<div className="chain-node output">◯ OUTPUT</div></div>
-      <div className="arsenal-editor"><div className="editor-head"><div><b>{labels[selectedBlock]}</b><small>{selectedBlock === 'drive' ? '经典电路原型 · 实验版' : selectedBlock === 'amp' ? 'NAM / 白盒前级 / 箱体' : selectedBlock === 'mod' ? '移相 · 调制 · 动态' : '踩下踏板调整参数'}</small></div><div className="editor-actions"><button className="move-button" onClick={() => moveBlock(-1)} aria-label="效果前移">←</button><button className="move-button" onClick={() => moveBlock(1)} aria-label="效果后移">→</button><button className={`power-toggle ${enabled(selectedBlock) ? 'on' : ''}`} onClick={() => toggle(selectedBlock)}><Gauge size={15} />{enabled(selectedBlock) ? '已开启' : '旁通'}</button></div></div><EditorControls block={selectedBlock} chain={chain} assets={assets} update={update} /></div>
-      <footer className="arsenal-footer"><div className="footer-device"><Headphones size={16} /><b>输入通道</b><select defaultValue="1"><option value="1">1</option><option value="2">2</option></select><select defaultValue="128"><option value="64">64 frames</option><option value="128">128 frames</option><option value="256">256 frames</option></select><span>48 kHz</span></div><div className="footer-monitor"><span>监听</span>{(['off', 'dry', 'wet'] as MonitorMode[]).map((mode) => <button key={mode} disabled={loading} className={monitor === mode ? 'active' : ''} onClick={() => void changeMonitor(mode)}>{mode === 'off' ? '关闭' : mode === 'dry' ? '干声' : '效果'}</button>)}<i className="level-bars">▮▮▮▮▮▮▮▮▮▮▯▯▯▯</i><small>{monitor === 'wet' ? '效果监听中' : '未监听'}</small></div></footer>
-    </section>
-  </main>
+const labels: Record<EffectBlock,string> = {dynamic:'Dynamic',drive:'Drive',amp:'AMP',cab:'CAB',eq:'EQ',mod:'周边效果',delay:'Delay',reverb:'Reverb'}
+const paths: Record<EffectBlock,string> = {dynamic:'M3 18V6h5l8 12h5M3 12h18',drive:'M3 16l5-8 4 8 4-8 5 8',amp:'M3 6h18v14H3zM6 9h12M7 15h.1M12 15h.1M17 15h.1',cab:'M4 3h16v18H4zM7 7h10v10H7zM9 9l6 6m0-6l-6 6',eq:'M6 3v18M12 3v18M18 3v18M3 8h6M9 15h6M15 6h6',mod:'M2 12c4-12 6-12 10 0s6 12 10 0',delay:'M3 12h3m2-5h3v10H8m6-13h3v16h-3m6-11h2v6h-2',reverb:'M3 16l4-8 4 8m2-10l2 12m2-15l2 18m2-12v6'}
+function ModuleIcon({type}:{type:EffectBlock}):React.JSX.Element{return <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[type]}/></svg>}
+export function ArsenalPage({onToast}:{onToast(message:string):void}):React.JSX.Element {
+  const [sidebarExpanded,setSidebarExpanded]=useState(true)
+  const ownsMonitor=useRef(false)
+  const [presets,setPresets]=useState<ArsenalPreset[]>([]),[assets,setAssets]=useState<ToneAsset[]>([])
+  const [chain,setChain]=useState<EffectChainSnapshot>(()=>({...defaultEffectChain(),modules:[]})),[selected,setSelected]=useState('')
+  const [presetId,setPresetId]=useState<string|undefined>(),[name,setName]=useState('新预设'),[query,setQuery]=useState('')
+  const [monitor,setMonitor]=useState<MonitorMode>('off'),[busy,setBusy]=useState(false),[routing,setRouting]=useState(false),[dirty,setDirty]=useState(false)
+  const recording=useRecordingSession(),latest=useRef(chain),mounted=useRef(true);latest.current=chain
+  const modules=chainModules(chain), module=modules.find(m=>m.id===selected)
+  const apply=(value:EffectChainSnapshot):void=>{if(!allowAudioAction())return;setChain(value);setDirty(true)}
+  const choose=(p:ArsenalPreset):void=>{if(!allowAudioAction())return;setPresetId(p.id);setName(p.name);setChain({...p.chain,modules:chainModules(p.chain)});setSelected(chainModules(p.chain)[0]?.id??'');setDirty(false)}
+  useEffect(()=>{mounted.current=true;void window.bandbuddy.arsenal.list().then(s=>{if(!mounted.current)return;setPresets(s.presets);setAssets(s.assets);if(s.presets[0])choose(s.presets[0])}).catch(e=>onToast(String(e)));const off=window.bandbuddy.arsenal.onMonitor(s=>{if(mounted.current){setMonitor(s.active?s.mode:'off');if(s.active)ownsMonitor.current=true}});return()=>{mounted.current=false;off();if(ownsMonitor.current)void window.bandbuddy.arsenal.monitor({mode:'off',chain:latest.current}).catch(()=>undefined)}},[])
+  useEffect(()=>{if(monitor==='off'||routing||recording)return;const timer=setTimeout(()=>{void window.bandbuddy.arsenal.monitor({mode:monitor,chain}).catch(e=>{if(mounted.current)onToast(String(e))})},80);return()=>clearTimeout(timer)},[chain,monitor,routing,Boolean(recording)])
+  const changeMonitor=async(mode:MonitorMode):Promise<void>=>{if(!allowAudioAction()||busy)return;ownsMonitor.current=mode!=='off'||ownsMonitor.current;setBusy(true);try{const s=await window.bandbuddy.arsenal.monitor({mode,chain:latest.current});if(mounted.current){setMonitor(s.active?s.mode:'off');if(s.active)ownsMonitor.current=true}}catch(e){onToast(String(e))}finally{if(mounted.current)setBusy(false)}}
+  const save=async(copy=false):Promise<void>=>{if(!name.trim()){onToast('请填写预设名称');return}try{const p=await window.bandbuddy.arsenal.savePreset({id:copy?undefined:presetId,name:copy?`${name.trim()} 副本`:name.trim(),chain});setPresets(old=>[p,...old.filter(x=>x.id!==p.id)]);setPresetId(p.id);setName(p.name);setDirty(false);onToast('预设已保存')}catch(e){onToast(String(e))}}
+  const updateModule=(next:EffectModule):void=>apply({...chain,modules:modules.map(m=>m.id===next.id?next:m)})
+  const add=(type:EffectBlock):void=>{if(modules.length>=24){onToast('最多添加 24 个模块');return}const next=createEffectModule(type);apply({...chain,modules:[...modules,next]});setSelected(next.id)}
+  const move=(direction:number):void=>{const index=modules.findIndex(m=>m.id===selected),next=index+direction;if(index<0||next<0||next>=modules.length)return;const list=[...modules];[list[index],list[next]]=[list[next]!,list[index]!];apply({...chain,modules:list})}
+  const importAsset=async(kind:'nam'|'ir'):Promise<void>=>{try{const asset=await window.bandbuddy.arsenal.importAsset(kind);if(asset)setAssets((await window.bandbuddy.arsenal.list()).assets)}catch(e){onToast(String(e))}}
+  return <main className={`arsenal-page modular-arsenal ${sidebarExpanded?'':'is-sidebar-collapsed'}`}><aside className="arsenal-sidebar" inert={!sidebarExpanded} aria-hidden={!sidebarExpanded}><div className="arsenal-sidebar-head"><h1>军火库</h1><button aria-label="收起预设" onClick={()=>setSidebarExpanded(false)}><ChevronLeft size={16}/></button></div><label className="arsenal-search"><Search size={16}/><input aria-label="搜索预设" placeholder="搜索预设…" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="arsenal-preset-list">{presets.filter(p=>p.name.toLowerCase().includes(query.toLowerCase())).map(p=><button key={p.id} className={`arsenal-preset ${presetId===p.id?'selected':''}`} onClick={()=>choose(p)}><span><b>{p.name}</b><small>{chainModules(p.chain).length} 个模块</small></span></button>)}</div><div className="arsenal-sidebar-actions"><button onClick={()=>{setPresetId(undefined);setName('新预设');apply({...defaultEffectChain(),modules:[]});setSelected('')}}><Plus size={16}/>新建预设</button><button disabled={!dirty} onClick={()=>void save()}><Save size={16}/>保存预设</button><button onClick={()=>void save(true)}>另存为副本</button></div></aside>
+    <section className="arsenal-workspace"><header className="arsenal-toolbar">{!sidebarExpanded&&<button aria-label="展开预设" onClick={()=>setSidebarExpanded(true)}><ChevronRight size={16}/>预设</button>}<label className="preset-name">预设名称<input aria-label="预设名称" maxLength={120} value={name} onChange={e=>{setName(e.target.value);setDirty(true)}}/></label><div className="arsenal-toolbar-actions"><button onClick={()=>void importAsset('nam')}><Upload size={15}/>导入 NAM</button><button onClick={()=>void importAsset('ir')}><Upload size={15}/>导入 IR</button></div></header>
+    <div className="modular-stage"><div className="module-chain"><span className="chain-terminal">INPUT</span>{modules.map((m,i)=><div className="module-step" key={m.id}><ChevronRight size={16}/><button className={`effect-card type-${m.type} ${m.id===selected?'selected':''} ${m.settings[m.type].enabled?'':'bypassed'}`} onClick={()=>setSelected(m.id)}><ModuleIcon type={m.type}/><b>{labels[m.type]}</b><small>{i+1} · {m.settings[m.type].enabled?'ON':'BYPASS'}</small></button></div>)}<ChevronRight size={16}/><span className="chain-terminal">OUTPUT</span></div><div className="module-add"><span>添加模块</span>{EFFECT_BLOCKS.map(type=><button key={type} onClick={()=>add(type)}><Plus size={13}/>{labels[type]}</button>)}</div></div>
+    {module?<section className="arsenal-editor"><header className="editor-head"><label>模块类型<select aria-label="模块类型" value={module.type} onChange={e=>{const replacement=createEffectModule(e.target.value as EffectBlock);updateModule({...replacement,id:module.id})}}>{EFFECT_BLOCKS.map(t=><option key={t} value={t}>{labels[t]}</option>)}</select></label><div className="editor-actions"><button aria-label="模块前移" onClick={()=>move(-1)}><ChevronLeft/></button><button aria-label="模块后移" onClick={()=>move(1)}><ChevronRight/></button><button onClick={()=>updateModule({...module,settings:{...module.settings,[module.type]:{...module.settings[module.type],enabled:!module.settings[module.type].enabled}}})}>{module.settings[module.type].enabled?'旁通':'开启'}</button><button aria-label="删除模块" onClick={()=>{apply({...chain,modules:modules.filter(m=>m.id!==module.id)});setSelected('')}}><Trash2 size={16}/></button></div></header><ModuleControls module={module} assets={assets} onChange={updateModule}/></section>:<div className="module-empty">添加或选择模块，调整你的声音。</div>}
+    <div className="rack-levels"><Knob label="Input" value={chain.inputGainDb} min={-60} max={24} step={.5} unit=" dB" onChange={inputGainDb=>apply({...chain,inputGainDb})}/><Knob label="Output" value={chain.outputGainDb} min={-60} max={24} step={.5} unit=" dB" onChange={outputGainDb=>apply({...chain,outputGainDb})}/></div>
+    <DeviceFooter monitor={monitor} busy={busy||routing||Boolean(recording)} getChain={()=>latest.current} onMonitor={mode=>void changeMonitor(mode)} onRouting={setRouting} onToast={onToast}/></section></main>
 }
-
-function EditorControls({ block, chain, assets, update }: { block: EffectBlock; chain: EffectChainSnapshot; assets: ToneAsset[]; update(patch: Partial<EffectChainSnapshot>): void }): React.JSX.Element {
-  if (block === 'drive') return <WhiteboxControls value={chain.drive} onChange={drive => update({ drive })} />
-  if (block === 'amp') return <AmpCabControls chain={chain} assets={assets} update={update} />
-  if (block === 'mod') return <ModulationControls value={chain.mod} onChange={mod => update({ mod })} />
-  if (block === 'eq') return <div className="eq-editor">{chain.eq.bands.map((value, i) => <label key={i}><input type="range" min={-15} max={15} step={.5} value={value} onChange={(e) => update({ eq: { ...chain.eq, bands: chain.eq.bands.map((v, n) => n === i ? Number(e.target.value) : v) } })} /><b>{value > 0 ? '+' : ''}{value.toFixed(1)}</b><small>{[100, 200, 400, 800, 1600, 3200, 6400][i]} Hz</small></label>)}</div>
-  if (block === 'delay') return <div className="control-grid"><Knob label="时间 ms" value={chain.delay.timeMs} min={1} max={2000} step={1} suffix=" ms" onChange={(v) => update({ delay: { ...chain.delay, timeMs: v } })} /><Knob label="反馈" value={chain.delay.feedback * 100} min={0} max={95} step={1} suffix="%" onChange={(v) => update({ delay: { ...chain.delay, feedback: v / 100 } })} /><Knob label="混合" value={chain.delay.mix * 100} min={0} max={100} step={1} suffix="%" onChange={(v) => update({ delay: { ...chain.delay, mix: v / 100 } })} /><label className="quality-select">Tap Tempo <button className="tap-button" onClick={() => update({ delay: { ...chain.delay, bpm: Math.round(60000 / chain.delay.timeMs) } })}>当前 {chain.delay.bpm} BPM</button></label></div>
-  return <div className="control-grid"><Knob label="衰减 s" value={chain.reverb.decay} min={.1} max={10} step={.1} suffix=" s" onChange={(v) => update({ reverb: { ...chain.reverb, decay: v } })} /><Knob label="预延迟 ms" value={chain.reverb.preDelayMs} min={0} max={200} step={1} suffix=" ms" onChange={(v) => update({ reverb: { ...chain.reverb, preDelayMs: v } })} /><Knob label="混合" value={chain.reverb.mix * 100} min={0} max={100} step={1} suffix="%" onChange={(v) => update({ reverb: { ...chain.reverb, mix: v / 100 } })} /><Knob label="阻尼" value={chain.reverb.damping * 100} min={0} max={100} step={1} suffix="%" onChange={(v) => update({ reverb: { ...chain.reverb, damping: v / 100 } })} /></div>
-}
-function Knob({ label, value, min, max, step, suffix = ' dB', onChange }: { label: string; value: number; min: number; max: number; step: number; suffix?: string; onChange(value: number): void }): React.JSX.Element { return <label className="knob-control"><span className="knob" style={{ '--angle': `${-135 + ((value - min) / (max - min)) * 270}deg` } as React.CSSProperties}><input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} /></span><b>{Number.isInteger(value) ? value : value.toFixed(1)}{suffix}</b><small>{label}</small></label> }

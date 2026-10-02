@@ -12,10 +12,11 @@ it.skipIf(!existsSync(ffmpeg) || !existsSync(executable))('shifts a real FFmpeg 
   const root = await mkdtemp(path.join(tmpdir(), 'lan-pitch-test-'))
   try {
     const input = path.join(root, 'decoded.wav'); const output = path.join(root, 'pitched.wav')
-    const result = await runProcess(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.2', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_f32le', input])
+    const result = await runProcess(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.2', '-ar', '44100', '-ac', '2', '-channel_layout', 'stereo', '-c:a', 'pcm_f32le', input])
     expect(result.code, result.stderr).toBe(0)
     const decoded = await readFile(input)
-    expect(decoded.readUInt16LE(20)).toBe(0xfffe)
+    // FFmpeg versions differ: both IEEE float and extensible float are valid.
+    expect([3, 0xfffe]).toContain(decoded.readUInt16LE(20))
     await runSignalsmithPitchShift({ audioHostExecutable: () => executable } as never, input, output, 12)
     const pitched = await readFile(output)
     expect(pitched.length).toBe(44 + 52920 * 2 * 4)

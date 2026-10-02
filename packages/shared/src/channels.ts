@@ -44,6 +44,7 @@ export const IPC = {
   recordingStop: 'recording:stop',
   recordingCancel: 'recording:cancel',
   recordingUpdateTake: 'recording:update-take',
+  recordingDeleteTrack: 'recording:delete-track',
   recordingDeleteTake: 'recording:delete-take',
   recordingSelectTake: 'recording:select-take',
   recordingCreateTrack: 'recording:create-track',

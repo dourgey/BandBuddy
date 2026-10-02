@@ -84,6 +84,18 @@ double Drive::toneNetwork(double input) {
 }
 
 double Drive::circuit(double input) {
+  if(target.device==Device::DS1 || target.device==Device::BD2) {
+    const bool ds=target.device==Device::DS1;
+    double x=input-inputCoupling.tick(input,1/(2*rate*(ds?470000*47e-9:1e6*10e-9)));
+    x=4*std::tanh(x*(ds?3:2)/4);
+    x=bandwidth.tick(x*(1+drive*(ds?80:35)),std::tan(pi*(ds?7200:10000)/rate));
+    if(ds)x=shunt.solve(1./2200,x/2200);
+    else {x=1.5*std::tanh((x+.08)/1.5)-1.5*std::tanh(.08/1.5);x=2*std::tanh(x*(1+drive*3)/2);}
+    const double low=toneC1.tick(x,1/(2*rate*(ds?6800:10000)*.1e-6));
+    const double high=x-toneC2.tick(x,1/(2*rate*(ds?6800:10000)*22e-9));
+    return (low*(1-tone)+high*tone)*pot(level);
+  }
+
   if(target.device==Device::FuzzFace)return fuzz.tick(input,drive)*pot(level);
   if(target.device==Device::MicroAmp||target.device==Device::DistortionPlus) {
     const bool boost=target.device==Device::MicroAmp;

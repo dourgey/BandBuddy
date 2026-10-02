@@ -396,6 +396,16 @@ export class RecordingService {
     return updated
   }
 
+  async deleteTrack(trackId: string): Promise<void> {
+    if (this.isActive()) throw new Error('请先停止录音或输入测试')
+    const track = this.database.getRecordingTrack(trackId)
+    if (!track) return
+    const takes = this.database.sqlite.prepare('SELECT id FROM recording_takes WHERE recording_track_id = ?').all(trackId) as Array<{ id: string }>
+    for (const take of takes) await this.deleteTake(take.id)
+    this.database.sqlite.prepare('DELETE FROM recording_tracks WHERE id = ?').run(trackId)
+    this.changed()
+  }
+
   async deleteTake(takeId: string): Promise<void> {
     const file = this.database.getRecordingTakeFile(takeId)
     if (!file) return

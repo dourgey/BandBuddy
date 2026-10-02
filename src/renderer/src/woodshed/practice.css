@@ -1,10 +1,29 @@
-.ws-practice-modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 36px; }
-.ws-practice-modules section { min-width: 0; }
+.ws-practice-modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.ws-practice-modules section { min-width: 0; padding: 22px; border: 1px solid #ddd5c7; border-radius: 14px; background: #f0ece3; box-shadow: 0 3px 12px #5c513408; }
 .ws-practice-modules h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #496d64; }
 .ws-practice-modules section > div { display: grid; gap: 8px; }
-.ws-practice-modules button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 15px 16px; color: #524d42; font-size: 13px; line-height: 1.6; background: transparent; border: 1px solid #d8d2c5; border-radius: 5px; }
+.ws-practice-modules button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 13px 15px; color: #524d42; font-size: 13px; line-height: 1.6; background: #fcfaf5; border: 1px solid #d8d2c5; border-radius: 7px; }
 .ws-practice-modules button:hover { background: #eaf0e6; border-color: #8fa397; }
 .ws-practice-modules button svg { flex-shrink: 0; }
+.ws-practice-modules button:focus-visible { outline: 2px solid #496d64; outline-offset: 3px; }
+.ws-practice-modules .ws-practice-comprehensive { margin-top: 5px; background: #e5ece1; border-color: #b1bfa9; color: #3e5c4f; }
+.ws-practice-comprehensive > span { display: grid; gap: 3px; min-width: 0; }
+.ws-practice-comprehensive b { font-size: 12px; font-weight: 600; }
+.ws-practice-comprehensive small { color: #6b7b62; font-size: 11px; }
+.ws-practice-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; padding: 0; margin: 20px 0; list-style: none; }
+.ws-practice-stages li { padding: 12px 14px; border: 1px solid #ddd5c7; border-radius: 8px; background: #f0ece3; }
+.ws-practice-stages li[aria-current=step] { background: #e5ece1; border-color: #7f9c85; }
+.ws-practice-stages small { display: block; color: #7d725e; font-size: 11px; margin-bottom: 5px; }
+.ws-practice-stages b { font-size: 12px; font-weight: 600; color: #496d64; }
+.ws-practice-stages p { margin: 5px 0 0; font-size: 11px; line-height: 1.8; color: #716957; }
+.ws-practice-plan { margin: 16px 0; border-block: 1px solid #ddd5c7; }
+.ws-practice-plan summary { display: flex; justify-content: space-between; padding: 12px 2px; color: #496d64; font-size: 12px; cursor: pointer; list-style: none; }
+.ws-practice-plan summary::-webkit-details-marker { display: none; }
+.ws-practice-plan[open] summary svg { transform: rotate(90deg); }
+.ws-practice-current-stage { padding: 12px 16px; margin-bottom: 12px; border-radius: 8px; background: #e5ece1; }
+.ws-practice-current-stage small { display: block; font-size: 11px; color: #6b7b62; margin-bottom: 4px; }
+.ws-practice-current-stage b { font-size: 13px; color: #3e5c4f; }
+.ws-practice-current-stage p { margin: 5px 0 0; font-size: 12px; color: #646f5b; line-height: 1.7; }
 .ws-practice-detail { max-width: 1000px; margin: 4px auto 40px; }
 .ws-practice-title { text-align: center; }
 .ws-practice-title h2 { margin: 0 0 10px; font-family: var(--serif); font-size: 30px; font-weight: 600; line-height: 1.4; }
@@ -46,4 +65,4 @@
 .ws-knowledge-practice { display: inline-flex; align-items: center; gap: 9px; margin-top: 20px; padding: 9px 18px; font-size: 13px; color: #496d64; border: 1px solid #acb9a9; border-radius: 5px; background: transparent; }
 .ws-knowledge-practice:hover { background: #e1e7dd; }
 @media (max-width: 900px) { .ws-practice-modules { grid-template-columns: 1fr; gap: 24px; } .ws-practice-transport { gap: 16px; } }
-@media (max-width: 600px) { .ws-practice-title h2 { font-size: 24px; } .ws-practice-title p { font-size: 13px; text-align: left; } .ws-practice-transport { justify-content: space-between; gap: 16px 10px; } .ws-practice-start { min-width: 100px; } .ws-practice-timer { font-size: 18px; } .ws-practice-variants button { padding: 6px 13px; } }
+@media (max-width: 600px) { .ws-practice-modules section { padding: 16px; } .ws-practice-title h2 { font-size: 24px; } .ws-practice-title p { font-size: 13px; text-align: left; } .ws-practice-transport { justify-content: space-between; gap: 16px 10px; } .ws-practice-start { min-width: 100px; } .ws-practice-timer { font-size: 18px; } .ws-practice-variants button { padding: 6px 13px; } }

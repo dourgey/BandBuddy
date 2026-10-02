@@ -13,7 +13,8 @@ import {
   type SongDetail,
   type SourceChoice
 } from '@shared/domain.js'
-import { parseLrc } from '@shared/lyrics.js'
+import { parseLyrics } from '@shared/lyrics.js'
+import { decodeLyricFile, MAX_LYRICS_BYTES } from './lyric-files.js'
 import { AUDIO_EXTENSIONS, SOURCE_AUDIO_EXTENSIONS, SOURCE_MEDIA_EXTENSIONS, VIDEO_EXTENSIONS, isVideoSource } from '@shared/media-formats.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { Logger } from './logger.js'
@@ -21,20 +22,6 @@ import type { MediaService } from './media.js'
 import type { AppPaths } from './paths.js'
 import type { RuntimeManager } from './runtime.js'
 export { AUDIO_EXTENSIONS, SOURCE_AUDIO_EXTENSIONS, SOURCE_MEDIA_EXTENSIONS, VIDEO_EXTENSIONS }
-const MAX_LRC_BYTES = 2 * 1024 * 1024
-
-function decodeLyricsFile(bytes: Buffer): string {
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.subarray(2))
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2))
-  if (bytes.length >= 4 && bytes[1] === 0 && bytes[3] === 0) return new TextDecoder('utf-16le').decode(bytes)
-  if (bytes.length >= 4 && bytes[0] === 0 && bytes[2] === 0) return new TextDecoder('utf-16be').decode(bytes)
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch {
-    return new TextDecoder('gb18030').decode(bytes)
-  }
-}
-
 async function sha256(filePath: string): Promise<string> {
   return await new Promise((resolve, reject) => {
     const hash = createHash('sha256')
@@ -136,22 +123,22 @@ export class ImportService {
   async importLyrics(songId: string): Promise<SongDetail | null> {
     if (!this.database.getSongRow(songId)) throw new Error('SONG_NOT_FOUND')
     const result = await dialog.showOpenDialog({
-      title: '导入 LRC 歌词',
+      title: '导入歌词',
       buttonLabel: '导入歌词',
       properties: ['openFile'],
-      filters: [{ name: 'LRC 歌词', extensions: ['lrc'] }]
+      filters: [{ name: '歌词与字幕', extensions: ['lrc', 'krc', 'qrc', 'srt', 'vtt', 'ttml'] }]
     })
     const filePath = result.filePaths[0]
     if (result.canceled || !filePath) return null
-    if (path.extname(filePath).toLowerCase() !== '.lrc') throw new Error('UNSUPPORTED_LYRICS_FORMAT')
+    if (!['.lrc', '.krc', '.qrc', '.srt', '.vtt', '.ttml'].includes(path.extname(filePath).toLowerCase())) throw new Error('UNSUPPORTED_LYRICS_FORMAT')
     const info = await stat(filePath)
     if (!info.isFile() || info.size === 0) throw new Error('LYRICS_FILE_EMPTY')
-    if (info.size > MAX_LRC_BYTES) throw new Error('LYRICS_FILE_TOO_LARGE')
+    if (info.size > MAX_LYRICS_BYTES) throw new Error('LYRICS_FILE_TOO_LARGE')
 
-    const content = decodeLyricsFile(await readFile(filePath))
+    const content = decodeLyricFile(await readFile(filePath), path.extname(filePath).toLowerCase())
     if (!content.trim()) throw new Error('LYRICS_FILE_EMPTY')
     const fileName = path.basename(filePath)
-    const lyrics = parseLrc(content, fileName)
+    const lyrics = parseLyrics(content, fileName)
     if (lyrics.cues.length === 0) throw new Error('LRC_NO_TIMESTAMPS')
 
     const song = this.database.setLyrics(songId, fileName, content)

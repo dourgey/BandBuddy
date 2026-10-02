@@ -41,6 +41,7 @@ describe('woodshed sounding pitches and harmony', () => {
     for (const tuning of TUNINGS)
       for (const chord of Object.values(CHORDS)) {
         const voicings = chordVoicings(tuning, 0, chord)
+        if (new Set(chord.semitones.map(n => mod(n))).size > tuning.notes.length) { expect(voicings).toEqual([]); continue }
         expect(voicings.length, `${tuning.id} ${chord.name}`).toBeGreaterThan(0)
         for (const v of voicings) {
           expect(new Set(v.map((p) => p.string)).size).toBe(v.length)

@@ -1,3 +1,5 @@
+import { claimAudioSession, releaseAudioSession } from '../audio-session.js'
+import { allowAudioAction, publishRecordingState, registerRecordingControls } from '../recording-session.js'
 import {
   AlertTriangle,
   Check,
@@ -33,7 +35,7 @@ import {
   type SongDetail,
   type SongSummary
 } from '@shared/domain.js'
-import { lyricFrameAt } from '@shared/lyrics.js'
+import { lyricFrameAt, lyricWordFrame } from '@shared/lyrics.js'
 import {
   buildRehearsalTimeline,
   clampTransitionDuration,
@@ -90,6 +92,7 @@ type DragSource =
 type DropTarget = { itemId: string | null; placement: 'before' | 'after' }
 
 interface RehearsalRoomProps {
+  active?: boolean
   settings?: AppSettings
   initialRehearsalId?: string | null
   initialItemId?: string | null
@@ -470,6 +473,8 @@ export function RehearsalRoom({
       artist: activeLyricSong.artist,
       currentLines,
       nextLines,
+      cueId: `${activeLyricSong.id}:${frame.current?.timeMs ?? -1}`,
+      wordLines: lyricWordFrame(frame.current, sourceMs),
       progress: frame.progress,
       playing: running
     }
@@ -710,6 +715,9 @@ export function RehearsalRoom({
     return { details, timeline: nextTimeline }
   }
 
+  useEffect(() => { publishRecordingState('rehearsal', recordingState) }, [recordingState])
+  const controlsRef = useRef({ stop: () => window.bandbuddy.rehearsals.stopRecording(), cancel: () => window.bandbuddy.rehearsals.cancelRecording() })
+  useEffect(() => { const stop = registerRecordingControls('rehearsal', { stop: async () => { await controlsRef.current.stop() }, cancel: () => controlsRef.current.cancel() }); return () => { stop(); publishRecordingState('rehearsal', { phase: 'idle' }); releaseAudioSession('rehearsal') } }, [])
   const togglePlayback = async (): Promise<void> => {
     if (recordingActive || playbackStarting.current) return
     if (playing) {

@@ -49,6 +49,7 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
+  recordingPreviewEffect: ((source: string, takeId: string) => Promise<string>) | null = null
   private verifiedToolRoot: string | null = null
   private verification: Promise<void> | null = null
   private verificationState: MediaCapabilities['ffmpegVerification'] = 'unchecked'
@@ -482,38 +483,44 @@ export class MediaService {
   }
 
   registerProtocol(): void {
-    protocol.handle('bandbuddy-media', async (request) => {
-      try {
-        const assetPath = this.resolveProtocolPath(new URL(request.url))
-        if (!assetPath) return new Response('Not found', { status: 404 })
-        const info = await stat(assetPath)
-        const contentType = mimeTypes[path.extname(assetPath).toLowerCase()] ?? 'application/octet-stream'
-        const headers = mediaResponseHeaders(contentType, info.size)
-        if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
-        if (request.method === 'HEAD') return new Response(null, { status: 200, headers })
-        if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers })
-        const range = request.headers.get('range')
-        if (!range) {
-          return new Response(Readable.toWeb(createReadStream(assetPath)) as BodyInit, {
-            status: 200,
-            headers
-          })
-        }
-        const parsedRange = parseByteRange(range, info.size)
-        if (!parsedRange) return new Response('Range not satisfiable', { status: 416 })
-        const { start, end } = parsedRange
-        return new Response(Readable.toWeb(createReadStream(assetPath, { start, end })) as BodyInit, {
-          status: 206,
-          headers: {
-            ...mediaResponseHeaders(contentType, end - start + 1),
-            'Content-Range': `bytes ${start}-${end}/${info.size}`,
-          }
-        })
-      } catch (error) {
-        this.logger.warn('media protocol request rejected', error)
-        return new Response('Not found', { status: 404 })
+    protocol.handle('bandbuddy-media', (request) => this.handleProtocolRequest(request))
+  }
+
+  async handleProtocolRequest(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url)
+      let assetPath = this.resolveProtocolPath(url)
+      if (assetPath && url.hostname === 'song' && url.pathname.split('/')[2] === 'recording-preview' && this.recordingPreviewEffect) {
+        assetPath = await this.recordingPreviewEffect(assetPath, decodeURIComponent(url.pathname.split('/')[3]!))
       }
-    })
+      if (!assetPath) return new Response('Not found', { status: 404 })
+      const info = await stat(assetPath)
+      const contentType = mimeTypes[path.extname(assetPath).toLowerCase()] ?? 'application/octet-stream'
+      const headers = mediaResponseHeaders(contentType, info.size)
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
+      if (request.method === 'HEAD') return new Response(null, { status: 200, headers })
+      if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers })
+      const range = request.headers.get('range')
+      if (!range) {
+        return new Response(Readable.toWeb(createReadStream(assetPath)) as BodyInit, {
+          status: 200,
+          headers
+        })
+      }
+      const parsedRange = parseByteRange(range, info.size)
+      if (!parsedRange) return new Response('Range not satisfiable', { status: 416 })
+      const { start, end } = parsedRange
+      return new Response(Readable.toWeb(createReadStream(assetPath, { start, end })) as BodyInit, {
+        status: 206,
+        headers: {
+          ...mediaResponseHeaders(contentType, end - start + 1),
+          'Content-Range': `bytes ${start}-${end}/${info.size}`,
+        }
+      })
+    } catch (error) {
+      this.logger.warn('media protocol request rejected', error)
+      return new Response('Not found', { status: 404 })
+    }
   }
 
   resolveProtocolPath(url: URL): string | null {

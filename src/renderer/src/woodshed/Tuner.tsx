@@ -6,6 +6,7 @@ import { selectInputChannel } from './input-channel.js'
 import { noteName, type Tuning } from './theory.js'
 import { AnalogTunerGauge } from './AnalogTunerGauge.js'
 import { PolyTunerGauge } from './PolyTunerGauge.js'
+import { SelectMenu } from '../components/SelectMenu.js'
 export function Tuner({
   presetControl,
   instrumentSettings,
@@ -49,6 +50,8 @@ export function Tuner({
     timer = useRef<ReturnType<typeof setInterval> | null>(null),
     token = useRef(0)
   const current = useRef({ a4, target, tuning, capo, inputChannel })
+  const devicePreference = useRef({ inputDevice, onDevice })
+  devicePreference.current = { inputDevice, onDevice }
   current.current = { a4, target, tuning, capo, inputChannel }
   const stop = (resetView = true): void => {
     token.current++
@@ -77,7 +80,12 @@ export function Tuner({
     const refresh = () => {
       void navigator.mediaDevices
         ?.enumerateDevices()
-        .then((items) => setDevices(items.filter((d) => d.kind === 'audioinput')))
+        .then((items) => {
+          const inputs = items.filter((d) => d.kind === 'audioinput')
+          setDevices(inputs)
+          const preference = devicePreference.current
+          if (stream.current && preference.inputDevice && !inputs.some(d => d.deviceId === preference.inputDevice)) preference.onDevice('')
+        })
         .catch(() => {})
     }
     refresh()
@@ -136,11 +144,20 @@ export function Tuner({
         if (ticket === token.current) {
           stop()
           setStatus('输入设备已断开，请重新选择设备。')
+          onDevice('')
         }
       }
       const available = await navigator.mediaDevices.enumerateDevices()
       if (ticket !== token.current) return
       setDevices(available.filter((d) => d.kind === 'audioinput'))
+      if (!inputDevice) {
+        const settings = media.getAudioTracks()[0]?.getSettings()
+        const actual = settings?.deviceId
+        const physical = available.find(d => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications'
+          && (d.deviceId === actual || Boolean(settings?.groupId && d.groupId === settings.groupId)))
+        const remembered = physical?.deviceId ?? (actual && actual !== 'default' && actual !== 'communications' ? actual : '')
+        if (remembered) onDevice(remembered)
+      }
       timer.current = setInterval(() => {
         const levels = analysers.map((analyser, index) => {
           const data = channelSamples[index]!
@@ -228,7 +245,11 @@ export function Tuner({
     } catch (error) {
       if (ticket !== token.current) return
       stop()
-      const name = error instanceof Error ? error.name : ''
+      const name = error && typeof error === 'object' && 'name' in error ? String(error.name) : ''
+      if (inputDevice && (name === 'NotFoundError' || name === 'OverconstrainedError')) {
+        onDevice('')
+        return
+      }
       const message =
         name === 'NotAllowedError'
           ? '麦克风权限未获允许。可在系统设置中开启；参考音和其他工具仍可使用。'
@@ -257,10 +278,6 @@ export function Tuner({
       </header>
       {settingsOpen && <div className="ws-tuner-settings">
         {instrumentSettings}
-        <label>音频设备<select value={inputDevice} disabled={busy} onChange={(e) => onDevice(e.target.value)}>
-          <option value="">系统默认输入</option>
-          {devices.filter((d) => d.deviceId !== 'default').map((d, i) => <option value={d.deviceId} key={d.deviceId}>{d.label || `输入设备 ${i + 1}`}</option>)}
-        </select></label>
         <label>输入通道<select value={inputChannel <= channelCount ? inputChannel : 0} onChange={(e) => onChannel(Number(e.target.value))}>
           <option value={0}>自动选择有电平的通道</option>
           {Array.from({ length: channelCount }, (_, index) => <option key={index} value={index + 1}>通道 {index + 1}</option>)}
@@ -282,7 +299,11 @@ export function Tuner({
         })}
       </div>}
       <div className="ws-tuner-input">
-        <span>{active ? <Mic size={17} /> : <MicOff size={17} />} {busy ? '正在连接…' : active ? `麦克风监听中 · 通道 ${selectedChannel + 1}` : '麦克风不可用'}</span>
+        <div className="ws-tuner-device-choice">{active ? <Mic size={17} /> : <MicOff size={17} />}
+          <SelectMenu ariaLabel="音频输入" value={inputDevice} onChange={onDevice}
+            options={[{ value: '', label: '系统默认输入' }, ...devices.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications').map((d, i) => ({ value: d.deviceId, label: d.label || `输入设备 ${i + 1}` }))]} />
+          <small>{busy ? '正在连接…' : active ? `通道 ${selectedChannel + 1}` : '输入不可用'}</small>
+        </div>
         <div className="ws-input-level" role="meter" aria-label="输入电平" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}><i style={{ width: `${level * 100}%` }} /></div>
         <span className="ws-tuner-waveform" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></span>
       </div>

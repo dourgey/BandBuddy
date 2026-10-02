@@ -1,0 +1,654 @@
+{
+  "inputBytes": 31108752,
+  "outputBytes": 1779164,
+  "samples": [
+    {
+      "group": "drums",
+      "midi": 36,
+      "url": "drums-36.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\01-kicks\\midi036__kick-studio-beater.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 37,
+      "url": "drums-37.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\02-snares\\midi037__snare-studio-side-stick.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 38,
+      "url": "drums-38.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\02-snares\\midi038__snare-studio-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 40,
+      "url": "drums-40.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\02-snares\\midi040__snare-studio-rimshot-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 62,
+      "url": "drums-62.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\02-snares\\midi062__snare-studio-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 64,
+      "url": "drums-64.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\02-snares\\midi064__snare-studio-rimshot-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 29,
+      "url": "drums-29.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi029__hi-hat-vintage-super-tight.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 30,
+      "url": "drums-30.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi030__hi-hat-vintage-closed-shank.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 31,
+      "url": "drums-31.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi031__hi-hat-vintage-open-shank.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 32,
+      "url": "drums-32.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi032__hi-hat-vintage-foot-open.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 33,
+      "url": "drums-33.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi033__hi-hat-vintage-open-tip.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 34,
+      "url": "drums-34.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi034__hi-hat-vintage-half-open-shank.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 42,
+      "url": "drums-42.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi042__hi-hat-vintage-closed-tip.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 44,
+      "url": "drums-44.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi044__hi-hat-vintage-foot-closed.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 46,
+      "url": "drums-46.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\03-hi-hats\\midi046__hi-hat-vintage-half-open-tip.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 43,
+      "url": "drums-43.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi043__floor-tom-2-studio-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 45,
+      "url": "drums-45.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi045__floor-tom-1-studio-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 47,
+      "url": "drums-47.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi047__rack-tom-2-studio-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 48,
+      "url": "drums-48.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi048__rack-tom-1-studio-left.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 67,
+      "url": "drums-67.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi067__floor-tom-2-studio-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 69,
+      "url": "drums-69.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi069__floor-tom-1-studio-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 71,
+      "url": "drums-71.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi071__rack-tom-2-studio-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 72,
+      "url": "drums-72.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\04-toms\\midi072__rack-tom-1-studio-right.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 49,
+      "url": "drums-49.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi049__crash-16-vintage-edge.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 51,
+      "url": "drums-51.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi051__ride-22-vintage-edge.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 53,
+      "url": "drums-53.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi053__ride-22-vintage-bell.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 55,
+      "url": "drums-55.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi055__splash-10-vintage-edge.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 57,
+      "url": "drums-57.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi057__crash-18-vintage-edge.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 66,
+      "url": "drums-66.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi066__crash-16-vintage-choke.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 68,
+      "url": "drums-68.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi068__crash-18-vintage-choke.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 70,
+      "url": "drums-70.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\05-cymbals\\midi070__splash-10-vintage-choke.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 39,
+      "url": "drums-39.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\06-percussion\\midi039__hand-clap.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 54,
+      "url": "drums-54.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\06-percussion\\midi054__tambourine.wav"
+    },
+    {
+      "group": "drums",
+      "midi": 56,
+      "url": "drums-56.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\MODO-DRUM-STUDIO-One-Shots\\06-percussion\\midi056__cowbell.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 40,
+      "url": "electric-clean-40.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\040_E2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 41,
+      "url": "electric-clean-41.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\041_F2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 42,
+      "url": "electric-clean-42.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\042_Fs2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 43,
+      "url": "electric-clean-43.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\043_G2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 44,
+      "url": "electric-clean-44.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\044_Gs2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 45,
+      "url": "electric-clean-45.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\045_A2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 46,
+      "url": "electric-clean-46.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\046_As2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 47,
+      "url": "electric-clean-47.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\047_B2.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 48,
+      "url": "electric-clean-48.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\048_C3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 49,
+      "url": "electric-clean-49.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\049_Cs3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 50,
+      "url": "electric-clean-50.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\050_D3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 51,
+      "url": "electric-clean-51.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\051_Ds3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 52,
+      "url": "electric-clean-52.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\052_E3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 53,
+      "url": "electric-clean-53.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\053_F3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 54,
+      "url": "electric-clean-54.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\054_Fs3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 55,
+      "url": "electric-clean-55.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\055_G3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 56,
+      "url": "electric-clean-56.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\056_Gs3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 57,
+      "url": "electric-clean-57.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\057_A3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 58,
+      "url": "electric-clean-58.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\058_As3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 59,
+      "url": "electric-clean-59.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\059_B3.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 60,
+      "url": "electric-clean-60.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\060_C4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 61,
+      "url": "electric-clean-61.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\061_Cs4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 62,
+      "url": "electric-clean-62.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\062_D4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 63,
+      "url": "electric-clean-63.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\063_Ds4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 64,
+      "url": "electric-clean-64.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\064_E4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 65,
+      "url": "electric-clean-65.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\065_F4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 66,
+      "url": "electric-clean-66.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\066_Fs4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 67,
+      "url": "electric-clean-67.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\067_G4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 68,
+      "url": "electric-clean-68.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\068_Gs4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 69,
+      "url": "electric-clean-69.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\069_A4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 70,
+      "url": "electric-clean-70.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\070_As4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 71,
+      "url": "electric-clean-71.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\071_B4.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 72,
+      "url": "electric-clean-72.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\072_C5.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 73,
+      "url": "electric-clean-73.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\073_Cs5.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 74,
+      "url": "electric-clean-74.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\074_D5.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 75,
+      "url": "electric-clean-75.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\075_Ds5.wav"
+    },
+    {
+      "group": "electric-clean",
+      "midi": 76,
+      "url": "electric-clean-76.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-clean\\076_E5.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 40,
+      "url": "electric-distorted-40.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\040_E2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 41,
+      "url": "electric-distorted-41.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\041_F2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 42,
+      "url": "electric-distorted-42.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\042_Fs2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 43,
+      "url": "electric-distorted-43.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\043_G2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 44,
+      "url": "electric-distorted-44.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\044_Gs2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 45,
+      "url": "electric-distorted-45.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\045_A2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 46,
+      "url": "electric-distorted-46.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\046_As2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 47,
+      "url": "electric-distorted-47.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\047_B2.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 48,
+      "url": "electric-distorted-48.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\048_C3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 49,
+      "url": "electric-distorted-49.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\049_Cs3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 50,
+      "url": "electric-distorted-50.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\050_D3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 51,
+      "url": "electric-distorted-51.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\051_Ds3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 52,
+      "url": "electric-distorted-52.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\052_E3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 53,
+      "url": "electric-distorted-53.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\053_F3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 54,
+      "url": "electric-distorted-54.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\054_Fs3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 55,
+      "url": "electric-distorted-55.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\055_G3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 56,
+      "url": "electric-distorted-56.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\056_Gs3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 57,
+      "url": "electric-distorted-57.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\057_A3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 58,
+      "url": "electric-distorted-58.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\058_As3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 59,
+      "url": "electric-distorted-59.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\059_B3.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 60,
+      "url": "electric-distorted-60.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\060_C4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 61,
+      "url": "electric-distorted-61.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\061_Cs4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 62,
+      "url": "electric-distorted-62.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\062_D4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 63,
+      "url": "electric-distorted-63.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\063_Ds4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 64,
+      "url": "electric-distorted-64.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\064_E4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 65,
+      "url": "electric-distorted-65.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\065_F4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 66,
+      "url": "electric-distorted-66.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\066_Fs4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 67,
+      "url": "electric-distorted-67.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\067_G4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 68,
+      "url": "electric-distorted-68.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\068_Gs4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 69,
+      "url": "electric-distorted-69.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\069_A4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 70,
+      "url": "electric-distorted-70.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\070_As4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 71,
+      "url": "electric-distorted-71.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\071_B4.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 72,
+      "url": "electric-distorted-72.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\072_C5.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 73,
+      "url": "electric-distorted-73.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\073_Cs5.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 74,
+      "url": "electric-distorted-74.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\074_D5.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 75,
+      "url": "electric-distorted-75.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\075_Ds5.wav"
+    },
+    {
+      "group": "electric-distorted",
+      "midi": 76,
+      "url": "electric-distorted-76.ogg",
+      "source": "C:\\Users\\zhaoj\\Downloads\\Guitar-One-Shots\\electric-distorted\\076_E5.wav"
+    }
+  ]
+}

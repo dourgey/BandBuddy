@@ -1,3 +1,11 @@
+import { claimAudioSession, releaseAudioSession, pauseAudioSession } from './audio-session.js'
+import { allowAudioAction, useRecordingSession, publishRecordingState, registerRecordingControls } from './recording-session.js'
+import { confirmAction } from './components/ui/confirm.js'
+import { BackgroundRecording } from './components/BackgroundRecording.js'
+import { BackgroundTransport } from './components/BackgroundTransport.js'
+import { initializeAppearance } from './appearance.js'
+import './theme-tokens.css'
+import './theme.css'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Library, Plus } from 'lucide-react'
@@ -17,7 +25,7 @@ import {
   type SongSummary,
   type StemType
 } from '@shared/domain.js'
-import { lyricFrameAt } from '@shared/lyrics.js'
+import { lyricFrameAt, lyricWordFrame } from '@shared/lyrics.js'
 import { nextLoopState, restartPositionMs } from '@shared/playback.js'
 import { MultiTrackAudioEngine } from './audio-engine.js'
 import { Header } from './components/Header.js'
@@ -49,6 +57,8 @@ export default function App(): React.JSX.Element {
   const [audioEngine] = useState(() => new MultiTrackAudioEngine())
   const engine = useRef(audioEngine)
   const [view, setView] = useState<'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'>('library')
+  const [visitedRooms, setVisitedRooms] = useState({ woodshed: false, rehearsal: false })
+  useEffect(() => { if (view === 'woodshed' || view === 'rehearsal') setVisitedRooms(old => ({ ...old, [view]: true })) }, [view])
   const [activeRehearsalId, setActiveRehearsalId] = useState<string | null>(null)
   const [rehearsalReturn, setRehearsalReturn] = useState<{
     rehearsalId: string
@@ -267,6 +277,8 @@ export default function App(): React.JSX.Element {
       artist: song.artist,
       currentLines,
       nextLines,
+      cueId: `${song.id}:${frame.current?.timeMs ?? -1}`,
+      wordLines: lyricWordFrame(frame.current, currentMs),
       progress: frame.progress,
       playing
     }
@@ -322,6 +334,7 @@ export default function App(): React.JSX.Element {
     if (!song || !['idle', 'failed'].includes(recordingState.phase)) return
     if (playing || countInRemaining > 0) {
       engine.current.pause()
+      releaseAudioSession('practice')
       setCountInRemaining(0)
       setPlaying(false)
       patchPractice({ positionMs: currentMs })
@@ -331,6 +344,8 @@ export default function App(): React.JSX.Element {
       try {
         const countIn = practice?.countInBeats ?? 0
         if (countIn > 0) setCountInRemaining(countIn)
+        if (!allowAudioAction()) return
+        claimAudioSession('practice', song.title, () => { engine.current.pause(); setCountInRemaining(0); setPlaying(false) })
         const started = await engine.current.play(countIn, setCountInRemaining)
         setPlaying(started)
       } catch {
@@ -492,9 +507,9 @@ export default function App(): React.JSX.Element {
       if (!updated) return
       updateSongDetails(updated)
       void client.invalidateQueries({ queryKey: ['songs'] })
-      setToast(`已导入 ${updated.lyrics?.fileName ?? 'LRC 歌词'} · ${updated.lyrics?.cues.length ?? 0} 句`)
+      setToast(`已导入 ${updated.lyrics?.fileName ?? '歌词'} · ${updated.lyrics?.cues.length ?? 0} 句`)
     } catch (error) {
-      setToast(toUserErrorMessage(error, '歌词导入失败，请检查 LRC 文件后重试'))
+      setToast(toUserErrorMessage(error, '歌词导入失败，请检查歌词文件后重试'))
     }
   }
 
@@ -562,6 +577,12 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  const globalSession = useRecordingSession()
+  const globallyRecording = globalSession !== null
+  useEffect(() => { if (globallyRecording) pauseAudioSession() }, [globallyRecording])
+  useEffect(() => { publishRecordingState('practice', recordingState) }, [recordingState])
+  useEffect(() => registerRecordingControls('practice', { stop: stopRecording, cancel: cancelRecording }), [stopRecording, cancelRecording])
+  useEffect(() => { void initializeAppearance(window.bandbuddy.appearance) }, [])
   const recordingLocked = !['idle', 'failed'].includes(recordingState.phase)
   useKeyboardShortcuts({ song, practice, currentMs, selectedStem, seek, togglePlayback, restartPlayback, cycleLoop, patchPractice, patchTrack, setSelectedStem, enabled: view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && !recordingLocked })
 
@@ -585,15 +606,8 @@ export default function App(): React.JSX.Element {
   )
 
   const changeView = async (next: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'): Promise<void> => {
-    if (rehearsalRecordingLocked || next === view) return
-    if (view === 'practice' || next === 'woodshed') {
-      if (recordingLocked) await stopRecording()
-      engine.current.pause()
-      setPlaying(false)
-      setCountInRemaining(0)
-      await saveNow()
-    }
-    if (next === 'library' || next === 'practice' || next === 'arsenal' || next === 'woodshed') setRehearsalReturn(null)
+    if (next === view) return
+    void saveNow().catch(() => undefined)
     setView(next)
   }
 
@@ -614,20 +628,15 @@ export default function App(): React.JSX.Element {
   return <div className="app-shell">
     <Header
       view={view}
-      locked={rehearsalRecordingLocked}
+      locked={false}
       onView={(next) => void changeView(next)}
       taskCount={activeTaskCount}
       onTasks={() => setTasksOpen(true)}
       onSettings={() => setSettingsOpen(true)}
     />
     <Suspense fallback={<main className="page" role="status"><p>正在加载功能…</p></main>}>
-    {view !== 'library' && audioSettingsQuery.isPending ? <main className="page" role="status"><p>正在检测音频设备…</p></main> : view === 'woodshed' ? <Suspense fallback={<main className="page"><p>正在打开练功房…</p></main>}><WoodshedPage outputDeviceId={settings?.audioOutputDeviceId} onToast={setToast} /></Suspense> : view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
-      songs={songs} loading={songsQuery.isLoading} query={query} filter={filter} layout={layout}
-      onQuery={setQuery} onFilter={setFilter} onLayout={setLayout} onImport={() => setImportOpen(true)}
-      onOpen={(selected) => { setRehearsalReturn(null); void openSong(selected) }} onPlay={(selected) => { setRehearsalReturn(null); void openSong(selected, true) }}
-      onFavorite={(selected) => void window.bandbuddy.library.update({ id: selected.id, patch: { favorite: !selected.favorite } })}
-      onMenu={(selected) => { setActionSong(selected); setSongActionsOpen(true) }}
-    /> : view === 'rehearsal' ? <RehearsalRoom
+    {(visitedRooms.woodshed || view === 'woodshed') && <div style={{display:view === 'woodshed' ? 'contents' : 'none'}} aria-hidden={view !== 'woodshed'} inert={view !== 'woodshed'}><WoodshedPage active={view === 'woodshed'} outputDeviceId={settings?.audioOutputDeviceId} onToast={setToast} /></div>}
+    {(visitedRooms.rehearsal || view === 'rehearsal') && <div style={{display:view === 'rehearsal' ? 'contents' : 'none'}} aria-hidden={view !== 'rehearsal'} inert={view !== 'rehearsal'}><RehearsalRoom active={view === 'rehearsal'}
       settings={settings}
       initialRehearsalId={rehearsalInitialId}
       initialItemId={restoreRehearsalContext ? rehearsalReturn?.itemId : null}
@@ -639,7 +648,14 @@ export default function App(): React.JSX.Element {
       }}
       onRecordingLockChange={setRehearsalRecordingLocked}
       onToast={setToast}
-    /> : song && practice ? <PracticeRoom
+    /></div>}
+    {view !== 'library' && audioSettingsQuery.isPending ? <main className="page" role="status"><p>正在检测音频设备…</p></main> : view === 'woodshed' ? null : view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
+      songs={songs} loading={songsQuery.isLoading} query={query} filter={filter} layout={layout}
+      onQuery={setQuery} onFilter={setFilter} onLayout={setLayout} onImport={() => setImportOpen(true)}
+      onOpen={(selected) => { setRehearsalReturn(null); void openSong(selected) }} onPlay={(selected) => { setRehearsalReturn(null); void openSong(selected, true) }}
+      onFavorite={(selected) => void window.bandbuddy.library.update({ id: selected.id, patch: { favorite: !selected.favorite } })}
+      onMenu={(selected) => { setActionSong(selected); setSongActionsOpen(true) }}
+    /> : view === 'rehearsal' ? null : song && practice ? <PracticeRoom key={song.id}
       song={song} practice={practice} currentMs={currentMs} playing={playing} selectedStem={selectedStem}
       availableOutputChannelPairs={availableOutputChannelPairs}
       outputLatencyMs={engine.current.outputLatencySeconds * 1000}
@@ -654,20 +670,29 @@ export default function App(): React.JSX.Element {
       onMore={() => { setActionSong(song); setSongActionsOpen(true) }}
       onRecord={(recordingTrackId) => void startRecording(recordingTrackId)} onStopRecording={() => void stopRecording()} onCancelRecording={() => void cancelRecording()}
       onSelectTake={(recordingTrackId, takeId) => void selectTake(recordingTrackId, takeId)} onUpdateTake={(takeId, patch) => void updateTake(takeId, patch)}
+      onDeleteRecordingTrack={async trackId => {
+        if (!allowAudioAction() || fixtureMode) return
+        if (!await confirmAction({ title: '删除录音轨', message: '该轨和所有 Take 将被删除。', destructive: true })) return
+        try { await window.bandbuddy.recording.deleteTrack(trackId); await refreshCurrentSong() }
+        catch (error) { setToast(toUserErrorMessage(error, '删除录音轨失败')) }
+      }}
+      onEffectsChanged={() => void refreshCurrentSong()}
       onDeleteTake={(takeId) => void deleteTake(takeId)} onRecordingTrack={(recordingTrackId, patch) => void updateRecordingTrack(recordingTrackId, patch)}
       onUseTakePractice={(rate, pitchSemitones) => patchPractice({ playbackRate: rate, pitchSemitones })}
     /> : <NoSongPractice onLibrary={() => setView('library')} onImport={() => setImportOpen(true)} />}
     </Suspense>
-    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar outputLatencyMs={engine.current.outputLatencySeconds * 1000} recordingActive={recordingState.phase === 'recording'} practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={recordingLocked} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')
     }} />}
 
+    <BackgroundRecording view={view} onReturn={owner => void changeView(owner)} />
+    <BackgroundTransport view={view} onReturn={owner => void changeView(owner)} />
     <Suspense fallback={<div role="status">正在加载…</div>}>
     {importOpen && <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={(songId) => { setTasksOpen(true); void client.invalidateQueries({ queryKey: ['songs'] }); setToast(`歌曲已加入曲库 · ${songId.slice(0, 8)}`) }} onOpenDuplicate={(songId) => void openSong(songId)} onNeedsRuntime={() => { if (runtime?.status !== 'ready') setSettingsOpen(true) }} />}
     {tasksOpen && <TasksDrawer open={tasksOpen} onOpenChange={setTasksOpen} jobs={tasks} onRefresh={() => void tasksQuery.refetch()} />}
-    {settingsOpen && runtime && settings && <SettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
+    {settingsOpen && runtime && settings && <SettingsDrawer recordingBusy={globallyRecording || rehearsalRecordingLocked} open={settingsOpen} onOpenChange={setSettingsOpen} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
       client.setQueryData(['settings'], saved)
       if (client.getQueryData(['audio-settings'])) client.setQueryData(['audio-settings'], saved)
       void engine.current.setOutputDevice(saved.audioOutputDeviceId)

@@ -49,6 +49,53 @@ async function start() { await act(async () => fireEvent.click(screen.getByRole(
 const active = () => [...document.querySelectorAll('[data-active=true]')].map(n => n.getAttribute('data-position'))
 
 describe('authored practice material', () => {
+  it('gives every module one comprehensive exercise covering all of its existing exercises', () => {
+    const comprehensive = PRACTICE_EXERCISES.filter(e => e.kind === 'comprehensive')
+    expect(comprehensive).toHaveLength(30)
+    for (const instrument of ['guitar', 'bass', 'ukulele']) {
+      const exercises = PRACTICE_EXERCISES.filter(e => e.instrument === instrument)
+      const modules = [...new Set(exercises.map(e => e.module))]
+      for (const module of modules) {
+        const members = exercises.filter(e => e.module === module)
+        const combined = members.filter(e => e.kind === 'comprehensive')
+        expect(combined, `${instrument}/${module}`).toHaveLength(1)
+        expect(combined[0]!.sourceIds!.sort()).toEqual(members.filter(e => !e.kind).map(e => e.id).sort())
+        expect(members.at(-1)).toBe(combined[0])
+        for (const variant of combined[0]!.variants) {
+          const barLength = Number(variant.meter.split('/')[0])
+          expect(variant.beats / barLength).toBeGreaterThanOrEqual(16)
+          expect(new Set(variant.events.map(e => e.id)).size).toBe(variant.events.length)
+          let nextBar = 1
+          for (const stage of variant.stages!) {
+            expect(stage.startBar).toBe(nextBar)
+            expect(stage.endBar - stage.startBar + 1).toBeGreaterThanOrEqual(4)
+            const first = practiceFrame(variant, (stage.startBar - 1) * barLength).event!
+            expect(first.beat).toBe((stage.startBar - 1) * barLength)
+            nextBar = stage.endBar + 1
+          }
+          expect(nextBar).toBe(variant.beats / barLength + 1)
+          expect(practiceFrame(variant, variant.beats).event).toBe(variant.events[0])
+        }
+      }
+    }
+  })
+  it('moves four fingers across strings and positions and keeps both ukulele meters separate', () => {
+    const variant = exercise('guitar-01-comprehensive').variants[0]!
+    expect(variant.beats / 4).toBe(30)
+    const notesFor = (name: string) => {
+      const stage = variant.stages!.find(s => s.name === name)!
+      return variant.events.filter(e => e.beat >= (stage.startBar - 1) * 4 && e.beat < stage.endBar * 4).flatMap(e => e.notes)
+    }
+    expect(new Set(notesFor('不同弦上的四指顺序').map(n => n.string))).toEqual(new Set([1, 2, 3]))
+    expect(notesFor('不同把位的四指顺序').map(n => n.fret)).toEqual([3, 4, 5, 6, 6, 5, 4, 3, 5, 6, 7, 8, 8, 7, 6, 5, 7, 8, 9, 10, 10, 9, 8, 7])
+    const cross = notesFor('跨弦与换把协调')
+    expect(new Set(cross.map(n => n.string))).toEqual(new Set([2, 3]))
+    expect(new Set(cross.filter(n => n.string === 3).map(n => n.fret))).toEqual(new Set([3, 5, 7, 9]))
+    const waltz = exercise('ukulele-05-comprehensive').variants
+    expect(waltz.map(v => v.meter)).toEqual(['4/4', '3/4'])
+    expect(waltz[1]!.beats / 3).toBe(16)
+    expect(waltz[1]!.events.some(e => e.duration === 3)).toBe(true)
+  })
   it('covers eighteen guitar modules with playable, complete scores and valid knowledge links', () => {
     expect(new Set(PRACTICE_EXERCISES.filter(e => e.instrument === 'guitar').map(e => e.module)).size).toBe(18)
     expect(new Set(PRACTICE_EXERCISES.map(e => e.id)).size).toBe(PRACTICE_EXERCISES.length)
@@ -117,6 +164,22 @@ describe('authored practice material', () => {
 })
 
 describe('practice transport and navigation', () => {
+  it('opens the module comprehensive card and follows stage boundaries while playing', async () => {
+    render(<WoodshedPage onToast={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '专项练习', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: '吉他', exact: true }))
+    const module = screen.getByRole('region', { name: '01 左手机能与动作效率' })
+    expect(within(module).getAllByRole('button')).toHaveLength(4)
+    fireEvent.click(within(module).getByRole('button', { name: /版块综合练习/ }))
+    expect(screen.getByRole('heading', { name: '综合练习 · 放松、换弦与换把综合练习' })).toBeTruthy()
+    expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('起始阶段 · 1–4 小节')
+    fireEvent.change(screen.getByLabelText('节拍器速度'), { target: { value: '240' } })
+    await start(); await tick(4100)
+    expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('当前阶段 · 5–10 小节')
+    expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('不同弦上的四指顺序')
+    fireEvent.click(screen.getByRole('button', { name: '停止', exact: true }))
+    expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('起始阶段')
+  })
   it('resets the visual beat on three, and keeps the fourth string high on ukulele', async () => {
     render(<PracticeDetail exercise={exercise('ukulele-waltz')} outputDeviceId="" onError={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('节拍器速度'), { target: { value: '120' } })

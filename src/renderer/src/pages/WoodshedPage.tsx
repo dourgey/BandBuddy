@@ -1,3 +1,7 @@
+import { lazy, Suspense } from 'react'
+import { FretboardLab } from '../woodshed/FretboardLab.js'
+import { DrumMachine as SampleDrumMachine } from '../sample-drums/DrumMachine.js'
+const InstrumentWorkshopPage = lazy(() => import('./InstrumentWorkshopPage.js'))
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
@@ -50,6 +54,8 @@ const TOOLS = [
   { id: 'metronome', name: '节拍器', icon: Timer },
   { id: 'tuner', name: '调音器', icon: Mic },
   { id: 'drums', name: '鼓机', icon: Drum },
+  { id: 'sample-drums', name: '采样鼓机', icon: Drum },
+  { id: 'workshop', name: '演奏工作台', icon: Guitar },
   { id: 'chords', name: '和弦查询', icon: Music2 },
   { id: 'circle', name: '五度圈', icon: Compass },
   { id: 'drone', name: '持续参考音', icon: Volume2 }
@@ -58,6 +64,7 @@ export default function WoodshedPage({
   outputDeviceId = '',
   onToast
 }: {
+  active?: boolean
   outputDeviceId?: string
   onToast: (message: string) => void
 }): React.JSX.Element {
@@ -310,31 +317,13 @@ export default function WoodshedPage({
               </p>
             </div>
             <div className="ws-hero-stat">
-              <b>{p.section === 'tools' ? '06' : '12'}</b>
+              <b>{p.section === 'tools' ? String(TOOLS.length).padStart(2, '0') : '12'}</b>
               <span>{p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
             </div>
           </div>}
-          {p.section === 'lab' && instrumentSettings()}
           {p.section === 'learn' && <Learning location={learning} onNavigate={navigateLearning} onPractice={navigatePractice} />}
-          {p.section === 'lab' && (
-            <>
-              <div className="ws-lab-intro">
-                <Compass size={25} />
-                <div>
-                  <b>一张指板，多种观察方式</b>
-                  <p>
-                    选择音阶或和弦，点击音符试听；限定弦组与品位后，直接生成对应音型。左手显示只镜像空间，弦号和音高保持一致。
-                  </p>
-                </div>
-                <button className="ws-button" onClick={() => navigate('practice')}>
-                  浏览专项练习
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-              {renderWorkbench()}
-            </>
-          )}
-          {p.section === 'practice' && <Practice location={practice} onNavigate={navigatePractice} outputDeviceId={outputDeviceId} onError={error} />}
+          {p.section === 'lab' && <FretboardLab initialTuning={tuning} audio={audio} a4={p.a4} onBack={() => navigate('learn')} onError={error} />}
+          {p.section === 'practice' && <Practice location={practice} onNavigate={navigatePractice} outputDeviceId={outputDeviceId} onError={error} onKnowledge={navigateLearning} />}
           {p.section === 'tools' && (
             <>
               {!tool ? <div className="ws-tool-cards">
@@ -352,6 +341,8 @@ export default function WoodshedPage({
                   </button>
                 ))}
               </div> : <button className="ws-tool-back" onClick={() => setTool(null)}><ChevronRight size={15} /> 返回工具箱</button>}
+              {tool === 'workshop' && <Suspense fallback={<div role="status">正在加载演奏工作台…</div>}><InstrumentWorkshopPage outputDeviceId={outputDeviceId} onToast={error} /></Suspense>}
+              {tool === 'sample-drums' && <SampleDrumMachine outputDeviceId={outputDeviceId} onError={error} onBack={() => setTool(null)} />}
               {tool === 'metronome' && <Metronome outputDeviceId={outputDeviceId} onError={error} />}
               {tool === 'drums' && (
                 <DrumMachine

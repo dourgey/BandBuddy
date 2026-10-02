@@ -1,3 +1,4 @@
+import { clearTrackLevels, publishTrackLevel } from './track-levels.js'
 import {
   DEFAULT_OUTPUT_CHANNEL_PAIR,
   MAX_ROUTABLE_OUTPUT_CHANNELS,
@@ -178,6 +179,12 @@ export class MultiTrackAudioEngine {
   private pitchGeneration = 0
   private pitchLatencySeconds = 0
   private pitchWetActive = false
+  private meters = new Map<string, { node: AnalyserNode; data: Float32Array<ArrayBuffer> }>()
+  private addMeter(id: string, gain: GainNode): void {
+    if (!this.context?.createAnalyser) return
+    const node = this.context.createAnalyser(); node.fftSize = 1024; gain.connect(node)
+    this.meters.set(id, { node, data: new Float32Array(1024) })
+  }
   private tracks = new Map<StemType, TrackAudio>()
   private recordings = new Map<string, RecordingTrackAudio>()
   private song: SongDetail | null = null
@@ -233,6 +240,7 @@ export class MultiTrackAudioEngine {
       gain.channelCount = 2
       gain.channelCountMode = 'explicit'
       gain.channelInterpretation = 'speakers'
+      this.addMeter(type, gain)
       if (type === 'drums') {
         source.connect(gain).connect(this.bypassDelay!)
         this.tracks.set(type, { element, source, gain, splitter: null })
@@ -261,6 +269,7 @@ export class MultiTrackAudioEngine {
       const source = this.context!.createMediaElementSource(element)
       const gain = this.context!.createGain()
       source.connect(gain).connect(this.auxiliaryBus!)
+      this.addMeter(recordingTrack.id, gain)
       this.recordings.set(recordingTrack.id, { element, source, gain, splitter: null, take })
     }
     this.applyPractice(song.practice, true)
@@ -340,6 +349,7 @@ export class MultiTrackAudioEngine {
   }
 
   pause(): void {
+    clearTrackLevels()
     this.playbackGeneration += 1
     cancelAnimationFrame(this.frame)
     this.finishCountInWait()
@@ -785,7 +795,7 @@ export class MultiTrackAudioEngine {
     oscillator.type = 'sine'
     oscillator.frequency.setValueAtTime(accented ? 1560 : 1080, at)
     // Own level only; exponential ramps cannot target 0.
-    const peak = Math.max(0.0001, (accented ? 0.28 : 0.18) * dbToGain(this.practice?.metronomeGainDb ?? 0))
+    const peak = Math.max(0.0001, (accented ? 0.28 : 0.18) * 2 * dbToGain(this.practice?.metronomeGainDb ?? 0))
     gain.gain.setValueAtTime(0.0001, at)
     gain.gain.exponentialRampToValueAtTime(peak, at + 0.003)
     gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.055)
@@ -837,11 +847,18 @@ export class MultiTrackAudioEngine {
       else if (Math.abs(drift) > 0.012) recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE * (drift > 0 ? 0.985 : 1.015)
       else recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
     }
+    for (const [id, meter] of this.meters) {
+      meter.node.getFloatTimeDomainData(meter.data)
+      let peak = 0; for (const sample of meter.data) peak = Math.max(peak, Math.abs(sample))
+      publishTrackLevel(id, peak)
+    }
     this.timeListener?.(anchorTime * 1000)
     this.frame = requestAnimationFrame(this.monitor)
   }
 
   private destroyTracks(): void {
+    for (const meter of this.meters.values()) meter.node.disconnect()
+    this.meters.clear(); clearTrackLevels()
     cancelAnimationFrame(this.frame)
     this.cancelOutputRouteTransition()
     for (const { element, source, gain, splitter } of this.tracks.values()) {

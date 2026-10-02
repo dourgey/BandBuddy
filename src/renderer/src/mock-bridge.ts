@@ -15,6 +15,7 @@ export function installFixtureBridge(): void {
     modelRoot: 'C:\\Users\\Musician\\BandBuddy\\envs\\models',
     debugMode: false,
     desktopLyricsFontSize: 24,
+    desktopLyricsBackgroundTransparency: 20,
     highQualityStems: false,
     guitarSeparationQuality: 'balanced' as const,
     preferredDevice: 'auto' as const,
@@ -40,7 +41,9 @@ export function installFixtureBridge(): void {
     timelineFingerprint: null, timelinePositionMs: 0, preRollRemaining: 0, sampleRate: 0,
     bufferFrames: 0, latencyMs: 0, xruns: 0, splitDevices: false, message: '', error: null
   })
+  let appearance: import('@shared/appearance.js').Appearance = { schemaVersion: 1, theme: 'warm', density: 'normal', effects: 'standard' }
   const api: BandBuddyApi = {
+    appearance: { get: async () => appearance, set: async value => { appearance = value; return value }, onChanged: noop },
     arsenal: {
       list: async () => ({ assets: [], presets: [{ id: '99999999-9999-4999-8999-999999999999', name: '干净起点', chain: defaultEffectChain(), revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] }),
       importAsset: async () => null,
@@ -105,6 +108,7 @@ export function installFixtureBridge(): void {
       state: async () => ({ target: 'song' as const, phase: 'idle' as const, sessionId: null, songId: null, recordingTrackId: null, sourcePositionMs: 0, countInRemaining: 0, sampleRate: 0, bufferFrames: 0, latencyMs: 0, xruns: 0, splitDevices: false, message: '', error: null }),
       devices: async () => [], startTest: async () => undefined, stopTest: async () => undefined,
       start: async () => ({ sessionId: '99999999-9999-4999-8999-999999999999' }), stop: async () => null, cancel: async () => undefined,
+      deleteTrack: async () => undefined,
       updateTake: async () => { throw new Error('RECORDING_TAKE_NOT_FOUND') }, deleteTake: async () => undefined, selectTake: async () => undefined,
       createTrack: async (songId) => createDefaultRecordingTrackState(songId, '88888888-8888-4888-8888-888888888888'),
       updateTrack: async ({ recordingTrackId }) => createDefaultRecordingTrackState('11111111-1111-4111-8111-111111111111', recordingTrackId),

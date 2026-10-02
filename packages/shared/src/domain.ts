@@ -320,8 +320,12 @@ export interface SongSummary {
 
 export interface LyricCue {
   timeMs: number
+  endMs?: number
   lines: string[]
+  wordLines?: LyricWord[][]
 }
+
+export interface LyricWord { text: string; timeMs: number; endMs: number }
 
 export interface LyricsDocument {
   fileName: string
@@ -332,6 +336,9 @@ export interface LyricsDocument {
 }
 
 export interface DesktopLyricsPayload {
+  backgroundTransparency?: number
+  wordLines?: Array<Array<{ text: string; progress: number }>>
+  cueId?: string
   fontSize?: number
   title: string
   artist: string
@@ -534,6 +541,8 @@ export interface NetworkSettings {
 }
 
 export interface AppSettings {
+  appearance?: import("./appearance.js").Appearance
+  desktopLyricsBackgroundTransparency: number
   desktopLyricsFontSize: number
   libraryRoot: string
   runtimeRoot: string

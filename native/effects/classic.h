@@ -5,7 +5,7 @@
 
 namespace bb::classic {
 // Circuit studies, not calibrated replicas. See docs/arsenal-classic-models.md.
-enum class AmpKind { AB763, Lead2203 };
+enum class AmpKind { AB763, Lead2203, Orange, Mesa, Vox };
 struct AmpControls {
   bool enabled=false; AmpKind kind=AmpKind::AB763;
   double gain=.35, bass=.5, middle=.5, treble=.5, master=.5, inputVolts=1;
@@ -37,8 +37,8 @@ class Amp {
  private:
   AmpControls target, current;
   double rate, smooth, wet;
-  TriodeStage stages[3]; ToneStack stack;
-  whitebox::Lowpass coupling[4], miller[3];
+  TriodeStage stages[4]; ToneStack stack;
+  whitebox::Lowpass coupling[5], miller[4];
   std::array<double,129> kernel{}, down{};
   std::array<double,33> up{};
   std::array<float,32> dry{};
@@ -68,7 +68,7 @@ class Cabinet {
   unsigned clock=0;
   void coefficients();
 };
-enum class ModKind { Phase90, OpticalTremolo, Chorus, Flanger, Wah, Compressor };
+enum class ModKind { Phase90, OpticalTremolo, Chorus, Flanger, Wah, Compressor, Vibrato };
 struct ModControls {
   bool enabled=false; ModKind kind=ModKind::Phase90;
   double rateHz=.7, depth=.6, mix=.5, feedback=.3, manual=.5;
