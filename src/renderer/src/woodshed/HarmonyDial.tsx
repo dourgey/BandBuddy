@@ -60,22 +60,22 @@ export function HarmonyDial({ root, minor, activeRoot, onRoot, onMinor }: {
         if (state.moved) setRotation(state.rotation)
       }} onPointerUp={() => finish()} onPointerCancel={() => finish(true)}>
       <defs>
-        <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4b504b" /><stop offset=".18" stopColor="#f9f8eb" /><stop offset=".28" stopColor="#636b63" /><stop offset=".5" stopColor="#252f29" /><stop offset=".68" stopColor="#b5b7aa" /><stop offset=".78" stopColor="#edf0e5" /><stop offset="1" stopColor="#484f47" /></linearGradient>
-        <radialGradient id={`${id}-paper`}><stop stopColor="#b5b0a2" /><stop offset=".65" stopColor="#e4e0d6" /><stop offset="1" stopColor="#c7c5ba" /></radialGradient>
-        <linearGradient id={`${id}-hub`} x2=".8" y2="1"><stop stopColor="#596a58" /><stop offset="1" stopColor="#1d3027" /></linearGradient>
-        <linearGradient id={`${id}-pointer`} x2="1" y2=".2"><stop stopColor="#948773" /><stop offset=".45" stopColor="#f6e8ca" /><stop offset="1" stopColor="#a5987f" /></linearGradient>
+        <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="var(--ink)" /><stop offset=".18" stopColor="var(--surface-raised)" /><stop offset=".28" stopColor="var(--muted)" /><stop offset=".5" stopColor="var(--ink)" /><stop offset=".68" stopColor="var(--border)" /><stop offset=".78" stopColor="var(--surface)" /><stop offset="1" stopColor="var(--ink)" /></linearGradient>
+        <radialGradient id={`${id}-paper`}><stop stopColor="var(--border)" /><stop offset=".65" stopColor="var(--surface-muted)" /><stop offset="1" stopColor="var(--border)" /></radialGradient>
+        <linearGradient id={`${id}-hub`} x2=".8" y2="1"><stop stopColor="var(--muted)" /><stop offset="1" stopColor="var(--ink)" /></linearGradient>
+        <linearGradient id={`${id}-pointer`} x2="1" y2=".2"><stop stopColor="var(--accent)" /><stop offset=".45" stopColor="var(--accent-soft)" /><stop offset="1" stopColor="var(--accent)" /></linearGradient>
       </defs>
-      <circle cx="250" cy="250" r="241" fill={`url(#${id}-metal)`} stroke="#827e6e" strokeWidth="2" />
-      <circle cx="250" cy="250" r="233" fill="none" stroke="#f2ecdb" strokeWidth="2" />
-      <circle cx="250" cy="250" r="224" fill="#35443a" stroke="#a6aa9a" strokeWidth="2" />
+      <circle cx="250" cy="250" r="241" fill={`url(#${id}-metal)`} stroke="var(--muted)" strokeWidth="2" />
+      <circle cx="250" cy="250" r="233" fill="none" stroke="var(--surface)" strokeWidth="2" />
+      <circle cx="250" cy="250" r="224" fill="var(--ink)" stroke="var(--border-strong)" strokeWidth="2" />
       <g className="he-disc" style={{ transform: `rotate(${current}deg)`, transformOrigin: '250px 250px' }}>
-        <circle cx="250" cy="250" r="211" fill={`url(#${id}-paper)`} stroke="#7d7c6e" strokeWidth="2" />
+        <circle cx="250" cy="250" r="211" fill={`url(#${id}-paper)`} stroke="var(--muted)" strokeWidth="2" />
         {CIRCLE.map(([major, relative], i) => {
           const pc = mod(parseNote(`${major}4`)!), selected = pc === majorRoot, neighbor = mod(i - selectedIndex, 12) === 1 || mod(i - selectedIndex, 12) === 11
           const [x, y] = point(179, i * 30), [mx, my] = point(127, i * 30)
           return <g key={major}>
-            <path d={wedge(151, 210, i * 30)} fill={selected ? '#eef0db' : neighbor ? '#d9ddc9' : 'transparent'} stroke="#8d8b7b" strokeWidth=".65" />
-            <path d={wedge(99, 151, i * 30)} fill={selected ? '#bdc6b0' : '#79756513'} stroke="#8d8b7b" strokeWidth=".6" />
+            <path d={wedge(151, 210, i * 30)} fill={selected ? 'var(--surface)' : neighbor ? 'var(--surface-muted)' : 'transparent'} stroke="var(--border-strong)" strokeWidth=".65" />
+            <path d={wedge(99, 151, i * 30)} fill={selected ? 'var(--border)' : 'color-mix(in srgb, var(--muted) 7.5%, transparent)'} stroke="var(--border-strong)" strokeWidth=".6" />
             <g role="button" tabIndex={0} aria-label={`${major}大调`} aria-pressed={!minor && root === pc}
               onClick={() => { if (!suppressClick.current) { onMinor(false); onRoot(pc) } }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onMinor(false); onRoot(pc) } }}>
               <path d={wedge(151, 210, i * 30)} fill="transparent" />
@@ -88,18 +88,18 @@ export function HarmonyDial({ root, minor, activeRoot, onRoot, onMinor }: {
             </g>
           </g>
         })}
-        {Array.from({ length: 60 }, (_, i) => { const a = point(i % 5 ? 217 : 214, i * 6), b = point(222, i * 6); return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#dcd5ba" strokeWidth={i % 5 ? 1 : 2} /> })}
+        {Array.from({ length: 60 }, (_, i) => { const a = point(i % 5 ? 217 : 214, i * 6), b = point(222, i * 6); return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="var(--accent-soft)" strokeWidth={i % 5 ? 1 : 2} /> })}
       </g>
-      <circle cx="250" cy="250" r="99" fill={`url(#${id}-metal)`} stroke="#2d362d" strokeWidth="2" />
-      <circle cx="250" cy="250" r="93" fill={`url(#${id}-hub)`} stroke="#c8c0a7" />
+      <circle cx="250" cy="250" r="99" fill={`url(#${id}-metal)`} stroke="var(--ink)" strokeWidth="2" />
+      <circle cx="250" cy="250" r="93" fill={`url(#${id}-hub)`} stroke="var(--accent)" />
       <circle cx="250" cy="196" r="4" fill={`url(#${id}-pointer)`} />
       <text x="250" y="239" textAnchor="middle" className="he-hub-title">{harmonyRootName(root,minor)} <tspan fontSize="22">{minor ? 'Minor' : 'Major'}</tspan></text>
-      <path d="M183 255H317" stroke="#d5d8c8" />
+      <path d="M183 255H317" stroke="var(--surface-muted)" />
       <text x="250" y="280" textAnchor="middle" className="he-hub-relative">{harmonyRootName(mod(root + (minor ? 3 : 9)),!minor)} {minor ? 'major' : 'minor'}</text>
       <text x="250" y="300" textAnchor="middle" className="he-hub-small">Relative {minor ? 'Major' : 'Minor'}</text>
       <text x="250" y="320" textAnchor="middle" className="he-hub-small">{keySignature(root, minor)}</text>
-      <path d="M236 17Q250 10 264 17L255 48Q250 60 245 48Z" fill={`url(#${id}-pointer)`} stroke="#f7efda" strokeWidth="2" className="he-pointer" />
-      {[45, 135, 225, 315].map(angle => { const [x,y] = point(231,angle); return <g key={angle}><circle cx={x} cy={y} r="7" fill={`url(#${id}-pointer)`} stroke="#343c33" strokeWidth="2" /><path d={`M${x-3} ${y-3}l6 6m-6 0l6-6`} stroke="#514c40" strokeWidth="1.5" /></g> })}
+      <path d="M236 17Q250 10 264 17L255 48Q250 60 245 48Z" fill={`url(#${id}-pointer)`} stroke="var(--surface)" strokeWidth="2" className="he-pointer" />
+      {[45, 135, 225, 315].map(angle => { const [x,y] = point(231,angle); return <g key={angle}><circle cx={x} cy={y} r="7" fill={`url(#${id}-pointer)`} stroke="var(--ink)" strokeWidth="2" /><path d={`M${x-3} ${y-3}l6 6m-6 0l6-6`} stroke="var(--ink)" strokeWidth="1.5" /></g> })}
     </svg>
     <div className="he-dial-caption"><div className="he-tonality"><button className={!minor ? 'active' : ''} onClick={() => onMinor(false)}>Major 大调</button><button className={minor ? 'active' : ''} onClick={() => onMinor(true)}>Minor 小调</button></div><p>拖动转盘 · 滚轮切换 · 点击选调</p><span>{keyName(root, minor)} · {keySignature(root, minor)}</span></div>
     <div className="he-dial-quote">“Music is a higher revelation<br />than all wisdom and philosophy.”<small>— Ludwig van Beethoven</small></div>

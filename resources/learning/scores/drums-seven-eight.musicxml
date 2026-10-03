@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<score-partwise version="4.0">
+  <work><work-title>7/8：两种重音分组</work-title></work>
+  <movement-title>7/8：两种重音分组</movement-title>
+  <identification><creator type="composer">BandBuddy 教学例谱</creator><encoding><software>BandBuddy</software></encoding></identification>
+  <defaults><scaling><millimeters>7</millimeters><tenths>40</tenths></scaling></defaults>
+  <part-list>
+    <score-part id="P1"><part-name>Drum Set</part-name><part-abbreviation>Dr.</part-abbreviation>
+      <score-instrument id="P1-I42"><instrument-name>Closed Hi-Hat</instrument-name></score-instrument>
+      <score-instrument id="P1-I38"><instrument-name>Acoustic Snare</instrument-name></score-instrument>
+      <score-instrument id="P1-I36"><instrument-name>Bass Drum 1</instrument-name></score-instrument>
+      <midi-instrument id="P1-I42"><midi-channel>10</midi-channel><midi-unpitched>43</midi-unpitched></midi-instrument>
+      <midi-instrument id="P1-I38"><midi-channel>10</midi-channel><midi-unpitched>39</midi-unpitched></midi-instrument>
+      <midi-instrument id="P1-I36"><midi-channel>10</midi-channel><midi-unpitched>37</midi-unpitched></midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>12</divisions><time><beats>2+2+3</beats><beat-type>8</beat-type></time><clef><sign>percussion</sign></clef></attributes>
+      <direction placement="above"><direction-type><words default-y="60" font-size="10">× G5 闭镲；C5 军鼓；F4 底鼓；&gt; 表示分组起点</words></direction-type></direction>
+      <direction placement="above"><direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>60</per-minute></metronome></direction-type><sound tempo="60"/></direction>
+      <direction placement="above"><direction-type><words default-y="35" font-size="10">2 + 2 + 3：1 2 | 1 2 | 1 2 3</words></direction-type></direction>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">continue</beam></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <backup><duration>42</duration></backup>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><unpitched><display-step>C</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I38"/><voice>2</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <backup><duration>42</duration></backup>
+      <note><unpitched><display-step>F</display-step><display-octave>4</display-octave></unpitched><duration>6</duration><instrument id="P1-I36"/><voice>3</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><unpitched><display-step>F</display-step><display-octave>4</display-octave></unpitched><duration>6</duration><instrument id="P1-I36"/><voice>3</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+    </measure>
+    <measure number="2">
+      <attributes><time><beats>3+2+2</beats><beat-type>8</beat-type></time></attributes>
+      <direction placement="above"><direction-type><words default-y="35" font-size="10">3 + 2 + 2：1 2 3 | 1 2 | 1 2</words></direction-type></direction>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">continue</beam></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <note dynamics="78"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations></note>
+      <note dynamics="55"><unpitched><display-step>G</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I42"/><voice>1</voice><type>eighth</type><stem>up</stem><notehead>x</notehead><beam number="1">end</beam></note>
+      <backup><duration>42</duration></backup>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><unpitched><display-step>C</display-step><display-octave>5</display-octave></unpitched><duration>6</duration><instrument id="P1-I38"/><voice>2</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>2</voice><type>eighth</type></note>
+      <backup><duration>42</duration></backup>
+      <note><unpitched><display-step>F</display-step><display-octave>4</display-octave></unpitched><duration>6</duration><instrument id="P1-I36"/><voice>3</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <note><unpitched><display-step>F</display-step><display-octave>4</display-octave></unpitched><duration>6</duration><instrument id="P1-I36"/><voice>3</voice><type>eighth</type><stem>down</stem><notehead>normal</notehead></note>
+      <note><rest/><duration>6</duration><voice>3</voice><type>eighth</type></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>

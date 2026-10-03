@@ -1,0 +1,11 @@
+.ws-musicxml-score { min-width: 0; max-width: 100%; max-height: 500px; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
+.ws-musicxml-pages { min-width: 340px; }
+.ws-musicxml-pages svg { display: block; max-width: none; min-width: 0; height: auto; }
+.ws-musicxml-score .ws-score-note:not([role=button]) { cursor: default; }
+.ws-musicxml-score .ws-score-note:not([role=button]):hover { opacity: 1; }
+.ws-musicxml-score .ws-score-note[role=button]:focus-visible { outline: 2px solid var(--score-ink, #496d64); outline-offset: 4px; }
+.ws-musicxml-score :is([data-event].active, [data-ensemble-event].ensemble-active) { fill: #b16945 !important; stroke: #b16945 !important; }
+.ws-musicxml-score :is([data-event].active, [data-ensemble-event].ensemble-active) :is(path, text):not([fill=none]) { fill: #b16945 !important; }
+.ws-musicxml-score :is([data-event].active, [data-ensemble-event].ensemble-active) [stroke]:not([stroke=none]) { stroke: #b16945 !important; }
+.ensemble-score .ws-musicxml-pages svg { width: auto; min-width: 0; }
+.ensemble-score:has(> .ws-musicxml-score) { overflow: hidden; max-height: none; }

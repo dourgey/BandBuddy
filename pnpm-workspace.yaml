@@ -1,6 +1,11 @@
 packages:
   - packages/*
 
+# OSMD renders inside Chromium. Its optional Node-only WebGL backend is unused
+# and cannot be rebuilt against Electron's V8 ABI.
+overrides:
+  opensheetmusicdisplay>gl: '-'
+
 allowBuilds:
   better-sqlite3: true
   electron: true
@@ -10,6 +15,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - lucide-react@1.25.0
   - wavesurfer.js@7.12.11
+  - opensheetmusicdisplay@2.2.0
 
 onlyBuiltDependencies:
   - better-sqlite3

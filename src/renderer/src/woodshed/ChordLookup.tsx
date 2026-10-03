@@ -77,14 +77,14 @@ function ShapeDiagram({ shape, tuning, selected, onSelect, onPlay }: {
     <button className="cl-shape-main" aria-pressed={selected} onClick={onSelect}>
       <strong>{shape.title}</strong><span className="cl-shape-code">{voicingCode(tuning, shape.voicing)}</span>
       <svg viewBox="0 0 210 174" role="img" aria-label={`${shape.title}，按法 ${voicingCode(tuning, shape.voicing)}`}>
-        {Array.from({ length: 5 }, (_, i) => <line key={`h${i}`} x1="35" x2="175" y1={39 + i * 29} y2={39 + i * 29} stroke="#929a92" strokeWidth={i === 0 && base === 1 ? 3 : 1} />)}
+        {Array.from({ length: 5 }, (_, i) => <line key={`h${i}`} x1="35" x2="175" y1={39 + i * 29} y2={39 + i * 29} stroke="var(--border-strong)" strokeWidth={i === 0 && base === 1 ? 3 : 1} />)}
         {tuning.notes.map((_, i) => {
           const string = tuning.notes.length - i, x = 35 + i * 140 / (tuning.notes.length - 1)
           const fret = shape.voicing.find(p => p.string === string)?.fret
           return <g key={string}>
-            <line x1={x} x2={x} y1="39" y2="155" stroke="#929a92" />
+            <line x1={x} x2={x} y1="39" y2="155" stroke="var(--border-strong)" />
             <text x={x} y="28" textAnchor="middle" className="cl-string-marker">{fret === undefined ? '×' : fret === 0 ? '○' : ''}</text>
-            {fret !== undefined && fret > 0 && <circle cx={x} cy={39 + (fret - base + .5) * 29} r="9" fill="#658d6b" />}
+            {fret !== undefined && fret > 0 && <circle cx={x} cy={39 + (fret - base + .5) * 29} r="9" fill="var(--accent)" />}
           </g>
         })}
         {base > 1 && <text x="19" y="59" className="cl-base-fret">{base}</text>}
@@ -114,7 +114,7 @@ function FretboardView({ tuning, root, chord, labels, degreeMode, fretCount, cap
         })}
       </div>
     })}
-  </div>{route && route.length > 1 && <svg className="cl-board-route" width={62 + 53 * (fretCount + 1)} height={28 + tuning.notes.length * 48} aria-hidden="true"><polyline points={route.map(p => `${62 + p.fret * 53 + 26.5},${28 + (p.string - 1) * 48 + 24}`).join(' ')} fill="none" stroke="#d08e57" strokeWidth="2.5" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div></div>
+  </div>{route && route.length > 1 && <svg className="cl-board-route" width={62 + 53 * (fretCount + 1)} height={28 + tuning.notes.length * 48} aria-hidden="true"><polyline points={route.map(p => `${62 + p.fret * 53 + 26.5},${28 + (p.string - 1) * 48 + 24}`).join(' ')} fill="none" stroke="var(--danger)" strokeWidth="2.5" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div></div>
 }
 function PianoView({ root, chord, labels, inversion, onNote }: { root: number; chord: Material; labels: string[]; inversion: number; onNote: (midi: number) => void }): React.JSX.Element {
   const voiced = chord.semitones.map(n => 48 + root + n)

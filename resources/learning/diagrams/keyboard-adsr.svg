@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" role="img" aria-labelledby="title desc">
+  <title id="title">ADSR 音量包络</title>
+  <desc id="desc">按键 Note on 后，Attack 从零升到峰值，Decay 降到 Sustain 电平；按键保持期间维持该电平。松键 Note off 后，Release 从当前电平衰减到零。Attack、Decay、Release 表示时间，Sustain 表示电平。</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" fill="none" stroke="#637970" stroke-width="1.5"/></marker></defs>
+  <rect width="1000" height="520" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" fill="#284b42">
+    <text x="40" y="44" font-size="25" font-weight="700">ADSR：声音怎样起、落、保持和结束</text>
+    <text x="40" y="76" font-size="16">音量包络示意；不同音色的曲线形状可不同，图中用直线说明阶段。</text>
+    <rect x="140" y="111" width="570" height="239" fill="#e4eee6"/>
+    <path d="M100 350H948 M100 350V109" fill="none" stroke="#637970" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="934" y="382" text-anchor="end" font-size="16">时间</text>
+    <text x="47" y="125" font-size="16">电平</text><text x="75" y="355" font-size="15">0</text>
+    <path d="M140 111V367 M710 111V367" stroke="#9d8a5c" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <path d="M100 224H710" stroke="#b7c6bb" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <path d="M100 350H140L240 136L380 224H710L870 350H930" fill="none" stroke="#326955" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="240" cy="136" r="5" fill="#326955"/><circle cx="380" cy="224" r="5" fill="#326955"/><circle cx="710" cy="224" r="5" fill="#326955"/>
+    <text x="140" y="399" text-anchor="middle" font-size="16" font-weight="700">按键 Note on</text>
+    <text x="710" y="399" text-anchor="middle" font-size="16" font-weight="700">松键 Note off</text>
+    <text x="190" y="124" text-anchor="middle" font-size="17" font-weight="700">A</text>
+    <text x="305" y="154" text-anchor="middle" font-size="17" font-weight="700">D</text>
+    <text x="540" y="203" text-anchor="middle" font-size="17" font-weight="700">S：保持电平</text>
+    <text x="810" y="249" text-anchor="middle" font-size="17" font-weight="700">R</text>
+    <text x="425" y="325" text-anchor="middle" font-size="16">按住琴键的时段（由演奏决定）</text>
+    <path d="M112 350V224" fill="none" stroke="#a58546" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="122" y="287" font-size="15" fill="#806428">S</text>
+    <path d="M140 361v12h100v-12 M240 361v12h140v-12 M710 361v12h160v-12" fill="none" stroke="#637970" stroke-width="1.5"/>
+    <text x="40" y="448" font-size="17"><tspan font-weight="700">A / D / R = 时间：</tspan>起音、衰减到保持电平、松键后的释放。</text>
+    <text x="40" y="481" font-size="17"><tspan font-weight="700">S = 电平：</tspan>不是持续秒数；提前松键通常会从当时的电平进入 Release。</text>
+  </g>
+</svg>

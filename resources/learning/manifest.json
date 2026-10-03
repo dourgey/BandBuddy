@@ -1,0 +1,1706 @@
+{
+  "version": 1,
+  "systems": [
+    {
+      "id": "shared",
+      "title": "共享基础",
+      "description": "乐理、节奏与听觉的共同语言。",
+      "context": "同一概念，多种乐器：选择标签查看发音、指法与音乐角色的差异。",
+      "stages": [
+        {
+          "title": "音高与基本动作",
+          "nodes": [
+            {
+              "id": "shared-1",
+              "title": "音名、半音与全音",
+              "document": "documents/shared/shared-1.json"
+            },
+            {
+              "id": "shared-2",
+              "title": "八度、实际音高与弦序",
+              "document": "documents/shared/shared-2.json"
+            },
+            {
+              "id": "shared-3",
+              "title": "音程、调号与调性中心",
+              "document": "documents/shared/shared-3.json"
+            },
+            {
+              "id": "shared-4",
+              "title": "清晰发音与有效用力",
+              "document": "documents/shared/shared-4.json"
+            },
+            {
+              "id": "shared-5",
+              "title": "双手协调与动作预备",
+              "document": "documents/shared/shared-5.json"
+            },
+            {
+              "id": "shared-6",
+              "title": "制音、音长与休止",
+              "document": "documents/shared/shared-6.json"
+            }
+          ]
+        },
+        {
+          "title": "节奏与读谱",
+          "nodes": [
+            {
+              "id": "shared-7",
+              "title": "拍点与拍号",
+              "document": "documents/shared/shared-7.json"
+            },
+            {
+              "id": "shared-8",
+              "title": "八分、十六分与三连音",
+              "document": "documents/shared/shared-8.json"
+            },
+            {
+              "id": "shared-9",
+              "title": "切分、重音与稀疏提示",
+              "document": "documents/shared/shared-9.json"
+            }
+          ]
+        },
+        {
+          "title": "音高位置与音阶",
+          "nodes": [
+            {
+              "id": "shared-10",
+              "title": "音名锚点与位置定位",
+              "document": "documents/shared/shared-10.json"
+            },
+            {
+              "id": "shared-11",
+              "title": "八度位置与同音对应",
+              "document": "documents/shared/shared-11.json"
+            },
+            {
+              "id": "shared-12",
+              "title": "音区连接与目标音导航",
+              "document": "documents/shared/shared-12.json"
+            },
+            {
+              "id": "shared-13",
+              "title": "五声音阶与短旋律",
+              "document": "documents/shared/shared-13.json"
+            },
+            {
+              "id": "shared-14",
+              "title": "大调、自然小调与听感对比",
+              "document": "documents/shared/shared-14.json"
+            },
+            {
+              "id": "shared-15",
+              "title": "调式与和声背景",
+              "document": "documents/shared/shared-15.json"
+            }
+          ]
+        },
+        {
+          "title": "模进与音乐组织",
+          "nodes": [
+            {
+              "id": "shared-16",
+              "title": "顺阶、方向与稳定连接",
+              "document": "documents/shared/shared-16.json"
+            },
+            {
+              "id": "shared-17",
+              "title": "调内模进与精确移调",
+              "document": "documents/shared/shared-17.json"
+            },
+            {
+              "id": "shared-18",
+              "title": "三度、琶音组与重音错位",
+              "document": "documents/shared/shared-18.json"
+            }
+          ]
+        },
+        {
+          "title": "和声与声部",
+          "nodes": [
+            {
+              "id": "shared-19",
+              "title": "三和弦的构成与转位",
+              "document": "documents/shared/shared-19.json"
+            },
+            {
+              "id": "shared-20",
+              "title": "七和弦与琶音",
+              "document": "documents/shared/shared-20.json"
+            },
+            {
+              "id": "shared-21",
+              "title": "共同音与平滑声部连接",
+              "document": "documents/shared/shared-21.json"
+            }
+          ]
+        },
+        {
+          "title": "听觉与即兴",
+          "nodes": [
+            {
+              "id": "shared-22",
+              "title": "听辨、读谱与唱回",
+              "document": "documents/shared/shared-22.json"
+            },
+            {
+              "id": "shared-23",
+              "title": "动机、问答与留白",
+              "document": "documents/shared/shared-23.json"
+            },
+            {
+              "id": "shared-24",
+              "title": "和弦音落点与限制即兴",
+              "document": "documents/shared/shared-24.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guitar",
+      "title": "吉他",
+      "description": "从清晰发音，到演奏、音色与完整作品。",
+      "context": "六弦标准定弦 E–A–D–G–B–E（低音到高音）；电吉他与原声吉他分别讲解。",
+      "stages": [
+        {
+          "title": "准备与发音",
+          "nodes": [
+            {
+              "id": "guitar-outline-0-1",
+              "title": "乐器认识与基础动作",
+              "document": "documents/guitar/guitar-outline-0-1.json"
+            },
+            {
+              "id": "guitar-outline-0-2",
+              "title": "调音与最基本读谱",
+              "document": "documents/guitar/guitar-outline-0-2.json"
+            },
+            {
+              "id": "guitar-outline-0-3",
+              "title": "最小设备系统",
+              "document": "documents/guitar/guitar-outline-0-3.json"
+            },
+            {
+              "id": "guitar-outline-0-4",
+              "title": "健康练习与听力保护",
+              "document": "documents/guitar/guitar-outline-0-4.json"
+            }
+          ]
+        },
+        {
+          "title": "入门",
+          "nodes": [
+            {
+              "id": "guitar-outline-1-1",
+              "title": "单音与双手协调",
+              "document": "documents/guitar/guitar-outline-1-1.json"
+            },
+            {
+              "id": "guitar-outline-1-2",
+              "title": "和弦与伴奏",
+              "document": "documents/guitar/guitar-outline-1-2.json"
+            },
+            {
+              "id": "guitar-outline-1-3",
+              "title": "节奏与读谱",
+              "document": "documents/guitar/guitar-outline-1-3.json"
+            },
+            {
+              "id": "guitar-outline-1-4",
+              "title": "听觉与基础知识",
+              "document": "documents/guitar/guitar-outline-1-4.json"
+            },
+            {
+              "id": "guitar-outline-1-5",
+              "title": "吉他自身的音色控制",
+              "document": "documents/guitar/guitar-outline-1-5.json"
+            }
+          ]
+        },
+        {
+          "title": "基础节奏",
+          "nodes": [
+            {
+              "id": "guitar-outline-2-1",
+              "title": "制音与发音长度",
+              "document": "documents/guitar/guitar-outline-2-1.json"
+            },
+            {
+              "id": "guitar-outline-2-2",
+              "title": "和弦扩展",
+              "document": "documents/guitar/guitar-outline-2-2.json"
+            },
+            {
+              "id": "guitar-outline-2-3",
+              "title": "节奏能力",
+              "document": "documents/guitar/guitar-outline-2-3.json"
+            },
+            {
+              "id": "guitar-outline-2-4",
+              "title": "音箱与扬声器入门",
+              "document": "documents/guitar/guitar-outline-2-4.json"
+            },
+            {
+              "id": "guitar-outline-2-5",
+              "title": "过载、失真、Boost 与 EQ",
+              "document": "documents/guitar/guitar-outline-2-5.json"
+            },
+            {
+              "id": "guitar-outline-2-6",
+              "title": "乐器维护基础",
+              "document": "documents/guitar/guitar-outline-2-6.json"
+            }
+          ]
+        },
+        {
+          "title": "初级主奏",
+          "nodes": [
+            {
+              "id": "guitar-outline-3-1",
+              "title": "旋律技术",
+              "document": "documents/guitar/guitar-outline-3-1.json"
+            },
+            {
+              "id": "guitar-outline-3-2",
+              "title": "音阶与句法",
+              "document": "documents/guitar/guitar-outline-3-2.json"
+            },
+            {
+              "id": "guitar-outline-3-3",
+              "title": "布鲁斯与短独奏",
+              "document": "documents/guitar/guitar-outline-3-3.json"
+            },
+            {
+              "id": "guitar-outline-3-4",
+              "title": "压缩与噪声门",
+              "document": "documents/guitar/guitar-outline-3-4.json"
+            },
+            {
+              "id": "guitar-outline-3-5",
+              "title": "延迟与混响",
+              "document": "documents/guitar/guitar-outline-3-5.json"
+            },
+            {
+              "id": "guitar-outline-3-6",
+              "title": "主奏音色",
+              "document": "documents/guitar/guitar-outline-3-6.json"
+            }
+          ]
+        },
+        {
+          "title": "中级整合",
+          "nodes": [
+            {
+              "id": "guitar-outline-4-1",
+              "title": "指板音名与音程",
+              "document": "documents/guitar/guitar-outline-4-1.json"
+            },
+            {
+              "id": "guitar-outline-4-2",
+              "title": "三和弦、转位与七和弦",
+              "document": "documents/guitar/guitar-outline-4-2.json"
+            },
+            {
+              "id": "guitar-outline-4-3",
+              "title": "调内和声与和弦内音即兴",
+              "document": "documents/guitar/guitar-outline-4-3.json"
+            },
+            {
+              "id": "guitar-outline-4-4",
+              "title": "听觉与读谱",
+              "document": "documents/guitar/guitar-outline-4-4.json"
+            },
+            {
+              "id": "guitar-outline-4-5",
+              "title": "调制与音高效果",
+              "document": "documents/guitar/guitar-outline-4-5.json"
+            },
+            {
+              "id": "guitar-outline-4-6",
+              "title": "音箱模拟、箱体与 IR",
+              "document": "documents/guitar/guitar-outline-4-6.json"
+            },
+            {
+              "id": "guitar-outline-4-7",
+              "title": "音频接口与软件录音",
+              "document": "documents/guitar/guitar-outline-4-7.json"
+            }
+          ]
+        },
+        {
+          "title": "独立音乐任务",
+          "nodes": [
+            {
+              "id": "guitar-outline-5-1",
+              "title": "独立学习与扒谱",
+              "document": "documents/guitar/guitar-outline-5-1.json"
+            },
+            {
+              "id": "guitar-outline-5-2",
+              "title": "移调与编配",
+              "document": "documents/guitar/guitar-outline-5-2.json"
+            },
+            {
+              "id": "guitar-outline-5-3",
+              "title": "和声与即兴扩展",
+              "document": "documents/guitar/guitar-outline-5-3.json"
+            },
+            {
+              "id": "guitar-outline-5-4",
+              "title": "合奏与现场行为",
+              "document": "documents/guitar/guitar-outline-5-4.json"
+            },
+            {
+              "id": "guitar-outline-5-5",
+              "title": "效果环路与四线法",
+              "document": "documents/guitar/guitar-outline-5-5.json"
+            },
+            {
+              "id": "guitar-outline-5-6",
+              "title": "预设、场景与实时控制",
+              "document": "documents/guitar/guitar-outline-5-6.json"
+            },
+            {
+              "id": "guitar-outline-5-7",
+              "title": "录音与重放大",
+              "document": "documents/guitar/guitar-outline-5-7.json"
+            }
+          ]
+        },
+        {
+          "title": "风格专长",
+          "nodes": [
+            {
+              "id": "guitar-outline-6-1",
+              "title": "技术诊断与专项提高",
+              "document": "documents/guitar/guitar-outline-6-1.json"
+            },
+            {
+              "id": "guitar-outline-6-2",
+              "title": "风格语言",
+              "document": "documents/guitar/guitar-outline-6-2.json"
+            },
+            {
+              "id": "guitar-outline-6-3",
+              "title": "录音与混音语境",
+              "document": "documents/guitar/guitar-outline-6-3.json"
+            },
+            {
+              "id": "guitar-outline-6-4",
+              "title": "实体音箱拾音或虚拟话筒实验",
+              "document": "documents/guitar/guitar-outline-6-4.json"
+            },
+            {
+              "id": "guitar-outline-6-5",
+              "title": "复杂设备与现场可靠性",
+              "document": "documents/guitar/guitar-outline-6-5.json"
+            }
+          ]
+        },
+        {
+          "title": "持续创作",
+          "nodes": [
+            {
+              "id": "guitar-outline-7-1",
+              "title": "个人语言与审美判断",
+              "document": "documents/guitar/guitar-outline-7-1.json"
+            },
+            {
+              "id": "guitar-outline-7-2",
+              "title": "创作与深度改编",
+              "document": "documents/guitar/guitar-outline-7-2.json"
+            },
+            {
+              "id": "guitar-outline-7-3",
+              "title": "高级合作",
+              "document": "documents/guitar/guitar-outline-7-3.json"
+            },
+            {
+              "id": "guitar-outline-7-4",
+              "title": "声音设计与系统迁移",
+              "document": "documents/guitar/guitar-outline-7-4.json"
+            },
+            {
+              "id": "guitar-outline-7-5",
+              "title": "项目管理与可靠性",
+              "document": "documents/guitar/guitar-outline-7-5.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bass",
+      "title": "贝斯",
+      "description": "用低音、音长与律动支撑音乐。",
+      "context": "四弦贝斯 · 标准定弦 E1–A1–D2–G2（第四弦到第一弦）",
+      "stages": [
+        {
+          "title": "准备与清晰发音",
+          "nodes": [
+            {
+              "id": "bass-1",
+              "title": "持琴与有效按弦",
+              "document": "documents/bass/bass-1.json"
+            },
+            {
+              "id": "bass-2",
+              "title": "标准定弦、弦序与低音谱",
+              "document": "documents/bass/bass-2.json"
+            },
+            {
+              "id": "bass-3",
+              "title": "食中指交替与触弦位置",
+              "document": "documents/bass/bass-3.json"
+            },
+            {
+              "id": "bass-4",
+              "title": "双手制音与音长",
+              "document": "documents/bass/bass-4.json"
+            }
+          ]
+        },
+        {
+          "title": "时间与律动",
+          "nodes": [
+            {
+              "id": "bass-5",
+              "title": "四分、八分与稳定脉动",
+              "document": "documents/bass/bass-5.json"
+            },
+            {
+              "id": "bass-6",
+              "title": "后半拍、切分与延音",
+              "document": "documents/bass/bass-6.json"
+            },
+            {
+              "id": "bass-7",
+              "title": "幽灵音与重音分层",
+              "document": "documents/bass/bass-7.json"
+            },
+            {
+              "id": "bass-8",
+              "title": "与底鼓配合和律动留白",
+              "document": "documents/bass/bass-8.json"
+            }
+          ]
+        },
+        {
+          "title": "指板与和声骨架",
+          "nodes": [
+            {
+              "id": "bass-9",
+              "title": "音名锚点与换把",
+              "document": "documents/bass/bass-9.json"
+            },
+            {
+              "id": "bass-10",
+              "title": "根音、五音与和声骨架",
+              "document": "documents/bass/bass-10.json"
+            },
+            {
+              "id": "bass-11",
+              "title": "八度跳弦与音区选择",
+              "document": "documents/bass/bass-11.json"
+            },
+            {
+              "id": "bass-12",
+              "title": "大调、自然小调与中心音",
+              "document": "documents/bass/bass-12.json"
+            }
+          ]
+        },
+        {
+          "title": "低音线连接",
+          "nodes": [
+            {
+              "id": "bass-13",
+              "title": "三和弦与七和弦琶音",
+              "document": "documents/bass/bass-13.json"
+            },
+            {
+              "id": "bass-14",
+              "title": "经过音与半音趋近",
+              "document": "documents/bass/bass-14.json"
+            },
+            {
+              "id": "bass-15",
+              "title": "Walking Bass 的四拍路径",
+              "document": "documents/bass/bass-15.json"
+            },
+            {
+              "id": "bass-16",
+              "title": "斜线和弦与指定低音",
+              "document": "documents/bass/bass-16.json"
+            }
+          ]
+        },
+        {
+          "title": "技法、听觉与表达",
+          "nodes": [
+            {
+              "id": "bass-17",
+              "title": "拨片、掌根制音与音色",
+              "document": "documents/bass/bass-17.json"
+            },
+            {
+              "id": "bass-18",
+              "title": "Slap、Pop 与制音分工",
+              "document": "documents/bass/bass-18.json"
+            },
+            {
+              "id": "bass-19",
+              "title": "击勾弦、滑音与连接",
+              "document": "documents/bass/bass-19.json"
+            },
+            {
+              "id": "bass-20",
+              "title": "模唱、扒谱与动机",
+              "document": "documents/bass/bass-20.json"
+            }
+          ]
+        },
+        {
+          "title": "完整音乐任务",
+          "nodes": [
+            {
+              "id": "bass-21",
+              "title": "曲式、填充与合奏",
+              "document": "documents/bass/bass-21.json"
+            },
+            {
+              "id": "bass-22",
+              "title": "音色、EQ 与压缩",
+              "document": "documents/bass/bass-22.json"
+            },
+            {
+              "id": "bass-23",
+              "title": "DI、监听与录音回听",
+              "document": "documents/bass/bass-23.json"
+            },
+            {
+              "id": "bass-24",
+              "title": "五弦扩展与独立编配",
+              "document": "documents/bass/bass-24.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ukulele",
+      "title": "尤克里里",
+      "description": "从和弦伴奏到旋律与声部连接。",
+      "context": "四弦尤克里里 · 高 G 定弦 G4–C4–E4–A4（第四弦到第一弦）",
+      "stages": [
+        {
+          "title": "准备与清晰发音",
+          "nodes": [
+            {
+              "id": "ukulele-1",
+              "title": "持琴、轻按与清晰起音",
+              "document": "documents/ukulele/ukulele-1.json"
+            },
+            {
+              "id": "ukulele-2",
+              "title": "高 G 定弦、弦序与读谱",
+              "document": "documents/ukulele/ukulele-2.json"
+            },
+            {
+              "id": "ukulele-3",
+              "title": "拇指与手指的拨弦分工",
+              "document": "documents/ukulele/ukulele-3.json"
+            },
+            {
+              "id": "ukulele-4",
+              "title": "主动制音与延音边界",
+              "document": "documents/ukulele/ukulele-4.json"
+            }
+          ]
+        },
+        {
+          "title": "和弦与稳定伴奏",
+          "nodes": [
+            {
+              "id": "ukulele-5",
+              "title": "C、Am、F、G 的构成与抓形",
+              "document": "documents/ukulele/ukulele-5.json"
+            },
+            {
+              "id": "ukulele-6",
+              "title": "共同动作与换和弦",
+              "document": "documents/ukulele/ukulele-6.json"
+            },
+            {
+              "id": "ukulele-7",
+              "title": "下上扫弦与空扫",
+              "document": "documents/ukulele/ukulele-7.json"
+            },
+            {
+              "id": "ukulele-8",
+              "title": "弱拍、切分与重音",
+              "document": "documents/ukulele/ukulele-8.json"
+            }
+          ]
+        },
+        {
+          "title": "指板与旋律",
+          "nodes": [
+            {
+              "id": "ukulele-9",
+              "title": "音名锚点与异弦同音",
+              "document": "documents/ukulele/ukulele-9.json"
+            },
+            {
+              "id": "ukulele-10",
+              "title": "C 大调与 A 自然小调",
+              "document": "documents/ukulele/ukulele-10.json"
+            },
+            {
+              "id": "ukulele-11",
+              "title": "音程、三度与双音",
+              "document": "documents/ukulele/ukulele-11.json"
+            },
+            {
+              "id": "ukulele-12",
+              "title": "换把、击勾弦与滑音",
+              "document": "documents/ukulele/ukulele-12.json"
+            }
+          ]
+        },
+        {
+          "title": "和声与指弹",
+          "nodes": [
+            {
+              "id": "ukulele-13",
+              "title": "三和弦、七和弦与色彩",
+              "document": "documents/ukulele/ukulele-13.json"
+            },
+            {
+              "id": "ukulele-14",
+              "title": "横按与可移动和弦",
+              "document": "documents/ukulele/ukulele-14.json"
+            },
+            {
+              "id": "ukulele-15",
+              "title": "分解和弦与延音层次",
+              "document": "documents/ukulele/ukulele-15.json"
+            },
+            {
+              "id": "ukulele-16",
+              "title": "旋律和弦与声部平衡",
+              "document": "documents/ukulele/ukulele-16.json"
+            }
+          ]
+        },
+        {
+          "title": "听觉、节奏与风格",
+          "nodes": [
+            {
+              "id": "ukulele-17",
+              "title": "模唱、节奏听写与扒谱",
+              "document": "documents/ukulele/ukulele-17.json"
+            },
+            {
+              "id": "ukulele-18",
+              "title": "五声音阶、动机与问答",
+              "document": "documents/ukulele/ukulele-18.json"
+            },
+            {
+              "id": "ukulele-19",
+              "title": "三拍子与复合拍",
+              "document": "documents/ukulele/ukulele-19.json"
+            },
+            {
+              "id": "ukulele-20",
+              "title": "切音与打击性扫弦",
+              "document": "documents/ukulele/ukulele-20.json"
+            }
+          ]
+        },
+        {
+          "title": "完整音乐任务",
+          "nodes": [
+            {
+              "id": "ukulele-21",
+              "title": "弹唱独立与移调",
+              "document": "documents/ukulele/ukulele-21.json"
+            },
+            {
+              "id": "ukulele-22",
+              "title": "段落、前奏与结尾",
+              "document": "documents/ukulele/ukulele-22.json"
+            },
+            {
+              "id": "ukulele-23",
+              "title": "收音、拾音与效果",
+              "document": "documents/ukulele/ukulele-23.json"
+            },
+            {
+              "id": "ukulele-24",
+              "title": "回听、独立改编与交付",
+              "document": "documents/ukulele/ukulele-24.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "blues",
+      "title": "布鲁斯",
+      "description": "十二小节、Shuffle 与即兴句法。",
+      "context": "以十二小节、节奏与问答为共同框架，按乐器选择演奏方法。",
+      "stages": [
+        {
+          "title": "曲式与时间感",
+          "nodes": [
+            {
+              "id": "blues-1",
+              "title": "布鲁斯的来源、形式与听感",
+              "document": "documents/blues/blues-1.json"
+            },
+            {
+              "id": "blues-2",
+              "title": "十二小节与 I7–IV7–V7",
+              "document": "documents/blues/blues-2.json"
+            },
+            {
+              "id": "blues-3",
+              "title": "Straight、Shuffle、Swing 与 12/8",
+              "document": "documents/blues/blues-3.json"
+            }
+          ]
+        },
+        {
+          "title": "音阶与表达",
+          "nodes": [
+            {
+              "id": "blues-4",
+              "title": "小调五声与降五蓝音",
+              "document": "documents/blues/blues-4.json"
+            },
+            {
+              "id": "blues-5",
+              "title": "大调五声与小三度色彩",
+              "document": "documents/blues/blues-5.json"
+            },
+            {
+              "id": "blues-6",
+              "title": "大小调混用与和弦三音",
+              "document": "documents/blues/blues-6.json"
+            }
+          ]
+        },
+        {
+          "title": "句法与连接",
+          "nodes": [
+            {
+              "id": "blues-7",
+              "title": "问答、留白与三组四小节",
+              "document": "documents/blues/blues-7.json"
+            },
+            {
+              "id": "blues-8",
+              "title": "推弦、揉弦、滑音与双音",
+              "document": "documents/blues/blues-8.json"
+            },
+            {
+              "id": "blues-9",
+              "title": "Shuffle、Boogie 与低音线",
+              "document": "documents/blues/blues-9.json"
+            }
+          ]
+        },
+        {
+          "title": "完整演奏与变化",
+          "nodes": [
+            {
+              "id": "blues-10",
+              "title": "Turnaround、引子与 Stop-time",
+              "document": "documents/blues/blues-10.json"
+            },
+            {
+              "id": "blues-11",
+              "title": "Quick change、小调与八小节",
+              "document": "documents/blues/blues-11.json"
+            },
+            {
+              "id": "blues-12",
+              "title": "综合十二小节与爵士布鲁斯导引",
+              "document": "documents/blues/blues-12.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ensemble",
+      "title": "跨乐器基础",
+      "description": "拍点、听觉与合奏的共同基础",
+      "context": "拍点、听觉、乐理与合奏：按自己的乐器理解和应用。",
+      "stages": [
+        {
+          "title": "C01 拍点与细分",
+          "nodes": [
+            {
+              "id": "ensemble-C01-1",
+              "title": "拍点与拍单位",
+              "document": "documents/ensemble/ensemble-C01-1.json"
+            },
+            {
+              "id": "ensemble-C01-2",
+              "title": "内部拍点与静音",
+              "document": "documents/ensemble/ensemble-C01-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C02 节奏读写",
+          "nodes": [
+            {
+              "id": "ensemble-C02-1",
+              "title": "时值、休止与延音",
+              "document": "documents/ensemble/ensemble-C02-1.json"
+            },
+            {
+              "id": "ensemble-C02-2",
+              "title": "切分与节拍分组",
+              "document": "documents/ensemble/ensemble-C02-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C03 听觉与内听",
+          "nodes": [
+            {
+              "id": "ensemble-C03-1",
+              "title": "先听方向，再找细节",
+              "document": "documents/ensemble/ensemble-C03-1.json"
+            },
+            {
+              "id": "ensemble-C03-2",
+              "title": "主音、和弦与分声部",
+              "document": "documents/ensemble/ensemble-C03-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C04 基础乐理与应用",
+          "nodes": [
+            {
+              "id": "ensemble-C04-1",
+              "title": "音名、音程与调内关系",
+              "document": "documents/ensemble/ensemble-C04-1.json"
+            },
+            {
+              "id": "ensemble-C04-2",
+              "title": "和弦、转位与功能",
+              "document": "documents/ensemble/ensemble-C04-2.json"
+            },
+            {
+              "id": "ensemble-C04-3",
+              "title": "借用、属功能与色彩",
+              "document": "documents/ensemble/ensemble-C04-3.json"
+            }
+          ]
+        },
+        {
+          "title": "C05 曲式与音乐分析",
+          "nodes": [
+            {
+              "id": "ensemble-C05-1",
+              "title": "动机、乐句与段落",
+              "document": "documents/ensemble/ensemble-C05-1.json"
+            },
+            {
+              "id": "ensemble-C05-2",
+              "title": "编制与音乐角色",
+              "document": "documents/ensemble/ensemble-C05-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C06 识谱与信息转译",
+          "nodes": [
+            {
+              "id": "ensemble-C06-1",
+              "title": "预读与连续识谱",
+              "document": "documents/ensemble/ensemble-C06-1.json"
+            },
+            {
+              "id": "ensemble-C06-2",
+              "title": "信息转译与简化",
+              "document": "documents/ensemble/ensemble-C06-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C07 记忆与学习诊断",
+          "nodes": [
+            {
+              "id": "ensemble-C07-1",
+              "title": "难点拆解与诊断",
+              "document": "documents/ensemble/ensemble-C07-1.json"
+            },
+            {
+              "id": "ensemble-C07-2",
+              "title": "记忆与随机入口",
+              "document": "documents/ensemble/ensemble-C07-2.json"
+            }
+          ]
+        },
+        {
+          "title": "C08 音乐应用与呈现",
+          "nodes": [
+            {
+              "id": "ensemble-C08-1",
+              "title": "开始、结束与恢复",
+              "document": "documents/ensemble/ensemble-C08-1.json"
+            },
+            {
+              "id": "ensemble-C08-2",
+              "title": "录音复盘与迁移",
+              "document": "documents/ensemble/ensemble-C08-2.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "drums",
+      "title": "鼓",
+      "description": "拍点、四肢协调、律动与完整鼓组编配",
+      "context": "架子鼓 · 原声鼓与电子鼓",
+      "stages": [
+        {
+          "title": "动作与拍点",
+          "goal": "演奏八小节简单节奏，能数拍，声音与动作保持可控",
+          "nodes": [
+            {
+              "id": "ensemble-D01-1",
+              "title": "鼓组位置与握棒",
+              "document": "documents/drums/ensemble-D01-1.json"
+            },
+            {
+              "id": "ensemble-D01-2",
+              "title": "回弹与声音一致性",
+              "document": "documents/drums/ensemble-D01-2.json"
+            },
+            {
+              "id": "ensemble-D02-1",
+              "title": "单跳、双跳与领奏",
+              "document": "documents/drums/ensemble-D02-1.json"
+            },
+            {
+              "id": "ensemble-D03-1",
+              "title": "底鼓起音与两连击",
+              "document": "documents/drums/ensemble-D03-1.json"
+            },
+            {
+              "id": "ensemble-D12-1",
+              "title": "设备与触发检查",
+              "document": "documents/drums/ensemble-D12-1.json"
+            },
+            {
+              "id": "ensemble-D-S1",
+              "title": "阶段应用：动作与拍点",
+              "document": "documents/drums/ensemble-D-S1.json"
+            }
+          ]
+        },
+        {
+          "title": "基础伴奏",
+          "goal": "用简化鼓型完整伴奏一首歌，保持段落结构",
+          "nodes": [
+            {
+              "id": "ensemble-D04-1",
+              "title": "固定声部与变化声部",
+              "document": "documents/drums/ensemble-D04-1.json"
+            },
+            {
+              "id": "ensemble-D05-1",
+              "title": "后拍与律动骨架",
+              "document": "documents/drums/ensemble-D05-1.json"
+            },
+            {
+              "id": "ensemble-D08-1",
+              "title": "鼓谱图例与声部读取",
+              "document": "documents/drums/ensemble-D08-1.json"
+            },
+            {
+              "id": "ensemble-D-S2",
+              "title": "阶段应用：基础伴奏",
+              "document": "documents/drums/ensemble-D-S2.json"
+            }
+          ]
+        },
+        {
+          "title": "细分与加花",
+          "goal": "连续完成“七小节律动＋一小节加花”，准确回到下一轮",
+          "nodes": [
+            {
+              "id": "ensemble-D02-2",
+              "title": "复合跳与重音",
+              "document": "documents/drums/ensemble-D02-2.json"
+            },
+            {
+              "id": "ensemble-D07-1",
+              "title": "加花长度与准确回归",
+              "document": "documents/drums/ensemble-D07-1.json"
+            },
+            {
+              "id": "ensemble-D07-2",
+              "title": "手序到鼓组配器",
+              "document": "documents/drums/ensemble-D07-2.json"
+            },
+            {
+              "id": "ensemble-D-S3",
+              "title": "阶段应用：细分与加花",
+              "document": "documents/drums/ensemble-D-S3.json"
+            }
+          ]
+        },
+        {
+          "title": "读谱与歌曲结构",
+          "goal": "依据结构谱完成多段落歌曲，能从指定段落进入",
+          "nodes": [
+            {
+              "id": "ensemble-D05-2",
+              "title": "Half-time、Shuffle 与细分",
+              "document": "documents/drums/ensemble-D05-2.json"
+            },
+            {
+              "id": "ensemble-D08-2",
+              "title": "结构谱与分声部扒鼓",
+              "document": "documents/drums/ensemble-D08-2.json"
+            },
+            {
+              "id": "ensemble-D-S4",
+              "title": "阶段应用：读谱与歌曲结构",
+              "document": "documents/drums/ensemble-D-S4.json"
+            }
+          ]
+        },
+        {
+          "title": "动态与协调",
+          "goal": "同一律动演奏不同动态版本，主击与装饰音清楚",
+          "nodes": [
+            {
+              "id": "ensemble-D03-2",
+              "title": "踩镲开合与脚声",
+              "document": "documents/drums/ensemble-D03-2.json"
+            },
+            {
+              "id": "ensemble-D04-2",
+              "title": "两肢到四肢的组合",
+              "document": "documents/drums/ensemble-D04-2.json"
+            },
+            {
+              "id": "ensemble-D06-1",
+              "title": "主击、幽灵音与平衡",
+              "document": "documents/drums/ensemble-D06-1.json"
+            },
+            {
+              "id": "ensemble-D06-2",
+              "title": "段落动态与渐变",
+              "document": "documents/drums/ensemble-D06-2.json"
+            },
+            {
+              "id": "ensemble-D-S5",
+              "title": "阶段应用：动态与协调",
+              "document": "documents/drums/ensemble-D-S5.json"
+            }
+          ]
+        },
+        {
+          "title": "风格与专项扩展",
+          "goal": "同一结构在不同风格中成立，声音和细分有明确差异",
+          "nodes": [
+            {
+              "id": "ensemble-D02-3",
+              "title": "装饰音与滚奏落点",
+              "document": "documents/drums/ensemble-D02-3.json"
+            },
+            {
+              "id": "ensemble-D09-1",
+              "title": "风格细节与乐队配合",
+              "document": "documents/drums/ensemble-D09-1.json"
+            },
+            {
+              "id": "ensemble-D10-1",
+              "title": "奇数拍与共同循环",
+              "document": "documents/drums/ensemble-D10-1.json"
+            },
+            {
+              "id": "ensemble-D10-2",
+              "title": "专项技术的进入条件",
+              "document": "documents/drums/ensemble-D10-2.json"
+            },
+            {
+              "id": "ensemble-D11-1",
+              "title": "动机与受限即兴",
+              "document": "documents/drums/ensemble-D11-1.json"
+            },
+            {
+              "id": "ensemble-D-S6",
+              "title": "阶段应用：风格与专项扩展",
+              "document": "documents/drums/ensemble-D-S6.json"
+            }
+          ]
+        },
+        {
+          "title": "合奏与现场",
+          "goal": "完成连续排练或模拟现场，能够跟随变化继续演奏",
+          "nodes": [
+            {
+              "id": "ensemble-D09-2",
+              "title": "提示、齐奏与人声空间",
+              "document": "documents/drums/ensemble-D09-2.json"
+            },
+            {
+              "id": "ensemble-D12-2",
+              "title": "录音、监听与恢复",
+              "document": "documents/drums/ensemble-D12-2.json"
+            },
+            {
+              "id": "ensemble-D-S7",
+              "title": "阶段应用：合奏与现场",
+              "document": "documents/drums/ensemble-D-S7.json"
+            }
+          ]
+        },
+        {
+          "title": "自主编配与项目",
+          "goal": "交付一组翻奏、原创编配、扒谱分析和完整录音",
+          "nodes": [
+            {
+              "id": "ensemble-D11-2",
+              "title": "完整鼓组编配",
+              "document": "documents/drums/ensemble-D11-2.json"
+            },
+            {
+              "id": "ensemble-D-S8",
+              "title": "阶段应用：自主编配与项目",
+              "document": "documents/drums/ensemble-D-S8.json"
+            },
+            {
+              "id": "ensemble-D-branch-1",
+              "title": "方向选择：流行／摇滚",
+              "document": "documents/drums/ensemble-D-branch-1.json"
+            },
+            {
+              "id": "ensemble-D-branch-2",
+              "title": "方向选择：Funk／R&B／Hip-hop",
+              "document": "documents/drums/ensemble-D-branch-2.json"
+            },
+            {
+              "id": "ensemble-D-branch-3",
+              "title": "方向选择：爵士",
+              "document": "documents/drums/ensemble-D-branch-3.json"
+            },
+            {
+              "id": "ensemble-D-branch-4",
+              "title": "方向选择：拉丁相关",
+              "document": "documents/drums/ensemble-D-branch-4.json"
+            },
+            {
+              "id": "ensemble-D-branch-5",
+              "title": "方向选择：金属／高速风格",
+              "document": "documents/drums/ensemble-D-branch-5.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "piano",
+      "title": "钢琴",
+      "description": "读谱、触键、多声部与独立作品",
+      "context": "钢琴 · 实际音高 · 中央 C = C4",
+      "stages": [
+        {
+          "title": "键盘与声音",
+          "goal": "看谱演奏短旋律，并做出两种明确的动态",
+          "nodes": [
+            {
+              "id": "ensemble-P01-1",
+              "title": "触键、离键与释放",
+              "document": "documents/piano/ensemble-P01-1.json"
+            },
+            {
+              "id": "ensemble-P02-1",
+              "title": "键位锚点与大谱表",
+              "document": "documents/piano/ensemble-P02-1.json"
+            },
+            {
+              "id": "ensemble-P-S1",
+              "title": "阶段应用：键盘与声音",
+              "document": "documents/piano/ensemble-P-S1.json"
+            }
+          ]
+        },
+        {
+          "title": "双手与基础读谱",
+          "goal": "独立开始学习一首同难度新曲，并完成短小双手作品",
+          "nodes": [
+            {
+              "id": "ensemble-P01-2",
+              "title": "连奏、断奏与黑白键",
+              "document": "documents/piano/ensemble-P01-2.json"
+            },
+            {
+              "id": "ensemble-P02-2",
+              "title": "音程阅读与图形识别",
+              "document": "documents/piano/ensemble-P02-2.json"
+            },
+            {
+              "id": "ensemble-P04-1",
+              "title": "和弦、转位与终止式",
+              "document": "documents/piano/ensemble-P04-1.json"
+            },
+            {
+              "id": "ensemble-P05-1",
+              "title": "双手独立与声部时值",
+              "document": "documents/piano/ensemble-P05-1.json"
+            },
+            {
+              "id": "ensemble-P11-1",
+              "title": "动机、问答与配和声",
+              "document": "documents/piano/ensemble-P11-1.json"
+            },
+            {
+              "id": "ensemble-P-S2",
+              "title": "阶段应用：双手与基础读谱",
+              "document": "documents/piano/ensemble-P-S2.json"
+            }
+          ]
+        },
+        {
+          "title": "调性与基本技术",
+          "goal": "完成所学调的音阶与终止式，解释作品的基本和声",
+          "nodes": [
+            {
+              "id": "ensemble-P03-1",
+              "title": "换指与音阶衔接",
+              "document": "documents/piano/ensemble-P03-1.json"
+            },
+            {
+              "id": "ensemble-P04-2",
+              "title": "柱式、分解与琶音",
+              "document": "documents/piano/ensemble-P04-2.json"
+            },
+            {
+              "id": "ensemble-P07-1",
+              "title": "延音踏板与和声清晰度",
+              "document": "documents/piano/ensemble-P07-1.json"
+            },
+            {
+              "id": "ensemble-P-S3",
+              "title": "阶段应用：调性与基本技术",
+              "document": "documents/piano/ensemble-P-S3.json"
+            }
+          ]
+        },
+        {
+          "title": "主次与乐句",
+          "goal": "录音中能够听出旋律、伴奏和乐句方向",
+          "nodes": [
+            {
+              "id": "ensemble-P06-1",
+              "title": "旋律突出与伴奏退后",
+              "document": "documents/piano/ensemble-P06-1.json"
+            },
+            {
+              "id": "ensemble-P06-2",
+              "title": "乐句方向与句尾",
+              "document": "documents/piano/ensemble-P06-2.json"
+            },
+            {
+              "id": "ensemble-P07-2",
+              "title": "换踏板与设备响应",
+              "document": "documents/piano/ensemble-P07-2.json"
+            },
+            {
+              "id": "ensemble-P-S4",
+              "title": "阶段应用：主次与乐句",
+              "document": "documents/piano/ensemble-P-S4.json"
+            }
+          ]
+        },
+        {
+          "title": "多声部与风格",
+          "goal": "演奏不同风格作品，并说明处理差异",
+          "nodes": [
+            {
+              "id": "ensemble-P05-2",
+              "title": "复调、保持音与异节奏",
+              "document": "documents/piano/ensemble-P05-2.json"
+            },
+            {
+              "id": "ensemble-P09-1",
+              "title": "作品结构与和声骨架",
+              "document": "documents/piano/ensemble-P09-1.json"
+            },
+            {
+              "id": "ensemble-P09-2",
+              "title": "风格与演绎选择",
+              "document": "documents/piano/ensemble-P09-2.json"
+            },
+            {
+              "id": "ensemble-P-S5",
+              "title": "阶段应用：多声部与风格",
+              "document": "documents/piano/ensemble-P-S5.json"
+            }
+          ]
+        },
+        {
+          "title": "技术与功能扩展",
+          "goal": "同时完成精练作品和旋律加和弦谱的功能演奏",
+          "nodes": [
+            {
+              "id": "ensemble-P03-2",
+              "title": "模进、重音与双手方向",
+              "document": "documents/piano/ensemble-P03-2.json"
+            },
+            {
+              "id": "ensemble-P08-1",
+              "title": "跳跃、重复音与装饰",
+              "document": "documents/piano/ensemble-P08-1.json"
+            },
+            {
+              "id": "ensemble-P08-2",
+              "title": "八度、双音与作品难点",
+              "document": "documents/piano/ensemble-P08-2.json"
+            },
+            {
+              "id": "ensemble-P10-1",
+              "title": "听奏、移调与低音",
+              "document": "documents/piano/ensemble-P10-1.json"
+            },
+            {
+              "id": "ensemble-P10-2",
+              "title": "和弦谱与功能伴奏",
+              "document": "documents/piano/ensemble-P10-2.json"
+            },
+            {
+              "id": "ensemble-P11-2",
+              "title": "织体与完整改编",
+              "document": "documents/piano/ensemble-P11-2.json"
+            },
+            {
+              "id": "ensemble-P-S6",
+              "title": "阶段应用：技术与功能扩展",
+              "document": "documents/piano/ensemble-P-S6.json"
+            }
+          ]
+        },
+        {
+          "title": "独立学习与演出",
+          "goal": "在明确准备周期内独立学成新作品，并连续演奏曲目组",
+          "nodes": [
+            {
+              "id": "ensemble-P12-1",
+              "title": "独立练曲与结构记忆",
+              "document": "documents/piano/ensemble-P12-1.json"
+            },
+            {
+              "id": "ensemble-P12-2",
+              "title": "合奏、呈现与恢复",
+              "document": "documents/piano/ensemble-P12-2.json"
+            },
+            {
+              "id": "ensemble-P-S7",
+              "title": "阶段应用：独立学习与演出",
+              "document": "documents/piano/ensemble-P-S7.json"
+            }
+          ]
+        },
+        {
+          "title": "专业方向深化",
+          "goal": "交付具有明确主题的作品项目及录音复盘",
+          "nodes": [
+            {
+              "id": "ensemble-P-S8",
+              "title": "阶段应用：专业方向深化",
+              "document": "documents/piano/ensemble-P-S8.json"
+            },
+            {
+              "id": "ensemble-P-branch-1",
+              "title": "方向选择：古典独奏",
+              "document": "documents/piano/ensemble-P-branch-1.json"
+            },
+            {
+              "id": "ensemble-P-branch-2",
+              "title": "方向选择：流行独奏",
+              "document": "documents/piano/ensemble-P-branch-2.json"
+            },
+            {
+              "id": "ensemble-P-branch-3",
+              "title": "方向选择：流行伴奏",
+              "document": "documents/piano/ensemble-P-branch-3.json"
+            },
+            {
+              "id": "ensemble-P-branch-4",
+              "title": "方向选择：爵士／布鲁斯",
+              "document": "documents/piano/ensemble-P-branch-4.json"
+            },
+            {
+              "id": "ensemble-P-branch-5",
+              "title": "方向选择：室内乐／艺术伴奏",
+              "document": "documents/piano/ensemble-P-branch-5.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keyboard",
+      "title": "现代键盘",
+      "description": "和弦伴奏、音色、编配与现场系统",
+      "context": "现代键盘 · 实际音高 · 自动伴奏为可选支线",
+      "stages": [
+        {
+          "title": "键位与和弦",
+          "goal": "用根音与和弦完成简单循环",
+          "nodes": [
+            {
+              "id": "ensemble-K01-1",
+              "title": "键位、音域与级数",
+              "document": "documents/keyboard/ensemble-K01-1.json"
+            },
+            {
+              "id": "ensemble-K02-1",
+              "title": "转位、共同音与音域",
+              "document": "documents/keyboard/ensemble-K02-1.json"
+            },
+            {
+              "id": "ensemble-K10-1",
+              "title": "MIDI、音源与音频路径",
+              "document": "documents/keyboard/ensemble-K10-1.json"
+            },
+            {
+              "id": "ensemble-K-S1",
+              "title": "阶段应用：键位与和弦",
+              "document": "documents/keyboard/ensemble-K-S1.json"
+            }
+          ]
+        },
+        {
+          "title": "基础伴奏",
+          "goal": "为一首歌做完整伴奏，主歌与副歌有差异",
+          "nodes": [
+            {
+              "id": "ensemble-K03-1",
+              "title": "伴奏节奏与音长",
+              "document": "documents/keyboard/ensemble-K03-1.json"
+            },
+            {
+              "id": "ensemble-K04-2",
+              "title": "结构谱与多轨缩编",
+              "document": "documents/keyboard/ensemble-K04-2.json"
+            },
+            {
+              "id": "ensemble-K11-1",
+              "title": "和弦识别与自动伴奏",
+              "document": "documents/keyboard/ensemble-K11-1.json"
+            },
+            {
+              "id": "ensemble-K-S2",
+              "title": "阶段应用：基础伴奏",
+              "document": "documents/keyboard/ensemble-K-S2.json"
+            }
+          ]
+        },
+        {
+          "title": "调性、听觉与移调",
+          "goal": "扒出歌曲骨架，并移到另一个熟悉调",
+          "nodes": [
+            {
+              "id": "ensemble-K01-2",
+              "title": "手动移调与设备移调",
+              "document": "documents/keyboard/ensemble-K01-2.json"
+            },
+            {
+              "id": "ensemble-K04-1",
+              "title": "扒低音、和声节奏与 Hook",
+              "document": "documents/keyboard/ensemble-K04-1.json"
+            },
+            {
+              "id": "ensemble-K-S3",
+              "title": "阶段应用：调性、听觉与移调",
+              "document": "documents/keyboard/ensemble-K-S3.json"
+            }
+          ]
+        },
+        {
+          "title": "风格与乐队角色",
+          "goal": "同一首歌完成独立伴奏版和完整乐队版",
+          "nodes": [
+            {
+              "id": "ensemble-K02-2",
+              "title": "三七音骨架与扩展音",
+              "document": "documents/keyboard/ensemble-K02-2.json"
+            },
+            {
+              "id": "ensemble-K03-2",
+              "title": "双手分工与段落密度",
+              "document": "documents/keyboard/ensemble-K03-2.json"
+            },
+            {
+              "id": "ensemble-K05-1",
+              "title": "编制、音域与留白",
+              "document": "documents/keyboard/ensemble-K05-1.json"
+            },
+            {
+              "id": "ensemble-K06-1",
+              "title": "目标音与节奏动机",
+              "document": "documents/keyboard/ensemble-K06-1.json"
+            },
+            {
+              "id": "ensemble-K-S4",
+              "title": "阶段应用：风格与乐队角色",
+              "document": "documents/keyboard/ensemble-K-S4.json"
+            }
+          ]
+        },
+        {
+          "title": "音色与表现控制",
+          "goal": "用不同音色重新设计触奏，并实现明确的实时控制",
+          "nodes": [
+            {
+              "id": "ensemble-K07-1",
+              "title": "起音与衰减类音色",
+              "document": "documents/keyboard/ensemble-K07-1.json"
+            },
+            {
+              "id": "ensemble-K07-2",
+              "title": "持续音色与演奏控制",
+              "document": "documents/keyboard/ensemble-K07-2.json"
+            },
+            {
+              "id": "ensemble-K08-1",
+              "title": "声源、滤波与包络",
+              "document": "documents/keyboard/ensemble-K08-1.json"
+            },
+            {
+              "id": "ensemble-K08-2",
+              "title": "LFO、调制与音色重建",
+              "document": "documents/keyboard/ensemble-K08-2.json"
+            },
+            {
+              "id": "ensemble-K09-1",
+              "title": "踏板、弯音与控制分配",
+              "document": "documents/keyboard/ensemble-K09-1.json"
+            },
+            {
+              "id": "ensemble-K-S5",
+              "title": "阶段应用：音色与表现控制",
+              "document": "documents/keyboard/ensemble-K-S5.json"
+            }
+          ]
+        },
+        {
+          "title": "和声与编配深化",
+          "goal": "完成包含前奏、主歌、副歌、间奏、尾奏的编配",
+          "nodes": [
+            {
+              "id": "ensemble-K05-2",
+              "title": "段落设计与完整编配",
+              "document": "documents/keyboard/ensemble-K05-2.json"
+            },
+            {
+              "id": "ensemble-K06-2",
+              "title": "风格短句与完整轮次",
+              "document": "documents/keyboard/ensemble-K06-2.json"
+            },
+            {
+              "id": "ensemble-K09-2",
+              "title": "分键、叠层与场景",
+              "document": "documents/keyboard/ensemble-K09-2.json"
+            },
+            {
+              "id": "ensemble-K11-2",
+              "title": "伴奏段落与完整演出",
+              "document": "documents/keyboard/ensemble-K11-2.json"
+            },
+            {
+              "id": "ensemble-K-S6",
+              "title": "阶段应用：和声与编配深化",
+              "document": "documents/keyboard/ensemble-K-S6.json"
+            }
+          ]
+        },
+        {
+          "title": "现场与制作系统",
+          "goal": "连续执行曲目组，能够处理常见系统问题",
+          "nodes": [
+            {
+              "id": "ensemble-K10-2",
+              "title": "琶音器、循环与同步",
+              "document": "documents/keyboard/ensemble-K10-2.json"
+            },
+            {
+              "id": "ensemble-K12-1",
+              "title": "音量、监听与备用方案",
+              "document": "documents/keyboard/ensemble-K12-1.json"
+            },
+            {
+              "id": "ensemble-K12-2",
+              "title": "系统复位与现场恢复",
+              "document": "documents/keyboard/ensemble-K12-2.json"
+            },
+            {
+              "id": "ensemble-K-S7",
+              "title": "阶段应用：现场与制作系统",
+              "document": "documents/keyboard/ensemble-K-S7.json"
+            }
+          ]
+        },
+        {
+          "title": "方向专精与项目",
+          "goal": "交付演奏、音色、谱面、设置和可恢复工程",
+          "nodes": [
+            {
+              "id": "ensemble-K-S8",
+              "title": "阶段应用：方向专精与项目",
+              "document": "documents/keyboard/ensemble-K-S8.json"
+            },
+            {
+              "id": "ensemble-K-branch-1",
+              "title": "方向选择：流行乐队键盘",
+              "document": "documents/keyboard/ensemble-K-branch-1.json"
+            },
+            {
+              "id": "ensemble-K-branch-2",
+              "title": "方向选择：合成器演奏／电子音乐",
+              "document": "documents/keyboard/ensemble-K-branch-2.json"
+            },
+            {
+              "id": "ensemble-K-branch-3",
+              "title": "方向选择：爵士／Gospel／Neo-soul",
+              "document": "documents/keyboard/ensemble-K-branch-3.json"
+            },
+            {
+              "id": "ensemble-K-branch-4",
+              "title": "方向选择：风琴",
+              "document": "documents/keyboard/ensemble-K-branch-4.json"
+            },
+            {
+              "id": "ensemble-K-branch-5",
+              "title": "方向选择：自动伴奏电子琴",
+              "document": "documents/keyboard/ensemble-K-branch-5.json"
+            },
+            {
+              "id": "ensemble-K-branch-6",
+              "title": "方向选择：键盘制作与录音",
+              "document": "documents/keyboard/ensemble-K-branch-6.json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

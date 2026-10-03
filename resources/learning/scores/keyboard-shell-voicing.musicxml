@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <work><work-title>ii–V–I：三音与七音的最小移动</work-title></work>
+  <part-list><score-part id="P1"><part-name>键盘：左手 Shell</part-name><part-abbreviation>LH</part-abbreviation></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>12</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>F</sign><line>4</line></clef></attributes>
+      <direction placement="above"><direction-type><words>Dm7：F3 = 三音，C4 = 七音（根音由贝斯承担）</words></direction-type></direction>
+      <harmony><root><root-step>D</root-step></root><kind text="m7">minor-seventh</kind></harmony>
+      <note><pitch><step>F</step><octave>3</octave></pitch><duration>48</duration><type>whole</type></note>
+      <note><chord/><pitch><step>C</step><octave>4</octave></pitch><duration>48</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <direction placement="above"><direction-type><words>G7：F3 保持为七音，C4 → B3 成为三音</words></direction-type></direction>
+      <harmony><root><root-step>G</root-step></root><kind text="7">dominant</kind></harmony>
+      <note><pitch><step>F</step><octave>3</octave></pitch><duration>48</duration><type>whole</type></note>
+      <note><chord/><pitch><step>B</step><octave>3</octave></pitch><duration>48</duration><type>whole</type></note>
+    </measure>
+    <measure number="3">
+      <direction placement="above"><direction-type><words>Cmaj7：F3 → E3 成为三音，B3 保持为七音</words></direction-type></direction>
+      <harmony><root><root-step>C</root-step></root><kind text="maj7">major-seventh</kind></harmony>
+      <note><pitch><step>E</step><octave>3</octave></pitch><duration>48</duration><type>whole</type></note>
+      <note><chord/><pitch><step>B</step><octave>3</octave></pitch><duration>48</duration><type>whole</type></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>

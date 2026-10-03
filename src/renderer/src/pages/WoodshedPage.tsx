@@ -1,7 +1,5 @@
-import { lazy, Suspense } from 'react'
 import { FretboardLab } from '../woodshed/FretboardLab.js'
 import { DrumMachine as SampleDrumMachine } from '../sample-drums/DrumMachine.js'
-const InstrumentWorkshopPage = lazy(() => import('./InstrumentWorkshopPage.js'))
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
@@ -37,7 +35,6 @@ import { HarmonyExplorer } from '../woodshed/HarmonyExplorer.js'
 import { ChordLookup } from '../woodshed/ChordLookup.js'
 import { Tuner } from '../woodshed/Tuner.js'
 import { SelectMenu } from '../components/SelectMenu.js'
-import { DrumMachine } from '../woodshed/DrumMachine.js'
 import { Metronome } from '../woodshed/Metronome.js'
 import { WoodshedAudio } from '../woodshed/audio.js'
 import '../woodshed/woodshed.css'
@@ -53,9 +50,7 @@ const NAV = [
 const TOOLS = [
   { id: 'metronome', name: '节拍器', icon: Timer },
   { id: 'tuner', name: '调音器', icon: Mic },
-  { id: 'drums', name: '鼓机', icon: Drum },
-  { id: 'sample-drums', name: '采样鼓机', icon: Drum },
-  { id: 'workshop', name: '演奏工作台', icon: Guitar },
+  { id: 'sample-drums', name: '鼓机', icon: Drum },
   { id: 'chords', name: '和弦查询', icon: Music2 },
   { id: 'circle', name: '五度圈', icon: Compass },
   { id: 'drone', name: '持续参考音', icon: Volume2 }
@@ -338,22 +333,13 @@ export default function WoodshedPage({
                     }}
                   >
                     <item.icon size={28} />
-                    <span><b>{item.name}</b><small>点击打开</small></span>
+                    <span><b>{item.name}</b></span>
                     <ArrowRight size={18} />
                   </button>
                 ))}
               </div> : <button className="ws-tool-back" onClick={() => setTool(null)}><ChevronRight size={15} /> 返回工具箱</button>}
-              {tool === 'workshop' && <Suspense fallback={<div role="status">正在加载演奏工作台…</div>}><InstrumentWorkshopPage active={active} outputDeviceId={outputDeviceId} onToast={error} /></Suspense>}
               {tool === 'sample-drums' && <SampleDrumMachine outputDeviceId={outputDeviceId} onError={error} onBack={() => setTool(null)} />}
               {tool === 'metronome' && <Metronome outputDeviceId={outputDeviceId} onError={error} />}
-              {tool === 'drums' && (
-                <DrumMachine
-                  machine={p.drumMachine}
-                  update={(change) => setP((old) => ({ ...old, drumMachine: change(old.drumMachine) }))}
-                  audio={audio}
-                  onError={error}
-                />
-              )}
               {tool === 'tuner' && (
                 <Tuner visible={active}
                   presetControl={<SelectMenu ariaLabel="调弦方案" value={p.tuningId} options={TUNINGS.map((item) => ({ value: item.id, label: item.name }))} menuAnchor="parent" menuClassName="ws-tuner-preset-menu" optionHeight={37} onChange={selectInstrument} />}

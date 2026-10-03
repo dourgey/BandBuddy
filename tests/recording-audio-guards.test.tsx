@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioPreview } from '../src/renderer/src/components/ui/AudioPreview.js'
 import { ArsenalPage } from '../src/renderer/src/pages/ArsenalPage.js'
-import { Tuner } from '../src/renderer/src/instrument-workshop/Tuner.js'
+import { Tuner } from '../src/renderer/src/woodshed/Tuner.js'
 import { publishRecordingState, isRecordingLocked } from '../src/renderer/src/recording-session.js'
 import { installFixtureBridge } from '../src/renderer/src/mock-bridge.js'
 
@@ -28,8 +28,8 @@ describe('audio device and preview recording protection', () => {
     fireEvent.click(screen.getByRole('button', { name: '播放录音' }))
     expect(play).toHaveBeenCalledOnce()
     rendered.unmount()
-    render(<Tuner tuning={{ id: 'guitar', notes: [40, 45, 50, 55, 59, 64] }} capo={0} a4={440} onA4={() => {}} inputDevice="" onDevice={() => {}} audio={null} onError={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: '开启调音' }))
+    render(<Tuner tuning={{ id: 'guitar', notes: [40, 45, 50, 55, 59, 64] }} capo={0} a4={440} onA4={() => {}} inputDevice="" onDevice={() => {}} presetControl={null} inputChannel={0} onChannel={() => {}} onError={() => {}} />)
+    await act(async () => {})
     expect(getUserMedia).not.toHaveBeenCalled()
   })
 

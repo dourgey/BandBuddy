@@ -1,0 +1,114 @@
+<?xml version='1.0' encoding='utf-8'?>
+<score-partwise version="4.0">
+  <work>
+    <work-title>Hear the target before bending</work-title>
+  </work>
+  <identification>
+    <creator type="composer">BandBuddy original teaching example</creator>
+    <encoding>
+      <software>BandBuddy curriculum authoring</software>
+    </encoding>
+  </identification>
+  <part-list>
+    <score-part id="P1">
+      <part-name>Guitar</part-name>
+      <score-instrument id="I1">
+        <instrument-name>Guitar</instrument-name>
+      </score-instrument>
+      <midi-instrument id="I1">
+        <midi-channel>1</midi-channel>
+        <midi-program>25</midi-program>
+      </midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <key>
+          <fifths>0</fifths>
+        </key>
+        <time>
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+        <transpose>
+          <diatonic>0</diatonic>
+          <chromatic>0</chromatic>
+          <octave-change>-1</octave-change>
+        </transpose>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <metronome>
+            <beat-unit>quarter</beat-unit>
+            <per-minute>72</per-minute>
+          </metronome>
+        </direction-type>
+        <sound tempo="72" />
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>Target pitch</words>
+        </direction-type>
+      </direction>
+      <note>
+        <pitch>
+          <step>F</step>
+          <alter>1</alter>
+          <octave>5</octave>
+        </pitch>
+        <duration>8</duration>
+        <type>half</type>
+        <accidental>sharp</accidental>
+        <notations>
+          <technical>
+            <string>2</string>
+            <fret>7</fret>
+          </technical>
+        </notations>
+      </note>
+      <note>
+        <rest />
+        <duration>8</duration>
+        <type>half</type>
+      </note>
+    </measure>
+    <measure number="2">
+      <direction placement="above">
+        <direction-type>
+          <words>Bend E up a whole step, then mute</words>
+        </direction-type>
+      </direction>
+      <note>
+        <pitch>
+          <step>E</step>
+          <octave>5</octave>
+        </pitch>
+        <duration>8</duration>
+        <type>half</type>
+        <notations>
+          <technical>
+            <bend>
+              <bend-alter>2</bend-alter>
+            </bend>
+            <string>2</string>
+            <fret>5</fret>
+          </technical>
+        </notations>
+      </note>
+      <note>
+        <rest />
+        <duration>8</duration>
+        <type>half</type>
+      </note>
+      <barline location="right">
+        <bar-style>light-heavy</bar-style>
+      </barline>
+    </measure>
+  </part>
+</score-partwise>

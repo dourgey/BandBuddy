@@ -122,7 +122,7 @@ export function Workbench({
   useEffect(() => {
     const el = root.current
     el?.querySelectorAll('[data-event].active').forEach((e) => e.classList.remove('active'))
-    if (frame.eventId && !frame.hidden) el?.querySelector(`[data-event="${frame.eventId}"]`)?.classList.add('active')
+    if (frame.eventId && !frame.hidden) el?.querySelectorAll(`[data-event="${frame.eventId}"]`).forEach(note => note.classList.add('active'))
   }, [frame.eventId, frame.hidden])
   const toggle = async (): Promise<void> => {
     if (!audio || !exercise || busy) return

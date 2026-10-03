@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <work><work-title>切分：在弱位起音，越过下一强拍</work-title></work>
+  <part-list><score-part id="P1"><part-name>节奏示范</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>12</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+      <direction placement="above"><direction-type><words>持续数 1 和 2 和 3 和 4 和；第 3 拍的“和”起音，延到下一小节第 1 拍结束。</words></direction-type></direction>
+      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>66</per-minute></metronome></direction-type></direction>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>12</duration><type>quarter</type><lyric><text>1</text></lyric></note>
+      <note><rest/><duration>12</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><lyric><text>3</text></lyric></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>6</duration><tie type="start"/><type>eighth</type><stem>up</stem><beam number="1">end</beam><notations><tied type="start"/><articulations><accent/></articulations></notations><lyric><text>和</text></lyric></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>12</duration><tie type="stop"/><tie type="start"/><type>quarter</type><notations><tied type="stop"/><tied type="start"/></notations></note>
+    </measure>
+    <measure number="2">
+      <direction placement="above"><direction-type><words>第 1 拍继续保持，不重新弹；第 2、4 拍休止也要数拍。</words></direction-type></direction>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>12</duration><tie type="stop"/><type>quarter</type><notations><tied type="stop"/></notations></note>
+      <note><rest/><duration>12</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>12</duration><type>quarter</type><lyric><text>3</text></lyric></note>
+      <note><rest/><duration>12</duration><type>quarter</type></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>

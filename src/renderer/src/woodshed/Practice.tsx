@@ -4,6 +4,9 @@ import { WheelNumberInput } from '../components/WheelNumberInput.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AudioLines, ChevronRight, Guitar, Drum, Piano, KeyboardMusic, Play, Square } from 'lucide-react'
 import type { LearningLocation } from './Learning.js'
+import { LESSON_INSTRUMENTS, LessonTabs } from './LessonTabs.js'
+import { PracticeReading } from './PracticeReading.js'
+import type { LessonInstrument } from './lesson-document.js'
 import { Score } from './Score.js'
 import { DEFAULT_EXERCISE, type MusicEvent } from './types.js'
 import { noteName, type Tuning } from './theory.js'
@@ -16,19 +19,20 @@ export function PracticeBreadcrumb({ location, onNavigate }: NavigationProps): R
   const instrument = [...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].find(i => i.id === location.instrument)
   const exercise = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].find(e => e.id === location.exercise && e.instrument === instrument?.id)
   return <>
-    <button onClick={() => onNavigate({ instrument: null, exercise: null })}>专项练习</button>
-    {instrument && <><ChevronRight size={13} /><button onClick={() => onNavigate({ instrument: instrument.id, exercise: null })} aria-current={!exercise ? 'page' : undefined}>{instrument.title}</button></>}
+    <button onClick={() => onNavigate({ instrument: null, exercise: null, view: location.view })}>专项练习</button>
+    {instrument && <><ChevronRight size={13} /><button onClick={() => onNavigate({ instrument: instrument.id, exercise: null, view: location.view })} aria-current={!exercise ? 'page' : undefined}>{instrument.title}</button></>}
     {exercise && <><ChevronRight size={13} /><span aria-current="page">{exercise.title}</span></>}
   </>
 }
 
 export function Practice({ location, onNavigate, outputDeviceId, onError, onKnowledge }: NavigationProps & { outputDeviceId: string; onError: (message: string) => void; onKnowledge?: (location: LearningLocation) => void }): React.JSX.Element {
+  const guitarView = location.view === 'guitar-acoustic' ? 'guitar-acoustic' : 'guitar-electric'
   const instrument = [...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].find(i => i.id === location.instrument)
   const exercise = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].find(e => e.id === location.exercise && e.instrument === instrument?.id)
   if (!instrument) return <div className="ws-learning-home ws-practice-home"><h2>专项练习</h2>
     <div className="ws-system-cards">{[...PRACTICE_INSTRUMENTS, ...ENSEMBLE_INSTRUMENTS].map(i => {
       const Icon = i.id === 'bass' ? AudioLines : i.id === 'drums' ? Drum : i.id === 'piano' ? Piano : i.id === 'keyboard' ? KeyboardMusic : Guitar
-      return <button className="ws-system-card" aria-label={i.title} key={i.id} onClick={() => onNavigate({ instrument: i.id, exercise: null })}>
+      return <button className="ws-system-card" aria-label={i.title} key={i.id} onClick={() => onNavigate({ instrument: i.id, exercise: null, view: location.view })}>
         <Icon size={29} strokeWidth={1.4} /><span><strong>{i.title}</strong><small>{i.description}</small></span><ChevronRight size={17} />
       </button>
     })}</div>
@@ -37,21 +41,22 @@ export function Practice({ location, onNavigate, outputDeviceId, onError, onKnow
     const items = [...PRACTICE_EXERCISES, ...ENSEMBLE_EXERCISES].filter(e => e.instrument === instrument.id)
     const modules = [...new Set(items.map(e => e.module))]
     return <div className="ws-learning-map ws-practice-overview"><h2>{instrument.title}</h2>
+      {instrument.id === 'guitar' && <LessonTabs value={guitarView} options={LESSON_INSTRUMENTS.slice(0, 2)} onChange={view => onNavigate({ ...location, view })}><p className="ws-version-intro">{guitarView === 'guitar-electric' ? '电吉他：留意增益下的制音、推弦音准和拾音器响应。' : '原声吉他：留意自然延音、扫弦音量和多声部平衡；电声设备项目可按拾音系统选择学习。'}</p></LessonTabs>}
       <div className="ws-practice-modules" aria-label={`${instrument.title}练习总览`}>{modules.map(module => <section key={module} aria-label={module}>
         <h3>{module}</h3>
-        <div>{items.filter(e => e.module === module).map(e => <button key={e.id} className={e.kind === 'comprehensive' ? 'ws-practice-comprehensive' : undefined} onClick={() => onNavigate({ instrument: instrument.id, exercise: e.id })}>
+        <div>{items.filter(e => e.module === module).map(e => <button key={e.id} className={e.kind === 'comprehensive' ? 'ws-practice-comprehensive' : undefined} onClick={() => onNavigate({ instrument: instrument.id, exercise: e.id, view: location.view })}>
           {e.kind === 'comprehensive' ? <span><b>版块综合练习</b><span>{e.title.replace('综合练习 · ', '')}</span><small>{e.variants.map(v => `${v.beats / Number(v.meter.split('/')[0])} 小节${e.variants.length > 1 ? ` · ${v.meter}` : ''}`).join(' / ')}</small></span> : e.title}<ChevronRight size={14} />
         </button>)}</div>
       </section>)}</div>
     </div>
   }
   if ('sourceId' in exercise) return <EnsemblePractice key={exercise.id} exercise={exercise} outputDeviceId={outputDeviceId} onError={onError} onKnowledge={onKnowledge} />
-  return <PracticeDetail key={exercise.id} exercise={exercise} outputDeviceId={outputDeviceId} onError={onError} />
+  return <PracticeDetail key={exercise.id} exercise={exercise} outputDeviceId={outputDeviceId} onError={onError} view={exercise.instrument === 'guitar' ? guitarView : exercise.instrument} onView={view => onNavigate({ ...location, view })} onKnowledge={onKnowledge} />
 }
 
 interface PracticeDisplay { event: MusicEvent | undefined; pulse: number; bar: number; seconds: number }
 const idle: PracticeDisplay = { event: undefined, pulse: -1, bar: 1, seconds: 0 }
-export function PracticeDetail({ exercise, outputDeviceId, onError }: { exercise: PracticeExercise; outputDeviceId: string; onError: (message: string) => void }): React.JSX.Element {
+export function PracticeDetail({ exercise, outputDeviceId, onError, view = exercise.instrument === 'guitar' ? 'guitar-electric' : exercise.instrument, onView, onKnowledge }: { exercise: PracticeExercise; outputDeviceId: string; onError: (message: string) => void; view?: LessonInstrument; onView?: (view: LessonInstrument) => void; onKnowledge?: (location: LearningLocation) => void }): React.JSX.Element {
   const [variantIndex, setVariantIndex] = useState(0)
   const [bpm, setBpm] = useState(exercise.bpm)
   const [running, setRunning] = useState(false)
@@ -114,7 +119,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError }: { exercise
           clearHighlight()
           if (frame.event) {
             const note = scoreHost.current?.querySelector(`[data-event="${frame.event.id}"]`)
-            note?.classList.add('active')
+            scoreHost.current?.querySelectorAll(`[data-event="${frame.event.id}"]`).forEach(element => element.classList.add('active'))
             const scroller = scoreHost.current?.querySelector('.ws-score')
             if (note && scroller) {
               const box = note.getBoundingClientRect(), viewport = scroller.getBoundingClientRect()
@@ -140,6 +145,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError }: { exercise
   const seconds = String(display.seconds % 60).padStart(2, '0')
   const currentStage = variant.stages?.find(stage => (running ? display.bar : 1) >= stage.startBar && (running ? display.bar : 1) <= stage.endBar)
   return <article className="ws-practice-detail">
+    {exercise.instrument === 'guitar' && onView && <LessonTabs value={view} options={LESSON_INSTRUMENTS.slice(0, 2)} onChange={onView}><p className="ws-version-intro">{view === 'guitar-acoustic' ? '原声吉他 · 六弦标准定弦' : '电吉他 · 六弦标准定弦'}</p></LessonTabs>}
     <header className="ws-practice-title"><h2>{exercise.title}</h2><p>{variant.description}</p>
       {exercise.variants.length > 1 && <div className="ws-practice-variants" role="group" aria-label="练习变体">{exercise.variants.map((v, index) => <button key={v.name} aria-pressed={index === variantIndex} disabled={running || busy} onClick={() => { stop(); setVariantIndex(index); setDisplay(idle) }}>{v.name}</button>)}</div>}
     </header>
@@ -161,6 +167,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError }: { exercise
     </div>
     {failure && <p className="ws-error" role="alert">{failure}</p>}
     <PracticeFretboard variant={variant} tuning={tuning} active={running ? display.event : undefined} />
+    <PracticeReading knowledge={exercise.knowledge} view={view} onKnowledge={onKnowledge} />
     <details className="ws-practice-explanation">
       <summary>练习讲解与里程碑<ChevronRight size={16} /></summary>
       <div><p>{exercise.explanation}</p>

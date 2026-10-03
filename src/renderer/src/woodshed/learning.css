@@ -25,6 +25,29 @@
 .ws-knowledge-article p { font-size: 15px; line-height: 2; white-space: pre-line; margin: 20px 0; }
 .ws-knowledge-article .ws-knowledge-context { font-size: 12px; line-height: 1.8; color: #8a806f; margin: 0 0 30px; }
 .ws-knowledge-article h3 { font-size: 17px; font-weight: 600; margin: 32px 0 10px; }
+.ws-lesson-tabs { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 0 14px; border-bottom: 1px solid #d8d2c5; }
+.ws-lesson-tabs button { padding: 9px 15px; border: 1px solid #d8d2c5; border-radius: 5px; background: transparent; color: #615b4f; font-size: 13px; }
+.ws-lesson-tabs [aria-selected=true] { background: #496d64; border-color: #496d64; color: white; }
+.ws-lesson-views { margin: 0 0 28px; }
+.ws-version-intro { font-size: 13px; line-height: 1.9; color: #756d5f; }
+.ws-lesson-context { padding: 3px 20px 10px; border-left: 3px solid #8fa397; background: #edf0e7; margin: 18px 0; }
+.ws-lesson-context h3 { margin-top: 14px; }
+.ws-lesson-context p { font-size: 14px; margin: 14px 0; }
+.ws-knowledge-article ul, .ws-knowledge-article ol { padding-left: 24px; line-height: 1.95; font-size: 14px; }
+.ws-knowledge-article li { margin: 9px 0; padding-left: 3px; }
+.ws-lesson-objectives { margin-bottom: 30px; }
+.ws-lesson-mistakes > div { margin: 20px 0; }
+.ws-lesson-mistakes dt { color: #496d64; font-weight: 600; font-size: 14px; }
+.ws-lesson-mistakes dd { margin: 8px 0 0; font-size: 14px; line-height: 1.95; }
+.ws-knowledge-figure img { width: 100%; height: auto; display: block; }
+.ws-lesson-notation { margin: 28px 0; min-width: 0; }
+.ws-lesson-notation figcaption { color: #756d5f; font-size: 12px; line-height: 1.8; margin: 12px 0; }
+.ws-lesson-pagination { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; border-top: 1px solid #d8d2c5; padding-top: 24px; }
+.ws-lesson-pagination button { flex: 1 1 240px; text-align: left; color: #496d64; background: transparent; border: 1px solid #d8d2c5; border-radius: 5px; padding: 14px; line-height: 1.8; }
+.ws-lesson-references { margin: 26px 0; font-size: 13px; line-height: 1.9; }
+.ws-lesson-references a { color: #496d64; overflow-wrap: anywhere; }
+.ws-lesson-practice-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.ws-lesson-practice-links h3 { flex-basis: 100%; }
 .ws-knowledge-figure { margin: 32px 0; padding: 24px 0; border-top: 1px solid #dfd8ca; border-bottom: 1px solid #dfd8ca; }
 .ws-knowledge-figure svg { width: 100%; display: block; font-family: inherit; font-size: 13px; fill: #4c5145; }
 .ws-knowledge-figure figcaption { font-size: 12px; line-height: 1.8; color: #8a806f; margin-top: 14px; }
@@ -61,3 +84,12 @@
   .ws-system-card small { font-size: 12px; }
   .ws-learning-home h2, .ws-learning-map h2, .ws-knowledge-article h2 { font-size: 25px; }
 }
+/* Reading controls follow the application's warm/dark appearance tokens. */
+.ws-lesson-tabs { border-color: light-dark(#d8d2c5, var(--border)); }
+.ws-lesson-tabs button { color: light-dark(#615b4f, var(--ink)); border-color: light-dark(#d8d2c5, var(--border)); }
+.ws-lesson-tabs [aria-selected=true] { background: light-dark(#496d64, var(--success-soft)); border-color: light-dark(#496d64, var(--success)); color: light-dark(white, var(--success)); }
+.ws-version-intro, .ws-lesson-notation figcaption { color: light-dark(#756d5f, var(--muted)); }
+.ws-lesson-context { background: light-dark(#edf0e7, var(--surface)); border-color: light-dark(#8fa397, var(--success)); }
+.ws-lesson-mistakes dt, .ws-lesson-references a { color: var(--ws-green); }
+.ws-lesson-pagination, .ws-lesson-pagination button { border-color: light-dark(#d8d2c5, var(--border)); }
+.ws-lesson-pagination button { color: var(--ws-green); }

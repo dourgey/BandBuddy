@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">用两黑键、三黑键定位 C 到 B</title>
+  <desc id="desc">两黑键下面依次是 C、D、E；三黑键下面依次是 F、G、A、B。C 在两黑键左边，F 在三黑键左边。相同结构在键盘上按八度重复。</desc>
+  <rect width="960" height="420" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" fill="#284b42">
+    <text x="40" y="43" font-size="25" font-weight="700">先认黑键分组，再找白键音名</text>
+    <text x="40" y="74" font-size="16">同一个排列向左右重复；图中的 C 只是音名，不代表固定的中央 C 位置。</text>
+    <path d="M146 118v-14h144v14 M420 118v-14h234v14" fill="none" stroke="#638477" stroke-width="2"/>
+    <text x="218" y="96" text-anchor="middle" font-size="17">两黑键</text>
+    <text x="537" y="96" text-anchor="middle" font-size="17">三黑键</text>
+    <g fill="#fffefb" stroke="#81958b" stroke-width="1.5">
+      <rect x="80" y="130" width="90" height="188" rx="3" fill="#d9ebe0"/>
+      <rect x="170" y="130" width="90" height="188" rx="3"/>
+      <rect x="260" y="130" width="90" height="188" rx="3"/>
+      <rect x="350" y="130" width="90" height="188" rx="3" fill="#e9e3c9"/>
+      <rect x="440" y="130" width="90" height="188" rx="3"/>
+      <rect x="530" y="130" width="90" height="188" rx="3"/>
+      <rect x="620" y="130" width="90" height="188" rx="3"/>
+      <rect x="710" y="130" width="90" height="188" rx="3" fill="#d9ebe0"/>
+      <rect x="800" y="130" width="80" height="188" rx="3"/>
+    </g>
+    <g fill="#284b42">
+      <rect x="145" y="130" width="50" height="112" rx="4"/>
+      <rect x="235" y="130" width="50" height="112" rx="4"/>
+      <rect x="415" y="130" width="50" height="112" rx="4"/>
+      <rect x="505" y="130" width="50" height="112" rx="4"/>
+      <rect x="595" y="130" width="50" height="112" rx="4"/>
+      <rect x="775" y="130" width="50" height="112" rx="4"/>
+    </g>
+    <g text-anchor="middle" font-size="25" font-weight="700">
+      <text x="125" y="293">C</text><text x="215" y="293">D</text><text x="305" y="293">E</text>
+      <text x="395" y="293">F</text><text x="485" y="293">G</text><text x="575" y="293">A</text><text x="665" y="293">B</text>
+      <text x="755" y="293">C</text><text x="840" y="293">D</text>
+    </g>
+    <path d="M80 333v10h270v-10 M350 333v10h360v-10" fill="none" stroke="#638477" stroke-width="2"/>
+    <text x="215" y="369" text-anchor="middle" font-size="17">C · D · E</text>
+    <text x="530" y="369" text-anchor="middle" font-size="17">F · G · A · B</text>
+    <text x="755" y="352" text-anchor="middle" font-size="15">下一个 C</text>
+    <text x="40" y="401" font-size="16">定位练习：闭眼松手 → 看见两黑键 → 找左侧 C；换到三黑键 → 找左侧 F。</text>
+  </g>
+</svg>

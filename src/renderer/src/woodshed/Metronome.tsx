@@ -158,28 +158,28 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
     <div className="metro-gauge">
       <svg viewBox="0 0 1000 530" role="img" aria-label={`${bpm} BPM，${tempoName(bpm)}`}>
         <defs>
-          <linearGradient id={`${id}-rim`} x2="0.3" y2="1"><stop stopColor="#3e403b" /><stop offset=".18" stopColor="#aaa99e" /><stop offset=".35" stopColor="#f8f6ee" /><stop offset=".5" stopColor="#55564e" /><stop offset=".8" stopColor="#d5d2c7" /><stop offset="1" stopColor="#fffef6" /></linearGradient>
-          <radialGradient id={`${id}-face`} cx="48%" cy="60%" r="70%"><stop stopColor="#faf8f0" /><stop offset=".8" stopColor="#ede9de" /><stop offset="1" stopColor="#c4bfb1" /></radialGradient>
-          <linearGradient id={`${id}-metal`}><stop stopColor="#69675b" /><stop offset=".17" stopColor="#f6f0d9" /><stop offset=".45" stopColor="#b2a991" /><stop offset=".65" stopColor="#e2dac5" /><stop offset="1" stopColor="#716b59" /></linearGradient>
-          <linearGradient id={`${id}-rod`}><stop stopColor="#1f3627" /><stop offset=".4" stopColor="#8d9b85" /><stop offset=".6" stopColor="#456247" /><stop offset="1" stopColor="#263b2b" /></linearGradient>
-          <linearGradient id={`${id}-glass`} x2=".8" y2="1"><stop stopColor="#fff" stopOpacity=".6" /><stop offset=".4" stopColor="#fff" stopOpacity=".04" /><stop offset=".75" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity=".22" /></linearGradient>
-          <filter id={`${id}-shadow`} x="-100%" width="300%" y="-30%" height="180%"><feDropShadow dx="6" dy="8" stdDeviation="5" floodColor="#393528" floodOpacity=".3" /></filter>
+          <linearGradient id={`${id}-rim`} x2="0.3" y2="1"><stop stopColor="var(--ink)" /><stop offset=".18" stopColor="var(--border-strong)" /><stop offset=".35" stopColor="var(--surface)" /><stop offset=".5" stopColor="var(--muted)" /><stop offset=".8" stopColor="var(--surface-muted)" /><stop offset="1" stopColor="var(--surface-raised)" /></linearGradient>
+          <radialGradient id={`${id}-face`} cx="48%" cy="60%" r="70%"><stop stopColor="var(--surface-raised)" /><stop offset=".8" stopColor="var(--surface)" /><stop offset="1" stopColor="var(--border)" /></radialGradient>
+          <linearGradient id={`${id}-metal`}><stop stopColor="var(--muted)" /><stop offset=".17" stopColor="var(--surface)" /><stop offset=".45" stopColor="var(--accent)" /><stop offset=".65" stopColor="var(--surface-muted)" /><stop offset="1" stopColor="var(--muted)" /></linearGradient>
+          <linearGradient id={`${id}-rod`}><stop stopColor="var(--ink)" /><stop offset=".4" stopColor="var(--border-strong)" /><stop offset=".6" stopColor="var(--muted)" /><stop offset="1" stopColor="var(--ink)" /></linearGradient>
+          <linearGradient id={`${id}-glass`} x2=".8" y2="1"><stop stopColor="var(--surface-raised)" stopOpacity=".6" /><stop offset=".4" stopColor="var(--surface-raised)" stopOpacity=".04" /><stop offset=".75" stopColor="var(--surface-raised)" stopOpacity="0" /><stop offset="1" stopColor="var(--surface-raised)" stopOpacity=".22" /></linearGradient>
+          <filter id={`${id}-shadow`} x="-100%" width="300%" y="-30%" height="180%"><feDropShadow dx="6" dy="8" stdDeviation="5" floodColor="var(--ink)" floodOpacity=".3" /></filter>
         </defs>
-        <path d="M 20 478 A 480 465 0 0 1 980 478 Q 980 513 953 513 H 47 Q 20 513 20 478" fill={`url(#${id}-rim)`} stroke="#99998d" strokeWidth="3" />
-        <path d="M 25 478 A 475 460 0 0 1 975 478 Q 975 508 950 508 H 50 Q 25 508 25 478" fill="none" stroke="#3a3e35" strokeWidth="5" />
-        <path d="M 31 478 A 469 453 0 0 1 969 478 Q 969 502 948 502 H 52 Q 31 502 31 478" fill="none" stroke="#f4f1e6" strokeWidth="3" />
-        <path d="M 38 476 A 462 445 0 0 1 962 476 Q 962 497 945 497 H 55 Q 38 497 38 476" fill={`url(#${id}-face)`} stroke="#faf9f3" strokeWidth="4" />
-        <path d="M 100 478 A 400 400 0 0 1 900 478" fill="none" stroke="#bfb8a6" strokeWidth="9" opacity=".48" />
-        <path d="M 455 81 A 400 400 0 0 1 545 81" fill="none" stroke="#95b38a" strokeWidth="12" opacity=".32" />
-        {marks.map(({ outer, inner }, i) => <line key={i} x1={outer.x} y1={outer.y} x2={inner.x} y2={inner.y} stroke={i === 16 ? '#416344' : '#5a5b51'} opacity={i % 8 ? 0.5 : 1} strokeWidth={i % 8 ? 1.2 : 3} strokeLinecap="round" />)}
+        <path d="M 20 478 A 480 465 0 0 1 980 478 Q 980 513 953 513 H 47 Q 20 513 20 478" fill={`url(#${id}-rim)`} stroke="var(--border-strong)" strokeWidth="3" />
+        <path d="M 25 478 A 475 460 0 0 1 975 478 Q 975 508 950 508 H 50 Q 25 508 25 478" fill="none" stroke="var(--ink)" strokeWidth="5" />
+        <path d="M 31 478 A 469 453 0 0 1 969 478 Q 969 502 948 502 H 52 Q 31 502 31 478" fill="none" stroke="var(--surface)" strokeWidth="3" />
+        <path d="M 38 476 A 462 445 0 0 1 962 476 Q 962 497 945 497 H 55 Q 38 497 38 476" fill={`url(#${id}-face)`} stroke="var(--surface-raised)" strokeWidth="4" />
+        <path d="M 100 478 A 400 400 0 0 1 900 478" fill="none" stroke="var(--border)" strokeWidth="9" opacity=".48" />
+        <path d="M 455 81 A 400 400 0 0 1 545 81" fill="none" stroke="var(--accent)" strokeWidth="12" opacity=".32" />
+        {marks.map(({ outer, inner }, i) => <line key={i} x1={outer.x} y1={outer.y} x2={inner.x} y2={inner.y} stroke={i === 16 ? 'var(--accent)' : 'var(--muted)'} opacity={i % 8 ? 0.5 : 1} strokeWidth={i % 8 ? 1.2 : 3} strokeLinecap="round" />)}
         <g className="metro-scale" textAnchor="middle"><text x="75" y="485">40</text><text x="183" y="187">60</text><text x="500" y="62">120</text><text x="816" y="187">180</text><text x="929" y="485">200</text></g>
         <g ref={rod} filter={`url(#${id}-shadow)`}>
-          <rect x="496" y="105" width="8" height="372" rx="4" fill={`url(#${id}-rod)`} stroke="#344c38" />
-          <rect x="473" y="345" width="54" height="66" rx="6" fill={`url(#${id}-metal)`} stroke="#8e8672" strokeWidth="2" />
-          <path d="M 477 353 H 523 M 477 402 H 523" stroke="#fff9e7" opacity=".65" /><path d="M 474 377 H 526" stroke="#756d59" opacity=".5" />
+          <rect x="496" y="105" width="8" height="372" rx="4" fill={`url(#${id}-rod)`} stroke="var(--ink)" />
+          <rect x="473" y="345" width="54" height="66" rx="6" fill={`url(#${id}-metal)`} stroke="var(--border-strong)" strokeWidth="2" />
+          <path d="M 477 353 H 523 M 477 402 H 523" stroke="var(--surface-raised)" opacity=".65" /><path d="M 474 377 H 526" stroke="var(--muted)" opacity=".5" />
         </g>
         <g ref={readout} textAnchor="middle" className="metro-readout"><text className="metro-bpm" x="500" y="244">{bpm}</text><text className="metro-unit" x="504" y="282">BPM</text><text className="metro-tempo" x="500" y="318">{tempoName(bpm)}</text></g>
-        <circle cx="500" cy="478" r="34" fill="#35382f" stroke="#c5c0ae" strokeWidth="3" /><circle cx="500" cy="478" r="28" fill={`url(#${id}-metal)`} stroke="#f2eddf" strokeWidth="2" />
+        <circle cx="500" cy="478" r="34" fill="var(--ink)" stroke="var(--border)" strokeWidth="3" /><circle cx="500" cy="478" r="28" fill={`url(#${id}-metal)`} stroke="var(--surface)" strokeWidth="2" />
         <path d="M 40 476 A 460 443 0 0 1 960 476 Q 960 495 945 495 H 55 Q 40 495 40 476" fill={`url(#${id}-glass)`} pointerEvents="none" />
       </svg>
     </div>

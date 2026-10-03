@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WoodshedPage from '../src/renderer/src/pages/WoodshedPage.js'
 import { GUITAR_READING, LEARNING_SYSTEMS } from '../src/renderer/src/woodshed/knowledge.js'
+import { loadLesson } from '../src/renderer/src/woodshed/lesson-library.js'
+
+vi.mock('../src/renderer/src/woodshed/MusicXmlScore.js', () => ({ MusicXmlScore: ({ label }: { label: string }) => <div aria-label={label}>MusicXML 谱例</div> }))
 
 vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class {
   stop() {} destroy() {} setReference() {} setVisualActive() {} async setOutput() {}
@@ -10,27 +13,30 @@ vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class {
 beforeEach(() => { localStorage.clear(); Element.prototype.scrollTo = vi.fn() })
 afterEach(cleanup)
 describe('learning navigation', () => {
-  it('opens systems, roadmap and a pure article, then jumps back through breadcrumbs', () => {
+  it('opens systems, roadmap and a pure article, then jumps back through breadcrumbs', async () => {
     render(<WoodshedPage onToast={vi.fn()} />)
     for (const system of LEARNING_SYSTEMS) {
       fireEvent.click(screen.getByRole('button', { name: system.title, exact: true }))
       const firstNode = system.stages[0]!.nodes[0]!
       fireEvent.click(screen.getByRole('button', { name: firstNode.title, exact: true }))
-      expect(screen.getByRole('article').textContent).toContain(firstNode.example)
+      await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
+      expect(screen.getByRole('article').textContent).toContain((await loadLesson(firstNode.document, firstNode.id)).summary)
+      expect(screen.getByRole('heading', { name: '自检与复述' })).toBeTruthy()
       fireEvent.click(within(screen.getByRole('navigation', { name: '页面路径' })).getByRole('button', { name: '练功房', exact: true }))
     }
   })
-  it('keeps learning independent of instrument settings and preserves sidebar collapse', () => {
+  it('keeps learning independent of instrument settings and preserves sidebar collapse', async () => {
     const first = render(<WoodshedPage onToast={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '吉他', exact: true }))
     expect(screen.getByRole('list', { name: '吉他知识路线图' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '指板音名与音程', exact: true }))
-    expect(screen.getByRole('article').textContent).toContain('第六弦第五品')
+    await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
+    expect(screen.getByRole('heading', { name: '把概念放进例子' })).toBeTruthy()
     expect(screen.queryByLabelText('乐器与调弦')).toBeNull()
     expect(screen.queryByText('练习工作台')).toBeNull()
     expect(screen.queryByText('重置练习参数')).toBeNull()
     expect(screen.queryByText('学习目录')).toBeNull()
-    expect(screen.getByRole('img').getAttribute('aria-label')).toContain('固定标准定弦')
+    expect(screen.getByRole('tab', { name: '原声吉他' })).toBeTruthy()
     const path = within(screen.getByRole('navigation', { name: '页面路径' }))
     fireEvent.click(path.getByRole('button', { name: '吉他', exact: true }))
     expect(screen.queryByRole('article')).toBeNull()
@@ -49,15 +55,16 @@ describe('learning navigation', () => {
     expect(new Set(nodes.map(n => n.id)).size).toBe(nodes.length)
     expect(LEARNING_SYSTEMS.find(s => s.id === 'guitar')!.stages).toHaveLength(8)
     for (const id of Object.values(GUITAR_READING)) expect(nodes.some(n => n.id === id)).toBe(true)
-    for (const node of nodes) { expect(node.paragraphs.join('').length).toBeGreaterThan(20); expect(node.example.length).toBeGreaterThan(10) }
+    for (const node of nodes) expect(node.document.endsWith(`/${node.id}.json`)).toBe(true)
   })
-  it('shows ensemble stage outcomes and prerequisites and links knowledge to practice and back', () => {
+  it('shows ensemble stage outcomes and prerequisites and links knowledge to practice and back', async () => {
     render(<WoodshedPage onToast={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '鼓', exact: true }))
     expect(screen.getAllByText(/^阶段成果：/).length).toBe(8)
     expect(screen.getByText('先修关系与进入条件')).toBeTruthy()
     const node = LEARNING_SYSTEMS.find(s => s.id === 'drums')!.stages[0]!.nodes[0]!
     fireEvent.click(screen.getByRole('button', { name: node.title, exact: true }))
+    await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
     const article = screen.getByRole('article')
     expect(within(article).queryByText('练习工作台')).toBeNull()
     const links = within(article).getAllByRole('button')
@@ -66,5 +73,33 @@ describe('learning navigation', () => {
     expect(screen.getByText(/建议 S/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: `知识：${node.title}`, exact: true }))
     expect(screen.getByRole('heading', { name: node.title, exact: true })).toBeTruthy()
+  })
+  it('switches shared explanations and examples with the instrument, retaining selection on the route', async () => {
+    render(<WoodshedPage onToast={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '共享基础', exact: true }))
+    fireEvent.click(screen.getByRole('tab', { name: '钢琴' }))
+    fireEvent.click(screen.getByRole('button', { name: '音名、半音与全音', exact: true }))
+    await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
+    expect(screen.getByRole('tab', { name: '钢琴' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tabpanel').textContent).toContain('白键 E4')
+    expect(screen.getByRole('tabpanel').textContent).not.toContain('第六弦')
+    fireEvent.click(screen.getByRole('tab', { name: '鼓', exact: true }))
+    expect(screen.getByRole('tabpanel').textContent).toContain('不承担固定音名')
+    fireEvent.click(within(screen.getByRole('navigation', { name: '页面路径' })).getByRole('button', { name: '共享基础', exact: true }))
+    expect(screen.getByRole('tab', { name: '鼓', exact: true }).getAttribute('aria-selected')).toBe('true')
+  })
+  it('retains acoustic guitar context when opening a practice task and returning to the textbook', async () => {
+    render(<WoodshedPage onToast={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '吉他', exact: true }))
+    fireEvent.click(screen.getByRole('tab', { name: '原声吉他' }))
+    fireEvent.click(screen.getByRole('button', { name: '乐器认识与基础动作', exact: true }))
+    await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
+    const links = document.querySelector('.ws-lesson-practice-links')!
+    fireEvent.click(within(links as HTMLElement).getAllByRole('button')[0]!)
+    expect(screen.getByRole('tab', { name: '原声吉他' }).getAttribute('aria-selected')).toBe('true')
+    const returnLink = await screen.findByRole('button', { name: '知识：乐器认识与基础动作' })
+    fireEvent.click(returnLink)
+    await waitFor(() => expect(screen.getByRole('article').getAttribute('aria-busy')).toBe('false'))
+    expect(screen.getByRole('tab', { name: '原声吉他' }).getAttribute('aria-selected')).toBe('true')
   })
 })

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 490" role="img" aria-labelledby="title desc">
+  <title id="title">键盘的 MIDI 与音频信号路径</title>
+  <desc id="desc">MIDI 键盘通过 USB 或 MIDI 输出音符与控制信息到电脑音源，电脑音源生成音频，通过音频接口送至耳机或有源音箱。带内置音源的键盘可从线路输出直接送至音频接口。MIDI 线本身不携带可听声音。</desc>
+  <defs>
+    <marker id="midiArrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#697aa6"/></marker>
+    <marker id="audioArrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#367662"/></marker>
+  </defs>
+  <rect width="1120" height="490" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" fill="#284b42">
+    <text x="36" y="43" font-size="25" font-weight="700">MIDI 负责“怎么弹”，音频负责“听到什么”</text>
+    <path d="M38 77H100" stroke="#697aa6" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#midiArrow)"/>
+    <text x="112" y="82" font-size="16">MIDI：音高、力度、踏板等事件</text>
+    <path d="M488 77H550" stroke="#367662" stroke-width="3" marker-end="url(#audioArrow)"/>
+    <text x="562" y="82" font-size="16">音频：已经生成的声音</text>
+    <g stroke="#a6b9ad" stroke-width="1.5" fill="#fffefb">
+      <rect x="40" y="135" width="180" height="92" rx="12"/>
+      <rect x="363" y="135" width="198" height="92" rx="12"/>
+      <rect x="702" y="135" width="160" height="92" rx="12"/>
+      <rect x="936" y="135" width="145" height="92" rx="12"/>
+      <rect x="40" y="299" width="315" height="84" rx="12"/>
+      <rect x="702" y="299" width="160" height="84" rx="12"/>
+      <rect x="936" y="299" width="145" height="84" rx="12"/>
+    </g>
+    <g text-anchor="middle" font-size="18" font-weight="700">
+      <text x="130" y="169">MIDI 键盘</text><text x="462" y="169">电脑中的软件音源</text>
+      <text x="782" y="169">音频接口</text><text x="1008" y="169">耳机 /</text><text x="1008" y="197">有源音箱</text>
+      <text x="197" y="332">带内置音源的键盘</text><text x="782" y="335">音频接口</text>
+      <text x="1008" y="331">耳机 /</text><text x="1008" y="359">有源音箱</text>
+    </g>
+    <g text-anchor="middle" font-size="14" fill="#60796d">
+      <text x="130" y="199">按键产生控制事件</text><text x="462" y="199">在这里合成声音</text>
+      <text x="782" y="199">数字 → 模拟</text><text x="197" y="360">声音已在琴内生成</text><text x="782" y="363">线路输入 / 监听</text>
+    </g>
+    <path d="M220 181H349" fill="none" stroke="#697aa6" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#midiArrow)"/>
+    <text x="290" y="148" text-anchor="middle" font-size="14" fill="#5c6d9a">USB / MIDI</text>
+    <path d="M561 181H688 M862 181H922 M355 342H688 M862 342H922" fill="none" stroke="#367662" stroke-width="3" marker-end="url(#audioArrow)"/>
+    <text x="627" y="148" text-anchor="middle" font-size="14">USB 音频</text>
+    <text x="523" y="320" text-anchor="middle" font-size="16">LINE OUT → LINE IN</text>
+    <text x="523" y="367" text-anchor="middle" font-size="14" fill="#60796d">单声道按设备说明接 L / MONO</text>
+    <text x="40" y="431" font-size="17">上方：控制器 + 软件音源；下方：录制键盘内置音色。两条路径按需要选择。</text>
+    <text x="40" y="463" font-size="16">USB 能否同时传 MIDI 和音频取决于琴的型号；只传 MIDI 的连接不会自动产生音频输入。</text>
+  </g>
+</svg>

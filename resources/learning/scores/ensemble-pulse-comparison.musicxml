@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <work><work-title>4/4 与 6/8：看符尾分组，听大拍</work-title></work>
+  <part-list><score-part id="P1"><part-name>节奏示范</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>12</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+      <direction placement="above"><direction-type><words>4/4：四个大拍；每拍分成两份。大声数数字，轻声数“和”。</words></direction-type></direction>
+      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations><lyric><text>1</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>和</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><lyric><text>2</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>和</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><lyric><text>3</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>和</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><lyric><text>4</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>和</text></lyric></note>
+      <barline location="right"><bar-style>light-light</bar-style></barline>
+    </measure>
+    <measure number="2">
+      <print new-system="yes"/>
+      <attributes><time><beats>6</beats><beat-type>8</beat-type></time></attributes>
+      <direction placement="above"><direction-type><words>6/8：两个大拍；每拍分成三份。这里两个例子的“大拍”速度相同。</words></direction-type></direction>
+      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><beat-unit-dot/><per-minute>80</per-minute></metronome></direction-type><sound tempo="120"/></direction>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><notations><articulations><accent/></articulations></notations><lyric><text>1</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">continue</beam><lyric><text>啦</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>哩</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">begin</beam><lyric><text>2</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">continue</beam><lyric><text>啦</text></lyric></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>6</duration><type>eighth</type><stem>up</stem><beam number="1">end</beam><lyric><text>哩</text></lyric></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>

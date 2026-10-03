@@ -70,7 +70,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
       host.current?.querySelectorAll(`[data-ensemble-event="${e.id}"]`).forEach(n => n.classList.add('ensemble-active'))
       for (const midi of e.notes) host.current?.querySelectorAll(`[data-ensemble-midi="${midi}"]`).forEach(n => n.classList.add('ensemble-active'))
      }
-     const note = host.current?.querySelector('.ensemble-active'), scroller = host.current?.querySelector('.ensemble-score')
+     const note = host.current?.querySelector('.ensemble-active'), scroller = host.current?.querySelector('.ensemble-score .ws-musicxml-score')
      if (note && scroller) { const box = note.getBoundingClientRect(), viewport = scroller.getBoundingClientRect(); if (box.bottom > viewport.bottom || box.top < viewport.top) scroller.scrollTo({ top: scroller.scrollTop + box.top - viewport.top - 35 }) }
      previous = identity
     }
@@ -123,7 +123,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
   <nav className="ensemble-related" aria-label="相关知识">{exercise.knowledge.map(id => {
    const system = ensembleKnowledgeSystem(id) as LearningLocation['system']
    const node = LEARNING_SYSTEMS.find(s => s.id === system)?.stages.flatMap(s => s.nodes).find(n => n.id === id)
-   return <button className="ws-knowledge-practice" key={id} onClick={() => onKnowledge?.({ system, node: id })}>知识：{node?.title ?? id}<ChevronRight size={14} /></button>
+   return <button className="ws-knowledge-practice" key={id} onClick={() => onKnowledge?.({ system, node: id, view: exercise.instrument })}>知识：{node?.title ?? id}<ChevronRight size={14} /></button>
   })}</nav>
  </article>
 }

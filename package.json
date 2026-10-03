@@ -1,6 +1,6 @@
 {
   "name": "bandbuddy",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "private": true,
   "description": "A local-first stem practice player for musicians",
   "main": "./out/main/index.js",
@@ -26,7 +26,7 @@
   "scripts": {
     "dev": "pnpm native:electron && pnpm native:audio && electron-vite dev",
     "dev:renderer": "vite --config vite.renderer.config.ts",
-    "build": "pnpm verify:resources && pnpm verify:drums && pnpm typecheck && electron-vite build && pnpm verify:built-runtime",
+    "build": "pnpm verify:resources && pnpm verify:drums && pnpm verify:learning && pnpm typecheck && electron-vite build && pnpm verify:built-runtime",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:whitebox": "node scripts/test-whitebox.mjs",
@@ -64,7 +64,8 @@
     "package:mac:x64:notarized": "node scripts/verify-macos-target.mjs x64 && pnpm native:audio && pnpm build && electron-builder --config electron-builder.macos.yml --mac dmg zip --x64 -c.mac.notarize=true",
     "runtime:wheel:mac:x64": "python3 scripts/build-intel-runtime-wheel.py",
     "verify:mac:target": "node scripts/verify-macos-target.mjs",
-    "verify:built-runtime": "node scripts/verify-built-runtime.mjs"
+    "verify:built-runtime": "node scripts/verify-built-runtime.mjs",
+    "verify:learning": "node scripts/verify-learning-musicxml.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.19",
@@ -74,6 +75,7 @@
     "better-sqlite3": "12.11.1",
     "drizzle-orm": "0.45.2",
     "lucide-react": "1.25.0",
+    "opensheetmusicdisplay": "2.2.0",
     "qrc-decoder": "1.0.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
@@ -98,7 +100,7 @@
     "jsdom": "29.1.1",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
-    "vexflow": "file:C:/Users/zhaoj/AppData/Local/Temp/vexflow-5.0.0.tgz",
+    "vexflow": "5.0.0",
     "vite": "8.1.5",
     "vitest": "4.1.10"
   }
