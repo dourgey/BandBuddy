@@ -84,6 +84,22 @@ describe('LAN HTTP and discovery integration', () => {
     expect(manifest.lyrics.cues[0].lines).toEqual(['第一句'])
     expect(JSON.stringify(manifest)).not.toContain(root)
   })
+  it('serves a short root URL with browser session cookies for API, assets and media', async () => {
+    expect(service.status().urls.every(value => new URL(value).pathname === '/')).toBe(true)
+    const response = await fetch(`${origin}/`)
+    expect(response.status).toBe(200)
+    const header = response.headers.get('set-cookie')!
+    expect(header).toContain('HttpOnly'); expect(header).toContain('SameSite=Strict'); expect(header).toContain('Path=/')
+    const cookie = header.split(';')[0]!
+    expect((await fetch(`${origin}/api/v1/songs`)).status).toBe(404)
+    const list = await fetch(`${origin}/api/v1/songs`, { headers: { Cookie: cookie } })
+    expect((await list.json()).songs).toHaveLength(1)
+    const media = await fetch(`${origin}/media/${songId}/stem/${stemId}`, { headers: { Cookie: cookie, Range: 'bytes=5-12' } })
+    expect(media.status).toBe(206); expect(await media.text()).toBe(bytes.subarray(5, 13).toString())
+    await writeFile(path.join(root, 'assets', 'root-test.js'), 'console.log("root assets")')
+    expect((await fetch(`${origin}/assets/root-test.js`, { headers: { Cookie: cookie } })).status).toBe(200)
+    expect((await fetch(`${origin}/secret.txt`, { headers: { Cookie: cookie } })).status).toBe(404)
+  })
   it('supports GET, HEAD, suffix/ranged downloads and rejects bad ranges', async () => {
     const url = `${session}media/${songId}/stem/${stemId}`
     const full = await fetch(url)
@@ -160,8 +176,15 @@ describe('LAN HTTP and discovery integration', () => {
   })
   it('revokes old URLs on stop/restart, including concurrent toggles', async () => {
     const oldPath = new URL(session).pathname
+    const oldCookie = (await fetch(`${origin}/`)).headers.get('set-cookie')!.split(';')[0]!
+    const oldPort = service.status().port
     const [off, on] = await Promise.all([service.setEnabled(false), service.setEnabled(true)])
     expect(off.enabled).toBe(false); expect(on.enabled).toBe(true)
+    expect(on.port).toBe(oldPort)
     expect((await fetch(`http://127.0.0.1:${on.port}${oldPath}api/v1/songs`)).status).toBe(404)
+    const stableOrigin = `http://127.0.0.1:${on.port}/`
+    expect((await fetch(stableOrigin + 'api/v1/songs', { headers: { Cookie: oldCookie } })).status).toBe(404)
+    const cookie = (await fetch(stableOrigin)).headers.get('set-cookie')!.split(';')[0]!
+    expect((await fetch(stableOrigin + 'api/v1/songs', { headers: { Cookie: cookie } })).status).toBe(200)
   })
 })

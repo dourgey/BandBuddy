@@ -67,7 +67,7 @@ export class LanService {
 
   status(): LanStatus {
     return { enabled: this.server !== null && this.port !== null, port: this.port,
-      urls: this.port ? lanAddresses().map((host) => `http://${host}:${this.port}/s/${this.token}/`) : [], error: this.error }
+      urls: this.port ? lanAddresses().map((host) => `http://${host}:${this.port}/`) : [], error: this.error }
   }
 
   setEnabled(enabled: boolean): Promise<LanStatus> {
@@ -183,8 +183,11 @@ export class LanService {
     }
     if (!['GET', 'HEAD'].includes(request.method ?? '')) return this.json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     const prefix = `/s/${this.token}/`
-    if (!this.token || !url.pathname.startsWith(prefix)) return this.json(response, 404, { error: 'NOT_FOUND' })
-    const route = url.pathname.slice(prefix.length)
+    const sessionPath = url.pathname.startsWith(prefix)
+    const cookie = request.headers.cookie?.split(';').some(value => value.trim() === `bandbuddy-lan=${this.token}`)
+    // The browser enters through a stable root URL; native clients keep their handshake capability.
+    if (!this.token || (!sessionPath && url.pathname !== '/' && !cookie)) return this.json(response, 404, { error: 'NOT_FOUND' })
+    const route = url.pathname.slice(sessionPath ? prefix.length : 1)
     if (route === 'api/v1/appearance-events') {
       if (request.method !== 'GET') return this.json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       if (this.appearanceClients.size >= 32) return this.json(response, 503, { error: 'CLIENT_LIMIT' })
@@ -225,6 +228,7 @@ export class LanService {
     }
     // Serve only generated web assets, never arbitrary renderer or library paths.
     if (route === '') {
+      if (!sessionPath) response.setHeader('Set-Cookie', `bandbuddy-lan=${this.token}; Path=/; HttpOnly; SameSite=Strict`)
       const { theme, density, effects } = publicAppearance(this.database.getSettings().appearance)
       const html = (await readFile(path.join(this.rendererRoot, 'lan.html'), 'utf8')).replace(/<html(?=[\s>])/i, `<html data-theme-mode="${theme}" data-density="${density}" data-effects="${effects}"`)
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'", 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' })

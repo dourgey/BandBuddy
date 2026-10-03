@@ -295,28 +295,9 @@ export default function WoodshedPage({
             scrollTimer.current = setTimeout(persistScroll, 200)
           }}
         >
-          {(p.section === 'lab' || p.section === 'tools') && (p.section !== 'tools' || !tool) && <div className="ws-hero">
-            <div>
-              <span className="ws-eyebrow">
-                {p.section === 'lab'
-                    ? 'A MAP FOR YOUR MUSIC.'
-                      : 'READY WHEN YOU ARE.'}
-              </span>
-              <h2>
-                {p.section === 'lab'
-                    ? '在指板上，找到音乐。'
-                      : '小工具，随手就好。'}
-              </h2>
-              <p>
-                {p.section === 'lab'
-                    ? '音名、音级、和弦与把位，在同一张指板上建立联系。'
-                      : '调准音、稳住拍点，让注意力回到演奏本身。'}
-              </p>
-            </div>
-            <div className="ws-hero-stat">
-              <b>{p.section === 'tools' ? String(TOOLS.length).padStart(2, '0') : '12'}</b>
-              <span>{p.section === 'tools' ? '常用工具' : '个调 · 自由探索'}</span>
-            </div>
+          {p.section === 'tools' && !tool && <div className="ws-hero">
+            <div><span className="ws-eyebrow">READY WHEN YOU ARE.</span><h2>小工具，随手就好。</h2><p>调准音、稳住拍点，让注意力回到演奏本身。</p></div>
+            <div className="ws-hero-stat"><b>{String(TOOLS.length).padStart(2, '0')}</b><span>常用工具</span></div>
           </div>}
           {p.section === 'learn' && <Learning location={learning} onNavigate={navigateLearning} onPractice={navigatePractice} />}
           {p.section === 'lab' && <FretboardLab initialTuning={tuning} audio={audio} a4={p.a4} onBack={() => navigate('learn')} onError={error} />}

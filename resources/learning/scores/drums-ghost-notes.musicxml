@@ -16,7 +16,7 @@
   </part-list>
   <part id="P1">
     <measure number="1">
-      <attributes><divisions>12</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>percussion</sign></clef></attributes>
+      <attributes><divisions>12</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>percussion</sign></clef><staff-details><staff-lines>5</staff-lines></staff-details></attributes>
       <direction placement="above"><direction-type><words default-y="70" font-size="10">× G5 闭镲；C5 军鼓；F4 底鼓；括号军鼓 = p 轻音</words></direction-type></direction>
       <direction placement="above"><direction-type><words default-y="50" font-size="10">二、四拍无括号军鼓 = mf 主击；闭镲音量保持稳定</words></direction-type></direction>
       <direction placement="above"><direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>60</per-minute></metronome></direction-type><sound tempo="60"/></direction>

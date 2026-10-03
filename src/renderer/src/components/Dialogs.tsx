@@ -56,18 +56,15 @@ import { applyRuntimeSourcePreset, matchRuntimeSourcePreset, type RuntimeSourceP
 import { formatDate, formatTime, isCancellationError, statusLabel, toUserErrorMessage } from '../utils.js'
 
 const GUITAR_QUALITY_VALUES: readonly GuitarSeparationQuality[] = ['fast', 'balanced', 'high']
-const GUITAR_QUALITY_DETAILS: Record<GuitarSeparationQuality, { label: string; detail: string }> = {
+const GUITAR_QUALITY_DETAILS: Record<GuitarSeparationQuality, { label: string }> = {
   fast: {
     label: '极速',
-    detail: '两套 MDX-Net + HTDemucs；快速/预览质量。本次 RTX 3060 测试曲目约 27 秒。'
   },
   balanced: {
     label: '平衡',
-    detail: '共享 BS-RoFormer 主干 · HQ3；兼顾分轨效果与等待时间。'
   },
   high: {
     label: '高质量',
-    detail: '共享 BS-RoFormer 主干 · HQ6；效果优先，用时最长。'
   }
 }
 
@@ -445,7 +442,7 @@ export function SettingsDrawer({
     <SettingsGroup title="分轨与运行环境" description="分轨音质、计算设备与本地环境" summary={`${guitarQuality.label} · ${draft.highQualityStems ? 'FLAC' : 'MP3'} · ${statusLabel(runtime.status)}`} icon={<Zap />} {...groupProps('separation')}>
     <section className="settings-section"><h3><HardDrive />分轨音质</h3>
       <div className="guitar-quality-setting">
-        <header><span><b>吉他分轨档位</b><small>仅影响后续新建的吉他分轨任务</small></span><strong>{guitarQuality.label}</strong></header>
+        <header><span><b>吉他分轨档位</b></span><strong>{guitarQuality.label}</strong></header>
         <input
           type="range"
           min="0"
@@ -460,10 +457,8 @@ export function SettingsDrawer({
           }}
         />
         <div className="guitar-quality-labels" aria-hidden="true"><span>极速</span><span>平衡</span><span>高质量</span></div>
-        <p>{guitarQuality.detail}</p>
       </div>
       <label className="settings-toggle"><input type="checkbox" aria-label="高音质分轨" checked={draft.highQualityStems} onChange={(event) => setDraft({ ...draft, highQualityStems: event.target.checked })} /><span><b>高音质分轨</b><small>{draft.highQualityStems ? '新分轨保存为 24-bit FLAC，占用空间较大' : '新分轨保存为 320 kbps MP3，节省空间'}</small></span></label>
-      <p className="security-note">仅影响后续分轨；已有歌曲需重新分轨才会改变格式</p>
     </section>
     <section className="settings-section"><h3><Zap />本地分离环境</h3>
       <div className={`runtime-card ${runtime.status}`}><header><span><i /><b>{statusLabel(runtime.status)}</b></span><em>{runtime.selectedDevice.toUpperCase()}</em></header><p>{runtime.stage}</p>{runtime.progress !== null && <div className="progress-line"><i style={{ width: `${runtime.progress * 100}%` }} /></div>}{runtime.error && <pre>{toUserErrorMessage(runtime.error, '运行环境异常，请尝试修复或重新安装')}</pre>}

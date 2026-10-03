@@ -193,7 +193,7 @@ export function ensembleToMusicXml(score: EnsembleScore, drums: boolean): MusicX
     if (at) at.notes.push(...notes)
     else voices[v]!.push({ id: e.id, beat: e.beat, duration: e.duration, notes, label: noteLabel })
   }
-  const attributes = `<attributes><divisions>${MUSICXML_DIVISIONS}</divisions>${time(score.meter)}${drums ? '<clef><sign>percussion</sign></clef>' : '<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>'}</attributes>`
+  const attributes = `<attributes><divisions>${MUSICXML_DIVISIONS}</divisions>${time(score.meter)}${drums ? '<clef><sign>percussion</sign></clef><staff-details><staff-lines>5</staff-lines></staff-details>' : '<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>'}</attributes>`
   const drumVoices = [...new Set(score.events.map(e => e.drum).filter((d): d is DrumVoice => !!d))]
   const hasFeet = voices[1]!.length > 0
   const measures = Array.from({ length: Math.max(1, score.bars) }, (_, bar) => `<measure number="${bar + 1}">${bar === 0 ? attributes : ''}${renderVoice(voices[0]!, bar * length, (bar + 1) * length, 1, 1, anchors)}${!drums || hasFeet ? `<backup><duration>${tick(length)}</duration></backup>${renderVoice(voices[1]!, bar * length, (bar + 1) * length, 2, drums ? 1 : 2, anchors)}` : ''}</measure>`)

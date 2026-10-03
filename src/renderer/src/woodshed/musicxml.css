@@ -11,18 +11,8 @@
 .ensemble-score:has(> .ws-musicxml-score) { overflow: hidden; max-height: none; }
 .ws-notation-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .ws-notation-toolbar button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 20px; padding: 7px 12px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.ws-notation-toolbar button:disabled { cursor: default; opacity: .8; }
 .ws-notation-switch { width: 26px; height: 15px; border-radius: 12px; background: var(--border-strong); padding: 2px; }
 .ws-notation-switch::after { content: ''; display: block; width: 11px; height: 11px; border-radius: 50%; background: var(--surface-raised); }
 [aria-checked=true] > .ws-notation-switch { background: var(--accent); }
 [aria-checked=true] > .ws-notation-switch::after { transform: translateX(11px); }
-.ws-drum-tab { max-width: 100%; color: var(--ink); }
-.ws-drum-tab-measures { display: flex; overflow: auto; max-height: 450px; padding: 12px 0; }
-.ws-drum-tab-bar { border-right: 2px solid var(--border-strong); padding: 0 18px 0 8px; flex: 1 0 auto; }
-.ws-drum-tab-row { display: flex; align-items: center; height: 43px; }
-.ws-drum-tab-row > b { width: 65px; flex: none; font-size: 12px; color: var(--muted); }
-.ws-drum-tab-track { position: relative; flex: 1; height: 100%; background: linear-gradient(var(--border),var(--border)) center / 100% 1px no-repeat; }
-.ws-drum-tab-track > small, .ws-drum-tab-track > i { position: absolute; top: 0; font-style: normal; }
-.ws-drum-tab-track > i { height: 100%; border-left: 1px dotted var(--border); }
-.ws-drum-tab-track .ws-drum-tab-hit { position: absolute; top: 9px; transform: translateX(-25%); padding: 0 3px; min-width: 20px; border: 0; background: var(--paper); color: var(--ink); font-size: 17px; line-height: 23px; }
-.ws-drum-tab-hit small { display: block; font-size: 10px; line-height: 12px; }
-.ws-drum-tab-track .ws-drum-tab-hit:is(.active,.ensemble-active) { color: var(--inverse-text); background: var(--accent); }

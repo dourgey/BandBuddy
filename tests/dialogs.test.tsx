@@ -103,12 +103,12 @@ describe('library dialogs', () => {
   it('starts LAN mode immediately and displays the actual fallback port', async () => {
     const settings = await window.bandbuddy.settings.get()
     const runtime = await window.bandbuddy.runtime.get()
-    const enabled = vi.spyOn(window.bandbuddy.lan, 'setEnabled').mockResolvedValue({ enabled: true, port: 60233, urls: ['http://192.168.1.20:60233/s/session/'], error: null })
+    const enabled = vi.spyOn(window.bandbuddy.lan, 'setEnabled').mockResolvedValue({ enabled: true, port: 60233, urls: ['http://192.168.1.20:60233/'], error: null })
     render(<SettingsDrawer open onOpenChange={vi.fn()} runtime={runtime} settings={settings} onSaved={vi.fn()} onRefresh={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '网络与共享' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /开启局域网练琴与同步/ }))
     await waitFor(() => expect(enabled).toHaveBeenCalledWith(true))
-    expect((await screen.findByLabelText('局域网访问地址') as HTMLInputElement).value).toBe('http://192.168.1.20:60233/s/session/')
+    expect((await screen.findByLabelText('局域网访问地址') as HTMLInputElement).value).toBe('http://192.168.1.20:60233/')
   })
 
   it('saves desktop lyric font size', async () => {
@@ -222,7 +222,7 @@ describe('library dialogs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
     expect(screen.getByText('新分轨保存为 320 kbps MP3，节省空间')).toBeTruthy()
-    expect(screen.getByText('仅影响后续分轨；已有歌曲需重新分轨才会改变格式')).toBeTruthy()
+    expect(screen.queryByText(/仅影响后续/)).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: '高音质分轨' }))
     expect(screen.getByText('新分轨保存为 24-bit FLAC，占用空间较大')).toBeTruthy()
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ highQualityStems: true })))
@@ -247,7 +247,7 @@ describe('library dialogs', () => {
     const slider = screen.getByRole('slider', { name: '吉他分轨档位' })
     expect(slider.getAttribute('aria-valuetext')).toBe('平衡')
     fireEvent.change(slider, { target: { value: '0' } })
-    expect(screen.getByText(/快速\/预览质量/)).toBeTruthy()
+    expect(screen.queryByText(/共享 BS-RoFormer/)).toBeNull()
     expect(slider.getAttribute('aria-valuetext')).toBe('极速')
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ guitarSeparationQuality: 'fast' })))
   })

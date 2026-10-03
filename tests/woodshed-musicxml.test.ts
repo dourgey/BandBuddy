@@ -116,7 +116,11 @@ describe('Woodshed MusicXML conversion', () => {
         if (!event.drum) expect(notes.map(n => n.midi)).toEqual(event.notes)
         expect(notes[0]?.duration ?? event.duration).toBeCloseTo(event.duration)
       }
-      if (drums) expect(elements(parsed.doc.documentElement!, 'unpitched').length).toBe(score.events.length)
+      if (drums) {
+        expect(elements(parsed.doc.documentElement!, 'unpitched').length).toBe(score.events.length)
+        expect(value(parsed.doc.documentElement!, 'staff-lines')).toBe('5')
+        expect(value(parsed.doc.documentElement!, 'sign')).toBe('percussion')
+      }
       else expect(value(parsed.doc.documentElement!, 'staves')).toBe('2')
     }
   })

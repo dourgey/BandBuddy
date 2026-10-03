@@ -1,6 +1,5 @@
-import { useNotation } from './NotationBody.js'
+import { useNotation, useNotationCapability } from './NotationBody.js'
 import { addTextbookTab, tabFirst } from './notation-layout.js'
-import { DrumTab } from './DrumTab.js'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { OpenSheetMusicDisplay, VexFlowGraphicalNote } from 'opensheetmusicdisplay'
 import { themeColor, useResolvedTheme } from '../appearance.js'
@@ -22,13 +21,13 @@ export const MusicXmlScore = memo(function MusicXmlScore(props: MusicXmlScorePro
     try { return { ...(notation ? tabFirst(addTextbookTab(props.xml, notation.instrument), notation.showStaff, props.anchors) : { xml: props.xml, anchors: props.anchors, hasTab: false }), error: '' } }
     catch (error) { return { xml: props.xml, anchors: props.anchors, hasTab: false, error: error instanceof Error ? error.message : String(error) } }
   }, [props.xml, props.anchors, notation?.showStaff, notation?.instrument])
-  const drums = notation?.instrument === 'drums' && /<unpitched[ >]|<sign>percussion<\/sign>/.test(props.xml)
+  const drums = notation?.instrument === 'drums'
   const keyboard = notation?.instrument === 'piano' || notation?.instrument === 'keyboard'
   const rhythm = !keyboard && !drums && /<staff-lines>\s*1\s*<\/staff-lines>/.test(props.xml)
+  useNotationCapability(projected.hasTab || rhythm)
   if (projected.error) return <p className="ws-error" role="alert">{projected.error}</p>
   return <>
-    {drums && <DrumTab {...props} />}
-    {(!notation || notation.showStaff || projected.hasTab || rhythm) ? <RenderedMusicXmlScore {...props} xml={projected.xml} anchors={projected.anchors} /> : !drums && <p className="ws-muted">五线谱已隐藏</p>}
+    {(!notation || notation.showStaff || drums || projected.hasTab || rhythm) ? <RenderedMusicXmlScore {...props} xml={projected.xml} anchors={projected.anchors} /> : <p className="ws-muted">五线谱已隐藏</p>}
     {projected.hasTab && <p className="ws-notation-key">TAB 在上 · 数字为品位 · 下方时值以四分音符为一拍</p>}
   </>
 })

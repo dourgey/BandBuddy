@@ -3,10 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { addTextbookTab, tabFirst } from '../src/renderer/src/woodshed/notation-layout.js'
-import { readDrumTab } from '../src/renderer/src/woodshed/DrumTab.js'
-import { NotationBody } from '../src/renderer/src/woodshed/NotationBody.js'
-import { ensembleToMusicXml, exerciseToMusicXml } from '../src/renderer/src/woodshed/musicxml.js'
-import { ENSEMBLE_EXERCISES } from '../src/renderer/src/woodshed/ensemble-curriculum.js'
+import { NotationBody, useNotationCapability } from '../src/renderer/src/woodshed/NotationBody.js'
+import { exerciseToMusicXml } from '../src/renderer/src/woodshed/musicxml.js'
 import { PRACTICE_EXERCISES, practiceTuning } from '../src/renderer/src/woodshed/practice-curriculum.js'
 import { DEFAULT_EXERCISE } from '../src/renderer/src/woodshed/types.js'
 
@@ -69,22 +67,38 @@ describe('instrument-first notation', () => {
       expect(next.anchors?.every(a => a.staff === 1)).toBe(true)
     }
   }, 20000)
-  it('keeps drum events aligned across voices, chords, rests and triplets', () => {
-    for (const exercise of ENSEMBLE_EXERCISES.filter(e => e.instrument === 'drums')) for (const score of exercise.variants) {
-      const document = ensembleToMusicXml(score, true)
-      const hits = readDrumTab(document.xml).flatMap(m => m.hits)
-      for (const anchor of document.anchors.filter(a => a.instrument)) expect(hits.some(h => Math.abs(h.absolute - anchor.beat) < .001 && h.voice === anchor.voice && h.instrument === anchor.instrument), `${exercise.id}: ${anchor.id}`).toBe(true)
-    }
+  it('locks staff-only chapters on without changing the preference for chapters with TAB', () => {
+    function ScoreCapability({ alternative }: { alternative: boolean }) { useNotationCapability(alternative); return <p>谱例</p> }
+    localStorage.setItem('bandbuddy.notation.staff.piano', 'false')
+    const view = render(<NotationBody instrument="piano"><ScoreCapability alternative={false} /></NotationBody>)
+    const toggle = screen.getByRole('switch') as HTMLButtonElement
+    expect(toggle.textContent).toBe('显示五线谱')
+    expect(toggle.disabled).toBe(true)
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    view.rerender(<NotationBody instrument="piano"><ScoreCapability alternative /></NotationBody>)
+    expect(toggle.disabled).toBe(false)
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(toggle)
+    expect(toggle.textContent).toBe('显示五线谱')
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    view.rerender(<NotationBody instrument="piano"><ScoreCapability alternative /><ScoreCapability alternative={false} /></NotationBody>)
+    expect(toggle.disabled).toBe(false)
   })
-  it('defaults to TAB for strings/drums and staff for keyboards, and remembers each instrument', () => {
+  it('defaults to TAB for strings and keeps drums on staff, and remembers each instrument', () => {
     const view = render(<NotationBody instrument="bass">知识</NotationBody>)
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
     fireEvent.click(screen.getByRole('switch'))
     view.rerender(<NotationBody instrument="piano">练习</NotationBody>)
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
     fireEvent.click(screen.getByRole('switch'))
+    localStorage.setItem('bandbuddy.notation.staff.drums', 'false')
     view.rerender(<NotationBody instrument="drums">知识</NotationBody>)
-    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
+    expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('switch'))
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
     view.rerender(<NotationBody instrument="bass">练习</NotationBody>)
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
   })
