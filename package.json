@@ -1,6 +1,6 @@
 {
   "name": "bandbuddy",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "private": true,
   "description": "A local-first stem practice player for musicians",
   "main": "./out/main/index.js",

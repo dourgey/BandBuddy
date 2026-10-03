@@ -1,14 +1,14 @@
 .ws-page.ws-lab-page {
   display: block;
-  background: light-dark(#fafaf8, var(--paper));
-  color: light-dark(#1f2529, var(--ink));
+  background: var(--paper);
+  color: var(--ink);
   overflow: auto;
 }
 .fl-page {
-  --fl-green: #496752;
-  --fl-light: #dde9df;
-  --fl-border: #dedfd9;
-  --fl-muted: #71766f;
+  --fl-green: var(--accent);
+  --fl-light: var(--accent-soft);
+  --fl-border: var(--border);
+  --fl-muted: var(--muted);
   max-width: 1680px;
   margin: auto;
   padding: 20px 26px 26px;
@@ -28,7 +28,7 @@
 }
 .fl-page button:focus-visible,
 .fl-page input:focus-visible {
-  outline: 2px solid light-dark(#78997d, var(--border));
+  outline: 2px solid var(--border);
   outline-offset: 3px;
 }
 .fl-page h1,
@@ -53,7 +53,7 @@
   letter-spacing: 2px;
 }
 .fl-title p {
-  color: light-dark(#757972, var(--muted));
+  color: var(--muted);
   font-size: 9px;
   letter-spacing: 1.1px;
   margin-top: 4px;
@@ -62,7 +62,7 @@
   color: var(--fl-green);
 }
 .fl-motto {
-  color: light-dark(#898d85, var(--muted));
+  color: var(--muted);
   font-size: 11px;
   letter-spacing: 4px;
   margin-right: 10px;
@@ -75,20 +75,20 @@
   height: 39px;
   padding: 0;
   background: transparent;
-  color: light-dark(#38473c, var(--success));
+  color: var(--ink);
   border: 1px solid var(--fl-border);
   border-radius: 7px;
   flex: none;
 }
 .fl-icon[aria-pressed="true"],
 .fl-icon:hover {
-  background: light-dark(#e4ece3, var(--surface));
+  background: var(--surface);
 }
 .fl-workspace {
-  border: 1px solid light-dark(#d8dcd4, var(--border));
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 18px;
-  background: light-dark(#f7f6f2, var(--paper));
+  background: var(--paper);
 }
 .fl-top-row {
   display: flex;
@@ -109,8 +109,8 @@
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--fl-border);
-  background: light-dark(#fbfaf7, var(--paper));
-  color: light-dark(#272e27, var(--success));
+  background: var(--paper);
+  color: var(--ink);
   min-height: 38px;
   padding: 8px 13px;
   border-radius: 7px;
@@ -138,11 +138,11 @@
   min-width: 0;
 }
 .fl-segments button {
-  background: light-dark(#f6f5f1, var(--paper));
+  background: var(--paper);
   border: 1px solid var(--fl-border);
   border-radius: 6px;
   padding: 8px 14px;
-  color: light-dark(#343d34, var(--success));
+  color: var(--ink);
   white-space: nowrap;
   min-height: 34px;
 }
@@ -150,10 +150,10 @@
 .fl-tabs button[aria-selected="true"] {
   background: var(--fl-green);
   border-color: var(--fl-green);
-  color: light-dark(#fff, var(--inverse-text));
+  color: var(--on-accent);
 }
 .fl-top-row > .fl-segments {
-  background: light-dark(#eeeee7, var(--paper));
+  background: var(--paper);
   border: 1px solid var(--fl-border);
   border-radius: 9px;
   padding: 3px;
@@ -200,8 +200,8 @@
   justify-content: center;
   gap: 3px;
   padding: 10px 15px;
-  background: light-dark(#f4f3ee, var(--paper));
-  color: light-dark(#242e26, var(--success));
+  background: var(--paper);
+  color: var(--ink);
   border: 1px solid var(--fl-border);
   border-radius: 9px;
 }
@@ -225,7 +225,7 @@
 }
 .fl-control-group > span {
   font-size: 12px;
-  background: light-dark(#f7f6f2, var(--paper));
+  background: var(--paper);
   padding: 0 5px;
   align-self: flex-start;
   margin-top: -7px;
@@ -255,7 +255,7 @@
   overflow-x: auto;
   padding: 2px 0 5px;
   scrollbar-width: thin;
-  scrollbar-color: #a7b8a8 transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 .fl-board-layout {
   display: grid;
@@ -275,14 +275,14 @@
   justify-content: center;
   font-family: var(--serif);
   font-size: 20px;
-  border: 1px solid light-dark(#d9dcd4, var(--border));
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: light-dark(#faf9f5, var(--paper));
+  background: var(--paper);
 }
 .fl-board {
   position: relative;
-  background: light-dark(#eeede7, var(--paper));
-  border: 1px solid light-dark(#bfc5b9, var(--border));
+  background: var(--paper);
+  border: 1px solid var(--border);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -295,7 +295,7 @@
 .fl-string::before {
   content: "";
   height: var(--fl-wire);
-  background: light-dark(#9b9e94, var(--surface-muted));
+  background: var(--surface-muted);
   position: absolute;
   top: 50%;
   left: 0;
@@ -306,26 +306,26 @@
   position: relative;
   background: transparent;
   border: 0;
-  border-right: 2px solid light-dark(#ced1c6, var(--border));
+  border-right: 2px solid var(--border);
   border-radius: 0;
   padding: 0;
   display: grid;
   place-items: center;
-  color: light-dark(#343d32, var(--success));
+  color: var(--ink);
 }
 .fl-cell.is-open {
-  border-right: 5px solid light-dark(#6f796b, var(--border));
-  background: #e3e4dc70;
+  border-right: 5px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 44%, transparent);
 }
 .fl-board.is-left .fl-cell {
   border-right: 0;
-  border-left: 2px solid light-dark(#ced1c6, var(--border));
+  border-left: 2px solid var(--border);
 }
 .fl-board.is-left .fl-cell.is-open {
-  border-left: 5px solid light-dark(#6f796b, var(--border));
+  border-left: 5px solid var(--border);
 }
 .fl-cell:hover {
-  background: #49675210;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 .fl-cell:focus-visible {
   outline-offset: -3px;
@@ -337,9 +337,9 @@
   place-items: center;
   width: 29px;
   height: 29px;
-  background: light-dark(#fcfcf6, var(--paper));
-  border: 1px solid light-dark(#b8bdae, var(--border));
-  color: light-dark(#4b5145, var(--success));
+  background: var(--paper);
+  border: 1px solid var(--border);
+  color: var(--ink);
   border-radius: 50%;
   font-family: var(--serif);
   font-size: 16px;
@@ -349,47 +349,48 @@
 .fl-marker.root {
   width: 33px;
   height: 33px;
-  background: light-dark(#496752, var(--success-soft));
-  border: 2px solid light-dark(#e9f3e6, var(--border));
-  color: white;
-  outline: 1px solid light-dark(#496752, var(--border));
+  background: var(--accent);
+  border: 2px solid var(--border);
+  color: var(--on-accent);
+  outline: 1px solid var(--border);
 }
 .fl-marker.tone {
-  background: light-dark(#e1e9db, var(--surface));
-  border-color: light-dark(#a5b69c, var(--border));
+  background: var(--surface);
+  border-color: var(--border);
 }
 .fl-marker.guide {
-  background: light-dark(#91aa8e, var(--success-soft));
-  border-color: light-dark(#6b8968, var(--border));
-  color: light-dark(#fff, var(--inverse-text));
+  background: var(--accent-soft);
+  border-color: var(--border);
+  color: var(--accent);
 }
 .fl-marker.accidental {
-  background: light-dark(#d7d9d0, var(--surface));
-  border-color: light-dark(#bec1b7, var(--border));
-  color: light-dark(#74796c, var(--muted));
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--muted);
 }
 .fl-marker.ghost {
   opacity: 0.24;
 }
 .fl-marker.target {
-  background: light-dark(#496752, var(--success-soft));
-  color: white;
-  border-color: light-dark(#496752, var(--border));
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--border);
 }
 .fl-marker.correct {
-  color: light-dark(#fff, var(--inverse-text));
-  background: light-dark(#496752, var(--success-soft));
-  border-color: light-dark(#496752, var(--border));
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--border);
 }
 .fl-marker.wrong {
-  background: light-dark(#f1d9cc, var(--surface));
-  border-color: light-dark(#bd8169, var(--border));
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 .fl-marker.heat {
-  border-color: light-dark(#b5c1af, var(--border));
+  border-color: var(--border);
 }
 .fl-cell.is-selected .fl-marker {
-  outline: 2px solid light-dark(#78997d, var(--border));
+  outline: 2px solid var(--border);
   outline-offset: 3px;
 }
 .fl-inlays {
@@ -410,7 +411,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: light-dark(#d1d3c9, var(--surface));
+  background: var(--surface);
 }
 .fl-fret-numbers {
   grid-column: 2;
@@ -419,7 +420,7 @@
   margin-top: 10px;
   text-align: center;
   font-size: 12px;
-  color: light-dark(#4d5549, var(--success));
+  color: var(--ink);
 }
 .fl-details {
   display: grid;
@@ -432,7 +433,7 @@
   border-radius: 12px;
   padding: 15px;
   min-width: 0;
-  background: light-dark(#faf9f6, var(--paper));
+  background: var(--paper);
 }
 .fl-card h2,
 .fl-advice h2 {
@@ -477,9 +478,9 @@
   height: 48px;
   flex: none;
   border-radius: 50%;
-  border: 1px solid light-dark(#35553c, var(--border));
-  background: light-dark(#496752, var(--success-soft));
-  color: white;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .fl-current-bottom {
   display: flex;
@@ -554,7 +555,7 @@
   font-size: 12px;
 }
 .fl-note-content dt {
-  color: light-dark(#7b8075, var(--muted));
+  color: var(--muted);
 }
 .fl-note-content dd {
   margin: 0;
@@ -572,7 +573,7 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--fl-border);
-  background: light-dark(#f6f5f1, var(--paper));
+  background: var(--paper);
   min-height: 43px;
   border-radius: 6px;
   font-size: 11px;
@@ -597,8 +598,8 @@
   border-radius: 5px;
   padding: 7px 0;
   min-height: 35px;
-  color: light-dark(#363d32, var(--success));
-  background: light-dark(#f6f5f1, var(--paper));
+  color: var(--ink);
+  background: var(--paper);
   font-family: var(--serif);
   font-size: 14px;
 }
@@ -620,7 +621,7 @@
 }
 .fl-advice p {
   font-size: 12px;
-  color: light-dark(#787e72, var(--muted));
+  color: var(--muted);
   line-height: 1.6;
 }
 .fl-button {
@@ -632,14 +633,14 @@
   border-radius: 7px;
   border: 1px solid var(--fl-border);
   padding: 9px 16px;
-  background: light-dark(#faf9f5, var(--paper));
-  color: light-dark(#334332, var(--success));
+  background: var(--paper);
+  color: var(--ink);
   white-space: nowrap;
 }
 .fl-button.primary {
   background: var(--fl-green);
   border-color: var(--fl-green);
-  color: light-dark(#fff, var(--inverse-text));
+  color: var(--on-accent);
 }
 .fl-advice .fl-button {
   min-width: 210px;
@@ -655,7 +656,7 @@
   border-radius: 9px;
   padding: 14px;
   margin-bottom: 14px;
-  background: light-dark(#edf1e8, var(--paper));
+  background: var(--paper);
 }
 .fl-inline-panel b {
   white-space: nowrap;
@@ -686,8 +687,8 @@
 }
 .fl-settings input:not([type="checkbox"]) {
   border: 1px solid var(--fl-border);
-  background: light-dark(#fafaf8, var(--paper));
-  color: light-dark(#344133, var(--success));
+  background: var(--paper);
+  color: var(--ink);
   padding: 8px 10px;
   border-radius: 6px;
   min-height: 36px;
@@ -727,13 +728,13 @@
 .fl-degree-picker button {
   border: 1px solid var(--fl-border);
   padding: 5px 9px;
-  background: light-dark(#faf9f5, var(--paper));
+  background: var(--paper);
   border-radius: 5px;
   min-width: 32px;
   font-size: 12px;
 }
 .fl-error {
-  color: light-dark(#a76042, var(--muted));
+  color: var(--muted);
   font-size: 12px;
   width: 100%;
 }
@@ -774,14 +775,14 @@
   margin: 5px 0 8px;
 }
 .fl-task p {
-  color: light-dark(#7c8375, var(--muted));
+  color: var(--muted);
   font-size: 13px;
 }
 .fl-task > strong {
   font-size: 24px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  color: light-dark(#6c7963, var(--success));
+  color: var(--ink);
 }
 .fl-training-footer {
   margin-top: 17px;
@@ -792,7 +793,7 @@
   text-align: center;
 }
 .fl-answer-area p {
-  color: light-dark(#7a8272, var(--success));
+  color: var(--ink);
   font-size: 13px;
 }
 .fl-answer-area .fl-note-buttons button {
@@ -804,21 +805,21 @@
   padding: 13px 0 0;
 }
 .fl-answer-area .fl-feedback {
-  color: light-dark(#496752, var(--success));
+  color: var(--ink);
 }
 .fl-answer-area .fl-feedback.is-wrong {
-  color: light-dark(#a9654b, var(--muted));
+  color: var(--muted);
 }
 .fl-session {
   display: flex;
   justify-content: center;
   gap: 36px;
   margin: 18px 0;
-  color: light-dark(#7e8675, var(--success));
+  color: var(--ink);
   font-size: 13px;
 }
 .fl-session b {
-  color: light-dark(#43563b, var(--success));
+  color: var(--ink);
   margin-left: 5px;
   font-weight: 500;
   font-size: 18px;
@@ -874,7 +875,7 @@
   margin-top: 20px;
   gap: 15px;
   font-size: 13px;
-  color: light-dark(#737c69, var(--success));
+  color: var(--ink);
 }
 .fl-weaknesses {
   display: flex;
@@ -883,7 +884,7 @@
   gap: 8px;
   margin-top: 18px;
   font-size: 12px;
-  color: light-dark(#737c69, var(--success));
+  color: var(--ink);
 }
 .fl-weaknesses b {
   font-weight: 500;

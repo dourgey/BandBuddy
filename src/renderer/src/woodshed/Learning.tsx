@@ -1,3 +1,4 @@
+import { NotationBody } from './NotationBody.js'
 import { useEffect, useState } from 'react'
 import { BookOpen, ChevronRight, Guitar, AudioLines, Music2, Drum, Piano, KeyboardMusic } from 'lucide-react'
 import { LEARNING_SYSTEMS, type KnowledgeReference, type ReadingSystem, type SystemId } from './knowledge.js'
@@ -72,7 +73,7 @@ function LessonArticle({ node, system, view, select, onPractice, onNavigate }: {
   const nodes = system.stages.flatMap(s => s.nodes), index = nodes.findIndex(n => n.id === node.id)
   const media = (lesson?.scores ?? []).filter(s => !s.instruments || s.instruments.includes(view))
   const diagrams = (lesson?.diagrams ?? []).filter(d => !d.instruments || d.instruments.includes(view))
-  return <article className="ws-knowledge-article" aria-busy={!lesson && !error}>
+  return <NotationBody instrument={view} className="ws-knowledge-article" aria-busy={!lesson && !error}>
     <h2>{node.title}</h2><p className="ws-knowledge-context">{system.context}</p>
     {error ? <div role="alert"><p>{error}</p><button onClick={() => setAttempt(x => x + 1)}>重新加载教材</button></div> : !lesson ? <p role="status">正在加载教材…</p> : <>
       <p className="ws-lesson-summary">{lesson.summary}</p>
@@ -89,7 +90,7 @@ function LessonArticle({ node, system, view, select, onPractice, onNavigate }: {
       {onPractice && <section className="ws-lesson-practice-links"><h3>相关专项练习</h3>{related.length ? related.map(e => <button className="ws-knowledge-practice" key={e.id} onClick={() => onPractice({ instrument, exercise: e.id, view })}>{e.title}<ChevronRight size={14} /></button>) : <button className="ws-knowledge-practice" onClick={() => onPractice({ instrument, exercise: null, view })}>前往{LESSON_INSTRUMENTS.find(i => i.id === view)!.label}专项练习<ChevronRight size={14} /></button>}</section>}
       <nav className="ws-lesson-pagination" aria-label="教材章节">{index > 0 && <button onClick={() => onNavigate({ system: system.id, node: nodes[index - 1]!.id, view })}>上一课 · {nodes[index - 1]!.title}</button>}{index + 1 < nodes.length && <button onClick={() => onNavigate({ system: system.id, node: nodes[index + 1]!.id, view })}>下一课 · {nodes[index + 1]!.title}</button>}</nav>
     </>}
-  </article>
+  </NotationBody>
 }
 function LessonContextContent({ context, label }: { context: LessonContext | undefined; label: string }): React.JSX.Element {
   return <section className="ws-lesson-context"><h3>{context?.label ?? `${label}中的应用`}</h3>{context ? context.paragraphs.map((p, i) => <p key={i}>{p}</p>) : <p>本课的概念适用于{label}；以下按共同的音乐关系讲解。</p>}</section>

@@ -1,4 +1,7 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { useNotation } from './NotationBody.js'
+import { addTextbookTab, tabFirst } from './notation-layout.js'
+import { DrumTab } from './DrumTab.js'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { OpenSheetMusicDisplay, VexFlowGraphicalNote } from 'opensheetmusicdisplay'
 import { themeColor, useResolvedTheme } from '../appearance.js'
 import type { ScoreAnchor } from './musicxml.js'
@@ -13,8 +16,25 @@ export interface MusicXmlScoreProps {
   onSelect?: (eventId: string) => void
 }
 
+export const MusicXmlScore = memo(function MusicXmlScore(props: MusicXmlScoreProps): React.JSX.Element {
+  const notation = useNotation()
+  const projected = useMemo(() => {
+    try { return { ...(notation ? tabFirst(addTextbookTab(props.xml, notation.instrument), notation.showStaff, props.anchors) : { xml: props.xml, anchors: props.anchors, hasTab: false }), error: '' } }
+    catch (error) { return { xml: props.xml, anchors: props.anchors, hasTab: false, error: error instanceof Error ? error.message : String(error) } }
+  }, [props.xml, props.anchors, notation?.showStaff, notation?.instrument])
+  const drums = notation?.instrument === 'drums' && /<unpitched[ >]|<sign>percussion<\/sign>/.test(props.xml)
+  const keyboard = notation?.instrument === 'piano' || notation?.instrument === 'keyboard'
+  const rhythm = !keyboard && !drums && /<staff-lines>\s*1\s*<\/staff-lines>/.test(props.xml)
+  if (projected.error) return <p className="ws-error" role="alert">{projected.error}</p>
+  return <>
+    {drums && <DrumTab {...props} />}
+    {(!notation || notation.showStaff || projected.hasTab || rhythm) ? <RenderedMusicXmlScore {...props} xml={projected.xml} anchors={projected.anchors} /> : !drums && <p className="ws-muted">五线谱已隐藏</p>}
+    {projected.hasTab && <p className="ws-notation-key">TAB 在上 · 数字为品位 · 下方时值以四分音符为一拍</p>}
+  </>
+})
+
 /** Shared MusicXML reader for both authored lessons and generated practice material. */
-export const MusicXmlScore = memo(function MusicXmlScore({ xml, label, className = '', anchors, eventAttribute = 'data-event', onSelect }: MusicXmlScoreProps): React.JSX.Element {
+const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, className = '', anchors, eventAttribute = 'data-event', onSelect }: MusicXmlScoreProps): React.JSX.Element {
   const viewport = useRef<HTMLDivElement>(null), host = useRef<HTMLDivElement>(null)
   const callback = useRef(onSelect)
   callback.current = onSelect
@@ -111,6 +131,8 @@ export const MusicXmlScore = memo(function MusicXmlScore({ xml, label, className
         stretchLastSystemLine: true
       })
       score.EngravingRules.TabTimeSignatureRendered = true
+      score.EngravingRules.LyricsHeight = 1.1
+      score.EngravingRules.DefaultColorLyrics = themeColor('--score-ink', '#534a40')
       score.EngravingRules.RenderStringNumbersClassical = false
       score.EngravingRules.PercussionOneLineCutoff = 0
       await score.load(doc)

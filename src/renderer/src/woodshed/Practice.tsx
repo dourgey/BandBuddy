@@ -1,3 +1,4 @@
+import { NotationBody } from './NotationBody.js'
 import { EnsemblePractice } from './EnsemblePractice.js'
 import { ENSEMBLE_INSTRUMENTS, ENSEMBLE_EXERCISES } from './ensemble-curriculum.js'
 import { WheelNumberInput } from '../components/WheelNumberInput.js'
@@ -144,7 +145,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError, view = exerc
   const minutes = String(Math.floor(display.seconds / 60)).padStart(2, '0')
   const seconds = String(display.seconds % 60).padStart(2, '0')
   const currentStage = variant.stages?.find(stage => (running ? display.bar : 1) >= stage.startBar && (running ? display.bar : 1) <= stage.endBar)
-  return <article className="ws-practice-detail">
+  return <NotationBody instrument={view} className="ws-practice-detail">
     {exercise.instrument === 'guitar' && onView && <LessonTabs value={view} options={LESSON_INSTRUMENTS.slice(0, 2)} onChange={onView}><p className="ws-version-intro">{view === 'guitar-acoustic' ? '原声吉他 · 六弦标准定弦' : '电吉他 · 六弦标准定弦'}</p></LessonTabs>}
     <header className="ws-practice-title"><h2>{exercise.title}</h2><p>{variant.description}</p>
       {exercise.variants.length > 1 && <div className="ws-practice-variants" role="group" aria-label="练习变体">{exercise.variants.map((v, index) => <button key={v.name} aria-pressed={index === variantIndex} disabled={running || busy} onClick={() => { stop(); setVariantIndex(index); setDisplay(idle) }}>{v.name}</button>)}</div>}
@@ -176,7 +177,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError, view = exerc
         <p className="ws-practice-context">{PRACTICE_INSTRUMENTS.find(i => i.id === exercise.instrument)!.tuning} · {variant.meter} 拍，BPM 对应四分音符。里程碑供自行复核。</p>
       </div>
     </details>
-  </article>
+  </NotationBody>
 }
 
 function PracticeFretboard({ variant, tuning, active }: { variant: PracticeVariant; tuning: Tuning; active: MusicEvent | undefined }): React.JSX.Element {

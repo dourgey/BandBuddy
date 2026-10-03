@@ -93,8 +93,8 @@ export function LabBoard({
                             ? {
                                 background:
                                   heat === null
-                                    ? '#e5e7e4'
-                                    : `color-mix(in srgb, #41634d ${Math.round(heat * 100)}%, #e2ebe1)`
+                                    ? 'var(--surface-muted)'
+                                    : `color-mix(in srgb, var(--accent) ${Math.round(heat * 100)}%, var(--accent-soft))`
                               }
                             : undefined
                         }

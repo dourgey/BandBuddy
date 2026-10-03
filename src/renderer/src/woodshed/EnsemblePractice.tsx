@@ -1,3 +1,4 @@
+import { NotationBody } from './NotationBody.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Play, Square } from 'lucide-react'
 import { EnsembleAudio, type EnsemblePlayback } from './ensemble-audio.js'
@@ -83,7 +84,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
  }
  const instrument = ENSEMBLE_INSTRUMENTS.find(i => i.id === exercise.instrument)!
  const beatLabel = (activeScore?.beatUnit ?? 1) === 1.5 ? '附点四分音符' : activeScore?.beatUnit === .5 ? '八分音符' : '四分音符'
- return <article className="ws-practice-detail ensemble-practice">
+ return <NotationBody instrument={exercise.instrument} className="ws-practice-detail ensemble-practice">
   <header className="ws-practice-title"><small>{exercise.sourceId} · {kindNames[exercise.kind]} · 建议 S{exercise.stage}{exercise.sourceId.startsWith('K11') ? ' · 可选支线' : ''}</small><h2>{exercise.title}</h2><p>{exercise.method}</p>
    <div className="ws-practice-variants" role="group" aria-label="练习变体">
     {exercise.variants.map((v, i) => <button key={v.name} disabled={running || busy} aria-pressed={!generated && variantIndex === i} onClick={() => { setGenerated(null); setVariantIndex(i); setSeconds(0) }}>{hidden && exercise.kind === 'listening' ? `材料 ${i + 1}` : v.name}</button>)}
@@ -125,5 +126,5 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
    const node = LEARNING_SYSTEMS.find(s => s.id === system)?.stages.flatMap(s => s.nodes).find(n => n.id === id)
    return <button className="ws-knowledge-practice" key={id} onClick={() => onKnowledge?.({ system, node: id, view: exercise.instrument })}>知识：{node?.title ?? id}<ChevronRight size={14} /></button>
   })}</nav>
- </article>
+ </NotationBody>
 }
