@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import path from 'node:path'
 
 const activeProcesses = new Map<ChildProcessWithoutNullStreams, () => void>()
 let closing = false
@@ -52,7 +53,7 @@ export function spawnSafe(command: string, args: readonly string[], options: Run
     if (stopping) return
     stopping = true
     if (process.platform === 'win32' && child.pid) {
-      const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, shell: false, stdio: 'ignore' })
+      const killer = spawn(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, shell: false, stdio: 'ignore' })
       killer.once('error', () => child.kill())
       killer.once('exit', code => { if (code !== 0) child.kill() })
     } else {

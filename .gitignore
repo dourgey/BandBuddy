@@ -23,6 +23,10 @@ resources/.downloads/
 resources/.extract/
 resources/audio-host/
 native/audio-host/build/
+native/system-helper/build/
+resources/system-helper/
+resources/prerequisites/
+.runtime-verification/
 *.log
 .env
 .env.*

@@ -2,6 +2,65 @@
 
 本轮保留既有六轨分离、三个吉他质量档位、录音和效果器功能。模型、重叠比例、TTA 次数和输出采样率不因低配置而降低；内存不足时调整批量，原有 CPU 回退仍有效。
 
+## 2026-10-05：环境自动准备与恢复
+
+以下为本轮 Windows 工作区的实现与验收；后文 Apple Silicon / Intel 记录保留原有测试背景，不代表本轮在 Mac 上执行过测试。
+
+### 启动、状态与操作
+
+- 曲库完成首次显示后，渲染器才触发后台准备。`EnvironmentManager` 协调媒体工具、录音监听、分轨和可选加速；组件故障分别记录，不把全部功能一起禁用。录音、排练录音或原生监听期间推迟准备，并在开始采集时中断后台准备；恢复环境不会自动开始录音或监听。
+- `environment` IPC 提供读取、订阅、检测、准备、暂停、继续、修复、诊断和操作入口；旧 `runtime` 安装、修复、取消接口适配到同一协调器。设置内的“运行状态”展示功能状态，下载字节、暂停、继续、一键修复和导出诊断；Python、后端和旧版安装选项折叠在详情内。
+- `localRoot/environment-state.json` 独立于 SQLite，保存主动暂停、有限修复次数、未完成阶段、失败动作、下载尝试和最近事件。用户暂停跨启动保留；中断的下载继续复用缓存。每个故障的自动修复轮次受限；手动继续或新的网络恢复事件允许新的有限尝试，拒绝系统授权不会因网络恢复而再次弹出授权。
+- `userData/startup-recovery.json` 记录启动失败；连续失败进入兼容启动，关闭界面硬件加速、暂停后台准备和自动原生设备枚举。用户原设置保留，曲库真实可交互后才清除失败计数。SQLite 无法打开时仍能使用独立恢复页。
+- 数据库备份先校验完整性和应用表，再暂存恢复请求；下次打开数据库前保留原数据库及 WAL/SHM，替换失败尝试回滚原文件。恢复只由用户选择备份触发，并说明备份之后的曲库记录、设置可能丢失；不删除音频。
+
+### 清单与传输
+
+- `python/runtime/desktop.in` 固定依赖入口，`scripts/build-runtime-catalog.py` 生成 `resources/runtime-catalog` 内的四份完整 wheel 清单：Windows x64 CPU、CUDA 12.8、CUDA 13.0，以及 Apple Silicon。每个条目固定版本、平台文件名、大小和 SHA-256，包含间接依赖。Windows 每份 58 个 wheel，Apple Silicon 57 个。
+- 发布清单必须来自实际存在的上游文件。国内 PyPI 镜像条目仅在文件名及上游 SHA-256 一致时加入；Python 镜像检查具体文件，官方文件作为备选。没有虚构项目发布链接，也没有给用户端保留源码编译回退。SoundFile 必须优先选择携带 libsndfile 的平台 wheel，不能误用同版本的纯 Python wheel。
+- `ArtifactDownloader` 对 Python、wheel、模型和修复工具统一流式下载、代理策略、两路并发、SHA-256 校验、文件缓存和续传。连接 10 秒、无数据 60 秒超时；每源最多两次。403/404/429、假 HTML 成功响应、损坏内容和错误 Range 不会被当成完成。服务器忽略 Range 时使用独立临时文件，失败保留原有前缀；已验证文件不重复下载。
+- 先检查实际缓存、运行环境和模型所在卷的可写性及峰值空间，再开始安装。清单的 `expandedSize` 当前是压缩大小五倍的保守预算，Python 使用固定预算，另留每卷 1 GiB；不是声称测得的精确安装体积。
+- 所有 wheel 下载完成后，`uv pip sync --no-index --only-binary :all: --require-hashes` 从本地缓存安装。私有解释器和候选环境使用稳定绝对路径；真实依赖导入、ONNX CPU 运算和六轨短推理通过后才更新活动指针。升级或修复失败继续保留此前可用环境。
+- 本地分轨的 Apple Silicon 清单要求 macOS 14+（ONNX Runtime wheel 的最低系统版本）；应用基础功能仍保留现有 macOS 13 最低版本声明。Intel 路径仍受下文原有发行门禁约束，不包含在本轮新增清单范围内。
+
+### 系统、设备与任务恢复
+
+- `native/system-helper` 使用静态 MSVC 运行库构建，负责注册表检测、Authenticode 验证及授权调用微软官方安装器。打包阶段下载并验证微软安装器，随软件交付；运行时不依赖 PowerShell 配置或用户 PATH。取消授权、安装失败、要求重启分别保留明确状态，不静默请求反复授权。
+- GPU 候选配置同时约束驱动和计算架构，再经过真实运算测试；CPU 始终保留。GPU 依赖使解释器无法启动时创建独立 CPU 候选环境。显存问题沿用现有批量调整和 CPU 回退，保持模型、质量档位和输出格式。
+- 分轨工作进程缺依赖、模型损坏或原生库失败时，原任务最多触发一次环境修复，再以同一输入、任务和质量继续。需要用户处理时任务保留为等待环境，避免无限重装；后续 CPU 回退不清除已用的修复次数。
+- Windows WASAPI、ASIO / macOS CoreAudio 的设备枚举在独立进程中运行，超时结束探测进程。明确选择的设备和 ASIO 配置不被默认值覆盖。设备变化、休眠或驱动错误停止受影响监听，并尝试保存已录内容；不会在恢复后自动换用另一支麦克风或扬声器。
+- 诊断为用户主动导出的本地 JSON，包含版本、阶段、组件状态、有限下载尝试和事件，过滤凭据、URL 参数和用户路径；不包含音频，不自动上传。
+
+### 复现与发行门禁
+
+```powershell
+pnpm native:audio
+pnpm build
+pnpm exec vitest run --maxWorkers=4
+pnpm verify:runtime:install
+pnpm verify:windows:environment release-unsigned
+# 可选：在单独目录验证本机实际 CUDA 环境；不允许 CPU 回退冒充 GPU 通过。
+$env:BANDBUDDY_VERIFY_DEVICE='cuda'
+$env:BANDBUDDY_TEST_ROOT=Join-Path (Get-Location) '.runtime-verification/win32-x64-cuda'
+pnpm verify:runtime:install
+```
+
+`verify:runtime:install` 使用与产品相同的安装器和下载器，输出隔离目录中的 `qualification.json`。Windows 和 Apple Silicon 发布工作流增加 CPU 完整安装与全部吉他档位的推理门禁，证据作为 CI artifact 保存。该门禁不代替最低系统版本、普通账户或真实声卡验收。
+
+本轮本机已通过：Windows 私有 Python 3.12.13、Torch 2.11.0+cpu、Demucs 4.1.0、ONNX Runtime 1.28.0 的完整安装，六轨、ONNX CPU 及 fast / balanced / high 三档真实短推理；同一私有环境的 Python worker 23 例、吉他流水线 9 例。静态链接辅助程序的 PE 依赖只有 Windows 系统 DLL。浏览器界面检查使用模拟环境状态，覆盖暂停/继续、设置入口、默认折叠详情，以及 1440×960 和 800×600 布局；它不能代替实际组件下载和 Electron IPC 验收。
+
+另一个独立目录完成了真实 GPU 安装：RTX 3060 Laptop（6 GiB）、驱动 610.62、Torch 2.11.0+cu130；六轨、ONNX CPU 自检和三档吉他完整链路均通过，报告明确记录 `device: cuda`。这验证了 CUDA 13.0 清单在该设备上的运行，不能推及 CUDA 12.8 清单、其他驱动或其他显卡。
+
+收尾验收：131 组 TypeScript / UI 自动测试通过，共 736 例通过、1 例跳过；类型检查、生产构建及原生音频构建/模拟通过。额外在隔离环境注入 GPU 首次运算自检的原生进程失败：安装器创建独立 CPU 候选，并通过真实六轨和 ONNX 自检；原 GPU 环境保留，验证后恢复了测试目录原来的活动指针。该项是受控故障注入，不是声称制造或复现了真实显卡驱动崩溃。
+
+本地生成 Windows 3.0.0 安装包与 Portable，目录为 `release-environment-verify`，均为 **NotSigned**，未对外发布。打包检查逐文件比对 1119 个构建文件，并在独立中文数据目录实际启动安装版程序主体和 Portable，验证 SQLite、预加载脚本、环境 IPC、FFmpeg 校验及桌面歌词。Portable 通过测试结果文件取证，避免依赖启动器不转发的标准输出。签名状态、大小与 SHA-256 见该目录的 `artifacts.json` / `SHA256SUMS.txt`，启动证据见 `environment-smoke.json`，CPU / GPU / 故障注入及界面截图见 `evidence`。
+
+启动冒烟测试暂停自动联网安装；完整组件安装和推理的证据来自上述隔离运行环境。未在当前用户系统执行 NSIS 安装向导、卸载或缺失 VC++ 的系统修改；这些操作与干净机器的全链路验收仍属于下列待验收项。
+
+仍需专门机器验收：无 Python/VC++ 的干净 Windows、普通账户及拒绝授权/重启、Apple Silicon 最低支持系统、其他 GPU/驱动组合、真实声卡占用/拔插/权限/异常驱动、杀毒隔离和极低内存/磁盘。短合成推理不代替长曲目质量比较和听感验收。全部免费来源同时不可达时只能保留进度并等待网络恢复。
+
+设计依据：[uv 二进制依赖约束](https://docs.astral.sh/uv/pip/compatibility/#only-binary-enforcement)、[微软运行库部署](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files?view=msvc-170)、[NVIDIA CUDA 兼容性](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html)。
+
 ## 安装与恢复
 
 - 新环境在 `runtimeRoot/runtimes/runtime-<UUID>` 创建，通过依赖、ONNX CPU 执行和六轨短推理自检后才切换 `active-environment.json`。失败或取消保留此前环境；虚拟环境目录不重命名。

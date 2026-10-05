@@ -10,7 +10,7 @@ import type { MusicEvent } from '../src/renderer/src/woodshed/types.js'
 vi.mock('../src/renderer/src/audio-engine.js', () => ({ setAudioContextOutputDevice: vi.fn(async () => {}) }))
 vi.mock('../src/renderer/src/woodshed/audio.js', () => ({ WoodshedAudio: class { stop() {} destroy() {} setReference() {} setVisualActive() {} async setOutput() {} } }))
 // VexFlow itself is verified in the real browser. This test exercises audio scheduling and the React lifecycle.
-vi.mock('../src/renderer/src/woodshed/Score.js', () => ({ Score: ({ events }: { events: MusicEvent[] }) => <div aria-label="练习谱例">{events.map(e => <span key={e.id} data-event={e.id}>{e.notes.map(n => `${n.string}:${n.fret}`).join('+') || '休止'}</span>)}</div> }))
+vi.mock('../src/renderer/src/woodshed/Score.js', () => ({ Score: ({ events, currentBar = 1 }: { events: MusicEvent[]; currentBar?: number }) => <div aria-label="练习谱例" data-current-bar={currentBar}>{events.map(e => <span key={e.id} data-event={e.id}>{e.notes.map(n => `${n.string}:${n.fret}`).join('+') || '休止'}</span>)}</div> }))
 class Param {
   value = 0
   setValueAtTime(value: number) { this.value = value }
@@ -174,11 +174,16 @@ describe('practice transport and navigation', () => {
     expect(screen.getByRole('heading', { name: '综合练习 · 放松、换弦与换把综合练习' })).toBeTruthy()
     expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('起始阶段 · 1–4 小节')
     fireEvent.change(screen.getByLabelText('节拍器速度'), { target: { value: '240' } })
-    await start(); await tick(4100)
+    await start(); await tick(3900)
+    expect(screen.getByLabelText('练习谱例').getAttribute('data-current-bar')).toBe('4')
+    await tick(200)
+    expect(screen.getByLabelText('练习谱例').getAttribute('data-current-bar')).toBe('5')
     expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('当前阶段 · 5–10 小节')
     expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('不同弦上的四指顺序')
     fireEvent.click(screen.getByRole('button', { name: '停止', exact: true }))
     expect(document.querySelector('.ws-practice-current-stage')!.textContent).toContain('起始阶段')
+    await start(); await tick(100)
+    expect(screen.getByLabelText('练习谱例').getAttribute('data-current-bar')).toBe('1')
   })
   it('resets the visual beat on three, and keeps the fourth string high on ukulele', async () => {
     render(<PracticeDetail exercise={exercise('ukulele-waltz')} outputDeviceId="" onError={vi.fn()} />)

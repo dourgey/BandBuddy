@@ -13,6 +13,9 @@ export interface MusicXmlScoreProps {
   anchors?: ScoreAnchor[]
   eventAttribute?: 'data-event' | 'data-ensemble-event'
   onSelect?: (eventId: string) => void
+  /** Practice scores show the current four-bar system and the next system. */
+  rolling?: boolean
+  currentBar?: number
 }
 
 export const MusicXmlScore = memo(function MusicXmlScore(props: MusicXmlScoreProps): React.JSX.Element {
@@ -33,8 +36,11 @@ export const MusicXmlScore = memo(function MusicXmlScore(props: MusicXmlScorePro
 })
 
 /** Shared MusicXML reader for both authored lessons and generated practice material. */
-const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, className = '', anchors, eventAttribute = 'data-event', onSelect }: MusicXmlScoreProps): React.JSX.Element {
+const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, className = '', anchors, eventAttribute = 'data-event', onSelect, rolling = false, currentBar = 1 }: MusicXmlScoreProps): React.JSX.Element {
   const viewport = useRef<HTMLDivElement>(null), host = useRef<HTMLDivElement>(null)
+  const follow = useRef<(bar: number, smooth: boolean) => void>(() => {})
+  const bar = useRef(currentBar)
+  bar.current = currentBar
   const callback = useRef(onSelect)
   callback.current = onSelect
   const theme = useResolvedTheme()
@@ -43,6 +49,8 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
     const container = host.current, wrapper = viewport.current
     if (!container || !wrapper) return
     let disposed = false, score: OpenSheetMusicDisplay | undefined, frame = 0, lastWidth = 0
+    let displayedRow = -1
+    const renderWidth = (): number => Math.max(rolling ? 800 : 340, Math.floor(wrapper!.clientWidth))
     setState({ ready: false, error: '' })
     wrapper.removeAttribute('data-rendered-score')
     // Graphical timestamps and XML voice IDs remain stable across layout changes.
@@ -92,12 +100,33 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
     }
     function render(): void {
       if (disposed || !score?.IsReadyToRender()) return
-      const width = Math.max(340, Math.floor(wrapper!.clientWidth))
+      const width = renderWidth()
       container!.style.width = `${width}px`
       try {
         const playing = new Set(Array.from(container!.querySelectorAll(`[${eventAttribute}].active, [${eventAttribute}].ensemble-active`), n => n.getAttribute(eventAttribute)))
         score.render()
         attachEvents()
+        if (rolling) {
+          // Endless page coordinates are in OSMD units (ten SVG pixels at zoom 1).
+          // Cut in the gap between complete systems, including all TAB/piano staves.
+          const systems = score.GraphicSheet.MusicPages.flatMap(page => page.MusicSystems)
+          const tops = systems.map(system => Math.max(0, (system.PositionAndShape.AbsolutePosition.y + system.PositionAndShape.BorderTop) * 10 * score!.Zoom - 10))
+          const bottom = systems.length ? (systems.at(-1)!.PositionAndShape.AbsolutePosition.y + systems.at(-1)!.PositionAndShape.BorderBottom) * 10 * score.Zoom + 12 : 0
+          displayedRow = -1
+          follow.current = (current, smooth) => {
+            const row = Math.min(Math.max(0, Math.floor((current - 1) / 4)), Math.max(0, systems.length - 1))
+            if (row === displayedRow || !systems.length) return
+            const top = row === 0 ? 0 : tops[row]!
+            const end = tops[row + 2] ?? bottom
+            const height = Math.ceil(end - top)
+            wrapper!.style.height = `${height}px`
+            wrapper!.scrollTo({ top, behavior: smooth && row > displayedRow && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' })
+            wrapper!.setAttribute('data-score-row', String(row))
+            wrapper!.setAttribute('data-score-systems', String(systems.length))
+            displayedRow = row
+          }
+          follow.current(bar.current, false)
+        }
         for (const note of container!.querySelectorAll(`[${eventAttribute}]`)) if (playing.has(note.getAttribute(eventAttribute))) note.classList.add(eventAttribute === 'data-event' ? 'active' : 'ensemble-active')
         lastWidth = width
         wrapper!.setAttribute('data-rendered-score', label)
@@ -105,7 +134,7 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
       } catch (error) { fail(error) }
     }
     const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => {
-      if (Math.abs(Math.max(340, Math.floor(wrapper.clientWidth)) - lastWidth) < 2) return
+      if (Math.abs(renderWidth() - lastWidth) < 2) return
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(render)
     })
@@ -118,7 +147,8 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
       if (disposed) return
       container.replaceChildren()
       score = new OpenSheetMusicDisplay(container, {
-        backend: 'svg', autoResize: false, drawingParameters: 'compacttight',
+        backend: 'svg', autoResize: false, drawingParameters: rolling ? 'default' : 'compacttight',
+        pageFormat: 'Endless',
         drawTitle: false, drawSubtitle: false, drawComposer: false, drawCredits: false,
         drawPartNames: false, drawMeasureNumbers: true, measureNumberInterval: 1, drawTimeSignatures: true,
         autoGenerateMultipleRestMeasuresFromRestMeasures: false,
@@ -134,6 +164,12 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
       score.EngravingRules.DefaultColorLyrics = themeColor('--score-ink', '#534a40')
       score.EngravingRules.RenderStringNumbersClassical = false
       score.EngravingRules.PercussionOneLineCutoff = 0
+      if (rolling) {
+        score.EngravingRules.RenderXMeasuresPerLineAkaSystem = 4
+        score.EngravingRules.NewSystemAtXMLNewSystemAttribute = false
+        score.EngravingRules.NewSystemAtXMLNewPageAttribute = false
+        score.EngravingRules.NewPageAtXMLNewPageAttribute = false
+      }
       await score.load(doc)
       if (disposed) return
       // OSMD 2.2 subtracts FretNumber from bend-alter when choosing its TAB label.
@@ -151,11 +187,14 @@ const RenderedMusicXmlScore = memo(function RenderedMusicXmlScore({ xml, label, 
       disposed = true
       cancelAnimationFrame(frame)
       resize?.disconnect()
+      follow.current = () => {}
+      wrapper.style.height = ''
       score?.clear()
       container.replaceChildren()
     }
-  }, [xml, label, anchors, eventAttribute, theme])
-  return <div className={`ws-musicxml-score ${className}`} ref={viewport} aria-label={label} aria-busy={!state.ready && !state.error}>
+  }, [xml, label, anchors, eventAttribute, theme, rolling])
+  useEffect(() => { follow.current(currentBar, true) }, [currentBar])
+  return <div className={`ws-musicxml-score ${rolling ? 'ws-rolling-score' : ''} ${className}`} ref={viewport} aria-label={label} aria-busy={!state.ready && !state.error}>
     {state.error ? <p className="ws-error" role="alert">{state.error}</p> : !state.ready && <p className="ws-muted" role="status">正在排版谱例…</p>}
     <div className="ws-musicxml-pages" ref={host} />
   </div>

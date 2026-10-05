@@ -31,6 +31,7 @@
 
 #include "loopback-output.h"
 #include "effects.h"
+#include "arsenal-analysis.h"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -128,6 +129,7 @@ class FloatRing {
     return count;
   }
   bool empty() const { return read_.load(std::memory_order_acquire) == write_.load(std::memory_order_acquire); }
+  std::size_t available() const {const auto r=read_.load(std::memory_order_acquire),w=write_.load(std::memory_order_acquire);return w>=r?w-r:data_.size()-r+w;}
  private:
   std::vector<float> data_;
   std::atomic<std::size_t> read_{0};
@@ -275,6 +277,7 @@ class WaveWriter {
   }
   ~WaveWriter() { close(); }
   bool write(const float* samples, std::size_t count) {
+    if(failed_.load())return false;
     if (!ring_.push(samples, count)) return false;
     cv_.notify_one();
     return true;
@@ -286,6 +289,7 @@ class WaveWriter {
     stream_.seekp(0); writeHeader(samplesWritten_ * sizeof(float)); stream_.close();
   }
   std::uint64_t framesWritten() const { return samplesWritten_ / channels_; }
+  bool healthy() const {return !failed_.load();}
  private:
   void writeHeader(std::uint64_t dataBytes64) {
     const auto dataBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(dataBytes64, 0xffffffffu - 44));
@@ -299,7 +303,7 @@ class WaveWriter {
     std::vector<float> block(16384);
     while (!closed_.load() || !ring_.empty()) {
       const auto count = ring_.pop(block.data(), block.size());
-      if (count) { stream_.write(reinterpret_cast<const char*>(block.data()), static_cast<std::streamsize>(count * sizeof(float))); samplesWritten_ += count; }
+      if (count) { stream_.write(reinterpret_cast<const char*>(block.data()), static_cast<std::streamsize>(count * sizeof(float)));if(!stream_){failed_.store(true);break;} samplesWritten_ += count; }
       else { std::unique_lock lock(waitMutex_); cv_.wait_for(lock, std::chrono::milliseconds(20)); }
     }
   }
@@ -312,6 +316,7 @@ class WaveWriter {
   std::condition_variable cv_;
   std::mutex waitMutex_;
   std::atomic<bool> closed_{false};
+  std::atomic<bool> failed_{false};
   std::uint64_t samplesWritten_ = 0;
 };
 
@@ -496,8 +501,22 @@ struct Session {
   std::atomic<bool> monitor{false};
   std::atomic<int> monitorMode{0};
   bb::Effects* effects = nullptr;
+  std::atomic<bb::Effects*> publishedEffects{nullptr};
+  std::atomic<bool> graphSwapping{false};
+  bb::Effects* fadingEffects = nullptr;
+  unsigned fadeRemaining = 0;
   std::atomic<bb::Effects*> pendingEffects{nullptr}, retiredEffects{nullptr};
   std::vector<float> effectsScratch;
+  std::vector<float> fadeScratch, loopScratch;
+  std::atomic<unsigned> quickReaders{0};
+  std::atomic<WaveWriter*> quickWriter{nullptr};
+  std::atomic<WaveData*> quickLoop{nullptr};
+  std::atomic<std::uint64_t> quickFrames{0},loopCursor{0};
+  FloatRing tunerRing{16384};std::array<float,2048> tunerWindow{};unsigned tunerCount=0,tunerDecimate=0;float tunerLow=0;
+  std::atomic<bool> tunerEnabled{false};std::atomic<float> pitchHz{0},dspLoad{0};
+  struct PcmBus {FloatRing ring{192000};ArsenalPcmConverter converter;std::atomic<bool> enabled{false},clear{false};bool started=false;};
+  std::array<PcmBus,8> pcmBuses;
+  std::vector<float> pcmScratch=std::vector<float>(524288);std::atomic<unsigned> pcmUnderruns{0};
   std::atomic<float> outputPeak{0};
   float monitorGain = 0;
   bool testing = false;
@@ -542,7 +561,8 @@ struct Session {
     try { if (inputAudio && inputAudio->isStreamRunning()) inputAudio->abortStream(); } catch (...) {}
     if (simulator.joinable()) simulator.join();
     if (writer) writer->close();
-    delete effects; delete pendingEffects.load(); delete retiredEffects.load();
+    delete effects; delete fadingEffects; delete pendingEffects.load(); delete retiredEffects.load();
+    delete quickWriter.load(); delete quickLoop.load();
   }
   std::uint64_t countInFrames() const {
     return countInBeats > 0 ? static_cast<std::uint64_t>(std::llround(countInBeats * 60.0 / bpm / playbackRate * sampleRate)) : 0;
@@ -555,13 +575,23 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
   auto* input = static_cast<float*>(inputBuffer);
   if (output) std::fill(output, output + static_cast<std::size_t>(nFrames) * s.outputChannels, 0.0f);
   if (status) s.xruns.fetch_add(1, std::memory_order_relaxed);
-  if (auto* next = s.pendingEffects.exchange(nullptr)) { s.retiredEffects.store(s.effects); s.effects = next; }
+  if (!s.fadingEffects && !s.retiredEffects.load()&&s.pendingEffects.load()){s.graphSwapping.store(true);if(auto* next=s.pendingEffects.exchange(nullptr)){s.fadingEffects=s.effects;s.fadeRemaining=s.sampleRate/50;s.effects=next;s.publishedEffects.store(next);}s.graphSwapping.store(false);}
+  s.quickReaders.fetch_add(1);
+  if(auto* writer=s.quickWriter.load())if(input){if(!writer->write(input,nFrames*s.inputChannels))s.writeOverflow.store(true);s.quickFrames.fetch_add(nFrames);}
+  const float* effectInput=input;unsigned effectChannels=s.inputChannels;
+  if(auto* loop=s.quickLoop.load())if(nFrames*2<=s.loopScratch.size()&&!loop->samples.empty()){auto cursor=s.loopCursor.load();auto count=loop->samples.size()/loop->channels;for(unsigned i=0;i<nFrames;++i)for(unsigned c=0;c<2;++c)s.loopScratch[i*2+c]=loop->samples[((cursor+i)%count)*loop->channels+std::min(c,loop->channels-1)]*std::min(1.f,float(std::min((cursor+i)%count,count-1-(cursor+i)%count))/64.f);s.loopCursor.store((cursor+nFrames)%count);effectInput=s.loopScratch.data();effectChannels=2;}
+  s.quickReaders.fetch_sub(1);
   const int mode = s.monitorMode.load();
-  if (input && output && mode && !s.splitDevices && nFrames * 2 <= s.effectsScratch.size()) {
-    if (mode == 2 && s.effects) s.effects->process(input, s.effectsScratch.data(), nFrames, s.inputChannels);
-    else for(unsigned i=0;i<nFrames;++i) for(unsigned c=0;c<2;++c) s.effectsScratch[i*2+c]=input[i*s.inputChannels+std::min(c,s.inputChannels-1)];
-    for(unsigned i=0;i<nFrames*2;++i) { output[i]=s.effectsScratch[i]*s.monitorGain; storeMaximum(s.outputPeak,std::abs(output[i])); }
+  const auto dspStart=std::chrono::steady_clock::now();
+  if(s.tunerEnabled.load()&&input){const unsigned stride=std::max(1u,s.sampleRate/12000);for(unsigned i=0;i<nFrames;++i){s.tunerLow+=(input[i*s.inputChannels]-s.tunerLow)*float(1-std::exp(-2*3.141592653589793*1600/s.sampleRate));if(++s.tunerDecimate>=stride){s.tunerDecimate=0;s.tunerRing.push(&s.tunerLow,1);}}}
+  if (effectInput && output && mode && !s.splitDevices && nFrames * 2 <= s.effectsScratch.size()) {
+    if (mode == 2 && s.effects) s.effects->process(effectInput, s.effectsScratch.data(), nFrames, effectChannels);
+    else for(unsigned i=0;i<nFrames;++i) for(unsigned c=0;c<2;++c) s.effectsScratch[i*2+c]=effectInput[i*effectChannels+std::min(c,effectChannels-1)];
+    if(s.fadingEffects){if(mode==2)s.fadingEffects->process(effectInput,s.fadeScratch.data(),nFrames,effectChannels);for(unsigned i=0;i<nFrames;++i){float blend=1.f-float(s.fadeRemaining)/std::max(1u,s.sampleRate/50);for(unsigned c=0;c<2;++c)if(mode==2)s.effectsScratch[i*2+c]=s.effectsScratch[i*2+c]*blend+s.fadeScratch[i*2+c]*(1-blend);if(s.fadeRemaining)--s.fadeRemaining;}if(!s.fadeRemaining){s.retiredEffects.store(s.fadingEffects);s.fadingEffects=nullptr;}}
+    for(unsigned i=0;i<nFrames*2;++i) { output[i]=s.tunerEnabled.load()?0:s.effectsScratch[i]*s.monitorGain; storeMaximum(s.outputPeak,std::abs(output[i])); }
   }
+  s.dspLoad.store(float(std::chrono::duration<double>(std::chrono::steady_clock::now()-dspStart).count()*s.sampleRate/std::max(1u,nFrames)));
+  if(s.testing&&output&&nFrames*2<=s.pcmScratch.size())for(auto& bus:s.pcmBuses){if(bus.clear.exchange(false)||!bus.enabled.load()){bus.ring.pop(s.pcmScratch.data(),s.pcmScratch.size());bus.started=false;continue;}if(!bus.started){if(bus.ring.available()<4096)continue;bus.started=true;}const auto count=bus.ring.pop(s.pcmScratch.data(),nFrames*2);if(count<nFrames*2){bus.started=false;s.pcmUnderruns.fetch_add(1);}for(size_t i=0;i<count;++i){output[i]+=s.pcmScratch[i];storeMaximum(s.outputPeak,std::abs(output[i]));}}
   if (s.testing) {
     if (input) {
       for (unsigned ch = 0; ch < std::min(2u, s.inputChannels); ++ch) {
@@ -814,9 +844,9 @@ std::string portAudioError(const char* operation, PaError error) {
 
 class Host {
  public:
-  explicit Host(bool simulate = false) : simulate_(simulate) {
+  explicit Host(bool simulate = false, const std::string& probeBackend = "") : simulate_(simulate) {
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
-    if (!simulate_) {
+    if (!simulate_ && probeBackend != "asio") {
       const auto error = Pa_Initialize();
       if (error != paNoError) throw std::runtime_error(portAudioError("PORTAUDIO_INITIALIZE_FAILED", error));
       portAudioInitialized_ = true;
@@ -833,7 +863,7 @@ class Host {
 #endif
   }
 
-  json devices() {
+  json devices(const std::string& backendFilter = "") {
     json devices = json::array();
     if (simulate_) {
 #ifdef _WIN32
@@ -910,6 +940,9 @@ class Host {
     RtAudio::getCompiledApi(apis);
     for (auto api : apis) {
       if (api != RtAudio::WINDOWS_ASIO && api != RtAudio::WINDOWS_WASAPI && api != RtAudio::MACOSX_CORE) continue;
+      if (!backendFilter.empty() && ((api == RtAudio::WINDOWS_ASIO && backendFilter != "asio")
+        || (api == RtAudio::WINDOWS_WASAPI && backendFilter != "wasapi")
+        || (api == RtAudio::MACOSX_CORE && backendFilter != "coreaudio"))) continue;
       try {
         // A registered ASIO driver can remain installed while its hardware is
         // unplugged. RtAudio reports that normal probe miss as a warning on
@@ -1009,8 +1042,10 @@ class Host {
 #endif
     session->monitor = params.value("softwareMonitoring", false) && !session->splitDevices;
     session->effectsScratch.resize(262144 * 2);
+    session->fadeScratch.resize(262144 * 2);session->loopScratch.resize(262144 * 2);
     session->monitorMode.store(params.value("monitorMode", 0));
     if (params.contains("effects")) session->effects = new bb::Effects(params["effects"], session->sampleRate);
+    session->publishedEffects.store(session->effects);
     session->monitorGain = std::pow(10.0f, params.value("monitorGainDb", -6.0f) / 20.0f);
     session->playbackRate = params.value("playbackRate", 1.0);
     session->startPositionMs = params.value("startPositionMs", 0.0);
@@ -1273,10 +1308,32 @@ class Host {
       delete s.pendingEffects.exchange(next.release());
     } else if(params.contains("chain")) {
       // The control thread owns replacement; update only the acknowledged instance.
-      if(s.pendingEffects.load()) throw std::runtime_error("EFFECT_CHAIN_LOADING");
-      if(s.effects) s.effects->update(params["chain"]);
+      if(s.pendingEffects.load()||s.graphSwapping.load()) throw std::runtime_error("EFFECT_CHAIN_LOADING");
+      if(auto* active=s.publishedEffects.load()) active->update(params["chain"]);
     }
     return true;
+  }
+
+  json quickCommand(const json& params) {
+    std::lock_guard lock(sessionMutex_);
+    if(!session_||!session_->testing)throw std::runtime_error("请先启动军火库监听");
+    auto& s=*session_;const auto action=params.at("action").get<std::string>();
+    auto drain=[&](){while(s.quickReaders.load())std::this_thread::sleep_for(std::chrono::milliseconds(1));};
+    if(action=="record"){if(s.quickWriter.load())throw std::runtime_error("快录已开始");if(s.quickLoop.load())throw std::runtime_error("请先停止 DI 循环");s.quickFrames.store(0);s.writeOverflow.store(false);s.quickWriter.store(new WaveWriter(pathFromUtf8(params.at("path").get<std::string>()),s.sampleRate,s.inputChannels));}
+    else if(action=="stopRecord"){auto* writer=s.quickWriter.exchange(nullptr);drain();bool healthy=true;if(writer){writer->close();healthy=writer->healthy();s.quickFrames.store(writer->framesWritten());delete writer;}if(!healthy||s.writeOverflow.load())throw std::runtime_error("快录写入中断，已保留干声文件");}
+    else if(action=="loop"){if(s.quickWriter.load())throw std::runtime_error("请先停止快录");auto next=std::make_unique<WaveData>(readFloatWaveFile(pathFromUtf8(params.at("path").get<std::string>())));if(next->sampleRate!=s.sampleRate||next->samples.empty()||next->samples.size()/next->channels>s.sampleRate*60u)throw std::runtime_error("DI 循环需要相同采样率且不超过 60 秒");auto* old=s.quickLoop.exchange(nullptr);drain();delete old;s.loopCursor.store(0);s.quickLoop.store(next.release());}
+    else if(action=="stopLoop"){auto* old=s.quickLoop.exchange(nullptr);drain();delete old;}
+    else if(action=="tuner"){s.tunerEnabled.store(params.value("enabled",false));s.pitchHz.store(0);s.tunerCount=0;}
+    else if(action!="state")throw std::runtime_error("未知快录操作");
+    return {{"recording",s.quickWriter.load()!=nullptr},{"looping",s.quickLoop.load()!=nullptr},{"frames",s.quickFrames.load()},{"sampleRate",s.sampleRate},{"channels",s.inputChannels},{"durationMs",s.quickFrames.load()*1000.0/s.sampleRate}};
+  }
+
+  json feedPcm(const json& params){
+    std::lock_guard lock(sessionMutex_);if(!session_||!session_->testing)return false;
+    auto& s=*session_;const unsigned id=params.at("bus");if(id>=s.pcmBuses.size())throw std::runtime_error("INVALID_PCM_BUS");auto& bus=s.pcmBuses[id];
+    if(params.value("reset",false)){bus.enabled.store(false);bus.clear.store(true);bus.converter.reset();return true;}
+    const double sourceRate=params.at("sampleRate");const auto input=params.at("samples").get<std::vector<float>>();if(sourceRate<8000||sourceRate>192000||input.size()>16384||input.size()%2)throw std::runtime_error("INVALID_PCM_PACKET");for(float x:input)if(!std::isfinite(x))throw std::runtime_error("INVALID_PCM_SAMPLE");
+    const auto output=bus.converter.convert(input,sourceRate,s.sampleRate);if(!bus.ring.push(output.data(),output.size()))throw std::runtime_error("PCM_OUTPUT_OVERFLOW");bus.enabled.store(true);return true;
   }
 
   json pauseSession() {
@@ -1303,6 +1360,7 @@ class Host {
       {
         std::lock_guard lock(sessionMutex_);
         if (session_) {
+          if(session_->tunerEnabled.load()){std::array<float,2048> block{};const auto count=session_->tunerRing.pop(block.data(),block.size());for(size_t i=0;i<count;++i){session_->tunerWindow[session_->tunerCount++%2048]=block[i];}if(session_->tunerCount>=2048){std::array<float,2048> ordered{};for(unsigned i=0;i<2048;++i)ordered[i]=session_->tunerWindow[(session_->tunerCount+i)%2048];session_->pitchHz.store(arsenalPitch(ordered,double(session_->sampleRate)/std::max(1u,session_->sampleRate/12000)));}}
           const auto transport = session_->transportFrames.load();
           const auto sourcePosition = session_->startPositionMs + transport * 1000.0 / session_->sampleRate * session_->playbackRate;
           const auto countInFrames = session_->countInFrames();
@@ -1314,7 +1372,8 @@ class Host {
             {"rms", {session_->rms[0].exchange(0), session_->rms[1].exchange(0)}}, {"clipped", session_->clipped.exchange(false)},
             {"sourcePositionMs", sourcePosition}, {"countInRemaining", remainingFrames ? static_cast<unsigned>((remainingFrames + beatFrames - 1) / beatFrames) : 0},
             {"recording", session_->recording.load()}, {"paused", session_->paused.load()},
-            {"captureFrames", session_->inputFrames.load()}, {"outputPeak", session_->outputPeak.exchange(0)}, {"xruns", session_->xruns.load()}
+            {"captureFrames", session_->inputFrames.load()}, {"outputPeak", session_->outputPeak.exchange(0)}, {"xruns", session_->xruns.load()},
+            {"tunerActive",session_->tunerEnabled.load()},{"tunerHz",session_->pitchHz.load()},{"dspLoad",session_->dspLoad.load()},{"dspLatencyMs",session_->publishedEffects.load()?session_->publishedEffects.load()->latency()*1000.0/session_->sampleRate:0.0}
           }}};
           finished = session_->finished.load();
           errorType = session_->errorType.load();
@@ -1350,19 +1409,21 @@ class Host {
 } // namespace
 
 int runMain(int argc, char** argv) {
+  if(argc==3&&std::string(argv[1])=="--validate-effects"){
+    try{std::ifstream manifest(pathFromUtf8(argv[2]));json job;manifest>>job;bb::Effects effects(job.at("prepared"),job.value("sampleRate",48000u));std::array<float,2048> input{},output{};effects.process(input.data(),output.data(),1024,2);for(auto x:output)if(!std::isfinite(x))throw std::runtime_error("NONFINITE_MODEL_OUTPUT");std::cout<<"{\"ok\":true}";return 0;}catch(const std::exception& e){std::cerr<<e.what();return 1;}
+  }
   if(argc == 3 && std::string(argv[1]) == "--render-effects") {
     try {
       std::ifstream manifest(pathFromUtf8(argv[2])); json job; manifest >> job;
-      auto input=readFloatWaveFile(pathFromUtf8(job.at("input").get<std::string>()));
-      bb::Effects effects(job.at("prepared"),input.sampleRate);
-      const size_t frames=input.samples.size()/input.channels;
-      const size_t tail=size_t(job.value("tailSeconds",0.)*input.sampleRate);
-      const size_t latency=effects.latency();
-      WaveData result{input.sampleRate,2,std::vector<float>((frames+tail+latency)*2)};
-      effects.process(input.samples.data(),result.samples.data(),static_cast<unsigned>(frames),input.channels);
-      effects.process(nullptr,result.samples.data()+frames*2,static_cast<unsigned>(tail+latency),input.channels);
-      result.samples.erase(result.samples.begin(),result.samples.begin()+latency*2);
-      writeFloatWaveFile(pathFromUtf8(job.at("output").get<std::string>()),result);
+      WaveStream input(pathFromUtf8(job.at("input").get<std::string>()));
+      bb::Effects effects(job.at("prepared"),input.sampleRate());
+      const size_t tail=size_t(job.value("tailSeconds",0.)*input.sampleRate());
+      size_t skip=effects.latency(),remaining=input.totalFrames(),zeros=tail+skip;
+      WaveWriter result(pathFromUtf8(job.at("output").get<std::string>()),input.sampleRate(),2);
+      std::vector<float> source(4096*input.channels()),output(4096*2);
+      auto write=[&](size_t frames){const size_t discard=std::min(skip,frames);skip-=discard;if(frames>discard)while(!result.write(output.data()+discard*2,(frames-discard)*2)){if(!result.healthy())throw std::runtime_error("EXPORT_WRITE_FAILED");std::this_thread::sleep_for(std::chrono::milliseconds(1));}};
+      while(remaining){const auto n=std::min(size_t(4096),remaining);size_t filled=0;while(filled<n*input.channels()){auto read=input.read(source.data()+filled,n*input.channels()-filled);filled+=read;if(!read)std::this_thread::sleep_for(std::chrono::milliseconds(1));}effects.process(source.data(),output.data(),unsigned(n),input.channels());write(n);remaining-=n;}
+      while(zeros){const auto n=std::min(size_t(4096),zeros);effects.process(nullptr,output.data(),unsigned(n),input.channels());write(n);zeros-=n;}result.close();input.close();if(!result.healthy())throw std::runtime_error("EXPORT_WRITE_FAILED");
       return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<std::endl;return 1;}
   }
@@ -1448,7 +1509,8 @@ int runMain(int argc, char** argv) {
     return ok ? 0 : 1;
   }
   const bool simulate = argc > 1 && std::string(argv[1]) == "--simulate";
-  Host host(simulate);
+  const std::string probeBackend = argc == 3 && std::string(argv[1]) == "--probe-backend" ? argv[2] : "";
+  Host host(simulate, probeBackend);
   std::string line;
   while (std::getline(std::cin, line)) {
     if (line.empty()) continue;
@@ -1459,11 +1521,13 @@ int runMain(int argc, char** argv) {
       const auto method = request.value("method", "");
       const auto params = request.value("params", json::object());
       json result;
-      if (method == "devices") result = host.devices();
+      if (method == "devices") result = host.devices(params.value("backend", probeBackend));
       else if (method == "start") result = host.start(params, false);
       else if (method == "prepareOutputDevice") result = simulate ? false : prepareLoopbackOutput(params.at("deviceName"));
       else if (method == "startTest") result = host.start(params, true);
       else if (method == "effects") result = host.updateEffects(params);
+      else if (method == "arsenalQuick") result = host.quickCommand(params);
+      else if (method == "arsenalPcm") result = host.feedPcm(params);
       else if (method == "pause") result = host.pauseSession();
       else if (method == "resume") result = host.resumeSession();
       else if (method == "stop" || method == "stopTest" || method == "cancel") result = host.stopSession(false);

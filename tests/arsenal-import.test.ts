@@ -24,7 +24,7 @@ describe('NAM asset import', () => {
     sqlite = new DatabaseSync(':memory:')
     sqlite.exec('CREATE TABLE tone_assets(id TEXT PRIMARY KEY,json TEXT,created_at TEXT); CREATE TABLE arsenal_presets(id TEXT PRIMARY KEY,json TEXT,updated_at TEXT)')
     type Args = ConstructorParameters<typeof ArsenalService>
-    service = new ArsenalService({ dataRoot: root } as Args[0], { sqlite } as unknown as Args[1], {} as Args[2],
+    service = new ArsenalService({ dataRoot: root, audioHostExecutable:()=>path.resolve('resources/audio-host/win32-x64/bandbuddy-audio-host.exe') } as Args[0], { sqlite } as unknown as Args[1], {} as Args[2],
       { onEvent: vi.fn() } as unknown as Args[3], {} as Args[4], vi.fn(), vi.fn(), () => false)
     openDialog.mockReset()
   })

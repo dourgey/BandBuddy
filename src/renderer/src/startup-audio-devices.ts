@@ -41,6 +41,9 @@ function reconcileRecordingAudio(
   devices: readonly RecordingDeviceInfo[],
   platform: string
 ): RecordingAudioSettings {
+  // An unavailable explicit selection is evidence to show the user, never
+  // permission to capture another microphone or send audio to other speakers.
+  if (current.backend !== 'auto' || current.inputDeviceId || current.outputDeviceId) return current
   const automaticBackend = automaticRecordingBackend(platform)
   let backend = current.backend
   let resolvedBackend: ConcreteAudioBackend = backend === 'auto' ? automaticBackend : backend
@@ -113,11 +116,7 @@ export function reconcileAudioDeviceSettings(
   settings: AppSettings,
   snapshot: AudioDeviceSnapshot
 ): AppSettings {
-  const audioOutputDeviceId = snapshot.playbackOutputDeviceIds !== null
-    && settings.audioOutputDeviceId
-    && !snapshot.playbackOutputDeviceIds.has(settings.audioOutputDeviceId)
-    ? ''
-    : settings.audioOutputDeviceId
+  const audioOutputDeviceId = settings.audioOutputDeviceId
   const recordingAudio = snapshot.recordingDevices === null
     ? settings.recordingAudio
     : reconcileRecordingAudio(settings.recordingAudio, snapshot.recordingDevices, snapshot.platform)
@@ -151,6 +150,7 @@ export function loadStartupAudioSettings(): Promise<AppSettings> {
 
 /** The main process compares the audio snapshot before merging, so new preferences cannot be overwritten. */
 export async function reconcileStartupAudioSettings(settings: AppSettings, canApply: () => boolean = () => true): Promise<AppSettings> {
+  if (bandbuddyApi().startup?.snapshot().safeMode) return settings
   const [playbackOutputDeviceIds, recordingDevices] = await Promise.all([
     enumeratePlaybackOutputDeviceIds(),
     enumerateRecordingDevices()

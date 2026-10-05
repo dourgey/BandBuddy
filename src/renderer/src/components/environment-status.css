@@ -1,0 +1,7 @@
+.environment-status{border:1px solid var(--border,#ddd4c8);border-radius:12px;padding:14px 16px;margin:10px 0;background:var(--surface,#faf7f2);font-size:13px}
+.environment-status header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.environment-status header span{color:var(--text-muted,#83796d)}
+.environment-status progress{width:100%;height:5px;margin-top:10px;accent-color:var(--accent,#b7794f)}
+.environment-status small{display:block;margin-top:8px}.environment-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.environment-actions button{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,#ddd4c8);border-radius:6px;padding:5px 10px;background:transparent;color:inherit;cursor:pointer}
+.environment-actions button:disabled{opacity:.5;cursor:default}.environment-status details{margin-top:10px}.environment-status summary{cursor:pointer}.environment-status dl>div{display:flex;justify-content:space-between;padding:4px 0}
+.environment-status.compact{position:fixed;z-index:95;right:18px;bottom:18px;width:min(380px,calc(100vw - 36px));margin:0;padding:10px 14px;box-shadow:0 4px 20px #0002}.environment-status.compact .environment-actions{margin-top:6px}

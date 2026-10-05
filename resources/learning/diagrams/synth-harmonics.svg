@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 410" role="img" aria-labelledby="title desc">
+  <title id="title">理想波形的谐波组成</title>
+  <desc id="desc">正弦波仅含基频，锯齿波含整数倍谐波且幅度约按一除以序号下降，对称方波仅含奇数次谐波，理想三角波仅含奇数次谐波且衰减更快。</desc>
+  <rect width="640" height="410" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#39352c">
+    <text x="320" y="38" text-anchor="middle" font-size="23" font-weight="bold">同一基频，不同谐波配方</text>
+    <g font-size="19"><text x="24" y="114">正弦</text><text x="24" y="187">锯齿</text><text x="24" y="260">方波</text><text x="24" y="333">三角</text></g>
+    <g stroke="#d8d2c5"><path d="M110 125H604M110 198H604M110 271H604M110 344H604"/></g>
+    <g stroke="#496d64" stroke-width="9"><path d="M135 125V70M135 198V143M210 198V170.5M285 198V179.7M360 198V184.25M435 198V187M510 198V188.8M585 198V190.1M135 271V216M285 271V252.7M435 271V260M585 271V263.1M135 344V289M285 344V337.9M435 344V341.8M585 344V342.9"/></g>
+    <g font-size="16" text-anchor="middle" fill="#756d5f"><text x="135" y="369">f₀</text><text x="210" y="369">2f₀</text><text x="285" y="369">3f₀</text><text x="360" y="369">4f₀</text><text x="435" y="369">5f₀</text><text x="510" y="369">6f₀</text><text x="585" y="369">7f₀</text></g>
+    <text x="320" y="396" text-anchor="middle" font-size="15">线高表示相对幅度；方波指 50% 占空比。仅示前七次谐波。</text>
+  </g>
+</svg>

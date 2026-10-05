@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-labelledby="title desc">
+  <title id="title">ADSR 包络：三个时间参数与一个电平参数</title>
+  <desc id="desc">按下按键后经过起音和衰减，到达持续电平；松键后从当前电平进入释放。持续阶段的长度由持键时长决定。</desc>
+  <rect width="640" height="400" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#39352c">
+    <text x="320" y="38" font-size="23" font-weight="bold" text-anchor="middle">ADSR：时间与电平不要混淆</text>
+    <path d="M68 72V285H604" stroke="#817867" fill="none" stroke-width="2"/>
+    <text x="23" y="95" font-size="17">电平</text><text x="551" y="312" font-size="17">时间 →</text>
+    <path d="M85 285L175 95L285 190H440L560 285" fill="none" stroke="#496d64" stroke-width="4"/>
+    <g stroke="#aaa392" stroke-dasharray="5 5"><path d="M175 95V285M285 190V285M440 83V285"/><path d="M68 190H440"/></g>
+    <g font-size="18" text-anchor="middle"><text x="126" y="155">A</text><text x="230" y="133">D</text><text x="357" y="174">S 持续电平</text><text x="508" y="216">R</text></g>
+    <g font-size="16" text-anchor="middle" fill="#756d5f"><text x="88" y="311">按下</text><text x="440" y="73">松开</text><text x="126" y="340">起音时间</text><text x="238" y="340">衰减时间</text><text x="368" y="340">持键期间保持</text><text x="520" y="340">释放时间</text></g>
+    <text x="320" y="378" font-size="16" text-anchor="middle">示意为直线；实际曲线与提前松键的行为取决于实现。</text>
+  </g>
+</svg>

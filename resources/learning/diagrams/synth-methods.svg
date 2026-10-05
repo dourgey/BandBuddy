@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 505" role="img" aria-labelledby="title desc">
+  <title id="title">合成方法按声音生成路径对照</title>
+  <desc id="desc">减法合成从丰富频谱开始过滤，加法叠加分音，FM用音频速率调制，波表扫描周期波形，采样播放录音，颗粒组织短片段，物理建模模拟激励和共鸣。一个音色可以结合多种方法。</desc>
+  <rect width="640" height="505" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#39352c">
+    <text x="320" y="39" text-anchor="middle" font-size="23" font-weight="bold">选择方法：从声音怎样产生开始</text>
+    <g fill="#e5ebe2"><rect x="22" y="64" width="596" height="49" rx="7"/><rect x="22" y="170" width="596" height="49" rx="7"/><rect x="22" y="276" width="596" height="49" rx="7"/><rect x="22" y="382" width="596" height="49" rx="7"/></g>
+    <g font-size="20" fill="#496d64"><text x="40" y="96">减法</text><text x="40" y="149">加法</text><text x="40" y="202">FM</text><text x="40" y="255">波表</text><text x="40" y="308">采样</text><text x="40" y="361">颗粒</text><text x="40" y="414">建模</text></g>
+    <g font-size="18"><text x="126" y="96">丰富频谱 → 滤波塑形</text><text x="126" y="149">多个分音 → 叠加与独立包络</text><text x="126" y="202">音频速率调制 → 产生和改变边带</text><text x="126" y="255">一组周期波形 → 扫描与插值</text><text x="126" y="308">录音素材 → 播放、移调与循环</text><text x="126" y="361">短时片段 → 改变密度、位置与音高</text><text x="126" y="414">激励信号 → 振动物体与共鸣模型</text></g>
+    <text x="320" y="465" text-anchor="middle" font-size="16">这些方法可以组合；界面名称不能替代实际信号路径。</text>
+  </g>
+</svg>

@@ -5,6 +5,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import type { JobRecord } from '@shared/domain.js'
 import { IPC } from '@shared/channels.js'
+import { ENVIRONMENT_CHANNEL, ENVIRONMENT_CHANGED } from '@shared/environment.js'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -54,11 +55,29 @@ async function invoke(channel: string, ...args: unknown[]): Promise<any> {
 }
 
 const api: BandBuddyApi = {
+  environment: {
+    get: () => invoke(ENVIRONMENT_CHANNEL, { op: 'get' }),
+    check: () => invoke(ENVIRONMENT_CHANNEL, { op: 'check' }),
+    prepare: () => invoke(ENVIRONMENT_CHANNEL, { op: 'prepare' }),
+    pause: () => invoke(ENVIRONMENT_CHANNEL, { op: 'pause' }),
+    resume: () => invoke(ENVIRONMENT_CHANNEL, { op: 'resume' }),
+    repair: () => invoke(ENVIRONMENT_CHANNEL, { op: 'repair' }),
+    networkRestored: () => invoke(ENVIRONMENT_CHANNEL, { op: 'networkRestored' }),
+    devicesChanged: () => invoke(ENVIRONMENT_CHANNEL, { op: 'devicesChanged' }),
+    exportDiagnostics: () => invoke(ENVIRONMENT_CHANNEL, { op: 'export' }),
+    openAction: action => invoke(ENVIRONMENT_CHANNEL, { op: 'action', action }),
+    onChanged: callback => subscribe(ENVIRONMENT_CHANGED, callback)
+  },
   startup: {
+    interactive: () => ipcRenderer.invoke('startup:interactive'),
+    repairSystem: () => ipcRenderer.invoke('startup:repairSystem'),
+    restoreBackup: () => ipcRenderer.invoke('startup:restoreBackup'),
     snapshot: () => startupState,
     get: () => ipcRenderer.invoke(IPC.startupGet),
     onChanged: callback => { startupListeners.add(callback); return () => { startupListeners.delete(callback) } },
-    painted: () => ipcRenderer.invoke(IPC.startupPainted)
+    painted: () => ipcRenderer.invoke(IPC.startupPainted),
+    recover: safe => ipcRenderer.invoke('startup:recover', safe),
+    revealRecovery: () => ipcRenderer.invoke('startup:revealRecovery')
   },
   appearance: {
     get: () => invoke(IPC.appearanceGet),
@@ -66,6 +85,8 @@ const api: BandBuddyApi = {
     onChanged: (callback) => subscribe(IPC.eventAppearanceChanged, callback)
   },
   arsenal: {
+    feed: (input) => ipcRenderer.invoke(`${ARSENAL_CHANNEL}:pcm`, input),
+    command: (input) => invoke(ARSENAL_CHANNEL, { op: 'command', input }),
     list: () => invoke(ARSENAL_CHANNEL, { op: 'list' }),
     importAsset: (kind, sampleRate) => invoke(ARSENAL_CHANNEL, { op: 'import', kind, sampleRate }),
     deleteAsset: (id) => invoke(ARSENAL_CHANNEL, { op: 'deleteAsset', id }),

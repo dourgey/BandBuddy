@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
-import type { RecordingDeviceInfo } from '@shared/domain.js'
+import type { RecordingDeviceInfo, RecordingAudioSettings } from '@shared/domain.js'
 import type { Logger } from './logger.js'
 import type { AppPaths } from './paths.js'
 import { spawnSafe } from './process.js'
@@ -31,6 +31,10 @@ export interface AudioHostStopResult {
 }
 
 export interface AudioHostMeterEvent {
+  tunerActive?: boolean
+  tunerHz?: number
+  dspLoad?: number
+  dspLatencyMs?: number
   outputPeak?: number
   peak: number[]
   rms: number[]
@@ -70,8 +74,9 @@ export class AudioHostClient {
   private readonly pending = new Map<number, PendingRequest>()
   private readonly listeners = new Set<(event: AudioHostEvent) => void>()
   private expectedExit = false
+  private deviceSnapshot: RecordingDeviceInfo[] = []
 
-  constructor(private readonly paths: AppPaths, private readonly logger: Logger) {}
+  constructor(private readonly paths: AppPaths, private readonly logger: Logger, private readonly probeBackend = '') {}
 
   onEvent(listener: (event: AudioHostEvent) => void): () => void {
     this.listeners.add(listener)
@@ -79,7 +84,33 @@ export class AudioHostClient {
   }
 
   async devices(): Promise<RecordingDeviceInfo[]> {
-    return await this.request<RecordingDeviceInfo[]>('devices', {}, 15_000)
+    // Driver enumeration must not block or terminate a live recording process.
+    const backends = process.platform === 'win32' ? ['wasapi', 'asio'] : ['coreaudio']
+    const results = await Promise.allSettled(backends.map(async backend => {
+      const probe = new AudioHostClient(this.paths, this.logger, backend)
+      try { return await probe.request<RecordingDeviceInfo[]>('devices', { backend }, 15_000) }
+      finally { await probe.shutdown() }
+    }))
+    const devices: RecordingDeviceInfo[] = []
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'fulfilled') devices.push(...result.value)
+      else this.logger.warn('audio device probe failed', { backend: backends[index], error: String(result.reason) })
+    }
+    if (results.every(result => result.status === 'rejected')) throw new Error('AUDIO_DRIVER_PROBE_FAILED')
+    this.deviceSnapshot = [...new Map(devices.map(device => [device.id, device])).values()]
+    return this.deviceSnapshot
+  }
+
+  async topologyChanged(settings: RecordingAudioSettings): Promise<boolean> {
+    const previous = this.deviceSnapshot
+    const current = await this.devices()
+    const backend = settings.backend === 'auto' ? process.platform === 'darwin' ? 'coreaudio' : 'wasapi-shared' : settings.backend
+    const selected = (devices: RecordingDeviceInfo[], direction: 'input' | 'output'): string | undefined => {
+      const id = direction === 'input' ? settings.inputDeviceId : settings.outputDeviceId
+      return devices.find(device => device.backend === backend && (direction === 'input' ? device.inputChannels : device.outputChannels) > 0
+        && (id ? device.id === id : direction === 'input' ? device.defaultInput : device.defaultOutput))?.id
+    }
+    return ['input', 'output'].some(direction => selected(previous, direction as 'input' | 'output') !== selected(current, direction as 'input' | 'output'))
   }
 
   async prepareOutputDevice(deviceName: string | null): Promise<boolean> {
@@ -104,6 +135,8 @@ export class AudioHostClient {
   }
 
   async setEffects(params: Record<string, unknown>): Promise<void> { await this.request('effects', params, 30000) }
+  async arsenalQuick(params: Record<string, unknown>): Promise<{ recording: boolean; looping: boolean; durationMs: number; sampleRate: number; channels: number }> { return this.request('arsenalQuick', params, 30000) }
+  async arsenalPcm(params: Record<string, unknown>): Promise<boolean> { return this.request('arsenalPcm', params, 5000) }
 
   async pause(): Promise<boolean> {
     return await this.request<boolean>('pause', {}, 5_000)
@@ -118,9 +151,10 @@ export class AudioHostClient {
   }
 
   async shutdown(): Promise<void> {
-    if (!this.child) return
+    const child = this.child
+    if (!child || child.killed) return
     this.expectedExit = true
-    try { await this.request('shutdown', {}, 2_000) } catch { this.child.kill() }
+    try { await this.request('shutdown', {}, 2_000) } catch { child.kill() }
   }
 
   private ensureStarted(): ChildProcessWithoutNullStreams {
@@ -128,7 +162,7 @@ export class AudioHostClient {
     const executable = this.paths.audioHostExecutable()
     if (!existsSync(executable)) throw new Error(`AUDIO_HOST_MISSING:${executable}`)
     this.expectedExit = false
-    const child = spawnSafe(executable, [])
+    const child = spawnSafe(executable, this.probeBackend ? ['--probe-backend', this.probeBackend] : [])
     this.child = child
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
@@ -155,6 +189,7 @@ export class AudioHostClient {
     return await new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id)
+        if (method === 'devices') { this.expectedExit = true; child.kill() }
         reject(new Error(`AUDIO_HOST_TIMEOUT:${method}`))
       }, timeoutMs)
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer })

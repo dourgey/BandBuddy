@@ -17,7 +17,7 @@ const subscribe = (notify: () => void): (() => void) => {
   window.addEventListener(event, notify); window.addEventListener('storage', notify)
   return () => { window.removeEventListener(event, notify); window.removeEventListener('storage', notify) }
 }
-export function NotationBody({ instrument, children, ...props }: HTMLAttributes<HTMLElement> & { instrument: LessonInstrument }): React.JSX.Element {
+export function NotationBody({ instrument, showStaffControl = true, children, ...props }: HTMLAttributes<HTMLElement> & { instrument: LessonInstrument; showStaffControl?: boolean }): React.JSX.Element {
   const key = `bandbuddy.notation.staff.${instrument}`
   const [capabilities, setCapabilities] = useState(new Map<string, boolean>())
   const register = useCallback((id: string, alternative?: boolean): void => {
@@ -42,8 +42,8 @@ export function NotationBody({ instrument, children, ...props }: HTMLAttributes<
     window.dispatchEvent(new Event(event))
   }
   return <Context.Provider value={{ instrument, showStaff, register }}><article {...props}>
-    <div className="ws-notation-toolbar"><button type="button" role="switch" aria-label="显示五线谱" aria-checked={showStaff} disabled={staffOnly} title={staffOnly ? '本章只有五线谱，保持显示' : undefined} onClick={toggle}>
+    {showStaffControl && <div className="ws-notation-toolbar"><button type="button" role="switch" aria-label="显示五线谱" aria-checked={showStaff} disabled={staffOnly} title={staffOnly ? '本章只有五线谱，保持显示' : undefined} onClick={toggle}>
       <span className="ws-notation-switch" aria-hidden="true" />显示五线谱
-    </button></div>{children}
+    </button></div>}{children}
   </article></Context.Provider>
 }

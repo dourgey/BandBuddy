@@ -37,6 +37,8 @@ import type { ExportService } from './exporter.js'
 import type { ImportService } from './imports.js'
 import type { JobScheduler } from './jobs.js'
 import type { RuntimeManager } from './runtime.js'
+import type { EnvironmentManager } from './environment.js'
+import { ENVIRONMENT_CHANNEL } from '@shared/environment.js'
 import type { MediaService } from './media.js'
 import type { RecordingService } from './recording.js'
 import type { DesktopLyricsWindow } from './desktop-lyrics.js'
@@ -46,6 +48,7 @@ import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
+  devicesChanged?: () => Promise<void>
   windowControlsRegistered?: boolean
   arsenal: ArsenalService
   getWindow: () => BrowserWindow | null
@@ -54,6 +57,7 @@ interface IpcServices {
   imports: ImportService
   jobs: JobScheduler
   runtime: RuntimeManager
+  environment?: EnvironmentManager
   media: MediaService
   exporter: ExportService
   recording: RecordingService
@@ -84,7 +88,7 @@ export function registerIpc(services: IpcServices): void {
     IPC.recordingUpdateTake, IPC.recordingDeleteTrack, IPC.recordingDeleteTake, IPC.recordingCreateTrack, IPC.recordingUpdateTrack,
     IPC.rehearsalCreate, IPC.rehearsalSave, IPC.rehearsalDuplicate, IPC.rehearsalDelete,
     IPC.rehearsalRecordingCreateTrack, IPC.rehearsalRecordingUpdateTrack,
-    IPC.rehearsalRecordingUpdateTake, IPC.rehearsalRecordingDeleteTake, ARSENAL_CHANNEL
+    IPC.rehearsalRecordingUpdateTake, IPC.rehearsalRecordingDeleteTake, ARSENAL_CHANNEL, `${ARSENAL_CHANNEL}:pcm`
   ])
   const handle = <T>(channel: string, callback: (event: IpcMainInvokeEvent, input: T) => unknown | Promise<unknown>): void => {
     ipcMain.handle(channel, async (event, input: T) => {
@@ -106,14 +110,20 @@ export function registerIpc(services: IpcServices): void {
     })
   }
 
+  // High-rate PCM uses a dedicated trusted channel; never put audio packets in diagnostics.
+  ipcMain.handle(`${ARSENAL_CHANNEL}:pcm`, async (event,input) => {
+    assertTrustedSender(event,services.getWindow(),services.isTrustedUrl)
+    return services.arsenal.feed(z.object({bus:z.number().int().min(0).max(7),sampleRate:z.number().min(8000).max(192000),samples:z.array(z.number().finite()).max(16384),reset:z.boolean().optional()}).parse(input))
+  })
   handle(ARSENAL_CHANNEL, async (_event, input) => {
     const i = z.object({op:z.string()}).passthrough().parse(input)
     const arsenal=services.arsenal
     switch(i.op) {
       case 'list': return arsenal.list()
       case 'state': return arsenal.monitorState()
+      case 'command': return arsenal.command(i.input as import('@shared/arsenal.js').ArsenalCommand)
       case 'import': return arsenal.importAsset(z.enum(['nam','ir']).parse(i.kind),z.number().min(8000).max(192000).optional().parse(i.sampleRate))
-      case 'save': return arsenal.savePreset(z.object({id:z.string().uuid().optional(),name:z.string().trim().min(1).max(100),chain:effectChainSchema}).parse(i))
+      case 'save': return arsenal.savePreset(z.object({id:z.string().uuid().optional(),name:z.string().trim().min(1).max(100),chain:effectChainSchema,tags:z.array(z.string().max(30)).max(20).optional(),favorite:z.boolean().optional()}).parse(i))
       case 'delete': return arsenal.deletePreset(uuidSchema.parse(i.id))
       case 'deleteAsset': return arsenal.deleteAsset(z.string().regex(/^[a-f0-9]{64}$/).parse(i.id))
       case 'prepare': return arsenal.prepare(effectChainSchema.parse(i.chain))
@@ -193,11 +203,44 @@ export function registerIpc(services: IpcServices): void {
 
   handle(IPC.runtimeGet, () => services.runtime.getInfo())
   handle(IPC.runtimeDetect, () => services.runtime.detect())
-  handle(IPC.runtimeInstall, () => services.runtime.install())
-  handle(IPC.runtimeCancel, () => services.runtime.cancelInstall())
-  handle(IPC.runtimeRepair, () => services.runtime.repair())
-  handle(IPC.runtimeRemove, async (_event, input) => services.runtime.removeEnvironment(z.boolean().default(false).parse(input)))
-  handle(IPC.runtimeClearModel, () => services.runtime.clearModelCache())
+  handle(IPC.runtimeInstall, async () => { if (services.environment) { await services.environment.resume(); return services.runtime.getInfo() }; return services.runtime.install() })
+  handle(IPC.runtimeCancel, async () => { if (services.environment) await services.environment.pause(); else services.runtime.cancelInstall() })
+  handle(IPC.runtimeRepair, async () => { if (services.environment) { await services.environment.repair(); return services.runtime.getInfo() }; return services.runtime.repair() })
+  handle(IPC.runtimeRemove, async (_event, input) => { const includeModels = z.boolean().default(false).parse(input); await services.environment?.pause(); return services.runtime.removeEnvironment(includeModels) })
+  handle(IPC.runtimeClearModel, async () => { await services.environment?.pause(); return services.runtime.clearModelCache() })
+
+  handle(ENVIRONMENT_CHANNEL, async (_event, input) => {
+    const request = z.object({ op: z.enum(['get', 'check', 'prepare', 'pause', 'resume', 'repair', 'export', 'action', 'networkRestored', 'devicesChanged']), action: z.enum(['retry', 'repair', 'storage', 'network', 'audio', 'microphone', 'driver', 'time', 'security', 'restart', 'repairApplication']).optional() }).parse(input)
+    const environment = services.environment!
+    if (!environment) throw new Error('ENVIRONMENT_SERVICE_UNAVAILABLE')
+    if (migrating && !['get', 'pause', 'export'].includes(request.op)) throw new Error('数据目录正在迁移，请完成后重试。')
+    if (request.op === 'get') return environment.get()
+    if (request.op === 'check') return environment.check()
+    if (request.op === 'prepare') { await environment.startAutomatically(); return environment.get() }
+    if (request.op === 'pause') return environment.pause()
+    if (request.op === 'resume') return environment.resume()
+    if (request.op === 'repair') return environment.repair()
+    if (request.op === 'networkRestored') return environment.networkRestored()
+    if (request.op === 'devicesChanged') return services.devicesChanged?.()
+    if (request.op === 'export') {
+      const selected = await dialog.showSaveDialog({ title: '导出诊断信息', defaultPath: 'BandBuddy-diagnostics.json', filters: [{ name: '诊断信息', extensions: ['json'] }] })
+      if (selected.canceled || !selected.filePath) return null
+      await environment.exportDiagnostics(selected.filePath); return selected.filePath
+    }
+    if (request.action === 'retry' || request.action === 'repair') { await environment.repair(); return }
+    const mac = process.platform === 'darwin'
+    const links = {
+      network: mac ? 'x-apple.systempreferences:com.apple.Network-Settings.extension' : 'ms-settings:network-status',
+      microphone: mac ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone' : 'ms-settings:privacy-microphone',
+      audio: mac ? 'x-apple.systempreferences:com.apple.Sound-Settings.extension' : 'ms-settings:sound',
+      driver: 'https://www.nvidia.com/en-us/drivers/',
+      time: mac ? 'x-apple.systempreferences:com.apple.preference.datetime' : 'ms-settings:dateandtime',
+      security: mac ? 'x-apple.systempreferences:com.apple.preference.security' : 'windowsdefender:',
+      storage: mac ? 'x-apple.systempreferences:com.apple.settings.Storage' : 'ms-settings:storagesense',
+      repairApplication: 'https://github.com/dourgey/BandBuddy/releases'
+    }
+    if (request.action && request.action in links) await shell.openExternal(links[request.action as keyof typeof links])
+  })
 
   handle(IPC.settingsGet, () => services.database.getSettings())
   handle(IPC.settingsChooseDataRoot, async (_event, input) => {
@@ -236,7 +279,7 @@ export function registerIpc(services: IpcServices): void {
     const previous = services.database.getSettings()
     const rootsChanged = ['libraryRoot', 'runtimeRoot', 'modelRoot'].some(key => previous[key as keyof typeof previous] !== settings[key as keyof typeof settings])
     if (rootsChanged && (activeMutations > 1 || services.database.hasActiveJobs() || services.recording.isActive()
-      || services.rehearsalRecording.isActive() || services.runtime.isInstalling())) {
+      || services.rehearsalRecording.isActive() || services.runtime.isInstalling() || services.environment?.isBusy())) {
       throw new Error('请先完成或取消正在进行的导入、分轨、导出和录音，再更换数据目录。')
     }
     if (rootsChanged) migrating = true
@@ -258,7 +301,10 @@ export function registerIpc(services: IpcServices): void {
     services.logger.setDebugMode(saved.debugMode)
     services.emitSettings()
     if (!isDeepStrictEqual(previous.network, saved.network) || previous.preferredDevice !== saved.preferredDevice
-      || previous.runtimeRoot !== saved.runtimeRoot || previous.modelRoot !== saved.modelRoot) void services.runtime.detect()
+      || previous.runtimeRoot !== saved.runtimeRoot || previous.modelRoot !== saved.modelRoot) {
+      if (services.environment) void services.environment.configurationChanged(rootsChanged).catch(error => services.logger.warn('environment recheck deferred', error))
+      else void services.runtime.detect()
+    }
     return saved
   })
 

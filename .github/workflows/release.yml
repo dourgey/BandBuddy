@@ -96,6 +96,20 @@ jobs:
             "SIGNING_STATE=Authenticode signed build" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           }
 
+      - name: Smoke test the packaged Windows payload and Portable with isolated data
+        run: pnpm verify:windows:environment "$env:PACKAGE_DIR"
+
+      - name: Qualify the shipped Windows dependency lock with a clean private CPU runtime
+        env:
+          BANDBUDDY_TEST_ROOT: ${{ runner.temp }}/bandbuddy-runtime-windows
+        run: pnpm verify:runtime:install
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-qualification-windows
+          path: ${{ runner.temp }}/bandbuddy-runtime-windows/qualification.json
+          if-no-files-found: error
+
       - name: Verify native audio host
         shell: pwsh
         run: '& resources/audio-host/win32-x64/bandbuddy-audio-host.exe --self-test'
@@ -210,6 +224,19 @@ jobs:
           test "${#files[@]}" -eq 2
           shasum -a 256 "${files[@]}" | sed 's#release-macos/##' > "release-macos/SHA256SUMS-macos-${{ matrix.arch }}.txt"
 
+      - name: Qualify the Apple Silicon dependency lock and all guitar policies
+        if: matrix.arch == 'arm64'
+        env:
+          BANDBUDDY_TEST_ROOT: ${{ runner.temp }}/bandbuddy-runtime-macos
+        run: pnpm verify:runtime:install
+
+      - uses: actions/upload-artifact@v7
+        if: matrix.arch == 'arm64'
+        with:
+          name: runtime-qualification-macos-arm64
+          path: ${{ runner.temp }}/bandbuddy-runtime-macos/qualification.json
+          if-no-files-found: error
+
       - name: Upload verified macOS artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -257,6 +284,7 @@ jobs:
             printf '%s\n' 'Windows 10/11 x64; macOS 13+ Apple Silicon. Intel Mac support is pending native runtime and CPU reference validation; this release includes no Intel package.' > "$notes"
           fi
           printf '%s\n' 'macOS artifacts are Developer ID signed; see signature reports and checksum files. Windows signing status is included in SIGNING-STATE-windows.txt.' >> "$notes"
+          printf '%s\n' 'Apple Silicon local separation requires macOS 14 or newer with the pinned ONNX Runtime 1.28 wheels; other application functions retain the macOS 13 minimum. Runtime qualification is synthetic CPU inference; clean-machine permissions, audio devices, minimum macOS version and GPU acceptance must be recorded separately.' >> "$notes"
           if test -f "docs/release-notes/$GITHUB_REF_NAME.md"; then cat "docs/release-notes/$GITHUB_REF_NAME.md" >> "$notes"; fi
           assets=(release-complete/*)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

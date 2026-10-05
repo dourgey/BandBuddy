@@ -4,6 +4,7 @@ import { normalizeAppearance, resolveTheme, themeBackground, type Appearance } f
 import { ArsenalService } from './arsenal.js'
 import { ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   app,
@@ -13,6 +14,7 @@ import {
   nativeTheme,
   screen,
   protocol,
+  powerMonitor,
   Tray,
   type NativeImage
 } from 'electron'
@@ -33,6 +35,11 @@ import { RehearsalService } from './rehearsals.js'
 import { RehearsalRecordingService } from './rehearsal-recording.js'
 import { DesktopLyricsWindow } from './desktop-lyrics.js'
 import { RuntimeManager } from './runtime.js'
+import { EnvironmentManager } from './environment.js'
+import { ENVIRONMENT_CHANGED } from '@shared/environment.js'
+import { StartupRecovery } from './startup-recovery.js'
+import { applyDatabaseRecovery } from './database-recovery.js'
+import { systemHelper } from './system-helper.js'
 import { shutdownProcesses } from './process.js'
 import { shutdownMediaAnalysis } from './media-analysis.js'
 import { isTrustedRendererUrl } from './security.js'
@@ -55,6 +62,8 @@ function benchmarkMetric(phase: string): void {
 }
 const developmentTestRoot = smokeMode || !app.isPackaged ? process.env.BANDBUDDY_TEST_ROOT : undefined
 app.setPath('userData', developmentTestRoot ? join(developmentTestRoot, 'appdata') : join(app.getPath('appData'), 'BandBuddy'))
+const startupRecovery = new StartupRecovery(app.getPath('userData'), process.argv.includes('--safe-mode'))
+if (startupRecovery.safeMode) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId('com.bandbuddy.desktop')
 
 let lan: LanService | null = null
@@ -69,6 +78,7 @@ let database: BandBuddyDatabase | null = null
 let logger: Logger | null = null
 let scheduler: JobScheduler | null = null
 let runtimeManager: RuntimeManager | null = null
+let environmentManager: EnvironmentManager | null = null
 let recording: RecordingService | null = null
 let rehearsalRecording: RehearsalRecordingService | null = null
 let desktopLyrics: DesktopLyricsWindow | null = null
@@ -205,7 +215,8 @@ function createWindow(paths: AppPaths): BrowserWindow {
          return Promise.all([
            window.bandbuddy.library.list(),
            window.bandbuddy.runtime.get(),
-           window.bandbuddy.media.capabilities(),
+             window.bandbuddy.environment.check().then(() => window.bandbuddy.media.capabilities()),
+             window.bandbuddy.environment.get(),
            window.bandbuddy.desktopLyrics.setVisible(true).then(() => {
              window.bandbuddy.desktopLyrics.update({
                title: 'Smoke test', artist: 'BandBuddy', currentLines: ['桌面歌词'], nextLines: ['同步正常'],
@@ -213,20 +224,23 @@ function createWindow(paths: AppPaths): BrowserWindow {
              })
              return window.bandbuddy.desktopLyrics.setVisible(false)
            }).then(() => true)
-         ]).then(([songs, runtime, media, desktopLyrics]) => ({
+           ]).then(([songs, runtime, media, environment, desktopLyrics]) => ({
            apiType: typeof window.bandbuddy,
            namespaces: Object.keys(window.bandbuddy).sort(),
            songs: songs.length,
            runtime: runtime.status,
            ffmpegReady: media.ffmpegReady,
-           ffmpegVerification: media.ffmpegVerification,
+             ffmpegVerification: media.ffmpegVerification,
+             environment: { phase: environment.phase, startup: environment.capabilities.startup },
            desktopLyrics
          }))
-      })()`).then((result: { apiType?: string }) => {
+      })()`).then(async (result: { apiType?: string }) => {
+        await writeFile(join(app.getPath('userData'), 'smoke-result.json'), JSON.stringify(result))
         process.stdout.write(`BAND_BUDDY_SMOKE ${JSON.stringify(result)}\n`)
         if (result.apiType !== 'object') process.exitCode = 1
         setTimeout(() => app.quit(), 50)
-      }).catch((error: unknown) => {
+      }).catch(async (error: unknown) => {
+        await writeFile(join(app.getPath('userData'), 'smoke-result.json'), JSON.stringify({ error: String(error) })).catch(() => {})
         process.stderr.write(`BAND_BUDDY_SMOKE_FAILED ${String(error)}\n`)
         process.exitCode = 1
         setTimeout(() => app.quit(), 50)
@@ -260,8 +274,19 @@ else {
   })
 
   void app.whenReady().then(async () => {
+    startupRecovery.begin()
     const paths = new AppPaths()
-    startup = new StartupCoordinator(readStartupAppearance(paths.databasePath), () => mainWindow, trustedRendererUrl)
+    startup = new StartupCoordinator(readStartupAppearance(paths.databasePath), () => mainWindow, trustedRendererUrl, {
+      safeMode: startupRecovery.safeMode, success: () => startupRecovery.success(), clear: () => startupRecovery.clear(),
+      repairSystem: async () => {
+        if (process.platform !== 'win32') throw new Error('请使用同版本安装包修复软件，曲库数据会保留。')
+        const result = await systemHelper(['install-vc', app.isPackaged ? paths.packagedResource('prerequisites', 'vc_redist.x64.exe') : join(process.cwd(), 'resources/prerequisites/vc_redist.x64.exe'), '/repair'], 15 * 60_000)
+        if (result.code === 1223) throw new Error('系统授权已取消。可以继续保留数据，稍后再修复。')
+        if (result.code === 3010 || result.code === 1641) throw new Error('系统组件已修复，请重启电脑后打开 BandBuddy。')
+        if (result.code !== 0) throw new Error(`系统组件修复未完成（${result.code}），请导出或保留诊断信息。`)
+        startup?.setState({ message: '系统组件已修复，请点击“重新打开”。', error: undefined })
+      }
+    })
     startup.register()
     nativeTheme.on('updated', () => {
       const appearance = startup?.snapshot().appearance ?? normalizeAppearance(null)
@@ -283,6 +308,7 @@ else {
     await startup.firstPaint
     if (quitting) return
     paths.ensure()
+    await applyDatabaseRecovery(paths.dataRoot, paths.databasePath)
     if (databaseNeedsPreparation(paths)) {
       databasePreparation = startDatabasePreparation(paths)
       try { await databasePreparation.ready }
@@ -346,11 +372,11 @@ else {
       media,
       audioHost,
       applicationLogger,
-      (state) => emit(IPC.eventRecordingState, state),
+      (state) => { emit(IPC.eventRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio() },
       (meter) => emit(IPC.eventRecordingMeter, meter),
       emitLibrary
     )
-    const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => emit(ARSENAL_MONITOR_EVENT, state), emitLibrary, () => rehearsalRecording?.isActive() ?? false)
+    const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => { emit(ARSENAL_MONITOR_EVENT, state); if (state.active) environmentManager?.deferForLiveAudio() }, emitLibrary, () => rehearsalRecording?.isActive() ?? false)
     const previewRenders = new Map<string, Promise<string>>()
     media.recordingPreviewEffect = async (source, takeId) => {
       const take = database!.getRecordingTake(takeId)
@@ -374,13 +400,40 @@ else {
       audioHost,
       applicationLogger,
       () => recording?.isActive() ?? false,
-      (state) => emit(IPC.eventRehearsalRecordingState, state),
+      (state) => { emit(IPC.eventRehearsalRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio() },
       (meter) => emit(IPC.eventRehearsalRecordingMeter, meter),
       emitRehearsals
     )
 
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
+    environmentManager = new EnvironmentManager(paths, runtime, media, applicationLogger, app.getVersion(),
+      () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active),
+      startupRecovery.safeMode, smokeMode || benchmarkMode)
+    environmentManager.onChanged(state => emit(ENVIRONMENT_CHANGED, state))
+    audioHost.onEvent(event => { if (event.event === 'crashed' || event.event === 'error') environmentManager?.reportAudioFailure(event.data.error) })
+    const stopCapture = async (): Promise<void> => {
+      const failures: unknown[] = []
+      try { await arsenal.stopMonitor() } catch (error) { failures.push(error) }
+      try { if (rehearsalRecording?.isActive()) await rehearsalRecording.stop() } catch (error) { failures.push(error) }
+      try { if (recording?.isActive()) await recording.finishForTransition() } catch (error) { failures.push(error) }
+      if (failures.length) throw new AggregateError(failures, 'AUDIO_STOP_INCOMPLETE')
+    }
+    let topologyCheck: Promise<void> | null = null
+    const devicesChanged = (): Promise<void> => {
+      if (topologyCheck) return topologyCheck
+      if (startupRecovery.safeMode || !(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active)) return Promise.resolve()
+      topologyCheck = (async () => {
+        try { if (await audioHost.topologyChanged(database!.getSettings().recordingAudio)) { await stopCapture(); environmentManager?.reportAudioFailure('DEVICE_CHANGED') } }
+        catch (error) { await stopCapture().catch(() => {}); environmentManager?.reportAudioFailure(error) }
+      })().finally(() => { topologyCheck = null })
+      return topologyCheck
+    }
+    powerMonitor.on('suspend', () => { void environmentManager?.suspend(); void stopCapture().catch(error => applicationLogger.warn('capture stopped for sleep', error)) })
+    powerMonitor.on('resume', () => { void environmentManager?.startAutomatically().catch(error => applicationLogger.warn('environment resume deferred', error)) })
+    mainWindow.webContents.once('render-process-gone', () => startupRecovery.fail())
     registerIpc({
+      environment: environmentManager,
+      devicesChanged,
       windowControlsRegistered: true,
       arsenal,
       lan,
@@ -454,7 +507,7 @@ app.on('before-quit', (event) => {
       try { await stop() } catch (error) { logger?.error('recording shutdown failed', error) }
     }
     const workers = await Promise.allSettled([
-      lan?.setEnabled(false), runtimeManager?.shutdown(), scheduler?.shutdown(),
+      lan?.setEnabled(false), environmentManager?.shutdown(), runtimeManager?.shutdown(), scheduler?.shutdown(),
       shutdownMediaAnalysis(), shutdownProcesses()
     ])
     for (const result of workers) if (result.status === 'rejected') logger?.error('worker shutdown failed', result.reason)

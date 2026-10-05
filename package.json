@@ -1,6 +1,6 @@
 {
   "name": "bandbuddy",
-  "version": "3.0.5",
+  "version": "3.0.0",
   "private": true,
   "description": "A local-first stem practice player for musicians",
   "main": "./out/main/index.js",
@@ -65,6 +65,8 @@
     "runtime:wheel:mac:x64": "python3 scripts/build-intel-runtime-wheel.py",
     "verify:mac:target": "node scripts/verify-macos-target.mjs",
     "verify:built-runtime": "node scripts/verify-built-runtime.mjs",
+    "verify:runtime:install": "node scripts/verify-runtime-install.mjs",
+    "verify:windows:environment": "node scripts/verify-windows-environment.mjs",
     "verify:learning": "node scripts/verify-learning-musicxml.mjs"
   },
   "dependencies": {
@@ -80,6 +82,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "signalsmith-stretch": "1.3.2",
+    "tar": "7.5.22",
     "wavesurfer.js": "7.12.11",
     "zod": "4.4.3",
     "zustand": "5.0.14"

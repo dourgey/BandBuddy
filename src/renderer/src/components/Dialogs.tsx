@@ -1,4 +1,5 @@
 import { RuntimePreparation } from './RuntimePreparation.js'
+import { EnvironmentStatus, ENVIRONMENT_SETTINGS_EVENT } from './EnvironmentStatus.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
 import { getAppearance } from '../appearance.js'
 import { Select } from './ui/Select.js'
@@ -257,7 +258,7 @@ export function AppearanceDialog({ open, onOpenChange }: { open: boolean; onOpen
 }
 
 export function SettingsDrawer({
-  open, onOpenChange, runtime, settings, onSaved, onRefresh, recordingBusy = false
+  open, onOpenChange, runtime, settings, onSaved, onRefresh, recordingBusy = false, initialCategory
 }: {
   open: boolean
   onOpenChange(open: boolean): void
@@ -266,9 +267,19 @@ export function SettingsDrawer({
   onSaved(settings: AppSettings): void
   onRefresh(): void
   recordingBusy?: boolean
+  initialCategory?: SettingsCategory
 }): React.JSX.Element {
   const [draft, setDraft] = useState(settings)
   const [activeCategory, setActiveCategory] = useState<SettingsCategory | null>(null)
+  useEffect(() => { if (open && initialCategory) setActiveCategory(initialCategory) }, [open, initialCategory])
+  useEffect(() => {
+    const navigate = (event: Event): void => {
+      const category = (event as CustomEvent).detail
+      if (['network', 'storage', 'audio'].includes(category)) setActiveCategory(category)
+    }
+    window.addEventListener(ENVIRONMENT_SETTINGS_EVENT, navigate)
+    return () => window.removeEventListener(ENVIRONMENT_SETTINGS_EVENT, navigate)
+  }, [])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [confirmInstall, setConfirmInstall] = useState(false)
@@ -460,15 +471,19 @@ export function SettingsDrawer({
       </div>
       <label className="settings-toggle"><input type="checkbox" aria-label="高音质分轨" checked={draft.highQualityStems} onChange={(event) => setDraft({ ...draft, highQualityStems: event.target.checked })} /><span><b>高音质分轨</b><small>{draft.highQualityStems ? '新分轨保存为 24-bit FLAC，占用空间较大' : '新分轨保存为 320 kbps MP3，节省空间'}</small></span></label>
     </section>
-    <section className="settings-section"><h3><Zap />本地分离环境</h3>
+    <section className="settings-section"><h3><Zap />运行状态</h3>
+      <EnvironmentStatus />
+      <details><summary>高级组件信息与手动设置</summary>
       <div className={`runtime-card ${runtime.status}`}><header><span><i /><b>{statusLabel(runtime.status)}</b></span><em>{runtime.selectedDevice.toUpperCase()}</em></header><p>{runtime.stage}</p>{runtime.progress !== null && <div className="progress-line"><i style={{ width: `${runtime.progress * 100}%` }} /></div>}{runtime.error && <pre>{toUserErrorMessage(runtime.error, '运行环境异常，请尝试修复或重新安装')}</pre>}
         <dl>{runtime.windowsVcRuntimeVersion && <div><dt>VC++</dt><dd>{runtime.windowsVcRuntimeVersion}</dd></div>}<div><dt>Python</dt><dd>{runtime.pythonVersion ?? '—'}</dd></div><div><dt>PyTorch</dt><dd>{runtime.torchVersion ?? '—'}</dd></div><div><dt>CUDA</dt><dd>{runtime.cudaVersion ?? '—'}</dd></div></dl>
       </div>
       {runtime.gpu ? <div className="gpu-card"><Gauge /><span><b>{runtime.gpu.name}</b><small>驱动 {runtime.gpu.driverVersion} · {Math.round(runtime.gpu.memoryMb / 1024)} GB 显存</small></span></div> : <div className="gpu-card muted"><Gauge /><span><b>{runtime.selectedDevice === 'mps' ? 'Apple MPS 加速' : '未检测到 NVIDIA GPU'}</b><small>{runtime.selectedDevice === 'mps' ? '将使用 Apple 芯片 GPU；不可用时自动切换 CPU。' : '将自动使用 CPU 完成本地分轨。'}</small></span></div>}
       <div className="runtime-actions">{changing ? <button className="outline-button" onClick={() => void window.bandbuddy.runtime.cancel()}>取消当前操作</button> : runtime.status === 'ready' ? <><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.detect())}>重新检测</button><button className="outline-button" onClick={() => void action(() => window.bandbuddy.runtime.repair())}>修复环境</button></> : <button className="primary-button" onClick={() => setConfirmInstall(true)}><Download size={17} />安装本地环境</button>}</div>
-      {confirmInstall && <div className="install-confirm"><HardDrive /><span><b>预计需要 8–15 GB 可用空间</b><small>会下载私有 CPython、Torch 和分轨资源；Windows 缺少 VC++ 运行库时会从微软下载并请求系统授权。</small></span><button className="primary-button small" disabled={busy} onClick={() => { setConfirmInstall(false); void action(() => window.bandbuddy.runtime.install()) }}>确认安装</button><button onClick={() => setConfirmInstall(false)}>稍后</button></div>}
+      {confirmInstall && <div className="install-confirm"><HardDrive /><span><b>自动检查空间并准备所需组件</b><small>所需空间根据当前配置和已有文件计算；缺少 Windows 系统组件时，会使用随软件提供的微软安装程序，并请求必要的系统授权。</small></span><button className="primary-button small" disabled={busy} onClick={() => { setConfirmInstall(false); void action(() => window.bandbuddy.runtime.install()) }}>确认安装</button><button onClick={() => setConfirmInstall(false)}>稍后</button></div>}
       <div className="danger-actions"><button onClick={() => void action(() => window.bandbuddy.runtime.clearModel())}>清理分轨资源缓存</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(false))}>卸载环境</button><button onClick={() => void action(() => window.bandbuddy.runtime.remove(true))}>环境与分轨资源全部清理</button></div>
       <div className="settings-grid"><label>首选计算设备<Select value={draft.preferredDevice} onChange={(event) => setDraft({ ...draft, preferredDevice: event.target.value as AppSettings['preferredDevice'] })}><option value="auto">自动：CUDA → MPS → CPU</option><option value="cuda">NVIDIA CUDA（不可用时回退）</option><option value="mps">Apple MPS（不可用时回退）</option><option value="cpu">CPU</option></Select></label></div>
+      {runtime.gpu && window.bandbuddy.environment && <button className="outline-button" onClick={() => void window.bandbuddy.environment?.openAction('driver')}>查看官方显卡驱动</button>}
+      </details>
     </section>
     </SettingsGroup>
     <SettingsGroup title="音频与录音" description="播放输出、录音设备、延迟与输入测试" summary={`${draft.latencyMode === 'interactive' ? '低延迟' : draft.latencyMode === 'balanced' ? '平衡延迟' : '稳定播放'} · ${draft.recordingAudio.inputChannelMode === 'mono' ? '单声道输入' : '立体声输入'}`} icon={<AudioLines />} {...groupProps('audio')}>
@@ -517,10 +532,10 @@ export function SettingsDrawer({
         <label>代理<Select value={draft.network.proxyMode} onChange={(event) => patchNetwork({ proxyMode: event.target.value as AppSettings['network']['proxyMode'] })}><option value="system">使用系统代理</option><option value="manual">手动代理</option><option value="none">不使用代理</option></Select></label>
         {draft.network.proxyMode === 'manual' && <label>代理地址<input type="password" autoComplete="off" value={draft.network.proxyUrl} onChange={(event) => patchNetwork({ proxyUrl: event.target.value })} placeholder="https://user:password@host:port" /></label>}
       </div>
-      <label>CPython 安装镜像<input value={draft.network.pythonInstallMirror} onChange={(event) => patchNetwork({ pythonInstallMirror: event.target.value })} placeholder="留空使用 uv 官方源" /></label>
+      <details><summary>旧版环境的自定义下载源</summary><label>CPython 安装镜像<input value={draft.network.pythonInstallMirror} onChange={(event) => patchNetwork({ pythonInstallMirror: event.target.value })} placeholder="留空使用 uv 官方源" /></label>
       <label>Python 包镜像<input value={draft.network.pythonIndexUrl} onChange={(event) => patchNetwork({ pythonIndexUrl: event.target.value })} /></label>
       <label>PyTorch wheel 源<input value={draft.network.pytorchIndexUrl} onChange={(event) => patchNetwork({ pytorchIndexUrl: event.target.value })} placeholder="留空由 uv 自动选择官方后端" /></label>
-      <p className="security-note"><ShieldCheck size={13} />Python 与桌面工具可使用所选镜像；分轨权重始终从固定仓库下载并按内置清单校验，代理凭据不会写入日志。</p>
+      </details><p className="security-note"><ShieldCheck size={13} />新版环境使用经过校验的固定组件清单，按所选来源优先级自动换源。代理设置用于全部组件下载。</p>
     </section>
     </SettingsGroup>
     <SettingsGroup title="存储与诊断" description="数据目录、调试日志与故障排查" summary={`Debug ${draft.debugMode ? '已开启' : '已关闭'}`} icon={<FolderOpen />} {...groupProps('storage')}>

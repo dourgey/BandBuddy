@@ -5,6 +5,18 @@ import { RuntimeManager } from '../src/main/runtime.js'
 vi.mock('electron', () => ({ net: {} }))
 
 describe('on-demand runtime detection', () => {
+  it('cancels a running background probe for live audio without declaring the old environment broken', async () => {
+    const runtime = new RuntimeManager({} as never, { getSettings: () => ({ preferredDevice: 'auto', runtimeRoot: '/runtime', modelRoot: '/models' }) } as never, {} as never)
+    const previous = runtime.getInfo()
+    const probe = vi.spyOn(runtime as unknown as { performDetection(signal: AbortSignal): Promise<RuntimeInfo> }, 'performDetection').mockImplementation(signal => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })))
+    const detection = runtime.detect()
+    await vi.waitFor(() => expect(probe).toHaveBeenCalledOnce())
+    runtime.cancelInstall()
+    expect(await detection).toEqual(previous)
+    probe.mockResolvedValue(previous)
+    await runtime.detect()
+    expect(probe).toHaveBeenCalledTimes(2)
+  })
   it('does not probe on construction, coalesces requests, and detects changed configuration', async () => {
     const settings = { preferredDevice: 'auto', runtimeRoot: '/runtime', modelRoot: '/models' }
     const runtime = new RuntimeManager({} as never, { getSettings: () => settings } as never, {} as never)

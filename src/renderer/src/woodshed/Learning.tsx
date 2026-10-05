@@ -1,6 +1,6 @@
 import { NotationBody } from './NotationBody.js'
 import { useEffect, useState } from 'react'
-import { BookOpen, ChevronRight, Guitar, AudioLines, Music2, Drum, Piano, KeyboardMusic } from 'lucide-react'
+import { BookOpen, ChevronRight, Guitar, AudioLines, Music2, Drum, Piano, KeyboardMusic, SlidersHorizontal } from 'lucide-react'
 import { LEARNING_SYSTEMS, type KnowledgeReference, type ReadingSystem, type SystemId } from './knowledge.js'
 import { PRACTICE_EXERCISES, type PracticeLocation } from './practice-curriculum.js'
 import { ENSEMBLE_EXERCISES, ENSEMBLE_INSTRUMENTS, ENSEMBLE_PREREQUISITES } from './ensemble-curriculum.js'
@@ -12,8 +12,9 @@ import './learning.css'
 import './ensemble.css'
 
 export interface LearningLocation { system: SystemId | null; node: string | null; view?: LessonInstrument }
-const icons = { shared: BookOpen, guitar: Guitar, bass: AudioLines, ukulele: Guitar, blues: Music2, drums: Drum, piano: Piano, keyboard: KeyboardMusic, ensemble: BookOpen }
-const variants = (system: SystemId) => system === 'guitar' ? LESSON_INSTRUMENTS.slice(0, 2) : ['shared', 'ensemble', 'blues'].includes(system) ? LESSON_INSTRUMENTS : LESSON_INSTRUMENTS.filter(i => i.id === system)
+const icons = { shared: BookOpen, guitar: Guitar, bass: AudioLines, ukulele: Guitar, blues: Music2, drums: Drum, piano: Piano, keyboard: KeyboardMusic, synth: SlidersHorizontal, ensemble: BookOpen }
+// Synthesis has its own reading route and uses pitched keyboard notation when needed.
+const variants = (system: SystemId) => system === 'guitar' ? LESSON_INSTRUMENTS.slice(0, 2) : ['shared', 'ensemble', 'blues'].includes(system) ? LESSON_INSTRUMENTS : LESSON_INSTRUMENTS.filter(i => i.id === (system === 'synth' ? 'keyboard' : system))
 export const practiceInstrumentForView = (view: LessonInstrument): NonNullable<PracticeLocation['instrument']> => view.startsWith('guitar-') ? 'guitar' : view as NonNullable<PracticeLocation['instrument']>
 
 export function LearningBreadcrumb({ location, onNavigate }: { location: LearningLocation; onNavigate: (next: LearningLocation) => void }): React.JSX.Element {
@@ -45,6 +46,7 @@ export function Learning({ location, onNavigate, onPractice }: { location: Learn
   if (!node) return <div className="ws-learning-map">
     <h2>{system.title}</h2>
     {options.length > 1 && <LessonTabs value={selected} onChange={select} options={options}><p className="ws-version-intro">{system.context} 正文将显示{options.find(o => o.id === selected)!.label}的讲解与示例。</p></LessonTabs>}
+    {system.id === 'synth' && <p className="ws-version-intro">{system.context}</p>}
     <ol className="ws-knowledge-roadmap" aria-label={`${system.title}知识路线图`}>{system.stages.map((stage, i) => <li key={stage.title}>
       <div className="ws-stage-label"><span>{String(i + 1).padStart(2, '0')}</span><h3>{stage.title}</h3></div>
       <div className="ws-knowledge-nodes">{stage.goal && <p className="ws-stage-goal">阶段成果：{stage.goal}</p>}{stage.nodes.map(n => <button key={n.id} onClick={() => onNavigate({ system: system.id, node: n.id, view: selected })}>{n.title}<ChevronRight size={14} /></button>)}</div>
@@ -73,21 +75,21 @@ function LessonArticle({ node, system, view, select, onPractice, onNavigate }: {
   const nodes = system.stages.flatMap(s => s.nodes), index = nodes.findIndex(n => n.id === node.id)
   const media = (lesson?.scores ?? []).filter(s => !s.instruments || s.instruments.includes(view))
   const diagrams = (lesson?.diagrams ?? []).filter(d => !d.instruments || d.instruments.includes(view))
-  return <NotationBody instrument={view} className="ws-knowledge-article" aria-busy={!lesson && !error}>
+  return <NotationBody instrument={view} showStaffControl={system.id !== 'synth' || media.length > 0} className="ws-knowledge-article" aria-busy={!lesson && !error}>
     <h2>{node.title}</h2><p className="ws-knowledge-context">{system.context}</p>
     {error ? <div role="alert"><p>{error}</p><button onClick={() => setAttempt(x => x + 1)}>重新加载教材</button></div> : !lesson ? <p role="status">正在加载教材…</p> : <>
       <p className="ws-lesson-summary">{lesson.summary}</p>
       <section className="ws-lesson-objectives"><h3>读完这一课</h3><ul>{lesson.objectives.map(item => <li key={item}>{item}</li>)}</ul></section>
       {options.length > 1 ? <LessonTabs value={view} onChange={select} options={options}><LessonContextContent context={context} label={options.find(o => o.id === view)!.label} /></LessonTabs> : context && <LessonContextContent context={context} label={options[0]!.label} />}
       {lesson.sections.map((section, i) => <section key={i}><h3>{section.title}</h3>{section.paragraphs.map((p, j) => <p key={j}>{p}</p>)}</section>)}
-      {diagrams.map(d => <figure className="ws-knowledge-figure" key={d.src}><img src={lessonDiagramUrl(d.src)} alt={d.alt} /><figcaption>{d.caption}</figcaption></figure>)}
+      {diagrams.map(d => <figure className={`ws-knowledge-figure${system.id === 'synth' ? ' ws-synth-figure' : ''}`} key={d.src}><div className="ws-lesson-diagram-scroll" role="region" aria-label={d.alt} tabIndex={0}><img src={lessonDiagramUrl(d.src)} alt={d.alt} /></div><figcaption>{d.caption}</figcaption></figure>)}
       <section><h3>把概念放进例子</h3><p>{context?.example ?? lesson.example}</p></section>
       {media.map(score => <LessonNotation key={score.src} score={score} />)}
       <section><h3>一步一步做</h3><ol className="ws-lesson-steps">{(context?.steps ?? lesson.steps).map((step, i) => <li key={i}>{step}</li>)}</ol></section>
       <section><h3>听到问题时怎样排查</h3><dl className="ws-lesson-mistakes">{lesson.mistakes.map((m, i) => <div key={i}><dt>{m.problem}</dt><dd>{m.correction}</dd></div>)}</dl></section>
       <section><h3>自检与复述</h3><ul>{lesson.checks.map((check, i) => <li key={i}>{check}</li>)}</ul></section>
       {lesson.references && <details className="ws-lesson-references"><summary>延伸阅读与资料来源</summary><ul>{lesson.references.map(ref => <li key={ref.url}><a href={ref.url} target="_blank" rel="noreferrer">{ref.title}</a></li>)}</ul></details>}
-      {onPractice && <section className="ws-lesson-practice-links"><h3>相关专项练习</h3>{related.length ? related.map(e => <button className="ws-knowledge-practice" key={e.id} onClick={() => onPractice({ instrument, exercise: e.id, view })}>{e.title}<ChevronRight size={14} /></button>) : <button className="ws-knowledge-practice" onClick={() => onPractice({ instrument, exercise: null, view })}>前往{LESSON_INSTRUMENTS.find(i => i.id === view)!.label}专项练习<ChevronRight size={14} /></button>}</section>}
+      {onPractice && system.id !== 'synth' && <section className="ws-lesson-practice-links"><h3>相关专项练习</h3>{related.length ? related.map(e => <button className="ws-knowledge-practice" key={e.id} onClick={() => onPractice({ instrument, exercise: e.id, view })}>{e.title}<ChevronRight size={14} /></button>) : <button className="ws-knowledge-practice" onClick={() => onPractice({ instrument, exercise: null, view })}>前往{LESSON_INSTRUMENTS.find(i => i.id === view)!.label}专项练习<ChevronRight size={14} /></button>}</section>}
       <nav className="ws-lesson-pagination" aria-label="教材章节">{index > 0 && <button onClick={() => onNavigate({ system: system.id, node: nodes[index - 1]!.id, view })}>上一课 · {nodes[index - 1]!.title}</button>}{index + 1 < nodes.length && <button onClick={() => onNavigate({ system: system.id, node: nodes[index + 1]!.id, view })}>下一课 · {nodes[index + 1]!.title}</button>}</nav>
     </>}
   </NotationBody>

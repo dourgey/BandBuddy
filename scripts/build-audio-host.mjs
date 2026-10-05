@@ -39,6 +39,8 @@ function run(command, args) {
 }
 
 if (process.env.BANDBUDDY_SKIP_AUDIO_HOST !== '1') {
+  run(process.execPath, [path.join(root, 'scripts', 'build-system-helper.mjs')])
+  run(process.execPath, [path.join(root, 'scripts', 'fetch-prerequisites.mjs')])
   const cmake = resolveCmakeExecutable()
   mkdirSync(buildRoot, { recursive: true })
   mkdirSync(outputRoot, { recursive: true })

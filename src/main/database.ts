@@ -286,6 +286,7 @@ export interface StoredStemInput {
 }
 
 export interface GuitarSplitJobPayload {
+  environmentRepairs?: number
   sourceRelPath: string
   storageFormat: StemStorageFormat
   guitarQuality?: GuitarSeparationQuality

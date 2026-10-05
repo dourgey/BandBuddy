@@ -498,6 +498,8 @@ export interface GpuInfo {
 }
 
 export interface RuntimeInfo {
+  downloadedBytes?: number
+  downloadTotalBytes?: number | null
   status: RuntimeStatus
   stage: string
   progress: number | null

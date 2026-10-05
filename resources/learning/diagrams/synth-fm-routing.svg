@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 390" role="img" aria-labelledby="title desc">
+  <title id="title">两运算器 FM 的控制结构</title>
+  <desc id="desc">调制器通过深度控制载波的频率或在部分数字实现中控制相位，载波送到音频输出；调制器包络改变频谱演化，载波包络控制响度轮廓。运算器的载波或调制器角色取决于算法连接。</desc>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#496d64"/></marker></defs>
+  <rect width="640" height="390" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#39352c" text-anchor="middle">
+    <text x="320" y="38" font-size="23" font-weight="bold">两运算器：角色由连接决定</text>
+    <g fill="#e5ebe2" stroke="#8fa397"><rect x="45" y="76" width="200" height="65" rx="8"/><rect x="375" y="76" width="220" height="65" rx="8"/><rect x="375" y="212" width="220" height="60" rx="8"/></g>
+    <g font-size="21"><text x="145" y="103">调制器 M</text><text x="145" y="129" font-size="16">频率比率 / 输出量</text><text x="485" y="103">载波 C</text><text x="485" y="129" font-size="16">通向音频输出的运算器</text><text x="485" y="249">音频输出</text></g>
+    <g fill="none" stroke="#496d64" stroke-width="3" marker-end="url(#a)"><path d="M245 109H370"/><path d="M485 141V207"/></g>
+    <g font-size="16" fill="#496d64"><text x="310" y="91">调制深度</text><text x="145" y="188">M 的包络</text><text x="145" y="214">影响频谱怎样变化</text><text x="322" y="177">C 的包络</text><text x="314" y="201">影响振幅轮廓</text></g>
+    <text x="320" y="319" font-size="17">比率决定频率关系；深度影响边带的分布和强弱。</text>
+    <text x="320" y="353" font-size="15">部分数字“FM”通过相位调制实现；两者并非任意条件下等同。</text>
+  </g>
+</svg>

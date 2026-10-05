@@ -12,6 +12,14 @@ asar: true
 asarUnpack:
   - node_modules/better-sqlite3/**/*
 extraResources:
+  - from: resources/system-helper
+    to: system-helper
+  - from: resources/prerequisites
+    to: prerequisites
+  - from: resources/runtime-catalog
+    to: runtime-catalog
+  - from: resources/model-catalog.json
+    to: model-catalog.json
   - from: resources/runtime-wheels.json
     to: runtime-wheels.json
   - from: python/runtime

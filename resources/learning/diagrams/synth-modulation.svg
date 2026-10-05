@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 390" role="img" aria-labelledby="title desc">
+  <title id="title">调制的来源、深度、目标和极性</title>
+  <desc id="desc">目标参数由基础值加上调制源乘深度得到概念上的变化；双极调制围绕基准上下移动，单极调制由零向一个方向移动；多个调制会叠加并受参数范围限制。</desc>
+  <rect width="640" height="390" rx="16" fill="#f7f4ed"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#39352c" text-anchor="middle">
+    <text x="320" y="38" font-size="23" font-weight="bold">先问：谁，在改变什么，改变多少？</text>
+    <g fill="#e5ebe2" stroke="#8fa397"><rect x="25" y="68" width="165" height="64" rx="8"/><rect x="237" y="68" width="166" height="64" rx="8"/><rect x="450" y="68" width="165" height="64" rx="8"/></g>
+    <g font-size="20"><text x="108" y="94">来源</text><text x="108" y="120" font-size="16">LFO / 包络 / 手势</text><text x="214" y="107">×</text><text x="320" y="107">深度与正负号</text><text x="426" y="107">→</text><text x="532" y="94">目标</text><text x="532" y="120" font-size="16">截止 / 音高 / 音量</text></g>
+    <text x="320" y="169" font-size="18">目标参数 ≈ 基础值 + 来源 × 深度（概念示意）</text>
+    <g stroke="#aaa392" stroke-dasharray="5 5"><path d="M45 247H292M347 284H595"/></g>
+    <g fill="none" stroke="#496d64" stroke-width="3"><path d="M45 247Q75 170 105 247T165 247T225 247T285 247"/><path d="M347 284L400 206L472 253H550L595 284"/></g>
+    <g font-size="17"><text x="167" y="320">双极：围绕零点上下变化</text><text x="471" y="320">单极：从零向一侧变化</text></g>
+    <text x="320" y="358" font-size="15">设备可能按八度、分贝或内部刻度映射，并限制最终参数范围。</text>
+  </g>
+</svg>

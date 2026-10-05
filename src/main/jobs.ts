@@ -30,6 +30,7 @@ interface SeparationPayload {
   deviceOverride?: 'cuda' | 'mps' | 'cpu'
   enableGuitarSplitOnSuccess?: boolean
   guitarQuality?: GuitarSeparationQuality
+  environmentRepairs?: number
 }
 
 interface NormalizePayload {
@@ -356,6 +357,19 @@ export class JobScheduler {
     }
 
     let result = await execute()
+    if (result.code !== 0 && !signal.aborted && (payload.environmentRepairs ?? 0) < 1
+      && /PYTHON_MISSING|MODEL_.*(?:MISSING|HASH|SIZE|INVALID)|DEPENDENCIES_INCOMPLETE|DLL|WinError|WINDOWS_NATIVE|3221225781|3221225794|3221225477|-1073741819/i.test(`${workerErrorCode ?? ''}:${result.error ?? ''}`)) {
+      payload = { ...payload, environmentRepairs: 1 }
+      this.database.updateJobPayload(jobId, payload)
+      this.setJobState(jobId, 'preparing', '正在恢复分轨组件，任务会自动继续', preparationProgress)
+      const nativeFailure = /DLL|WinError|WINDOWS_NATIVE|3221225781|3221225794|3221225477|-1073741819/i.test(result.error ?? '')
+      const repaired = await this.runtime.recoverWorker?.(nativeFailure && selected !== 'cpu')
+      if (!repaired) throw new Error('RUNTIME_RECOVERY_PENDING')
+      signal.throwIfAborted()
+      selected = this.runtime.getInfo().selectedDevice
+      await rm(workerRoot, { recursive: true, force: true }); mkdirSync(workerRoot, { recursive: true })
+      result = await execute()
+    }
     let fallback = fallbackComputeDevice(selected, process.platform, workerErrorCode)
     while (result.code !== 0 && fallback && !signal.aborted) {
       selected = fallback
@@ -466,6 +480,10 @@ export class JobScheduler {
 
   private async handleFailure(job: JobRecord, error: unknown, cancelled: boolean): Promise<void> {
     const text = String(error)
+    if (!cancelled && text.includes('RUNTIME_RECOVERY_PENDING')) {
+      this.setJobState(job.id, 'blockedRuntime', '等待组件就绪后自动继续', 0, 'RUNTIME_RECOVERY_PENDING', null)
+      return
+    }
     const classified = classifyJobError(error, cancelled)
     const isCancelled = classified.cancelled
     const code = classified.code

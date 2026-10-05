@@ -1,3 +1,4 @@
+import { arsenalDestination, retainArsenalSink } from './arsenal/native-output.js'
 import { clearTrackLevels, publishTrackLevel } from './track-levels.js'
 import {
   DEFAULT_OUTPUT_CHANNEL_PAIR,
@@ -111,6 +112,7 @@ export async function setAudioContextOutputDevice(
   deviceId: string
 ): Promise<void> {
   if (!context) return
+  if (retainArsenalSink(context,deviceId)) return
   const sinkSelector = context as AudioContextSinkSelector
   if (typeof sinkSelector.setSinkId !== 'function') {
     if (deviceId) throw new Error('AUDIO_OUTPUT_DEVICE_SELECTION_UNSUPPORTED')
@@ -680,13 +682,13 @@ export class MultiTrackAudioEngine {
     this.master.channelInterpretation = 'discrete'
     this.outputMerger.connect(this.master)
     if (this.routableOutputChannels === 2) {
-      this.master.connect(this.compressor).connect(context.destination)
+      this.master.connect(this.compressor).connect(arsenalDestination(context))
       // Keeps the 1-2 pair and the limiter, but skips the master gain.
       this.metronomeMerger.connect(this.compressor)
     } else {
       // DynamicsCompressorNode is limited to stereo by the Web Audio spec.
-      this.master.connect(context.destination)
-      this.metronomeMerger.connect(context.destination)
+      this.master.connect(arsenalDestination(context))
+      this.metronomeMerger.connect(arsenalDestination(context))
     }
     this.rebuildOutputRoutes()
   }

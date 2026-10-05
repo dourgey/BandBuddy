@@ -27,6 +27,7 @@ import { nextLoopState, restartPositionMs } from '@shared/playback.js'
 import { MultiTrackAudioEngine } from './audio-engine.js'
 import { confirmAction } from './components/ui/confirm.js'
 import { Header } from './components/Header.js'
+import { EnvironmentStatus, ENVIRONMENT_SETTINGS_EVENT } from './components/EnvironmentStatus.js'
 import { PlayerBar } from './components/PlayerBar.js'
 import { fixtureDetail, fixtureSongs } from './fixtures.js'
 import { usePlayerStore, useRecordingMeterStore } from './player-store.js'
@@ -34,6 +35,7 @@ import { LibraryPage } from './pages/LibraryPage.js'
 const PracticeRoom = lazy(() => import('./pages/PracticeRoom.js').then((module) => ({ default: module.PracticeRoom })))
 const RehearsalRoom = lazy(() => import('./pages/RehearsalRoom.js').then((module) => ({ default: module.RehearsalRoom })))
 const ArsenalPage = lazy(() => import('./pages/ArsenalPage.js').then((module) => ({ default: module.ArsenalPage })))
+import { GlobalMonitor } from './arsenal/GlobalMonitor.js'
 import { loadStartupAudioSettings, reconcileStartupAudioSettings } from './startup-audio-devices.js'
 import { clamp, isCancellationError, silenceToggle, toUserErrorMessage } from './utils.js'
 import './playback-media.css'
@@ -85,6 +87,7 @@ export default function App(): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [environmentSettingsCategory, setEnvironmentSettingsCategory] = useState<'network' | 'storage' | 'audio'>()
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [metadataOpen, setMetadataOpen] = useState(false)
@@ -92,6 +95,16 @@ export default function App(): React.JSX.Element {
   const [songActionsOpen, setSongActionsOpen] = useState(false)
   const [actionSong, setActionSong] = useState<SongSummary | null>(null)
   const [toast, setToast] = useState('')
+  useEffect(() => {
+    const open = (event: Event): void => {
+      const category = (event as CustomEvent).detail
+      if (!['network', 'storage', 'audio'].includes(category)) return
+      if (globallyRecording || rehearsalRecordingLocked) { setToast('请在录音结束后调整设备、网络或存储设置'); return }
+      setEnvironmentSettingsCategory(category); setSettingsOpen(true)
+    }
+    window.addEventListener(ENVIRONMENT_SETTINGS_EVENT, open)
+    return () => window.removeEventListener(ENVIRONMENT_SETTINGS_EVENT, open)
+  }, [globallyRecording, rehearsalRecordingLocked])
   const [guitarSplitJob, setGuitarSplitJob] = useState<{ songId: string; jobId: string } | null>(null)
   const [guitarSplitReadySongId, setGuitarSplitReadySongId] = useState<string | null>(null)
   const [fixtureGuitarReadyDismissed, setFixtureGuitarReadyDismissed] = useState(false)
@@ -182,6 +195,8 @@ export default function App(): React.JSX.Element {
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
         interactiveMeasured.current = true
+        void window.bandbuddy.startup?.interactive?.()
+        void window.bandbuddy.environment?.prepare().catch(() => {})
         performance.mark('bandbuddy:library-interactive')
         console.info(`BAND_BUDDY_METRIC ${JSON.stringify({ phase: 'library-interactive', navigationMs: performance.now() })}`)
       })
@@ -769,6 +784,7 @@ export default function App(): React.JSX.Element {
   }
 
   return <div className="app-shell">
+    <GlobalMonitor visible={view !== 'arsenal'} onOpen={() => void changeView('arsenal')} />
     <Header
       view={view}
       recording={globallyRecording}
@@ -777,6 +793,7 @@ export default function App(): React.JSX.Element {
       onTasks={() => setTasksOpen(true)}
       onSettings={() => globallyRecording ? setAppearanceOpen(true) : setSettingsOpen(true)}
     />
+    <EnvironmentStatus compact start />
     <Suspense fallback={<main className="page"><p role="status">正在打开…</p></main>}>
     {(visitedRooms.woodshed || view === 'woodshed') && <div className="kept-audio-page" style={{ display: view === 'woodshed' ? 'contents' : 'none' }} aria-hidden={view !== 'woodshed'} inert={view !== 'woodshed'}><WoodshedPage active={view === 'woodshed'} outputDeviceId={settings?.audioOutputDeviceId} onToast={setToast} /></div>}
     {view !== 'library' && audioSettingsQuery.isPending ? <main className="page" role="status"><p>正在检测音频设备…</p></main> : view === 'arsenal' ? <ArsenalPage onToast={setToast} /> : view === 'library' ? <LibraryPage
@@ -836,7 +853,7 @@ export default function App(): React.JSX.Element {
     {importOpen && <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={(songId) => { setTasksOpen(true); void client.invalidateQueries({ queryKey: ['songs'] }); setToast(`歌曲已加入曲库 · ${songId.slice(0, 8)}`) }} onOpenDuplicate={(songId) => void openSong(songId)} onNeedsRuntime={() => { if (runtime?.status !== 'ready') setTasksOpen(true) }} />}
     {tasksOpen && <TasksDrawer open={tasksOpen} onOpenChange={setTasksOpen} jobs={tasks} runtime={runtime} onRefresh={() => void tasksQuery.refetch()} />}
     {appearanceOpen && <AppearanceDialog open={appearanceOpen} onOpenChange={setAppearanceOpen} />}
-    {settingsOpen && runtime && settings && <SettingsDrawer recordingBusy={globallyRecording || rehearsalRecordingLocked} open={settingsOpen} onOpenChange={setSettingsOpen} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
+    {settingsOpen && runtime && settings && <SettingsDrawer initialCategory={environmentSettingsCategory} recordingBusy={globallyRecording || rehearsalRecordingLocked} open={settingsOpen} onOpenChange={open => { setSettingsOpen(open); if (!open) setEnvironmentSettingsCategory(undefined) }} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
       client.setQueryData(['settings'], saved)
       if (client.getQueryData(['audio-settings'])) client.setQueryData(['audio-settings'], saved)
       void engine.current.setOutputDevice(saved.audioOutputDeviceId)

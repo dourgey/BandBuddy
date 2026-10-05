@@ -562,6 +562,7 @@ export function Workbench({
       )}
       {!metronomeOnly && generated.data && c.hint !== 'none' && (
         <Score
+          currentBar={frame.bar}
           events={generated.data.events}
           tuning={tuning}
           config={c}

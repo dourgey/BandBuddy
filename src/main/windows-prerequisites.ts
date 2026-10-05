@@ -1,4 +1,7 @@
 import type { ProcessResult } from './process.js'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { systemHelperPath } from './system-helper.js'
 
 export const VC_RUNTIME_MIN_VERSION = '14.44.0.0'
 export const VC_RUNTIME_DOWNLOAD_URL = 'https://aka.ms/vc14/vc_redist.x64.exe'
@@ -46,7 +49,13 @@ export function parseVcRuntimeRegistry(output: string, minimum = VC_RUNTIME_MIN_
 
 export async function detectWindowsVcRuntime(run: ProcessRunner): Promise<WindowsVcRuntimeInfo> {
   try {
-    const result = await run('reg.exe', ['query', VC_RUNTIME_REGISTRY_KEY, '/reg:64'], { timeoutMs: 8_000 })
+    const helper = systemHelperPath()
+    if (existsSync(helper)) {
+      const result = await run(helper, ['vc-runtime'], { timeoutMs: 8_000 })
+      const data = JSON.parse(result.stdout) as { installed: boolean; version: string }
+      return { installed: data.installed === true, version: data.version || null, supported: result.code === 0 && data.installed === true && compareRuntimeVersions(data.version, VC_RUNTIME_MIN_VERSION) >= 0 }
+    }
+    const result = await run(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'reg.exe'), ['query', VC_RUNTIME_REGISTRY_KEY, '/reg:64'], { timeoutMs: 8_000 })
     if (result.code !== 0) return { installed: false, version: null, supported: false }
     return parseVcRuntimeRegistry(result.stdout)
   } catch {
@@ -71,5 +80,5 @@ export function isTrustedMicrosoftSignature(info: AuthenticodeInfo | null): bool
 
 export function isWindowsNativeRuntimeError(error: unknown): boolean {
   const text = error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)
-  return /WinError\s*(?:1114|126)|c10\.dll|MSVCP140(?:_\d+)?\.dll|VCRUNTIME140(?:_\d+)?\.dll|DLL initialization routine failed|动态链接库\s*\(DLL\)\s*初始化例程失败/i.test(text)
+  return /WinError\s*(?:1114|126)|3221225781|3221225794|-1073741515|-1073741502|c10\.dll|MSVCP140(?:_\d+)?\.dll|VCRUNTIME140(?:_\d+)?\.dll|DLL initialization routine failed|动态链接库\s*\(DLL\)\s*初始化例程失败/i.test(text)
 }

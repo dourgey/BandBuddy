@@ -108,8 +108,9 @@ function MonitorReadout(): React.JSX.Element {
   }, [])
   const peak = Math.max(0, Math.min(1, state.active ? state.outputPeak : 0))
   return <span className="arsenal-monitor-readout">
+    <span className="arsenal-level-meter" role="meter" aria-label="实时输入电平" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1,Math.max(0,...state.peak))*100)} title="输入"><span style={{width:`${Math.min(1,Math.max(0,...state.peak))*100}%`}}/></span>
     <span className="arsenal-level-meter" role="meter" aria-label="实时输出电平" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(peak * 100)}><span style={{ width: `${peak * 100}%` }} /></span>
-    <small>{state.active ? `${state.mode === 'wet' ? '效果' : '干声'}监听 · ${state.sampleRate / 1000} kHz · ${state.bufferFrames} frames · ${state.latencyMs.toFixed(1)} ms` : '未监听'}{state.xruns > 0 ? ` · ${state.xruns} 次中断` : ''}</small>
+    <small title="驱动报告延迟 + DSP 固定延迟，未包含声卡 AD/DA 实测延迟">{state.active ? `${state.mode === 'wet' ? '效果' : '干声'} · ${state.sampleRate / 1000} kHz · ${state.bufferFrames} frames · ${(state.latencyMs+(state.mode==='wet'?(state.dspLatencyMs??0):0)).toFixed(1)} ms · DSP ${Math.round((state.dspLoad??0)*100)}%` : '未监听'}{state.xruns > 0 ? ` · ${state.xruns} 次中断` : ''}</small>
     {state.error && <small role="alert">{state.error}</small>}
   </span>
 }

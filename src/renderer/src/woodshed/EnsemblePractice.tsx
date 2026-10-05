@@ -26,6 +26,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
  const [error, setError] = useState(''), [log, setLog] = useState(() => readLog(exercise.id))
  const [synth, setSynth] = useState({ attack: .008, decay: .2, sustain: .65, release: .12, cutoff: 8000, waveform: 'triangle' as OscillatorType, lfoRate: 3, lfoDepth: 0, lfoTarget: 'pitch' as 'pitch' | 'volume' | 'filter' })
  const engine = useRef<EnsembleAudio | null>(null), animation = useRef(0), token = useRef(0), host = useRef<HTMLDivElement>(null), clock = useRef<HTMLOutputElement>(null)
+ const [currentBar, setCurrentBar] = useState(1)
  const [generated, setGenerated] = useState<ScoreData | null>(null)
  const score = generated ?? exercise.variants[variantIndex]
  const canRefresh = ['C03-01','C03-03','C03-05','C02-03','C06-01','P02-05','D08-01'].includes(exercise.sourceId)
@@ -47,7 +48,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
  const start = async (): Promise<void> => {
   const audio = engine.current
   if (!audio) return
-  stop(); const ticket = ++token.current; setBusy(true); setError(''); setSeconds(0)
+  stop(); const ticket = ++token.current; setBusy(true); setError(''); setSeconds(0); setCurrentBar(1)
   try {
    if (musical) {
     const options: EnsemblePlayback = { bpm, demo: (demo || isSynth) && !!activeScore, countIn, silentBars, clickEvery, ...synth }
@@ -63,6 +64,7 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
     setSeconds(old => old === elapsed ? old : elapsed)
     const data = activeScore ?? timedTask, length = measureBeats(data.meter), position = audio.position
     const local = position >= 0 ? position % (length * data.bars) : -1
+    setCurrentBar(local < 0 ? 1 : Math.floor(local / length) + 1)
     const events = !audio.silent && local >= 0 && !hidden ? data.events.filter(e => local >= e.beat && local < e.beat + e.duration) : []
     const identity = events.map(e => e.id).join('|')
     if (identity !== previous) {
@@ -71,8 +73,6 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
       host.current?.querySelectorAll(`[data-ensemble-event="${e.id}"]`).forEach(n => n.classList.add('ensemble-active'))
       for (const midi of e.notes) host.current?.querySelectorAll(`[data-ensemble-midi="${midi}"]`).forEach(n => n.classList.add('ensemble-active'))
      }
-     const note = host.current?.querySelector('.ensemble-active'), scroller = host.current?.querySelector('.ensemble-score .ws-musicxml-score')
-     if (note && scroller) { const box = note.getBoundingClientRect(), viewport = scroller.getBoundingClientRect(); if (box.bottom > viewport.bottom || box.top < viewport.top) scroller.scrollTo({ top: scroller.scrollTop + box.top - viewport.top - 35 }) }
      previous = identity
     }
     if (clock.current) clock.current.textContent = !musical ? '任务进行中' : audio.silent ? '静音小节 · 内心数拍' : position < 0 ? '预备拍' : `第 ${Math.floor(local / length) + 1} 小节 · 第 ${Math.floor(local % length / data.beatUnit) + 1} 拍`
@@ -87,15 +87,15 @@ export function EnsemblePractice({ exercise, outputDeviceId, onError, onKnowledg
  return <NotationBody instrument={exercise.instrument} className="ws-practice-detail ensemble-practice">
   <header className="ws-practice-title"><small>{exercise.sourceId} · {kindNames[exercise.kind]} · 建议 S{exercise.stage}{exercise.sourceId.startsWith('K11') ? ' · 可选支线' : ''}</small><h2>{exercise.title}</h2><p>{exercise.method}</p>
    <div className="ws-practice-variants" role="group" aria-label="练习变体">
-    {exercise.variants.map((v, i) => <button key={v.name} disabled={running || busy} aria-pressed={!generated && variantIndex === i} onClick={() => { setGenerated(null); setVariantIndex(i); setSeconds(0) }}>{hidden && exercise.kind === 'listening' ? `材料 ${i + 1}` : v.name}</button>)}
-    {canRefresh && <button disabled={running || busy} onClick={() => { setGenerated(freshMaterial(exercise.instrument, Date.now(), exercise.sourceId === 'C03-03')); setHidden(exercise.kind === 'listening'); setSeconds(0) }}>换一组陌生材料</button>}
+    {exercise.variants.map((v, i) => <button key={v.name} disabled={running || busy} aria-pressed={!generated && variantIndex === i} onClick={() => { setGenerated(null); setVariantIndex(i); setSeconds(0); setCurrentBar(1) }}>{hidden && exercise.kind === 'listening' ? `材料 ${i + 1}` : v.name}</button>)}
+    {canRefresh && <button disabled={running || busy} onClick={() => { setGenerated(freshMaterial(exercise.instrument, Date.now(), exercise.sourceId === 'C03-03')); setHidden(exercise.kind === 'listening'); setSeconds(0); setCurrentBar(1) }}>换一组陌生材料</button>}
     {!exercise.variants.length && <><button disabled={running || busy} aria-pressed={!transfer} onClick={() => setTransfer(false)}>基础任务</button><button disabled={running || busy} aria-pressed={transfer} onClick={() => setTransfer(true)}>迁移与复测</button></>}
    </div>
   </header>
   <section className="ensemble-task"><h3>{activeScore ? '当前材料' : transfer ? '迁移任务' : '执行任务'}</h3><p>{hidden && exercise.kind === 'listening' && activeScore ? '先播放并聆听参考音，再用口唱、敲击或乐器复现；停止后显示谱面核对。' : transfer ? exercise.transfer : activeScore?.description ?? exercise.material}</p>
    {!activeScore && <ol><li>{exercise.method}</li><li>先用上述短材料或一段同难度作品完成一次，记录出现问题的具体位置。</li><li>{exercise.transfer}</li></ol>}
   </section>
-  {activeScore && <><button className="ws-knowledge-practice" disabled={running || busy} onClick={() => setHidden(!hidden)}>{hidden ? '显示谱面与答案' : '隐藏谱面，先听后复现'}</button><div ref={host} className={hidden ? 'ensemble-hidden' : ''} aria-hidden={hidden}>{!hidden && <><EnsembleScore score={activeScore} drums={activeScore.events.some(e => !!e.drum)} />{activeScore.events.some(e => e.notes.length > 0) && <EnsembleKeyboard score={activeScore} />}</>}</div></>}
+  {activeScore && <><button className="ws-knowledge-practice" disabled={running || busy} onClick={() => setHidden(!hidden)}>{hidden ? '显示谱面与答案' : '隐藏谱面，先听后复现'}</button><div ref={host} className={hidden ? 'ensemble-hidden' : ''} aria-hidden={hidden}>{!hidden && <><EnsembleScore currentBar={currentBar} score={activeScore} drums={activeScore.events.some(e => !!e.drum)} />{activeScore.events.some(e => e.notes.length > 0) && <EnsembleKeyboard score={activeScore} />}</>}</div></>}
   {isSynth && <fieldset className="ensemble-synth" disabled={running || busy}><legend>单参数声音比较 · 合成参考音</legend>
    <div className="ws-practice-variants" role="group" aria-label="声源波形">{(['sine','triangle','sawtooth','square'] as const).map((wave,i)=><button key={wave} aria-pressed={synth.waveform===wave} onClick={()=>setSynth({...synth,waveform:wave})}>{['正弦','三角','锯齿','方波'][i]}</button>)}</div>
    {([['attack', '起音', .005, 1.5, .005], ['decay','衰减',.01,1,.01], ['sustain','持续电平',0,1,.05], ['release', '释放', .02, 2, .02], ['cutoff', '低通频率', 100, 10000, 100], ['lfoRate','调制速率',.1,10,.1], ['lfoDepth','调制深度',0,1,.05]] as const).map(([key, label, min, max, step]) => <label key={key}>{label}<input aria-label={label} type="range" min={min} max={max} step={step} value={synth[key]} onChange={e => setSynth({ ...synth, [key]: Number(e.target.value) })} /><output>{synth[key]}{key === 'cutoff' || key === 'lfoRate' ? ' Hz' : key === 'sustain' || key === 'lfoDepth' ? '' : ' s'}</output></label>)}

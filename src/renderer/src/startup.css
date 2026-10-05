@@ -15,5 +15,7 @@ html, body { margin: 0; background: var(--paper); color: var(--ink); }
 .startup-detail { max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--muted); margin: 12px 0; }
 .startup-error { max-width: min(640px, 90vw); max-height: 130px; overflow: auto; white-space: pre-wrap; word-break: break-word; text-align: left; color: var(--danger); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 12px; }
 .startup-error[hidden] { display: none; }
+#startup-recovery-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:12px; }
+#startup-recovery-actions button { border:1px solid var(--border); border-radius:8px; padding:8px 12px; background:var(--surface); color:var(--ink); cursor:pointer; }
 .startup-shell footer { padding: 24px; text-align: center; font-size: 11px; letter-spacing: 1px; color: var(--muted); }
 @media (max-height: 600px) { .startup-content { padding-top: 28px; }.startup-mark { width: 56px; height: 56px; font-size: 34px; margin-bottom: 20px; }.startup-content h1 { margin-bottom: 22px; } }

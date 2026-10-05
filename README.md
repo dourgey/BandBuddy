@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./build/icon.png" width="112" alt="BandBuddy 图标">
   <h1>BandBuddy</h1>
-  <p><strong>把一首歌拆成可以反复练的九条轨道。</strong></p>
+  <p><strong>分轨练歌、系统学习、调音色与录音，一起留在本机。</strong></p>
   <p>面向乐手的本地优先桌面练琴工作台 · Local-first practice workstation for musicians.</p>
   <p>
     <a href="https://github.com/dourgey/BandBuddy/releases/latest"><img src="https://img.shields.io/github/v/release/dourgey/BandBuddy?display_name=tag&sort=semver" alt="Latest release"></a>
@@ -14,13 +14,15 @@
 
 BandBuddy 的核心不是“把人声去掉”，而是让一首歌真正变得**可练**：听清目标声部、放慢困难小节、循环到肌肉记住、跟着准确节拍进入，再在下一次打开时从原来的位置继续。
 
-> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 源码版本 `2.0.0` · Windows x64 / macOS Apple Silicon
+> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载已发布版本](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 当前源码版本 `3.0.0` · Windows x64 / macOS Apple Silicon
+
+本文对应当前源码；GitHub Release 的版本与安装文件以发布页为准。主要入口包括曲库与练习室、排练、练功房和军火库。
 
 ## 从听歌到练琴
 
 ```mermaid
 flowchart LR
-  A["导入歌曲"] --> B["本地一次生成九条音轨"]
+  A["导入歌曲"] --> B["先生成六轨，再补齐三条吉他细分轨"]
   B --> C["听清：Mute / Solo / 增益"]
   C --> D["拆练：变速 / 升降调 / A–B 循环"]
   D --> E["练准：BPM / 节拍器 / 预备拍"]
@@ -42,6 +44,29 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 练习室让已生成的分轨共用一条播放时钟和同一段 A–B 区间。HTDemucs 六轨完成后歌曲就能开始练习，三条吉他细分轨会在后台继续生成；期间“吉他分轨”按钮会显示等待说明，完成后在按钮旁即时通知。打开该模式时，原 Guitar 自动静音并隐藏，切换为 Acoustic、Lead、Rhythm 三轨。所有调整都会自动保存。
 
 ## 为练琴准备的功能
+
+### 军火库：搭建音色、监听与快录
+
+![军火库工作台](./docs/qa/images/arsenal-workstation-720.png)
+
+- 从八个原生起始音色开始，或搭建最多 24 个模块的效果链；支持重复模块、拖动排序、复制、旁通和删除。
+- 使用箱头、箱体、动态、均衡、调制、延迟与混响，并可导入自己的 NAM 模型和 IR。资源逐文件校验，支持名称、标签和备注管理。
+- 保留工作台草稿，支持撤销/重做、会话内 A/B 快照、用户预设、收藏、搜索和 `.bbtone` 导入导出。预设文件包含参数与资源哈希，NAM / IR 文件需另行导入。
+- 原生监听可跨页面保持，全局状态条支持返回或停止；重新启动应用不会自动开启输入。调音器使用同一原生输入，调音时静音效果声，伴奏仍可播放。
+- 快录保存原始 DI 和开始录制时的音色快照；可选择最长 60 秒片段循环调音，导出 DI 或用当前音色导出效果声。
+- 监听开启时，练习伴奏可以与输入共用原生立体声输出。设备面板显示真实输入/输出电平、驱动与 DSP 报告延迟、处理负载和中断次数。
+
+操作与验证范围见[军火库工作台验收记录](./docs/qa/arsenal-workstation-2026-10-05.md)。
+
+### 练功房：从知识到专项练习
+
+- 按“体系卡片 → 路线图 → 知识正文”学习，教材、图解和谱例随应用打包，可离线阅读。
+- 覆盖十个知识体系，提供电吉他、原声吉他、贝斯、尤克里里、鼓、钢琴与键盘的乐器情境；文章包含学习目标、步骤、例子、常见问题和自检。
+- 合成器体系包含 9 个阶段、36 课，涵盖减法、FM、波表、加法、采样、颗粒与模块化等内容，操作实验供读者在自己的软硬件合成器中完成。
+- 专项练习与合奏练习使用统一 MusicXML 阅读器呈现五线谱、TAB、打击乐谱和钢琴大谱表，并支持播放高亮与谱面内部滚动。
+- 指板实验室用于探索音阶与和弦；工具箱提供节拍器、调音器、鼓机、和弦查询、五度圈与持续参考音。
+
+教材目录与维护方法见[练功房教材说明](./resources/learning/README.md)。
 
 ### 听清每一个声部
 
@@ -102,7 +127,7 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 - 搜索歌曲或艺术家，按收藏、处理中、最近练习筛选，并在列表/卡片布局间切换。
 - 后台任务展示分轨和导出进度；支持取消、重试，以及显存不足后使用相同质量参数的 CPU 重试。
 - 可从曲库或练习室编辑标题、艺术家、BPM、歌曲调与拍号；歌曲调既可本地识别，也可手动纠正。
-- 启动时会核对已保存的播放与录音设备；设备断开后自动回到当前系统默认值，并保留仍然有效的设备配置。
+- 启动时会核对已保存的播放与录音设备；明确选择的设备与 ASIO 配置会保留，设备异常时停止受影响的监听，不会恢复后自动换用另一支麦克风或扬声器。
 - 设置中的 Debug 模式切换后立即生效，会把 renderer、preload、IPC 与进程异常写入 `debug.log`；设置页可直接在文件管理器中定位该文件，代理凭据、令牌和密码会先脱敏。
 - 删除的受管歌曲会先进入系统废纸篓 / 回收站。
 
@@ -112,7 +137,17 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 - 导出会自动保留当前 Signalsmith 升降调：所有非鼓轨变调，鼓轨保持原音；当前混音还可选择应用练习速度、只导出 A–B 区间，并在输出前限制峰值避免削波。
 - 支持 `WAV / FLAC`（44.1 kHz、24-bit）和 `MP3`（320 kbps）。
 
+### 局域网练琴与移动端同步
+
+在设置中开启「局域网模式」，即可用同一网络的手机、iPad 或电脑访问设置页显示的地址，独立播放曲库中已完成分轨的歌曲。支持播放/暂停、AB 循环、±12 半音升降调、音轨浮窗中的音量/M/S、歌词与视频。默认使用 60232 端口，冲突时自动选择空闲端口。关闭模式或退出 App 后访问地址失效。
+
+桌面端还提供 UDP/HTTP 发现、移动客户端握手、歌曲 manifest、带 SHA-256 校验的分轨和视频下载，以及 Range 断点续传。详见 [移动端同步协议 v1](docs/lan-sync-api.md)。
+
+导入窗口恢复「已分轨数据」入口，支持 2–9 条已有音轨、预设或自定义轨道名称，直接进入标准化队列，无需安装分离模型。
+
 ## 常用快捷键
+
+以下快捷键用于歌曲练习室。
 
 | 按键 | 操作 |
 | --- | --- |
@@ -134,9 +169,13 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 - **可验证的依赖**：uv、FFmpeg 和模型按固定版本下载并校验 SHA-256；代理凭据会从日志中脱敏。
 - **可恢复的数据操作**：SQLite 使用 WAL 和迁移备份；重新分轨成功前保留旧版本，删除音乐时先移动到回收站。
 
-首次使用分轨前，需要在设置中安装本地环境。请预留约 **8–15 GB** 空间；安装会下载私有 Python、Torch 与固定的四份分轨权重，支持取消和从 `.part` 缓存续传。四份权重全部通过大小和 SHA-256 校验后，环境才会进入可用状态。
+曲库首次显示后，应用会在后台检查并准备所需组件；录音或原生监听期间推迟准备。可在“设置 → 运行状态”查看各功能状态、下载进度，暂停、继续、一键修复或导出本地诊断。主动暂停会跨启动保留。
 
-设置中的“高音质分轨”只决定新任务两个阶段的最终存储格式：关闭时全部轨统一保存为 44.1 kHz、stereo、320 kbps MP3，开启时统一保存为 44.1 kHz、stereo、24-bit FLAC。推理链路始终使用同一最高质量参数；已有歌曲只有重新分轨后才会改变格式。
+分轨环境会下载私有 Python、Torch 和固定的四份权重。所需空间随 CPU / CUDA 后端及缓存变化，安装前会检查各目标磁盘的可写性与峰值空间。Python、wheel 与模型支持缓存、续传及完整性校验；候选环境通过依赖导入、ONNX CPU 运算和六轨短推理后才启用，修复失败保留此前可用环境。
+
+连续启动失败时会进入兼容启动，暂停后台准备与自动原生设备枚举；数据库异常时提供恢复入口，由用户选择备份。详见[环境准备与恢复说明](./docs/runtime-robustness.md)。
+
+设置中的“高音质分轨”决定新任务两个阶段的最终存储格式：关闭时全部轨统一保存为 44.1 kHz、stereo、320 kbps MP3，开启时统一保存为 44.1 kHz、stereo、24-bit FLAC。吉他细分另有“极速 / 平衡 / 高质量”三个推理档位；存储格式开关不会改变所选推理档位，已有歌曲只有重新分轨后才会改变格式。
 
 ### 中国大陆与受限网络
 
@@ -144,9 +183,9 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 | 内容 | 大陆下载源 | 完整性与回退 |
 | --- | --- | --- |
-| uv 管理的 CPython | npmmirror 的 `python-build-standalone` 镜像 | uv 使用其固定发行清单；下载可缓存重试 |
-| Demucs 与常规 Python 包 | 阿里云 PyPI | 直接依赖保持固定版本 |
-| PyTorch / Torchaudio | 阿里云 PyTorch wheels | 根据 NVIDIA 驱动选择 `cu126`–`cu130`，不支持时安装 CPU 版 |
+| 私有 CPython | npmmirror 的 `python-build-standalone` 镜像 | 平台清单固定版本、大小与 SHA-256；官方文件作为备选，下载可缓存续传 |
+| Demucs 与常规 Python 包 | 清单中已核验的国内镜像及官方备选源 | 包含间接依赖的 wheel 固定版本、大小与 SHA-256；下载后从本地缓存安装 |
+| PyTorch / Torchaudio | 固定 wheel 清单中的镜像与官方源 | Windows 提供 CPU、CUDA 12.8 / 13.0 清单；结合驱动、GPU 架构与真实运算测试选择后端 |
 | 四份分轨权重 | [ModelScope `BandBuddy-Models`](https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models) 固定 `v2.0.0` 分支 | 固定文件路径、字节数与完整 SHA-256；四份全部验证后原子写入完成标记 |
 
 环境镜像不可用时，可先切换另一环境下载源再点“修复环境”；已完成的缓存和权重 `.part` 文件会继续使用。公司网络还可以选择系统代理或填写手动 HTTP(S) 代理。Python 包与桌面工具可切换镜像，权重下载地址和 `v2.0.0` 分支不可由用户修改，所有完整性校验始终开启。
@@ -155,8 +194,8 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 前往 [Releases](https://github.com/dourgey/BandBuddy/releases/latest)，按需要下载：
 
-- `BandBuddy-2.0.0-x64.exe`：安装版，可选择安装位置并创建桌面/开始菜单快捷方式。
-- `BandBuddy-2.0.0-x64-portable.exe`：便携版，不写入安装目录。
+- `BandBuddy-<版本>-x64.exe`：安装版，可选择安装位置并创建桌面/开始菜单快捷方式。
+- `BandBuddy-<版本>-x64-portable.exe`：便携版，无需运行安装向导。
 - `SHA256SUMS.txt`：用于校验下载文件完整性。
 
 开源 CI 在没有 Authenticode 证书时会发布**未签名**构建，Windows SmartScreen 可能显示“未知发布者”。Release 说明会标明该版本是否已签名；如果你不接受未签名程序，可从源码构建，或等待 Microsoft Store / 已签名版本。
@@ -165,9 +204,9 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 [Releases](https://github.com/dourgey/BandBuddy/releases/latest) 提供 Apple Silicon 原生 `DMG` 和 `ZIP`：
 
-- `BandBuddy-2.0.0-macos-arm64.dmg` / `.zip`：Apple Silicon Mac。
+- `BandBuddy-<版本>-macos-arm64.dmg` / `.zip`：Apple Silicon Mac。
 
-当前 macOS 构建尚未使用 Apple Developer ID 签名或公证，Gatekeeper 会提示开发者身份无法验证；请先核对 Release 中对应架构的 SHA-256 文件。
+签名、公证状态与校验文件以具体 Release 说明为准。应用基础功能的最低版本声明为 macOS 13；当前 Apple Silicon 本地分轨依赖清单要求 **macOS 14+**。
 
 ## 从源码运行
 
@@ -182,7 +221,7 @@ pnpm test
 pnpm dev
 ```
 
-`pnpm tools:fetch` 会下载并逐文件校验固定版本的 uv 与 FFmpeg。只查看界面时可运行 `pnpm dev:renderer`，然后打开 `http://localhost:5173/?fixtures=1`；fixture 模式只在开发环境启用，不会进入正式构建。
+`pnpm tools:fetch` 会下载并逐文件校验固定版本的 uv 与 FFmpeg。`pnpm dev` 会先构建原生音频宿主；Windows 下还会构建系统辅助程序并准备经过签名验证的微软运行库安装器，因此首次构建需要联网。只查看界面时可运行 `pnpm dev:renderer`，然后打开 `http://localhost:5173/?fixtures=1`；fixture 模式只在开发环境启用，不会进入正式构建。
 
 中国大陆可使用下面的流程；镜像配置只对当前命令生效，不会改写用户的全局 `.npmrc`：
 
@@ -255,8 +294,12 @@ Intel 分轨依赖目前尚未完成原生发布验收，不能仅根据构建�
 | --- | --- |
 | `src/main` | Electron 主进程、SQLite、任务队列、导入/导出与安全边界 |
 | `src/preload` | 经过约束的 renderer ↔ main IPC 桥 |
-| `src/renderer` | React 曲库、练习室、多轨播放器与波形界面 |
+| `src/renderer` | React 曲库、练习室、练功房、军火库与播放器 |
 | `native/audio-host` | RtAudio / PortAudio 原生录音宿主与设备时钟协议 |
+| `native/effects` | 原生效果处理、NAM / IR 与模块化音色链 |
+| `native/system-helper` | Windows 系统依赖检测、签名验证与授权安装辅助程序 |
+| `resources/learning` | 离线教材、MusicXML 谱例与 SVG 图解 |
+| `resources/runtime-catalog` | 各平台 Python 与完整 wheel 依赖清单 |
 | `python/worker` | HTDemucs 六轨与吉他三轨两阶段工作进程、固定 ModelScope 权重清单及断点下载协议 |
 | `python/msr_mvp` | 模型/轨数无关的 MSS → MSR 实验管线与适配器 |
 | `python/guitar_separator_hq` | 生产使用的固定 HQ6 木吉他 / Lead / Rhythm 推理模块与独立审计工具 |
@@ -268,7 +311,11 @@ Intel 分轨依赖目前尚未完成原生发布验收，不能仅根据构建�
 
 ## 当前边界
 
-`2.0.0` 首发支持 Windows x64 与 macOS Apple Silicon，不包含 Intel Mac、账号/云同步、Web 端或自动更新；录音时建议使用声卡的硬件直通监听，Piano 分轨仍为实验性功能。欢迎通过 [Issues](https://github.com/dourgey/BandBuddy/issues) 提交可复现的问题和练琴场景建议。
+当前源码面向 Windows x64 与 macOS Apple Silicon；Intel Mac 仍受上文发布门禁约束。提供桌面端托管的局域网浏览器播放，不提供账号、云同步或自动更新。Piano 分轨仍为实验性功能。
+
+军火库的设备模拟不代表对特定硬件的实测复刻；当前统一伴奏输出为立体声，不提供原生多硬件输出总线。自动测试与模拟声卡验证不能替代真实声卡的延迟、拔插、长时间稳定性和听感验收。干净 Windows、其他 GPU / 驱动及 Apple Silicon 最低支持系统仍需相应机器验收；本次源码更新不等于发布新安装包。
+
+欢迎通过 [Issues](https://github.com/dourgey/BandBuddy/issues) 提交可复现的问题和练琴场景建议。
 
 ## 许可与音频权利
 
@@ -286,11 +333,3 @@ BandBuddy 源码使用 [Apache License 2.0](./LICENSE)。分轨运行时使用 D
   <img src="./docs/images/wechat-pay.jpg" alt="微信收款码" width="280">
   <img src="./docs/images/alipay-pay.jpg" alt="支付宝收款码" width="280">
 </p>
-
-### 局域网练琴与移动端同步
-
-在设置中开启「局域网模式」，即可用同一网络的手机、iPad 或电脑访问设置页显示的地址，独立播放曲库中已完成分轨的歌曲。支持播放/暂停、AB 循环、±12 半音升降调、音轨浮窗中的音量/M/S、歌词与视频。默认使用 60232 端口，冲突时自动选择空闲端口。关闭模式或退出 App 后访问地址失效。
-
-桌面端还提供 UDP/HTTP 发现、移动客户端握手、歌曲 manifest、带 SHA-256 校验的分轨和视频下载，以及 Range 断点续传。详见 [移动端同步协议 v1](docs/lan-sync-api.md)。
-
-导入窗口恢复「已分轨数据」入口，支持 2–9 条已有音轨、预设或自定义轨道名称，直接进入标准化队列，无需安装分离模型。

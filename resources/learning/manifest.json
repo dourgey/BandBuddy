@@ -1701,6 +1701,248 @@
           ]
         }
       ]
+    },
+    {
+      "id": "synth",
+      "title": "合成器",
+      "description": "声音原理、合成方式、调制与音色设计",
+      "context": "建议先掌握共享基础中的音名、音程与节拍，再按 9 个阶段学习 36 课。操作示例可在你使用的软硬件合成器中完成；参数数值仅作为起点，具体名称、范围与触发行为以设备手册为准。",
+      "stages": [
+        {
+          "title": "声音与合成器基础",
+          "goal": "分清控制信息与声音，能用音高、响度、频谱描述音色。",
+          "nodes": [
+            {
+              "id": "synth-01",
+              "title": "合成器、音源与控制器",
+              "document": "documents/synth/synth-01.json"
+            },
+            {
+              "id": "synth-02",
+              "title": "频率、音高与音域",
+              "document": "documents/synth/synth-02.json"
+            },
+            {
+              "id": "synth-03",
+              "title": "振幅、分贝与增益结构",
+              "document": "documents/synth/synth-03.json"
+            },
+            {
+              "id": "synth-04",
+              "title": "波形、谐波与频谱",
+              "document": "documents/synth/synth-04.json"
+            }
+          ]
+        },
+        {
+          "title": "减法合成的信号路径",
+          "goal": "从初始化音色出发，独立搭建振荡器、混音器和滤波器链路。",
+          "nodes": [
+            {
+              "id": "synth-05",
+              "title": "初始化音色与信号流",
+              "document": "documents/synth/synth-05.json"
+            },
+            {
+              "id": "synth-06",
+              "title": "振荡器、混音与失谐",
+              "document": "documents/synth/synth-06.json"
+            },
+            {
+              "id": "synth-07",
+              "title": "脉冲宽度、同步与噪声",
+              "document": "documents/synth/synth-07.json"
+            },
+            {
+              "id": "synth-08",
+              "title": "滤波器类型、斜率与共振",
+              "document": "documents/synth/synth-08.json"
+            }
+          ]
+        },
+        {
+          "title": "包络与调制",
+          "goal": "预测声音如何随时间变化，能解释每条调制的来源、目标和深度。",
+          "nodes": [
+            {
+              "id": "synth-09",
+              "title": "ADSR 与振幅包络",
+              "document": "documents/synth/synth-09.json"
+            },
+            {
+              "id": "synth-10",
+              "title": "滤波包络与键盘跟踪",
+              "document": "documents/synth/synth-10.json"
+            },
+            {
+              "id": "synth-11",
+              "title": "LFO、同步与重触发",
+              "document": "documents/synth/synth-11.json"
+            },
+            {
+              "id": "synth-12",
+              "title": "调制矩阵、极性与深度",
+              "document": "documents/synth/synth-12.json"
+            }
+          ]
+        },
+        {
+          "title": "声部与演奏控制",
+          "goal": "让音色响应音符衔接与手势，并辨别 MIDI、自动化和逐音表达。",
+          "nodes": [
+            {
+              "id": "synth-13",
+              "title": "单音、复音与声部分配",
+              "document": "documents/synth/synth-13.json"
+            },
+            {
+              "id": "synth-14",
+              "title": "连奏、滑音与演奏触发",
+              "document": "documents/synth/synth-14.json"
+            },
+            {
+              "id": "synth-15",
+              "title": "力度、触后与宏控制",
+              "document": "documents/synth/synth-15.json"
+            },
+            {
+              "id": "synth-16",
+              "title": "MIDI、自动化与 MPE",
+              "document": "documents/synth/synth-16.json"
+            }
+          ]
+        },
+        {
+          "title": "FM、波表与加法合成",
+          "goal": "根据想要的频谱变化选择合成方式，并能搭建简单数字音色。",
+          "nodes": [
+            {
+              "id": "synth-17",
+              "title": "FM、载波与调制器",
+              "document": "documents/synth/synth-17.json"
+            },
+            {
+              "id": "synth-18",
+              "title": "FM 比率、算法与反馈",
+              "document": "documents/synth/synth-18.json"
+            },
+            {
+              "id": "synth-19",
+              "title": "波表扫描与波形塑形",
+              "document": "documents/synth/synth-19.json"
+            },
+            {
+              "id": "synth-20",
+              "title": "加法合成与频谱重建",
+              "document": "documents/synth/synth-20.json"
+            }
+          ]
+        },
+        {
+          "title": "采样、建模与模块化",
+          "goal": "理解录音素材、颗粒、共鸣模型和控制电压各自解决的问题。",
+          "nodes": [
+            {
+              "id": "synth-21",
+              "title": "采样、循环与多重采样",
+              "document": "documents/synth/synth-21.json"
+            },
+            {
+              "id": "synth-22",
+              "title": "颗粒合成与时间纹理",
+              "document": "documents/synth/synth-22.json"
+            },
+            {
+              "id": "synth-23",
+              "title": "物理建模与激励共鸣",
+              "document": "documents/synth/synth-23.json"
+            },
+            {
+              "id": "synth-24",
+              "title": "模块化、CV 与 Gate",
+              "document": "documents/synth/synth-24.json"
+            }
+          ]
+        },
+        {
+          "title": "典型音色设计",
+          "goal": "从空白音色制作 Bass、Lead、Pad 与 Pluck，记录参数及听觉依据。",
+          "nodes": [
+            {
+              "id": "synth-25",
+              "title": "低音音色：Sub 与 Synth Bass",
+              "document": "documents/synth/synth-25.json"
+            },
+            {
+              "id": "synth-26",
+              "title": "主奏音色：Lead 与表现力",
+              "document": "documents/synth/synth-26.json"
+            },
+            {
+              "id": "synth-27",
+              "title": "铺底音色：Pad 与空间",
+              "document": "documents/synth/synth-27.json"
+            },
+            {
+              "id": "synth-28",
+              "title": "拨弦与键盘音色：Pluck、Keys 与 Bell",
+              "document": "documents/synth/synth-28.json"
+            }
+          ]
+        },
+        {
+          "title": "节奏、音效与编曲",
+          "goal": "制作打击乐和转场，把音序、音域与和声放进完整乐段。",
+          "nodes": [
+            {
+              "id": "synth-29",
+              "title": "合成鼓与打击乐",
+              "document": "documents/synth/synth-29.json"
+            },
+            {
+              "id": "synth-30",
+              "title": "音效、氛围与转场",
+              "document": "documents/synth/synth-30.json"
+            },
+            {
+              "id": "synth-31",
+              "title": "琶音器、步进音序与时钟",
+              "document": "documents/synth/synth-31.json"
+            },
+            {
+              "id": "synth-32",
+              "title": "音域、和声与编曲分工",
+              "document": "documents/synth/synth-32.json"
+            }
+          ]
+        },
+        {
+          "title": "音色质量与独立创作",
+          "goal": "完成听音拆解、效果处理、单声道检查和可复现的个人音色项目。",
+          "nodes": [
+            {
+              "id": "synth-33",
+              "title": "失真、合唱、延迟与混响",
+              "document": "documents/synth/synth-33.json"
+            },
+            {
+              "id": "synth-34",
+              "title": "相位、混叠与音色质量",
+              "document": "documents/synth/synth-34.json"
+            },
+            {
+              "id": "synth-35",
+              "title": "听音拆解与音色复刻",
+              "document": "documents/synth/synth-35.json"
+            },
+            {
+              "id": "synth-36",
+              "title": "音色管理、现场准备与综合项目",
+              "document": "documents/synth/synth-36.json"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

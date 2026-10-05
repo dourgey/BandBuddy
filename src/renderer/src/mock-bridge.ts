@@ -5,7 +5,8 @@ import type { BandBuddyApi } from '@shared/bridge.js'
 import { createDefaultRecordingAudioSettings, createDefaultRecordingTrackState } from '@shared/domain.js'
 import type { RehearsalRecordingState, RehearsalSetDetail } from '@shared/rehearsal.js'
 import { fixtureDetail, fixtureRehearsal, fixtureSongs } from './fixtures.js'
-import { defaultEffectChain, type ArsenalApi } from '@shared/arsenal.js'
+import { type ArsenalApi, type ArsenalState, type ArsenalWorkspace, type ArsenalMonitorState } from '@shared/arsenal.js'
+import { factoryPresets } from '@shared/effect-catalog.js'
 
 const noop = (): (() => void) => () => undefined
 
@@ -47,6 +48,11 @@ export function installFixtureBridge(): void {
     bufferFrames: 0, latencyMs: 0, xruns: 0, splitDevices: false, message: '', error: null
   })
   const appearanceListeners = new Set<(value: Appearance) => void>()
+  const arsenalLibrary:ArsenalState={presets:factoryPresets(),assets:[]}
+  let arsenalWorkspace:ArsenalWorkspace={draft:null,takes:[],quick:{recording:false,looping:false,durationMs:0}}
+  let arsenalMonitor:ArsenalMonitorState={active:false,mode:'off',sampleRate:0,bufferFrames:0,latencyMs:0,peak:[],outputPeak:0,xruns:0,error:null}
+  const arsenalListeners=new Set<(s:ArsenalMonitorState)=>void>()
+  try{const saved=localStorage.getItem('bb.fixture.arsenal');if(saved)arsenalWorkspace={...JSON.parse(saved),quick:{recording:false,looping:false,durationMs:0}}}catch{}
   const api: BandBuddyApi = {
     appearance: {
       get: async () => settings.appearance,
@@ -54,16 +60,18 @@ export function installFixtureBridge(): void {
       onChanged: (listener) => { appearanceListeners.add(listener); return () => appearanceListeners.delete(listener) }
     },
     arsenal: {
-      list: async () => ({ assets: [], presets: [{ id: '99999999-9999-4999-8999-999999999999', name: '干净起点', chain: defaultEffectChain(), revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] }),
+      feed: async () => false,
+      list: async () => structuredClone(arsenalLibrary),
+      command: async input => {if(input.action==='favorite'){const p=arsenalLibrary.presets.find(p=>p.id===input.id);if(p)p.favorite=input.value}if(input.action==='draft'){arsenalWorkspace.draft=input.draft;localStorage.setItem('bb.fixture.arsenal',JSON.stringify(arsenalWorkspace))}else if(input.action==='record'||input.action==='loop'||input.action==='exportTake')throw new Error('浏览器预览不连接声卡，请在桌面版使用快录与循环。');return structuredClone(arsenalWorkspace)},
       importAsset: async () => null,
       deleteAsset: async () => undefined,
-      savePreset: async (input) => ({ id: input.id ?? crypto.randomUUID(), name: input.name, chain: input.chain, revision: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
-      deletePreset: async () => undefined,
+      savePreset: async (input) => {const old=arsenalLibrary.presets.find(p=>p.id===input.id),preset={...input,id:old&&!old.factory?old.id:crypto.randomUUID(),revision:1,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};arsenalLibrary.presets=[preset,...arsenalLibrary.presets.filter(p=>p.id!==preset.id)];return preset},
+      deletePreset: async id => {arsenalLibrary.presets=arsenalLibrary.presets.filter(p=>p.id!==id)},
       setTrack: async () => undefined,
       prepare: async (chain) => ({ chain, model: null, modelRate: 48000, ir: null, irRate: 48000 }),
-      monitor: async ({ mode }) => ({ active: mode !== 'off', mode, sampleRate: 48000, bufferFrames: 128, latencyMs: 5.3, peak: [0, 0], outputPeak: 0, xruns: 0, error: null }),
-      monitorState: async () => ({ active: false, mode: 'off', sampleRate: 0, bufferFrames: 0, latencyMs: 0, peak: [], outputPeak: 0, xruns: 0, error: null }),
-      onMonitor: noop
+      monitor: async ({mode}) => {arsenalMonitor={...arsenalMonitor,mode,active:mode!=='off'};arsenalListeners.forEach(fn=>fn(arsenalMonitor));return arsenalMonitor},
+      monitorState: async () => arsenalMonitor,
+      onMonitor: callback => {arsenalListeners.add(callback);return()=>arsenalListeners.delete(callback)}
     } satisfies ArsenalApi,
     library: {
       onUpdated: noop,

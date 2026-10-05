@@ -67,18 +67,18 @@ describe('startup audio device reconciliation', () => {
     expect(reconcileAudio).not.toHaveBeenCalled()
   })
 
-  it('sends only the expected audio snapshot after a background scan', async () => {
+  it('does not overwrite an explicit output after a background scan', async () => {
     const initial = appSettings()
     initial.audioOutputDeviceId = 'missing'
     const latest = { ...initial, libraryRoot: '用户新选择的目录', audioOutputDeviceId: 'new-device' }
     const reconcileAudio = vi.fn(async () => latest)
     vi.stubGlobal('window', { bandbuddy: { settings: { reconcileAudio }, recording: { devices: async () => [] } } })
     vi.stubGlobal('navigator', { platform: 'Win32', mediaDevices: { enumerateDevices: async () => [] } })
-    expect(await reconcileStartupAudioSettings(initial)).toBe(latest)
-    expect(reconcileAudio).toHaveBeenCalledWith({ expected: { audioOutputDeviceId: 'missing', recordingAudio: initial.recordingAudio }, audioOutputDeviceId: '', recordingAudio: initial.recordingAudio })
+    expect(await reconcileStartupAudioSettings(initial)).toBe(initial)
+    expect(reconcileAudio).not.toHaveBeenCalled()
   })
 
-  it('uses the changed computer hardware on the next launch instead of the previous device list', async () => {
+  it('refreshes hardware without substituting newly discovered microphones or speakers', async () => {
     let saved = appSettings()
     saved.audioOutputDeviceId = 'old-usb-web'
     saved.recordingAudio = {
@@ -117,10 +117,10 @@ describe('startup audio device reconciliation', () => {
     const secondLaunch = await reconcileStartupAudioSettings(await loadStartupAudioSettings())
     expect(playbackDevices).toHaveBeenCalledTimes(2)
     expect(recordingDevices).toHaveBeenCalledTimes(2)
-    expect(secondLaunch.audioOutputDeviceId).toBe('')
-    expect(secondLaunch.recordingAudio.inputDeviceId).toBe('')
-    expect(secondLaunch.recordingAudio.outputDeviceId).toBe('')
-    expect(update).toHaveBeenCalledOnce()
+    expect(secondLaunch.audioOutputDeviceId).toBe('old-usb-web')
+    expect(secondLaunch.recordingAudio.inputDeviceId).toBe('coreaudio:old-usb')
+    expect(secondLaunch.recordingAudio.outputDeviceId).toBe('coreaudio:old-usb')
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('does not force a newly discovered multichannel device over the system default', async () => {
@@ -170,7 +170,7 @@ describe('startup audio device reconciliation', () => {
     expect(updateSettings).not.toHaveBeenCalled()
   })
 
-  it('replaces disconnected playback and recording devices with current system defaults', () => {
+  it('preserves disconnected explicit ASIO devices and their calibrated settings', () => {
     const settings = appSettings()
     settings.audioOutputDeviceId = 'disconnected-web-output'
     settings.recordingAudio = {
@@ -191,16 +191,7 @@ describe('startup audio device reconciliation', () => {
       platform: 'Win32'
     })
 
-    expect(reconciled.audioOutputDeviceId).toBe('')
-    expect(reconciled.recordingAudio).toMatchObject({
-      backend: 'auto',
-      inputDeviceId: '',
-      outputDeviceId: '',
-      inputChannelMode: 'stereo',
-      inputChannels: [0, 1],
-      sampleRate: 0,
-      alignmentOffsetMs: 7
-    })
+    expect(reconciled).toBe(settings)
   })
 
   it('keeps explicit devices that are still available', () => {
@@ -250,7 +241,7 @@ describe('startup audio device reconciliation', () => {
     expect(reconciled).toBe(settings)
   })
 
-  it('clears a remembered device that no longer supports its selected direction', () => {
+  it('leaves an unusable explicit input for the user to change', () => {
     const settings = appSettings()
     settings.recordingAudio = {
       ...settings.recordingAudio,
@@ -270,11 +261,11 @@ describe('startup audio device reconciliation', () => {
       platform: 'Win32'
     })
 
-    expect(reconciled.recordingAudio.inputDeviceId).toBe('')
+    expect(reconciled.recordingAudio.inputDeviceId).toBe('wasapi:output-only')
     expect(reconciled.recordingAudio.outputDeviceId).toBe('wasapi:output-only')
   })
 
-  it('resets hardware-dependent values when no usable input or output is connected', () => {
+  it('preserves device settings while hardware is disconnected', () => {
     const settings = appSettings()
     settings.recordingAudio = {
       ...settings.recordingAudio,
@@ -292,12 +283,6 @@ describe('startup audio device reconciliation', () => {
       platform: 'Win32'
     })
 
-    expect(reconciled.recordingAudio).toMatchObject({
-      backend: 'auto',
-      inputDeviceId: '',
-      outputDeviceId: '',
-      inputChannels: [0, 1],
-      sampleRate: 0
-    })
+    expect(reconciled).toBe(settings)
   })
 })

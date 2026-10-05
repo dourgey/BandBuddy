@@ -1,4 +1,5 @@
 import type { StartupApi } from './startup.js'
+import type { EnvironmentApi } from './environment.js'
 import type { AppearanceApi } from './appearance.js'
 import type { LibraryPageInput, LibraryPageResult, LibraryUpdate, ReconcileAudioRequest } from './domain.js'
 import type { ArsenalApi } from './arsenal.js'
@@ -43,6 +44,7 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  environment?: EnvironmentApi
   startup?: StartupApi
   appearance: AppearanceApi
   arsenal: ArsenalApi

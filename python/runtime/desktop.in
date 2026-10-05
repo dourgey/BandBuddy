@@ -1,0 +1,13 @@
+# Keep these direct requirements aligned with runtime-dependencies.ts.
+torch==2.11.0
+torchaudio==2.11.0
+demucs==4.1.0
+numpy==2.5.2
+scipy==1.17.0
+soundfile==0.14.0
+librosa==1.0.0
+PyYAML==6.0.3
+einops==0.8.1
+beartype==0.18.5
+rotary-embedding-torch==0.3.5
+packaging==26.2

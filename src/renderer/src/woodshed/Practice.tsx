@@ -119,14 +119,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError, view = exerc
           setDisplay(old => old.event === next.event && old.pulse === next.pulse && old.bar === next.bar && old.seconds === next.seconds ? old : next)
           clearHighlight()
           if (frame.event) {
-            const note = scoreHost.current?.querySelector(`[data-event="${frame.event.id}"]`)
             scoreHost.current?.querySelectorAll(`[data-event="${frame.event.id}"]`).forEach(element => element.classList.add('active'))
-            const scroller = scoreHost.current?.querySelector('.ws-score')
-            if (note && scroller) {
-              const box = note.getBoundingClientRect(), viewport = scroller.getBoundingClientRect()
-              // Follow long scores inside their own viewport, without moving the page or controls.
-              if (box.bottom > viewport.bottom || box.top < viewport.top) scroller.scrollTo({ top: scroller.scrollTop + box.top - viewport.top - 40 })
-            }
           }
         }
         frameId.current = requestAnimationFrame(draw)
@@ -154,7 +147,7 @@ export function PracticeDetail({ exercise, outputDeviceId, onError, view = exerc
       <small>{stage.startBar}–{stage.endBar} 小节</small><b>{stage.name}</b><p>{stage.description}</p>
     </li>)}</ol></details>}
     {currentStage && <div className="ws-practice-current-stage" aria-live="off"><small>{running ? '当前阶段' : '起始阶段'} · {currentStage.startBar}–{currentStage.endBar} 小节</small><b>{currentStage.name}</b><p>{currentStage.description}</p></div>}
-    <div ref={scoreHost} className="ws-practice-score"><Score events={variant.events} tuning={tuning} config={config} compact /></div>
+    <div ref={scoreHost} className="ws-practice-score"><Score events={variant.events} tuning={tuning} config={config} compact currentBar={display.bar} /></div>
     <div className="ws-practice-transport">
       <label className="ws-practice-tempo">速度 <WheelNumberInput onWheelValue={setBpm} aria-label="节拍器速度" type="number" min={30} max={240} step={1} value={bpm} disabled={running || busy} onChange={e => {
         const value = Number(e.target.value)

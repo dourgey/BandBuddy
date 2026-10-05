@@ -1,6 +1,6 @@
 import manifest from '../../../../resources/learning/manifest.json' with { type: 'json' }
 
-export type SystemId = 'shared' | 'guitar' | 'bass' | 'ukulele' | 'blues' | 'drums' | 'piano' | 'keyboard' | 'ensemble'
+export type SystemId = 'shared' | 'guitar' | 'bass' | 'ukulele' | 'blues' | 'drums' | 'piano' | 'keyboard' | 'synth' | 'ensemble'
 /** Legacy curriculum builders retain this shape for their exercise mappings. Reading uses document files. */
 export interface Knowledge { id: string; title: string; paragraphs: string[]; example: string; note?: string; figure?: 'fretboard' | 'rhythm' | 'signal' | 'chords' }
 export interface KnowledgeStage { goal?: string; title: string; nodes: Knowledge[] }

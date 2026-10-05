@@ -1,5 +1,7 @@
 .ws-musicxml-score { min-width: 0; max-width: 100%; max-height: 500px; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
 .ws-musicxml-pages { min-width: 340px; }
+.ws-musicxml-score.ws-rolling-score { max-height: none; padding: 0; overflow-anchor: none; }
+.ws-rolling-score .ws-musicxml-pages { min-width: 800px; }
 .ws-musicxml-pages svg { display: block; max-width: none; min-width: 0; height: auto; }
 .ws-musicxml-score .ws-score-note:not([role=button]) { cursor: default; }
 .ws-musicxml-score .ws-score-note:not([role=button]):hover { opacity: 1; }

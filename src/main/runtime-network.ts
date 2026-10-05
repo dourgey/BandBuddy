@@ -1,6 +1,8 @@
 import { session, type Session } from 'electron'
 import type { NetworkSettings } from '@shared/domain.js'
 import { RuntimeProxyBridge } from './runtime-proxy.js'
+import { ArtifactDownloader, type Artifact, type DownloadProgress } from './artifact-download.js'
+import { matchRuntimeSourcePreset } from '@shared/runtime-sources.js'
 
 const PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']
 
@@ -32,6 +34,16 @@ export function proxyFromPac(result: string): string | null {
 
 /** One network policy for Electron downloads and managed Python/uv processes. */
 export class RuntimeNetwork {
+  private downloader: ArtifactDownloader | null = null
+  diagnostics(): ReturnType<ArtifactDownloader['diagnostics']> { return this.downloader?.diagnostics() ?? [] }
+
+  async download(artifact: Artifact, destination: string, network: NetworkSettings, signal: AbortSignal, progress?: (value: DownloadProgress) => void): Promise<string> {
+    const client = await this.configured(network)
+    this.downloader ??= new ArtifactDownloader((url, options) => client.fetch(url, options))
+    const official = (url: string): number => /(?:^|\.)(?:pythonhosted.org|pytorch.org|github.com|astral.sh)$/.test(new URL(url).hostname) ? 0 : 1
+    const urls = matchRuntimeSourcePreset(network) === 'official' ? [...artifact.urls].sort((a, b) => official(a) - official(b)) : artifact.urls
+    return this.downloader.download({ ...artifact, urls }, destination, signal, progress)
+  }
   private client: Session | null = null
   private policy = ''
   private systemBridge: RuntimeProxyBridge | null = null

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { createEffectModule, defaultEffectChain, moduleChain, type EffectModule } from '../packages/shared/src/arsenal.js'
+import { createEffectModule, defaultEffectChain, moduleChain, type EffectModule, type PreparedEffects } from '../packages/shared/src/arsenal.js'
 
 const executable = path.resolve('native/audio-host/build/win32-x64/effects/Release/bandbuddy-effects-test.exe')
 let directory: string
@@ -16,8 +16,9 @@ for (let n = 0; n < 16000; n++) {
 }
 beforeAll(async () => { directory = await mkdtemp(path.join(tmpdir(), 'bb-modular-')); await writeFile(path.join(directory, 'input.f32'), Buffer.from(source.buffer)) })
 afterAll(async () => { await rm(directory, { recursive: true, force: true }) })
-async function render(modules: EffectModule[], chunk = 127): Promise<Float32Array> {
+async function render(modules: EffectModule[], chunk = 127, extra:Partial<PreparedEffects>={}): Promise<Float32Array> {
   const prepared = { chain: { ...defaultEffectChain(), modules }, modules: modules.map(m => ({ chain: moduleChain(m), model: null, modelRate: 48000, ir: null, irRate: 48000 })) }
+  for(const child of prepared.modules)Object.assign(child,extra)
   await writeFile(path.join(directory, 'manifest.json'), JSON.stringify(prepared))
   const result = spawnSync(executable, [path.join(directory, 'manifest.json'), path.join(directory, 'input.f32'), path.join(directory, 'out.f32'), String(chunk)], { encoding: 'utf8' })
   expect(result.status, result.stderr).toBe(0)
@@ -63,3 +64,10 @@ native('all added amp, drive, modulation, delay and reverb variants produce dist
     }
   }
 }, 60000)
+native('parametric Q, parallel compression and dual IR controls change actual audio',async()=>{
+  const eq=createEffectModule('eq');eq.settings.eq.mode='parametric';eq.settings.eq.parametric[0]={frequency:440,gain:12,q:.4}
+  const wide=await render([eq]);eq.settings.eq.parametric[0].q=8;expect(await render([eq])).not.toEqual(wide)
+  const comp=createEffectModule('dynamic');comp.settings.dynamic.threshold=-35;comp.settings.dynamic.ratio=10;comp.settings.dynamic.mix=0;const dry=await render([comp]);comp.settings.dynamic.mix=1;const wet=await render([comp]);expect(wet.reduce((sum,x)=>sum+x*x,0)).toBeLessThan(dry.reduce((sum,x)=>sum+x*x,0)*.5)
+  const cab=createEffectModule('cab');cab.settings.cab.engine='ir';cab.settings.cab.blend=0
+  const extra={ir:[[1]],irRate:48000,secondaryIr:[[0,0,.5]],secondaryIrRate:48000};const a=await render([cab],127,extra);cab.settings.cab.blend=1;const b=await render([cab],127,extra);expect(b).not.toEqual(a);cab.settings.cab.secondaryPolarity=true;const inverted=await render([cab],127,extra);expect(inverted[10000]).toBeCloseTo(-b[10000]!,6)
+},30000)

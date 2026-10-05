@@ -1,0 +1,68 @@
+{
+  "directory": "bandbuddy-stems-v2.0.1",
+  "repository": "Zzzzzzorz/BandBuddy-Models",
+  "revision": "v2.0.1",
+  "bag": "models: ['5c90dfd2']\n",
+  "files": [
+    {
+      "id": "six_stem",
+      "filename": "5c90dfd2-34c22ccb.th",
+      "size": 54996327,
+      "expandedSize": 54996327,
+      "sha256": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/5c90dfd2-34c22ccb.th"
+      ]
+    },
+    {
+      "id": "shared_acoustic_electric",
+      "filename": "bs_mega_53stem_acoustic-electric_shared_mvsep.ckpt",
+      "size": 102410137,
+      "expandedSize": 102410137,
+      "sha256": "183607bffbebdb43dcb3fd583b7cbe3c77fb55aea886cbd1e3aa316d9148698c",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/bs_mega_53stem_acoustic-electric_shared_mvsep.ckpt"
+      ]
+    },
+    {
+      "id": "lead_rhythm_hq",
+      "filename": "mbr_lead_rhythm_guitar_listra92.ckpt",
+      "size": 337073664,
+      "expandedSize": 337073664,
+      "sha256": "b3c47bca33609ca1ba0bb2d2076410bfd1eb941b051b72afc1f3e24d12b17eef",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/mbr_lead_rhythm_guitar_listra92.ckpt"
+      ]
+    },
+    {
+      "id": "acoustic_guitar_fast",
+      "filename": "mdx_6s_acoustic_guitar_anvuew.onnx",
+      "size": 27147460,
+      "expandedSize": 27147460,
+      "sha256": "2bd8f2af629b279cc1a568f895ee9636f7ce2d76c69aa601e6744eaab8b4916a",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/mdx_6s_acoustic_guitar_anvuew.onnx"
+      ]
+    },
+    {
+      "id": "electric_guitar_fast",
+      "filename": "mdx_6s_electric_guitar_anvuew.onnx",
+      "size": 27147623,
+      "expandedSize": 27147623,
+      "sha256": "bd6fcf40659771568ee180ea69bd4576a9c3d2423ae0f5f6f5afcc8b6a6fd938",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/mdx_6s_electric_guitar_anvuew.onnx"
+      ]
+    },
+    {
+      "id": "lead_rhythm_fast",
+      "filename": "demucs4_lead_rhythm_guitar_drypaint.ckpt",
+      "size": 109822623,
+      "expandedSize": 109822623,
+      "sha256": "946ffd50d7f2fd87e447d880525283e88bd9061e1b428d4f1d380e764d54d618",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/v2.0.1/demucs4_lead_rhythm_guitar_drypaint.ckpt"
+      ]
+    }
+  ]
+}

@@ -67,6 +67,7 @@ const db = z.number().finite().min(-60).max(24)
 const asset = z.string().regex(/^[a-f0-9]{64}$/).nullable()
 const legacyChainSchema = z.object({
   version: z.literal(1),
+  dspRevision: z.union([z.literal(1), z.literal(2)]).default(1),
   order: z.array(z.enum(EFFECT_BLOCKS)).max(24).refine(order => new Set(order).size === order.length, '重复模块请使用独立模块 ID').transform(order => {
     // Single-module prepared chains intentionally contain one block.
     if (order.length <= 1) return order
@@ -75,20 +76,36 @@ const legacyChainSchema = z.object({
     if (!next.includes('mod')) next.splice(next.indexOf('amp') >= 0 ? next.indexOf('amp') + 1 : 1, 0, 'mod')
     return next
   }),
-  dynamic: z.object({ enabled: z.boolean().default(false), device: z.enum(['compressor', 'boost', 'gate']).default('compressor'), threshold: z.number().min(-80).max(0).default(-24), ratio: z.number().min(1).max(20).default(4), attack: z.number().min(.1).max(100).default(10), release: z.number().min(10).max(1000).default(120), gainDb: db.default(0) }).default(() => ({ enabled: false, device: 'compressor' as const, threshold: -24, ratio: 4, attack: 10, release: 120, gainDb: 0 })),
+  dynamic: z.object({ enabled: z.boolean().default(false), device: z.enum(['compressor', 'boost', 'gate']).default('compressor'), threshold: z.number().min(-80).max(0).default(-24), ratio: z.number().min(1).max(20).default(4), attack: z.number().min(.1).max(100).default(10), release: z.number().min(10).max(1000).default(120), gainDb: db.default(0), knee: z.number().min(0).max(24).default(6), mix: unit.default(1), stereoLink: z.boolean().default(true), hysteresis: z.number().min(0).max(24).default(6), holdMs: z.number().min(0).max(500).default(50) }).default(() => ({ enabled: false, device: 'compressor' as const, threshold: -24, ratio: 4, attack: 10, release: 120, gainDb: 0, knee: 6, mix: 1, stereoLink: true, hysteresis: 6, holdMs: 50 })),
   drive: whiteboxSchema.default(defaultWhitebox),
   mod: modulationSchema.default(() => modulationSchema.parse({})),
   inputGainDb: db, outputGainDb: db,
-  amp: z.object({ enabled: z.boolean(), assetId: asset, quality: z.enum(['full', 'lite']), engine: z.enum(['nam', 'classic']).default('nam'), classic: classicAmpSchema.default(() => classicAmpSchema.parse({})) }),
-  cab: z.object({ enabled: z.boolean(), assetId: asset, gainDb: db, lowCut: z.number().min(20).max(500), highCut: z.number().min(1000).max(20000), engine: z.enum(['ir', 'physical']).default('ir'), physical: classicCabSchema.default(() => classicCabSchema.parse({})) }),
-  eq: z.object({ bandCount: z.union([z.literal(5), z.literal(7)]).default(7), enabled: z.boolean(), bands: z.array(z.number().min(-15).max(15)).length(7), gainDb: db }),
-  delay: z.object({ style: z.enum(['digital', 'analog', 'tape', 'reverse']).default('digital'), enabled: z.boolean(), timeMs: z.number().min(1).max(2000), feedback: z.number().min(0).max(.95), mix: z.number().min(0).max(1), tone: z.number().min(200).max(16000), sync: z.boolean(), division: z.enum(['1/4', '1/8', '1/8d', '1/16']), bpm: z.number().min(20).max(400) }),
+  amp: z.object({ enabled: z.boolean(), assetId: asset, quality: z.enum(['full', 'lite']), engine: z.enum(['nam', 'classic']).default('nam'), classic: classicAmpSchema.default(() => classicAmpSchema.parse({})), trimDb: db.default(0), levelDb: db.default(0), calibration: z.boolean().default(false), inputDbU: z.number().min(-30).max(40).nullable().default(null), outputDbU: z.number().min(-30).max(40).nullable().default(null), outputMode: z.enum(['raw', 'calibrated', 'normalized']).default('raw') }),
+  cab: z.object({ enabled: z.boolean(), assetId: asset, gainDb: db, lowCut: z.number().min(20).max(500), highCut: z.number().min(1000).max(20000), engine: z.enum(['ir', 'physical']).default('ir'), physical: classicCabSchema.default(() => classicCabSchema.parse({})), secondaryAssetId: asset.default(null), blend: unit.default(.5), secondaryGainDb: db.default(0), secondaryPolarity: z.boolean().default(false), secondaryDelayMs: z.number().min(0).max(20).default(0), pan: z.number().min(-1).max(1).default(0), secondaryPan: z.number().min(-1).max(1).default(0) }),
+  eq: z.object({ bandCount: z.union([z.literal(5), z.literal(7)]).default(7), enabled: z.boolean(), bands: z.array(z.number().min(-15).max(15)).length(7), gainDb: db, mode: z.enum(['graphic', 'parametric']).default('graphic'), lowCut: z.number().min(20).max(1000).default(20), highCut: z.number().min(1000).max(20000).default(20000), parametric: z.array(z.object({ frequency: z.number().min(20).max(20000), gain: z.number().min(-18).max(18), q: z.number().min(.1).max(12) })).length(4).default(() => [100, 400, 1600, 6400].map(frequency => ({ frequency, gain: 0, q: .707 }))) }),
+  delay: z.object({ style: z.enum(['digital', 'analog', 'tape', 'reverse', 'pingpong']).default('digital'), enabled: z.boolean(), timeMs: z.number().min(1).max(2000), feedback: z.number().min(0).max(.95), mix: z.number().min(0).max(1), tone: z.number().min(200).max(16000), sync: z.boolean(), division: z.enum(['1/4', '1/8', '1/8d', '1/16']), bpm: z.number().min(20).max(400) }),
   reverb: z.object({ style: z.enum(['room', 'hall', 'plate', 'spring']).default('hall'), enabled: z.boolean(), decay: z.number().min(.1).max(10), preDelayMs: z.number().min(0).max(200), damping: z.number().min(0).max(1), mix: z.number().min(0).max(1) })
 })
 export const effectModuleSchema = z.object({ id: z.string().min(1).max(80), type: z.enum(EFFECT_BLOCKS), settings: legacyChainSchema })
 export type EffectModule = z.infer<typeof effectModuleSchema>
-export const effectChainSchema = legacyChainSchema.extend({ modules: z.array(effectModuleSchema).max(24).refine(modules => new Set(modules.map(m => m.id)).size === modules.length, '模块 ID 不可重复').optional() })
-export type EffectChainSnapshot = z.infer<typeof effectChainSchema>
+const runtimeChainSchema = legacyChainSchema.extend({ modules: z.array(effectModuleSchema).max(24).refine(modules => new Set(modules.map(m => m.id)).size === modules.length, '模块 ID 不可重复').optional() })
+export type EffectChainSnapshot = z.infer<typeof runtimeChainSchema>
+const storedModuleSchema = z.object({ id: z.string().min(1).max(80), type: z.enum(EFFECT_BLOCKS), revision: z.union([z.literal(1), z.literal(2)]), params: z.unknown() })
+export const storedChainSchema = z.object({ version: z.literal(2), inputGainDb: db, outputGainDb: db, modules: z.array(storedModuleSchema).max(24) })
+export type StoredEffectChain = z.infer<typeof storedChainSchema>
+/** Version 1 is an adapter for the existing native ABI; persisted V2 modules are compact. */
+export const effectChainSchema = z.preprocess((input, ctx): unknown => {
+  if (!input || typeof input !== 'object' || (input as { version?: number }).version !== 2) return input
+  try {
+  const stored = storedChainSchema.parse(input)
+  const chain = defaultEffectChain()
+  return { ...chain, inputGainDb: stored.inputGainDb, outputGainDb: stored.outputGainDb, modules: stored.modules.map(m => ({ id: m.id, type: m.type, settings: legacyChainSchema.parse({ ...defaultEffectChain(), dspRevision: m.revision, [m.type]: legacyChainSchema.shape[m.type].parse(m.params) }) })) }
+  } catch { ctx.addIssue({ code: 'custom', message: '无效的 v2 效果链' }); return z.NEVER }
+}, runtimeChainSchema)
+export function storeEffectChain(input: EffectChainSnapshot): StoredEffectChain {
+  const chain = effectChainSchema.parse(input)
+  return { version: 2, inputGainDb: chain.inputGainDb, outputGainDb: chain.outputGainDb, modules: chainModules(chain).map(m => ({ id: m.id, type: m.type, revision: m.settings.dspRevision, params: m.settings[m.type] })) }
+}
 export function chainModules(chain: EffectChainSnapshot): EffectModule[] {
   if (chain.modules) return chain.modules
   const order = [...chain.order]
@@ -103,23 +120,30 @@ export function moduleChain(module: EffectModule): EffectChainSnapshot {
 }
 export function createEffectModule(type: EffectBlock): EffectModule {
   const settings = legacyChainSchema.parse(defaultEffectChain())
+  settings.dspRevision = 2
   settings[type].enabled = true
   if (type === 'amp') settings.amp.engine = 'classic'
   if (type === 'cab') settings.cab.engine = 'physical'
   return { id: crypto.randomUUID(), type, settings }
 }
-export interface ToneAsset { id: string; kind: 'nam' | 'ir'; name: string; sampleRate: number; channels: number; durationMs: number; architecture?: string; slimmable?: boolean; metadata: Record<string, unknown>; createdAt: string }
-export interface ArsenalPreset { id: string; name: string; chain: EffectChainSnapshot; revision: number; createdAt: string; updatedAt: string }
+export interface ToneAsset { id: string; kind: 'nam' | 'ir'; name: string; sampleRate: number; channels: number; durationMs: number; architecture?: string; slimmable?: boolean; metadata: Record<string, unknown>; createdAt: string; tags?: string[]; favorite?: boolean; role?: 'amp' | 'pedal' | 'rig' | 'unknown'; notes?: string }
+export interface ArsenalPreset { id: string; name: string; chain: EffectChainSnapshot; revision: number; createdAt: string; updatedAt: string; tags?: string[]; favorite?: boolean; factory?: boolean }
 export interface TrackEffects { enabled: boolean; presetId: string | null; chain: EffectChainSnapshot; monitorMode: MonitorMode }
 export const trackEffectsSchema = z.object({ enabled: z.boolean(), presetId: z.string().uuid().nullable(), chain: effectChainSchema, monitorMode: z.enum(['off', 'dry', 'wet']) })
+export interface ArsenalTake { id: string; name: string; createdAt: string; durationMs: number; sampleRate: number; channels: number; chain: EffectChainSnapshot; recovered?: boolean }
+export interface ArsenalDraft { name: string; presetId?: string; chain: EffectChainSnapshot; selected?: string; dirty: boolean }
+export interface ArsenalWorkspace { favorites?: string[]; draft: ArsenalDraft | null; takes: ArsenalTake[]; quick: { recording: boolean; looping: boolean; durationMs: number }; }
+export type ArsenalCommand = {action:'favorite';id:string;value:boolean} | { action: 'tuner'; enabled: boolean } | { action: 'workspace' | 'stopRecord' | 'stopLoop' } | { action: 'draft'; draft: ArsenalDraft } | { action: 'record'; name: string; chain: EffectChainSnapshot } | { action: 'loop'; id: string; startMs: number; endMs: number } | { action: 'exportTake'; id: string; wet: boolean; chain?: EffectChainSnapshot } | { action: 'deleteTake'; id: string } | { action: 'exportPreset'; preset: ArsenalPreset } | { action: 'importPreset' } | { action: 'asset'; id: string; name: string; tags: string[]; role: 'amp' | 'pedal' | 'rig' | 'unknown'; favorite: boolean; notes: string }
 export interface ArsenalState { presets: ArsenalPreset[]; assets: ToneAsset[] }
-export interface ArsenalMonitorState { active: boolean; mode: MonitorMode; sampleRate: number; bufferFrames: number; latencyMs: number; peak: number[]; outputPeak: number; xruns: number; error: string | null }
-export interface PreparedEffects { modules?: PreparedEffects[]; chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number }
+export interface ArsenalMonitorState { active: boolean; mode: MonitorMode; sampleRate: number; bufferFrames: number; latencyMs: number; peak: number[]; outputPeak: number; xruns: number; error: string | null; tunerActive?: boolean; tunerHz?: number; dspLoad?: number; dspLatencyMs?: number }
+export interface PreparedEffects { modules?: PreparedEffects[]; chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number; secondaryIr?: number[][] | null; secondaryIrRate?: number; namInputGain?: number; namOutputGain?: number }
 export interface ArsenalApi {
+  feed(input:{bus:number;sampleRate:number;samples:number[];reset?:boolean}):Promise<boolean>
   list(): Promise<ArsenalState>
+  command(input: ArsenalCommand): Promise<ArsenalWorkspace>
   importAsset(kind: 'nam' | 'ir', sampleRate?: number): Promise<ToneAsset | null>
   deleteAsset(id: string): Promise<void>
-  savePreset(input: { id?: string; name: string; chain: EffectChainSnapshot }): Promise<ArsenalPreset>
+  savePreset(input: { id?: string; name: string; chain: EffectChainSnapshot; tags?: string[]; favorite?: boolean }): Promise<ArsenalPreset>
   deletePreset(id: string): Promise<void>
   setTrack(input: { trackId: string; effects: TrackEffects }): Promise<void>
   prepare(chain: EffectChainSnapshot): Promise<PreparedEffects>
@@ -138,7 +162,7 @@ export function defaultEffectChain(): EffectChainSnapshot {
 }
 export function effectStructureKey(chain: EffectChainSnapshot): string {
   if (chain.modules) return JSON.stringify(chain.modules.map(m => [m.id, m.type, effectStructureKey(moduleChain(m))]))
-  return JSON.stringify([chain.order, chain.amp.assetId, chain.amp.quality, chain.cab.assetId, chain.drive?.device, chain.drive?.revision, chain.drive?.oversampling, chain.amp.engine, chain.amp.classic.device, chain.cab.engine, chain.cab.physical.device, chain.mod.device])
+  return JSON.stringify([chain.order, chain.dspRevision, chain.amp.assetId, chain.amp.quality, chain.amp.calibration, chain.amp.inputDbU, chain.amp.outputDbU, chain.amp.outputMode, chain.cab.assetId, chain.cab.secondaryAssetId, chain.drive?.device, chain.drive?.revision, chain.drive?.oversampling, chain.amp.engine, chain.amp.classic.device, chain.cab.engine, chain.cab.physical.device, chain.mod.device])
 }
 export const ARSENAL_CHANNEL = 'arsenal:request'
 export const ARSENAL_MONITOR_EVENT = 'arsenal:monitor'

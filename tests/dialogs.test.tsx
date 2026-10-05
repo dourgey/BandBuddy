@@ -146,7 +146,7 @@ describe('library dialogs', () => {
     render(<QueryClientProvider client={queryClient}><App /></QueryClientProvider>)
 
     await screen.findByRole('heading', { name: '曲库' })
-    const menus = screen.getAllByRole('button', { name: '歌曲菜单' })
+    const menus = await screen.findAllByRole('button', { name: '歌曲菜单' })
     fireEvent.click(menus[0]!)
 
     const editButton = await screen.findByRole('button', { name: /编辑歌曲信息/ })

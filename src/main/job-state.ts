@@ -3,8 +3,8 @@ import type { JobStatus } from '@shared/domain.js'
 const transitions: Record<JobStatus, readonly JobStatus[]> = {
   queued: ['blockedRuntime', 'preparing', 'postprocessing', 'cancelled', 'failed'],
   blockedRuntime: ['queued', 'cancelled'],
-  preparing: ['separating', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
-  separating: ['preparing', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
+  preparing: ['blockedRuntime', 'separating', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
+  separating: ['blockedRuntime', 'preparing', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
   postprocessing: ['completed', 'cancelling', 'cancelled', 'failed', 'interrupted'],
   cancelling: ['cancelled', 'failed', 'interrupted'],
   cancelled: ['queued'],

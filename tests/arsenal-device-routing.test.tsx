@@ -85,7 +85,7 @@ it('shows real monitor readings, edits the buffer with the custom select, and re
   await waitFor(() => expect(screen.getByRole('meter', { name: '实时输出电平' }).getAttribute('aria-valuenow')).toBe('40'))
   expect(screen.getByText(/44\.1 kHz · 128 frames · 2\.9 ms/)).toBeTruthy()
   act(() => callbacks.forEach(callback => callback({ ...active, outputPeak: .72 })))
-  expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('72')
+  expect(screen.getByRole('meter', {name:'实时输出电平'}).getAttribute('aria-valuenow')).toBe('72')
   fireEvent.click(screen.getByRole('combobox', { name: '实时缓冲区' }))
   fireEvent.click(screen.getByRole('option', { name: '256 frames' }))
   await waitFor(() => expect(reconcile).toHaveBeenCalled())

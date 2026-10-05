@@ -40,6 +40,9 @@
 .ws-lesson-mistakes dt { color: #496d64; font-weight: 600; font-size: 14px; }
 .ws-lesson-mistakes dd { margin: 8px 0 0; font-size: 14px; line-height: 1.95; }
 .ws-knowledge-figure img { width: 100%; height: auto; display: block; }
+.ws-lesson-diagram-scroll { max-width: 100%; overflow-x: auto; }
+.ws-lesson-diagram-scroll:focus-visible { outline: 2px solid var(--ws-green); outline-offset: 3px; }
+.ws-synth-figure img { min-width: 560px; }
 .ws-lesson-notation { margin: 28px 0; min-width: 0; }
 .ws-lesson-notation figcaption { color: #756d5f; font-size: 12px; line-height: 1.8; margin: 12px 0; }
 .ws-lesson-pagination { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; border-top: 1px solid #d8d2c5; padding-top: 24px; }

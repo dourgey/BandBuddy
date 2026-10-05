@@ -17,6 +17,10 @@ import { decodeNcmFile } from './ncm.js'
 import { currentToolTarget, toolFile } from './platform-tools.js'
 import { isTrustedMacBundleAsync } from './macos-bundle-integrity.js'
 import { isTrustedWindowsTool } from './windows-tool-integrity.js'
+import AdmZip from 'adm-zip'
+import { chmod, mkdir, rm } from 'node:fs/promises'
+import { RuntimeNetwork } from './runtime-network.js'
+import { artifactValid, type DownloadAttempt } from './artifact-download.js'
 
 export interface AudioProbe {
   durationMs: number
@@ -50,6 +54,8 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
+  private downloadAttempts: DownloadAttempt[] = []
+  downloadDiagnostics(): DownloadAttempt[] { return this.downloadAttempts }
   recordingPreviewEffect: ((source: string, takeId: string) => Promise<string>) | null = null
   private verifiedToolRoot: string | null = null
   private verification: Promise<void> | null = null
@@ -84,9 +90,41 @@ export class MediaService {
   /** Explicit tool consumers may share verification; status reads stay inexpensive. */
   ready(): Promise<void> { return this.ensureVerified() }
 
+  async repair(signal: AbortSignal): Promise<void> {
+    const root = path.join(this.paths.toolsRoot, `ffmpeg-${TOOL_TARGET.ffmpegVersion}`)
+    const network = new RuntimeNetwork()
+    try {
+      await mkdir(root, { recursive: true })
+      for (const file of TOOL_TARGET.files.filter(file => ['ffmpeg', 'ffprobe', 'ffmpegDependency'].includes(file.role))) {
+        if (path.basename(file.output) !== file.output) throw new Error('UNSAFE_TOOL_PATH')
+        const destination = path.join(root, file.output)
+        if (await artifactValid(destination, file)) continue
+        const source = TOOL_TARGET.sources[file.source]!
+        const archive = path.join(this.paths.downloadRoot, source.archive)
+        await network.download({ id: file.source, filename: source.archive, sha256: source.sha256, urls: [source.url] }, archive, this.database.getSettings().network, signal)
+        signal.throwIfAborted()
+        const temporary = destination + '.part'
+        try {
+          if (source.format === 'raw') await writeFile(temporary, await (await import('node:fs/promises')).readFile(archive))
+          else if (source.format === 'zip') {
+            const entry = new AdmZip(archive).getEntries().find(entry => !entry.isDirectory && (entry.entryName.endsWith(file.entrySuffix ?? '\0') || entry.entryName === file.fallbackEntry))
+            if (!entry) throw new Error('TOOL_ARCHIVE_INVALID')
+            await writeFile(temporary, entry.getData())
+          } else throw new Error('TOOL_ARCHIVE_UNSUPPORTED')
+          if (!await artifactValid(temporary, file)) throw new Error('ARTIFACT_HASH_MISMATCH')
+          if (file.executable && process.platform !== 'win32') await chmod(temporary, 0o755)
+          await rename(temporary, destination)
+        } finally { await rm(temporary, { force: true }) }
+      }
+      this.verification = null; this.verifiedToolRoot = null
+      await this.ensureVerified()
+    } finally { this.downloadAttempts = network.diagnostics(); network.close() }
+  }
+
   private async findVerifiedToolRoot(): Promise<string | null> {
     const candidates = [
       this.paths.packagedResource('bin'),
+      path.join(this.paths.toolsRoot ?? '', `ffmpeg-${TOOL_TARGET.ffmpegVersion}`),
       path.join(process.cwd(), 'resources', 'bin')
     ]
     for (const root of [...new Set(candidates)]) {

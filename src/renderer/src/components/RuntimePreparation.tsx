@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Download, LoaderCircle, AlertTriangle } from 'lucide-react'
 import type { RuntimeInfo } from '@shared/domain.js'
 import { toUserErrorMessage } from '../utils.js'
+import { EnvironmentStatus } from './EnvironmentStatus.js'
 
 export function RuntimePreparation({ runtime }: { runtime: RuntimeInfo }): React.JSX.Element | null {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  if (window.bandbuddy.environment) return <EnvironmentStatus />
   if (runtime.status === 'ready') return null
   const installing = ['installing', 'downloadingModel', 'verifying'].includes(runtime.status)
   const run = async (cancel = false): Promise<void> => {

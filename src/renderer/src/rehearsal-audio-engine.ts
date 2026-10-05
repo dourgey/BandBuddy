@@ -1,3 +1,4 @@
+import { arsenalDestination, retainArsenalSink } from './arsenal/native-output.js'
 import {
   dbToGain,
   type SongDetail
@@ -327,7 +328,7 @@ export class RehearsalAudioEngine {
     gain.gain.setValueAtTime(0.0001, context.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.002)
     gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.045)
-    oscillator.connect(gain).connect(context.destination)
+    oscillator.connect(gain).connect(arsenalDestination(context))
     oscillator.start()
     oscillator.stop(context.currentTime + 0.05)
   }
@@ -346,13 +347,13 @@ export class RehearsalAudioEngine {
       : null
     try {
       const selector = this.overlayContext as AudioContext & { setSinkId?: (deviceId: string) => Promise<void> }
-      if (selector.setSinkId) await selector.setSinkId(configuration.outputDeviceId)
+      if (!retainArsenalSink(this.overlayContext,configuration.outputDeviceId)&&selector.setSinkId) await selector.setSinkId(configuration.outputDeviceId)
     } catch {
       // The song engine reports device selection failures; keep overlays on the default output.
     }
     if (!this.overlayMasterConnected) {
-      if (this.overlayDelay) this.overlayMaster.connect(this.overlayDelay).connect(this.overlayContext.destination)
-      else this.overlayMaster.connect(this.overlayContext.destination)
+      if (this.overlayDelay) this.overlayMaster.connect(this.overlayDelay).connect(arsenalDestination(this.overlayContext))
+      else this.overlayMaster.connect(arsenalDestination(this.overlayContext))
       this.overlayMasterConnected = true
     }
     const matching = configuration.recordingTracks.flatMap((track) => {
