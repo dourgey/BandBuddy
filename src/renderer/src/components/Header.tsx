@@ -8,7 +8,8 @@ export function Header({
   onTasks,
   onSettings,
   locked = false,
-  recording = false
+  recording = false,
+  onClose
 }: {
   view: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'
   onView(view: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'): void
@@ -17,6 +18,7 @@ export function Header({
   onSettings(): void
   locked?: boolean
   recording?: boolean
+  onClose?(): void
 }): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
 
@@ -47,7 +49,7 @@ export function Header({
       <div className="window-controls">
         <button aria-label="最小化" onClick={() => void window.bandbuddy.window.minimize()}><Minus size={15} /></button>
         <button aria-label={maximized ? '还原' : '最大化'} onClick={() => void window.bandbuddy.window.toggleMaximize()}>{maximized ? <RestoreIcon size={12} /> : <Square size={12} />}</button>
-        <button className="close" aria-label="关闭" onClick={() => void window.bandbuddy.window.close()}><X size={16} /></button>
+        <button className="close" aria-label="关闭" onClick={() => onClose ? onClose() : void window.bandbuddy.window.close()}><X size={16} /></button>
       </div>
     </div>
   </header>

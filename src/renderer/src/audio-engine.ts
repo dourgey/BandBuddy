@@ -15,6 +15,8 @@ import {
 import type { SignalsmithStretchNode } from 'signalsmith-stretch'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import { activeLoopRange } from '@shared/playback.js'
+import { createDefaultSongEq } from '@shared/equalizer.js'
+import { EQ_FFT_SIZE, EqResponse, SongEqBus, type EqVisualData } from './song-equalizer.js'
 
 const SIGNALSMITH_WORKLET_MODULE_URL = new URL(
   '../../../node_modules/signalsmith-stretch/SignalsmithStretch.mjs',
@@ -155,6 +157,49 @@ export async function setAudioContextOutputDeviceOrDefault(
 }
 
 export class MultiTrackAudioEngine {
+  private eqResponse: EqResponse | null = null
+  private musicEq: SongEqBus | null = null
+  private recordingEq: SongEqBus | null = null
+  private eqConfiguration: ReturnType<EqResponse['configure']> | null = null
+  private eqSignature = ''
+  private eqChannels = 0
+  private spectrumActive = false
+  private readonly spectrumPower = new Float32Array(EQ_FFT_SIZE / 2)
+  private readonly spectrumDb = new Float32Array(EQ_FFT_SIZE / 2).fill(-100)
+
+  constructor(private readonly options: { applySongEq?: boolean } = {}) {}
+
+  setEqVisualizationActive(active: boolean): void {
+    this.spectrumActive = active
+    this.musicEq?.setSpectrumActive(active)
+    this.recordingEq?.setSpectrumActive(active)
+  }
+
+  getEqVisualData(): EqVisualData | null {
+    if (!this.context || !this.eqResponse) return null
+    this.spectrumPower.fill(0)
+    const playing = Boolean(this.anchor() && !this.anchor()!.paused)
+    const count = playing && this.spectrumActive
+      ? (this.musicEq?.accumulateSpectrum(this.spectrumPower) ?? 0) + (this.recordingEq?.accumulateSpectrum(this.spectrumPower) ?? 0) : 0
+    for (let index = 0; index < this.spectrumDb.length; index++) this.spectrumDb[index] = count
+      ? Math.max(-100, 10 * Math.log10(Math.max(1e-10, this.spectrumPower[index]! / count))) : -100
+    return {
+      frequencies: this.eqResponse.frequencies, responseDb: this.eqResponse.responseDb,
+      spectrumDb: this.spectrumDb, sampleRate: this.context.sampleRate, compensationDb: this.eqResponse.compensationDb
+    }
+  }
+
+  private applyEq(immediate = false): void {
+    if (!this.eqResponse) return
+    const state = this.practice?.eq ?? createDefaultSongEq()
+    const signature = JSON.stringify(state)
+    if (signature !== this.eqSignature || !this.eqConfiguration) {
+      this.eqConfiguration = this.eqResponse.configure(state)
+      this.eqSignature = signature
+    } else if (!immediate) return
+    this.musicEq?.apply(this.eqConfiguration, immediate)
+    this.recordingEq?.apply(this.eqConfiguration, immediate)
+  }
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private compressor: DynamicsCompressorNode | null = null
@@ -279,7 +324,7 @@ export class MultiTrackAudioEngine {
       element.currentTime = takePreviewTimeSeconds(song.practice.positionMs, take.playbackRate)
       const source = this.context!.createMediaElementSource(element)
       const gain = this.context!.createGain()
-      source.connect(gain).connect(this.auxiliaryBus!)
+      source.connect(gain).connect(this.recordingEq?.input ?? this.auxiliaryBus!)
       this.addMeter(recordingTrack.id, gain)
       this.recordings.set(recordingTrack.id, { element, source, gain, splitter: null, take })
     }
@@ -400,6 +445,7 @@ export class MultiTrackAudioEngine {
     })
     const mediaPlaying = Boolean(this.anchor() && !this.anchor()!.paused)
     this.practice = practice
+    this.applyEq(immediate)
     if (guitarModeChanged && !immediate) {
       this.cancelOutputRouteTransition()
       // Keep both guitar alternatives connected while their gains crossfade.
@@ -635,6 +681,12 @@ export class MultiTrackAudioEngine {
     this.auxiliaryBus = this.context.createGain()
     this.auxiliaryBus.channelCount = 2
     this.auxiliaryBus.channelCountMode = 'explicit'
+    if (this.options.applySongEq) {
+      this.eqResponse = new EqResponse(this.context)
+      this.recordingEq = new SongEqBus(this.context, 2)
+      this.recordingEq.output.connect(this.auxiliaryBus)
+      this.recordingEq.setSpectrumActive(this.spectrumActive)
+    }
     this.auxiliaryDelay = this.context.createDelay(2)
     this.auxiliaryOutputSplitter = this.context.createChannelSplitter(2)
     this.dryGain.gain.value = 1
@@ -680,7 +732,19 @@ export class MultiTrackAudioEngine {
     this.metronomeMerger = context.createChannelMerger(2)
     this.outputMerger = context.createChannelMerger(this.routableOutputChannels)
     this.master.channelInterpretation = 'discrete'
-    this.outputMerger.connect(this.master)
+    if (this.eqResponse) {
+      if (this.eqChannels !== this.routableOutputChannels || !this.musicEq) {
+        this.musicEq?.destroy()
+        this.musicEq = new SongEqBus(context, this.routableOutputChannels)
+        this.eqChannels = this.routableOutputChannels
+      } else { this.musicEq.setSpectrumActive(false); this.musicEq.output.disconnect() }
+      this.outputMerger.connect(this.musicEq.input)
+      this.musicEq.output.connect(this.master)
+      // Output reconfiguration disconnects the analyser tap as well.
+      this.musicEq.setSpectrumActive(false)
+      this.musicEq.setSpectrumActive(this.spectrumActive)
+      this.applyEq(true)
+    } else this.outputMerger.connect(this.master)
     if (this.routableOutputChannels === 2) {
       this.master.connect(this.compressor).connect(arsenalDestination(context))
       // Keeps the 1-2 pair and the limiter, but skips the master gain.
@@ -910,6 +974,9 @@ export class MultiTrackAudioEngine {
     this.pause()
     this.pitchGeneration += 1
     this.destroyTracks()
+    this.musicEq?.destroy(); this.recordingEq?.destroy(); this.eqResponse?.destroy()
+    this.musicEq = null; this.recordingEq = null; this.eqResponse = null
+    this.eqConfiguration = null; this.eqSignature = ''; this.eqChannels = 0
     void this.context?.close()
     this.context = null
     this.master = null

@@ -31,6 +31,27 @@ function paths(): AppPaths {
 }
 
 describe('migration backups and large-library queries', () => {
+  it('restores song EQ after reopening and defaults legacy practice JSON without a migration', () => {
+    const locations = paths()
+    let database = new BandBuddyDatabase(locations)
+    const id = '11111111-1111-4111-8111-111111111111'
+    database.sqlite.prepare('INSERT INTO songs(id,title,artist,created_at,updated_at) VALUES (?,?,?,?,?)').run(id, 'EQ 乐曲', '', '2026-10-10', '2026-10-10')
+    const legacy = database.getSong(id)!.practice
+    const { eq: omitted, ...saved } = legacy
+    database.sqlite.prepare('INSERT INTO practice_states(song_id,state_json,updated_at) VALUES (?,?,?)').run(id, JSON.stringify(saved), '2026-10-10')
+    const normalized = database.getSong(id)!.practice
+    expect(normalized.eq.enabled).toBe(false)
+    expect(normalized.eq.graphicGains).toHaveLength(10)
+    normalized.eq.enabled = true; normalized.eq.mode = 'parametric'
+    normalized.eq.graphicGains[4] = -5.2
+    normalized.eq.nodes[0] = { id: 'custom', frequency: 333.3, gainDb: 7.4, q: 3.2 }
+    database.savePractice(normalized)
+    database.close()
+    database = new BandBuddyDatabase(locations)
+    expect(database.getSong(id)!.practice.eq).toEqual(normalized.eq)
+    expect(database.sqlite.prepare('SELECT MAX(version) AS version FROM schema_version').get()).toMatchObject({ version: DATABASE_MIGRATIONS.length })
+    database.close()
+  })
   it('backs up committed WAL content only when a migration is required', () => {
     const locations = paths()
     const writer = new DatabaseSync(locations.databasePath)

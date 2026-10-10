@@ -453,6 +453,10 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .transport button i { position: absolute; font-size: 12px; font-style: normal; }
 .transport .main-play { width: 52px; height: 52px; color: var(--ink); background: linear-gradient(145deg, var(--surface-raised), var(--surface-muted)); box-shadow: 0 5px 14px rgba(0,0,0,.24); }
 .footer-volume { min-width: 0; justify-self: end; display: flex; align-items: center; gap: 7px; }
+.eq-button { width: 34px; height: 34px; border-radius: 9px; background: transparent; color: var(--inverse-text); font-size: 11px; font-weight: 750; letter-spacing: .5px; opacity: .65; }
+.eq-button:hover, .eq-button[aria-expanded="true"] { background: rgba(255,255,255,.1); opacity: 1; }
+.eq-button.active { color: var(--warning); opacity: 1; }
+.player-bar:has(.eq-button[aria-expanded="true"]) { z-index: 85; }
 .master-volume-control, .practice-queue { position: relative; }
 .volume-toggle { width: 28px; height: 28px; display: grid; place-items: center; color: #d9d1c6; border-radius: 50%; background: transparent; }
 .volume-toggle:hover, .volume-toggle.is-muted { background: rgba(255,255,255,.08); }

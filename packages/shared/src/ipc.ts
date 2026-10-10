@@ -1,5 +1,6 @@
 import { appearanceSchema } from './appearance-schema.js'
 import { z } from 'zod'
+import { createDefaultSongEq } from './equalizer.js'
 import {
   METRONOME_OFFSET_MAX_MS,
   METRONOME_OFFSET_MIN_MS,
@@ -79,7 +80,20 @@ export const trackStateSchema = z.object({
 
 const trackOrderKeySchema = z.custom<TrackOrderKey>(isTrackOrderKey, '无效的轨道顺序标识')
 
+export const songEqSchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(['graphic', 'parametric']),
+  graphicGains: z.array(z.number().finite().min(-12).max(12)).length(10),
+  nodes: z.array(z.object({
+    id: z.string().min(1).max(80),
+    frequency: z.number().finite().min(20).max(20000),
+    gainDb: z.number().finite().min(-12).max(12),
+    q: z.number().finite().min(0.2).max(12)
+  })).max(8)
+}).refine(value => new Set(value.nodes.map(node => node.id)).size === value.nodes.length, 'EQ 节点不能重复')
+
 export const practiceStateSchema = z.object({
+  eq: songEqSchema.default(createDefaultSongEq),
   songId: z.string().uuid(),
   positionMs: z.number().nonnegative(),
   playbackRate: z.number().min(PLAYBACK_RATE_MIN).max(PLAYBACK_RATE_MAX),

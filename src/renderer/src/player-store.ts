@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { normalizeSongEq } from '@shared/equalizer.js'
 import { createDefaultPracticeState, isStemVisible, normalizePitchSemitones, normalizeSelectedStemForGuitarMode, type RecordingMeter, type PracticeState, type SongDetail, type StemType, type TrackState } from '@shared/domain.js'
 
 export function patchTrackStates(
@@ -57,6 +58,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
       practice: {
       ...createDefaultPracticeState(song.id),
       ...song.practice,
+      eq: normalizeSongEq(song.practice.eq),
       guitarSplitEnabled,
       selectedStem,
       pitchSemitones: normalizePitchSemitones(song.practice.pitchSemitones),
@@ -89,6 +91,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
       practice: {
         ...state.practice,
         ...patch,
+        eq: patch.eq ? normalizeSongEq(patch.eq) : state.practice.eq,
         guitarSplitEnabled,
         selectedStem,
         pitchSemitones: normalizePitchSemitones(patch.pitchSemitones ?? state.practice.pitchSemitones)

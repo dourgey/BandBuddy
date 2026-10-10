@@ -8,6 +8,7 @@ import { VideoPlayer } from '../src/renderer/src/components/VideoPlayer.js'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { installFixtureBridge } from '../src/renderer/src/mock-bridge.js'
 import { usePlayerStore } from '../src/renderer/src/player-store.js'
+import { createDefaultRecordingTrackState } from '../packages/shared/src/domain.js'
 
 const audio = vi.hoisted(() => ({
   play: vi.fn(async () => true), pause: vi.fn(), seek: vi.fn(), applyPractice: vi.fn(),
@@ -182,6 +183,28 @@ it('M shortcut restores a track silenced at the gain floor', async () => {
   })
   fireEvent.keyDown(window, { key: 'm', code: 'KeyM' })
   expect(usePlayerStore.getState().practice!.tracks.find(t => t.stemType === 'vocals')).toMatchObject({ gainDb: 0, muted: false })
+})
+it('keeps restored stem state when cancelling recording solos refreshes the song', async () => {
+  const song = fixtureDetail(fixtureSongs[0]!)
+  song.practice.tracks.find(track => track.stemType === 'drums')!.solo = true
+  Object.assign(song.practice.tracks.find(track => track.stemType === 'vocals')!, { muted: true, gainDb: -60 })
+  const recordingTrack = { ...createDefaultRecordingTrackState(song.id, 'recording-solo'), solo: true }
+  song.recordingTracks = [recordingTrack]
+  usePlayerStore.getState().loadSong(song)
+  vi.spyOn(window.bandbuddy.library, 'get').mockImplementation(async () => structuredClone(song))
+  const update = vi.spyOn(window.bandbuddy.recording, 'updateTrack').mockImplementation(async ({ patch }) => {
+    Object.assign(recordingTrack, patch)
+    return recordingTrack
+  })
+  await openPractice()
+  const mute = document.querySelector('[data-track-order-key="stem:vocals"] .ms-buttons button')!
+  fireEvent.click(mute)
+  await waitFor(() => expect(audio.load).toHaveBeenCalled())
+  expect(update).toHaveBeenCalledWith({ recordingTrackId: recordingTrack.id, patch: { solo: false } })
+  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'vocals'))
+    .toMatchObject({ muted: false, gainDb: 0 })
+  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'drums')!.solo).toBe(false)
+  expect(usePlayerStore.getState().song!.recordingTracks[0]!.solo).toBe(false)
 })
 it('output menu consumes transport keys while choosing a channel', async () => {
   await openPractice()

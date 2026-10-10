@@ -25,6 +25,7 @@ import {
 import { lyricFrameAt, lyricWordFrame } from '@shared/lyrics.js'
 import { nextLoopState, restartPositionMs } from '@shared/playback.js'
 import { MultiTrackAudioEngine } from './audio-engine.js'
+import { PracticePersistence } from './practice-persistence.js'
 import { confirmAction } from './components/ui/confirm.js'
 import { Header } from './components/Header.js'
 import { EnvironmentStatus, ENVIRONMENT_SETTINGS_EVENT } from './components/EnvironmentStatus.js'
@@ -41,6 +42,7 @@ import { clamp, isCancellationError, silenceToggle, toUserErrorMessage } from '.
 import './playback-media.css'
 
 const ImportDialog = lazy(() => import('./components/Dialogs.js').then((m) => ({ default: m.ImportDialog })))
+const EqWindow = lazy(() => import('./components/EqWindow.js').then(module => ({ default: module.EqWindow })))
 const ExportDialog = lazy(() => import('./components/Dialogs.js').then((m) => ({ default: m.ExportDialog })))
 const MetadataDialog = lazy(() => import('./components/Dialogs.js').then((m) => ({ default: m.MetadataDialog })))
 const SettingsDrawer = lazy(() => import('./components/Dialogs.js').then((m) => ({ default: m.SettingsDrawer })))
@@ -55,8 +57,10 @@ const fixtureGuitarPreview = import.meta.env.DEV ? previewParams.get('guitarSpli
 
 export default function App(): React.JSX.Element {
   const client = useQueryClient()
-  const [audioEngine] = useState(() => new MultiTrackAudioEngine())
+  const [audioEngine] = useState(() => new MultiTrackAudioEngine({ applySongEq: true }))
   const engine = useRef(audioEngine)
+  const [practicePersistence] = useState(() => new PracticePersistence(snapshot => window.bandbuddy.library.savePractice(snapshot)))
+  const [eqOpen, setEqOpen] = useState(false)
   const songLoadGeneration = useRef(0)
   const [view, setView] = useState<'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'>('library')
   const [activeRehearsalId, setActiveRehearsalId] = useState<string | null>(null)
@@ -336,23 +340,27 @@ export default function App(): React.JSX.Element {
 
   const saveNow = async (): Promise<void> => {
     const state = usePlayerStore.getState()
-    if (!state.practice || !state.song || fixtureMode) return
-    await window.bandbuddy.library.savePractice({ ...state.practice, positionMs: state.currentMs, updatedAt: new Date().toISOString() })
+    if (!state.practice || !state.song) return
+    practicePersistence.schedule({ ...state.practice, positionMs: state.currentMs, updatedAt: new Date().toISOString() })
+    await practicePersistence.flush(state.song.id)
   }
 
   useEffect(() => {
-    if (!practice || fixtureMode) return
-    const timer = setTimeout(() => void saveNow(), 500)
-    return () => clearTimeout(timer)
-  }, [practice])
+    if (!practice) return
+    practicePersistence.schedule({ ...practice, positionMs: usePlayerStore.getState().currentMs, updatedAt: new Date().toISOString() })
+  }, [practice, practicePersistence])
+
+  useEffect(() => { setEqOpen(false) }, [song?.id, view, globallyRecording])
+
+  useEffect(() => () => { void practicePersistence.flushAll().catch(() => undefined) }, [practicePersistence])
 
   useEffect(() => {
     if (!playing || fixtureMode) return
-    const timer = setInterval(() => void saveNow(), 5000)
+    const timer = setInterval(() => void saveNow().catch(() => undefined), 5000)
     return () => clearInterval(timer)
   }, [playing])
 
-  useEffect(() => window.bandbuddy.window.onHidden(() => void saveNow()), [])
+  useEffect(() => window.bandbuddy.window.onHidden(() => void saveNow().catch(() => undefined)), [])
 
   useEffect(() => {
     if (audioSession?.owner === 'rehearsal' || (!audioSession && view === 'rehearsal')) return
@@ -414,9 +422,9 @@ export default function App(): React.JSX.Element {
   const openSong = async (summaryOrId: SongSummary | string, autoPlay = false): Promise<void> => {
     if (!allowAudioAction()) return
     const generation = ++songLoadGeneration.current
+    try { await saveNow() } catch { setToast('练习设置保存失败，请重试后切换歌曲'); return }
     if (generation !== songLoadGeneration.current) return
-    const summary = typeof summaryOrId === 'string' ? fixtureSongs.find((item) => item.id === summaryOrId) : summaryOrId
-    const detail = fixtureMode && summary ? fixtureDetail(summary) : await window.bandbuddy.library.get(typeof summaryOrId === 'string' ? summaryOrId : summaryOrId.id)
+    const detail = await window.bandbuddy.library.get(typeof summaryOrId === 'string' ? summaryOrId : summaryOrId.id)
     if (generation !== songLoadGeneration.current || isRecordingLocked()) return
     if (!detail) { setToast('歌曲不存在或已被删除'); return }
     pausePractice()
@@ -527,7 +535,7 @@ export default function App(): React.JSX.Element {
     pausePractice()
     const nextSong = {
       ...updated,
-      practice: preserveLocalPractice ? practice ?? updated.practice : updated.practice
+      practice: preserveLocalPractice ? usePlayerStore.getState().practice ?? updated.practice : updated.practice
     }
     loadSong(nextSong)
     try {
@@ -786,6 +794,7 @@ export default function App(): React.JSX.Element {
   return <div className="app-shell">
     <GlobalMonitor visible={view !== 'arsenal'} onOpen={() => void changeView('arsenal')} />
     <Header
+      onClose={() => { void saveNow().then(() => window.bandbuddy.window.close()).catch(() => setToast('练习设置保存失败，请重试后关闭')) }}
       view={view}
       recording={globallyRecording}
       onView={(next) => void changeView(next)}
@@ -841,11 +850,16 @@ export default function App(): React.JSX.Element {
       onToast={setToast}
     /></div>}
     </Suspense>
-    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar outputLatencyMs={engine.current.outputLatencySeconds * 1000} recordingActive={recordingState.phase === 'recording'} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={globallyRecording} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar eqOpen={eqOpen} onOpenEq={() => setEqOpen(true)} outputLatencyMs={engine.current.outputLatencySeconds * 1000} recordingActive={recordingState.phase === 'recording'} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={globallyRecording} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')
     }} />}
+
+    <Suspense fallback={null}>{eqOpen && view === 'practice' && song && practice && <EqWindow key={song.id} engine={audioEngine} persistence={practicePersistence} locked={globallyRecording} onCommit={saveNow} onClose={() => {
+      setEqOpen(false)
+      void saveNow().catch(() => setToast('EQ 保存失败，参数已保留；重新打开 EQ 可重试'))
+    }} />}</Suspense>
 
     <BackgroundRecording view={view} onReturn={owner => void changeView(owner)} />
     <BackgroundTransport view={view} onReturn={owner => void changeView(owner)} />

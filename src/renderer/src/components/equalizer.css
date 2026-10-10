@@ -1,0 +1,82 @@
+.song-eq-window { position: fixed; z-index: 80; bottom: 104px; left: 50%; transform: translateX(-50%); width: min(880px, calc(100vw - 40px)); max-height: calc(100vh - 184px); overflow: auto; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 20px; background: var(--paper-2); color: var(--ink); box-shadow: 0 24px 80px rgba(0,0,0,.26), 0 3px 12px rgba(0,0,0,.12); padding: 24px 28px 19px; outline: none; }
+.song-eq-header { display: flex; align-items: center; gap: 16px; }
+.song-eq-header > div { min-width: 0; flex: 1; }
+.song-eq-eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 1.5px; }
+.song-eq-header h2 { font-family: var(--serif); font-size: 26px; line-height: 1.3; margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-eq-header h2 small { font-family: var(--sans); font-size: 12px; color: var(--muted); margin-left: 12px; font-weight: 500; }
+.song-eq-enable { display: flex; align-items: center; gap: 10px; position: relative; cursor: pointer; font-size: 12px; color: var(--muted); }
+.song-eq-enable input { position: absolute; right: 0; width: 36px; height: 22px; opacity: 0; cursor: pointer; margin: 0; z-index: 1; }
+.song-eq-enable i { display: block; width: 36px; height: 22px; border-radius: 12px; background: var(--border); transition: background .15s; }
+.song-eq-enable i::after { content: ''; display: block; width: 16px; height: 16px; background: var(--paper-2); border-radius: 50%; margin: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .15s; }
+.song-eq-enable input:checked + i { background: var(--warning); }
+.song-eq-enable input:checked + i::after { transform: translateX(14px); }
+.song-eq-enable input:focus-visible + i { outline: 2px solid var(--warning); outline-offset: 3px; }
+.song-eq-close, .song-eq-delete { display: grid; place-items: center; width: 30px; height: 30px; color: var(--muted); background: transparent; border-radius: 8px; }
+.song-eq-close:hover, .song-eq-delete:hover { background: var(--border-soft); color: var(--ink); }
+.song-eq-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 22px 0 12px; gap: 10px; }
+.song-eq-mode { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.song-eq-mode span.selected { color: var(--ink); font-weight: 650; }
+.song-eq-mode input[type="checkbox"] { appearance: none; flex: 0 0 35px; width: 35px; min-height: 19px; height: 19px; padding: 0; border: 0; display: block; border-radius: 12px; background: var(--border); margin: 0; cursor: pointer; position: relative; }
+.song-eq-mode input[type="checkbox"]::after { content: ''; width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--ink); position: absolute; left: 3px; top: 3px; transition: transform .15s; }
+.song-eq-mode input[type="checkbox"]:checked::after { width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--ink); transform: translateX(16px); }
+.song-eq-reset { display: flex; align-items: center; gap: 6px; background: transparent; color: var(--muted); font-size: 11px; padding: 7px 0 7px 8px; }
+.song-eq-reset:hover { color: var(--ink); }
+.song-eq-graph { position: relative; border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; background: var(--paper); }
+.song-eq-graph canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.song-eq-graph svg { display: block; width: 100%; height: auto; position: relative; touch-action: none; overflow: visible; }
+.song-eq-graph svg text { fill: var(--muted); font: 10px var(--sans); user-select: none; }
+.eq-grid-line { stroke: var(--border-soft); stroke-width: .8; }
+.eq-zero-line { stroke: var(--border-strong, var(--border)); stroke-width: 1.2; }
+.eq-response-line { stroke: var(--warning); stroke-width: 2.5; fill: none; vector-effect: non-scaling-stroke; }
+.song-eq-graph.is-bypassed .eq-response-line { stroke: var(--muted); }
+.song-eq-legend { position: absolute; top: 8px; left: 46px; display: flex; align-items: center; gap: 15px; font-size: 9px; color: var(--muted); pointer-events: none; }
+.song-eq-legend span::before { content: ''; display: inline-block; width: 13px; height: 2px; background: var(--warning); vertical-align: middle; margin-right: 4px; }
+.song-eq-legend span:first-child::before { height: 6px; opacity: .25; }
+.song-eq-legend small { opacity: .6; }
+.eq-node { cursor: grab; outline: none; }
+.eq-node:active { cursor: grabbing; }
+.eq-node-hit { fill: transparent; }
+.eq-node-dot { fill: var(--paper-2); stroke: var(--warning); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.eq-node.selected .eq-node-dot, .eq-node:focus-visible .eq-node-dot { fill: var(--warning); stroke: var(--ink); }
+.eq-node.selected text { fill: var(--ink); font-weight: 700; }
+.song-eq-controls { border: 0; padding: 0; margin: 16px 0 0; min-width: 0; }
+.song-eq-bands { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.song-eq-band { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 7px 0 0; }
+.song-eq-band > span { font-size: 11px; color: var(--ink); font-weight: 650; }
+.song-eq-band > span small { margin-left: 2px; font-size: 8px; color: var(--muted); font-weight: 400; }
+.song-eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 92px; accent-color: var(--warning); cursor: ns-resize; touch-action: none; }
+.song-eq-window input[type="number"] { min-width: 0; width: 100%; max-width: 62px; text-align: center; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--paper); color: var(--ink); font-size: 11px; padding: 5px 2px; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.song-eq-window input[type="number"]::-webkit-inner-spin-button, .song-eq-window input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.song-eq-node-controls { min-height: 61px; display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.song-eq-node-label { color: var(--ink); font-weight: 650; font-size: 12px; margin-right: 5px; }
+.song-eq-node-controls label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.song-eq-node-controls input[type="number"] { max-width: 80px; width: 80px; padding: 7px; }
+.song-eq-node-controls label small { font-size: 10px; }
+.song-eq-node-count { margin-left: auto; color: var(--muted); font-size: 10px; }
+.song-eq-no-node { font-size: 12px; color: var(--muted); }
+.song-eq-hint { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 10px; margin: 14px 0 17px; line-height: 1.6; }
+.song-eq-hint span { white-space: nowrap; }
+.song-eq-footer { border-top: 1px solid var(--border-soft); padding-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.song-eq-footer p { color: var(--muted); font-size: 10px; margin: 0 0 5px; }
+.song-eq-footer > div > span { color: var(--muted); font-size: 10px; }
+.song-eq-footer b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.song-eq-save { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.song-eq-save.saved::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--success, #6e8e72); margin-right: 6px; vertical-align: middle; }
+.song-eq-save.error { color: var(--danger); }
+.song-eq-save button { background: transparent; color: inherit; text-decoration: underline; margin-left: 8px; padding: 3px; }
+@media (max-width: 650px) {
+  .song-eq-window { width: calc(100vw - 20px); padding: 17px 14px; bottom: 96px; max-height: calc(100vh - 166px); border-radius: 14px; }
+  .song-eq-header { gap: 9px; }
+  .song-eq-header h2 { font-size: 21px; }
+  .song-eq-header h2 small { display: none; }
+  .song-eq-enable { gap: 6px; }
+  .song-eq-bands { gap: 3px; }
+  .song-eq-band > span { font-size: 9px; }
+  .song-eq-band > span small { display: none; }
+  .song-eq-band input[type="range"] { height: 78px; }
+  .song-eq-window input[type="number"] { font-size: 10px; }
+  .song-eq-node-controls { gap: 9px; }
+  .song-eq-node-controls input[type="number"] { width: 63px; }
+  .song-eq-hint { flex-wrap: wrap; gap: 3px; }
+  .song-eq-legend { font-size: 8px; top: 3px; left: 23px; gap: 8px; }
+}

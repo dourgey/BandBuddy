@@ -123,6 +123,22 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
     song.recordingTracks.some((track) => track.solo && !track.muted
       && song.recordingTakes.some((take) => take.id === track.activeTakeId))
   )
+  const toggleMute = (
+    track: Pick<TrackState, 'muted' | 'gainDb' | 'solo'>,
+    update: (patch: ReturnType<typeof silenceToggle>) => void
+  ): void => {
+    const restore = isSilenced(track) || isImpliedMuted(track, soloActive)
+    if (restore && soloActive && !track.solo) {
+      for (const other of practice.tracks) {
+        if (other.solo) onTrack(other.stemType, { solo: false })
+      }
+      for (const other of song.recordingTracks) {
+        if (other.solo) onRecordingTrack(other.id, { solo: false })
+      }
+    }
+    // Treat a solo-induced mute as an active M, so clicking it restores sound.
+    update(silenceToggle(restore ? { ...track, muted: true } : track))
+  }
   const [draggedTrack, setDraggedTrack] = useState<TrackOrderKey | null>(null)
   const [dropTarget, setDropTarget] = useState<{ key: TrackOrderKey; placement: 'before' | 'after' } | null>(null)
   const draggedTrackRef = useRef<TrackOrderKey | null>(null)
@@ -315,6 +331,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 onSeek={onSeek}
                 onRange={(start, end) => onPatch({ loopStartMs: start, loopEndMs: end, loopEnabled: true })}
                 onPatch={(patch) => onTrack(type, patch)}
+                onToggleMute={() => toggleMute(state, (patch) => onTrack(type, patch))}
                 onSelected={() => onSelected(type)}
                 onViewChange={(zoom, scroll) => onPatch({ zoom, scroll })}
               />
@@ -342,6 +359,9 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
               onEffectsChanged={props.onEffectsChanged}
               onDeleteTake={onDeleteTake}
               onTrack={(patch) => onRecordingTrack(recordingTrack.id, patch)}
+              onToggleMute={() => toggleMute(recordingTrack, (patch) => onRecordingTrack(recordingTrack.id, {
+                ...patch, ...(patch.muted ? { solo: false } : {})
+              }))}
               onUseTakePractice={onUseTakePractice}
               onSeek={onSeek}
               onRange={(start, end) => onPatch({ loopStartMs: start, loopEndMs: end, loopEnabled: true })}
@@ -437,6 +457,7 @@ interface TrackRowProps extends TrackDragProps {
   onSeek(milliseconds: number): void
   onRange(start: number, end: number): void
   onPatch(patch: Partial<TrackState>): void
+  onToggleMute(): void
   onSelected(): void
   onViewChange(zoom: number, scroll: number): void
 }
@@ -445,7 +466,7 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
   const {
     type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs,
     peaksUrl, durationMs, currentMs, practice,
-    onSeek, onRange, onPatch, onSelected, onViewChange, ...dragProps
+    onSeek, onRange, onPatch, onToggleMute, onSelected, onViewChange, ...dragProps
   } = props
   const Icon = icons[type]
   const outputPairs = Array.from(
@@ -465,7 +486,7 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
       <i><Icon size={22} /></i><b>{name || STEM_META[type].shortLabel}</b>{!exists && <small>未导入</small>}
     </span>
     <span className="ms-buttons">
-      <button className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onPatch(silenceToggle(state)) }}>M</button>
+      <button className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onToggleMute() }}>M</button>
       <button className={state.solo ? 'active' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onPatch({ solo: !state.solo }) }}>S</button>
     </span>
     <TrackGainControl label={`${STEM_META[type].label}电平`} value={state.gainDb} disabled={!exists || locked} onChange={(gainDb) => onPatch({ gainDb })} />
@@ -505,6 +526,7 @@ interface RecordingTrackRowProps extends TrackDragProps {
   onUpdateTake(takeId: string, patch: { name?: string; alignmentOffsetMs?: number }): void
   onDeleteTake(takeId: string): void
   onTrack(patch: Partial<Pick<RecordingTrackState, 'name' | 'gainDb' | 'muted' | 'solo'>>): void
+  onToggleMute(): void
   onUseTakePractice(rate: number, pitchSemitones: number): void
   onSeek(milliseconds: number): void
   onRange(start: number, end: number): void
@@ -514,7 +536,7 @@ interface RecordingTrackRowProps extends TrackDragProps {
 function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   const {
     song, recordingTrack: track, takes, practice, currentMs, state, meter: suppliedMeter, soloActive, locked, onRecord, onStop, onCancel, onSelectTake,
-    onUpdateTake, onDeleteTake, onDeleteTrack, onEffectsChanged, onTrack, onUseTakePractice, onSeek, onRange, onViewChange, ...dragProps
+    onUpdateTake, onDeleteTake, onDeleteTrack, onEffectsChanged, onTrack, onToggleMute, onUseTakePractice, onSeek, onRange, onViewChange, ...dragProps
   } = props
   const liveMeter = useRecordingMeterStore((store) => state.recordingTrackId === track.id ? store.meter : null)
   const meter = suppliedMeter ?? liveMeter ?? useRecordingMeterStore.getState().meter
@@ -550,7 +572,7 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
           : <button className="record-button" aria-label="其他录音轨正在录音" disabled><Circle size={16} /></button>}
     </span>
     <span className="ms-buttons">
-      <button className={isSilenced(track) ? 'active' : isImpliedMuted(track, soloActive && Boolean(activeTake)) ? 'is-implied-muted' : ''} disabled={locked || !activeTake} onClick={() => onTrack({ ...silenceToggle(track), ...(isSilenced(track) ? {} : { solo: false }) })}>M</button>
+      <button className={isSilenced(track) ? 'active' : isImpliedMuted(track, soloActive && Boolean(activeTake)) ? 'is-implied-muted' : ''} disabled={locked || !activeTake} onClick={onToggleMute}>M</button>
       <button className={track.solo ? 'active' : ''} disabled={locked || !activeTake} onClick={() => onTrack({ solo: !track.solo, ...(!track.solo ? { muted: false } : {}) })}>S</button>
     </span>
     <TrackGainControl label={`${track.name || '录音轨'}电平`} value={track.gainDb} disabled={locked || !activeTake} onChange={(gainDb) => onTrack({ gainDb })} />

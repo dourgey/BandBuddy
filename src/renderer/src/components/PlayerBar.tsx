@@ -41,10 +41,14 @@ export function PlayerBar({
   songs,
   onSelectSong,
   outputLatencyMs = 0,
-  recordingActive = false
+  recordingActive = false,
+  eqOpen = false,
+  onOpenEq
 }: {
   outputLatencyMs?: number
   recordingActive?: boolean
+  eqOpen?: boolean
+  onOpenEq?(): void
   practiceMode: boolean
   countInRemaining: number
   locked: boolean
@@ -96,6 +100,7 @@ export function PlayerBar({
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
+        {practiceMode && <button className={`eq-button ${practice.eq.enabled ? 'active' : ''}`} disabled={locked} aria-label="歌曲均衡器" aria-expanded={eqOpen} title="歌曲 EQ" onClick={onOpenEq}>EQ</button>}
         <VolumeControl key={song.id} disabled={locked} label="总音量" value={practice.masterGainDb} onChange={masterGainDb => patchPractice({ masterGainDb })} />
         {practiceMode && song.videoUrl && <VideoWindowButton key={song.id} songId={song.id} src={song.videoUrl} title={song.title} currentMs={currentMs} playing={playing || recordingActive} playbackRate={practice.playbackRate} seekPositionMs={practice.positionMs} outputLatencyMs={outputLatencyMs} />}
         <div className="practice-queue" ref={queuePanel}>

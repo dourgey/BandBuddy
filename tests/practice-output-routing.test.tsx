@@ -5,10 +5,12 @@ import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { PracticeRoom } from '../src/renderer/src/pages/PracticeRoom.js'
+import { createDefaultRecordingTrackState, type RecordingTake } from '../packages/shared/src/domain.js'
 
 vi.mock('../src/renderer/src/components/Waveform.js', () => ({
   Waveform: () => <div className="waveform" />
 }))
+vi.mock('../src/renderer/src/arsenal/RecordingEffects.js', () => ({ RecordingEffects: () => null }))
 
 afterEach(cleanup)
 
@@ -112,5 +114,59 @@ describe('PracticeRoom output routing', () => {
     let muted = 0
     for (const track of song.practice.tracks) if (track.muted) muted += 1
     expect(muted).toBe(0)
+  })
+})
+
+describe('PracticeRoom mute restoration', () => {
+  it.each([
+    ['stem', false, -6], ['stem', true, -6], ['stem', true, -60],
+    ['recording', false, -6], ['recording', true, -6], ['recording', true, -60]
+  ] as const)('restores a %s track (muted=%s, gain=%s) and clears other solos', (kind, muted, gainDb) => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    song.recordingTracks = ['target', 'solo'].map((id) => ({
+      ...createDefaultRecordingTrackState(song.id, id), activeTakeId: `take-${id}`
+    }))
+    song.recordingTakes = song.recordingTracks.map((track): RecordingTake => ({
+      id: track.activeTakeId!, songId: song.id, recordingTrackId: track.id, name: 'Take 1',
+      durationMs: song.durationMs, startPositionMs: 0, endPositionMs: song.durationMs,
+      playbackRate: 1, pitchSemitones: 0, sampleRate: 48000, channels: 2, alignmentOffsetMs: 0,
+      backend: 'wasapi', inputDeviceName: 'Input', inputChannels: [0, 1],
+      deviceSnapshot: {
+        backend: 'wasapi', inputDeviceId: 'input', inputDeviceName: 'Input', outputDeviceId: 'output',
+        outputDeviceName: 'Output', inputChannels: [0, 1], sampleRate: 48000, bufferFrames: 256,
+        latencyMs: 0, splitDevices: false, softwareMonitoring: false
+      },
+      sourceMediaUrl: '/take.wav', previewMediaUrl: '/take.wav', peaksUrl: null,
+      interrupted: false, createdAt: '2026-10-11T00:00:00Z'
+    }))
+    const vocals = song.practice.tracks.find((track) => track.stemType === 'vocals')!
+    const drums = song.practice.tracks.find((track) => track.stemType === 'drums')!
+    const bass = song.practice.tracks.find((track) => track.stemType === 'bass')!
+    drums.solo = true
+    song.recordingTracks[1]!.solo = true
+    bass.muted = true
+    bass.gainDb = -9
+    const target = kind === 'stem' ? vocals : song.recordingTracks[0]!
+    Object.assign(target, { muted, gainDb })
+    const onTrack = vi.fn((stem, patch) => Object.assign(song.practice.tracks.find((track) => track.stemType === stem)!, patch))
+    const onRecordingTrack = vi.fn((id, patch) => Object.assign(song.recordingTracks.find((track) => track.id === id)!, patch))
+    const props = { ...practiceRoomProps(song), onTrack, onRecordingTrack }
+    const { rerender } = render(<PracticeRoom {...props} />)
+    const key = kind === 'stem' ? 'stem:vocals' : 'recording:target'
+    const button = () => document.querySelector(`[data-track-order-key="${key}"] .ms-buttons button`) as HTMLButtonElement
+    expect(button().className).toBe(muted ? 'active' : 'is-implied-muted')
+    fireEvent.click(button())
+    expect(target).toMatchObject({ muted: false, gainDb: gainDb <= -60 ? 0 : gainDb })
+    expect(drums.solo).toBe(false)
+    expect(song.recordingTracks[1]!.solo).toBe(false)
+    expect(bass).toMatchObject({ muted: true, gainDb: -9 })
+    rerender(<PracticeRoom {...props} />)
+    expect(button().className).toBe('')
+    fireEvent.click(button())
+    expect(target.muted).toBe(true)
+    rerender(<PracticeRoom {...props} />)
+    expect(button().className).toBe('active')
+    fireEvent.click(button())
+    expect(target.muted).toBe(false)
   })
 })

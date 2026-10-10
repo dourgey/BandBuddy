@@ -1,4 +1,5 @@
 export * from './domain.js'
+export * from './equalizer.js'
 export * from './rehearsal.js'
 export * from './lyrics.js'
 export * from './channels.js'

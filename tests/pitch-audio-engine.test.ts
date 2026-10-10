@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GUITAR_SPLIT_STEMS, STEM_ORDER } from '../packages/shared/src/domain.js'
+import { GUITAR_SPLIT_STEMS, STEM_ORDER, createDefaultRecordingTrackState, type RecordingTake } from '../packages/shared/src/domain.js'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { MultiTrackAudioEngine } from '../src/renderer/src/audio-engine.js'
 
@@ -50,6 +50,13 @@ class FakeChannelSplitterNode extends FakeAudioNode {
 
 class FakeGainNode extends FakeAudioNode { readonly gain = new FakeAudioParam() }
 class FakeDelayNode extends FakeAudioNode { readonly delayTime = new FakeAudioParam() }
+class FakeBiquadNode extends FakeAudioNode {
+  type = 'peaking'
+  readonly frequency = new FakeAudioParam()
+  readonly gain = new FakeAudioParam()
+  readonly Q = new FakeAudioParam()
+  getFrequencyResponse(_frequencies: Float32Array, magnitudes: Float32Array): void { magnitudes.fill(1) }
+}
 class FakeCompressorNode extends FakeAudioNode {
   readonly threshold = new FakeAudioParam()
   readonly knee = new FakeAudioParam()
@@ -63,6 +70,9 @@ class FakeMediaSourceNode extends FakeAudioNode {
 }
 
 class FakeAudioContext {
+  readonly sampleRate = 48000
+  readonly filters: FakeBiquadNode[] = []
+  createBiquadFilter(): FakeBiquadNode { const filter = new FakeBiquadNode(); this.filters.push(filter); return filter }
   static latest: FakeAudioContext | null = null
   readonly audioWorklet = {}
   readonly destination = new FakeDestinationNode()
@@ -107,6 +117,27 @@ class FakeAudioElement {
 }
 
 describe('Signalsmith realtime pitch graph', () => {
+  it('inserts identical discrete EQ on all output channels and keeps metronome outside the recording EQ', async () => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    song.recordingTracks = [{ ...createDefaultRecordingTrackState(song.id, 'recording-track'), activeTakeId: 'take' }]
+    song.recordingTakes = [{ id: 'take', recordingTrackId: 'recording-track', playbackRate: 1, pitchSemitones: 0, previewMediaUrl: 'https://audio.test/recording.wav' } as RecordingTake]
+    song.practice.eq.enabled = true; song.practice.eq.graphicGains[5] = 7
+    const engine = new MultiTrackAudioEngine({ applySongEq: true })
+    await engine.load(song)
+    const context = FakeAudioContext.latest!
+    const internals = engine as unknown as { musicEq: { input: FakeGainNode; output: FakeGainNode }; recordingEq: { input: FakeGainNode; output: FakeGainNode }; auxiliaryBus: FakeGainNode; metronomeMerger: FakeAudioNode; outputMerger: FakeAudioNode }
+    expect(internals.outputMerger.connections[0]!.destination).toBe(internals.musicEq.input)
+    expect(internals.musicEq.input).toMatchObject({ channelCount: 12, channelInterpretation: 'discrete' })
+    expect(internals.recordingEq.input).toMatchObject({ channelCount: 2, channelInterpretation: 'discrete' })
+    expect(internals.recordingEq.output.connections[0]!.destination).toBe(internals.auxiliaryBus)
+    const recordingGain = context.sources.at(-1)!.connections[0]!.destination as FakeGainNode
+    expect(recordingGain.connections[0]!.destination).toBe(internals.recordingEq.input)
+    const runtimeFilters = context.filters.slice(10)
+    expect(runtimeFilters).toHaveLength(36)
+    expect(runtimeFilters.filter(filter => filter.frequency.value === 1000 && filter.gain.value === 7)).toHaveLength(2)
+    expect(internals.metronomeMerger.connections.some(route => route.destination === internals.musicEq.input || route.destination === internals.recordingEq.input)).toBe(false)
+    engine.destroy()
+  })
   beforeEach(() => {
     stretchMock.create.mockClear()
     stretchMock.node.connect.mockClear()

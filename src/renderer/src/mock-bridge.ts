@@ -1,5 +1,5 @@
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from '@shared/appearance.js'
-import type { AppSettings } from '@shared/domain.js'
+import type { AppSettings, PracticeState } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import { createDefaultRecordingAudioSettings, createDefaultRecordingTrackState } from '@shared/domain.js'
@@ -12,6 +12,7 @@ const noop = (): (() => void) => () => undefined
 
 export function installFixtureBridge(): void {
   if (window.bandbuddy) return
+  const savedPractices = new Map<string, PracticeState>()
   let cachedAppearance = DEFAULT_APPEARANCE
   try { cachedAppearance = normalizeAppearance(JSON.parse(localStorage.getItem('bandbuddy.appearance.v1') ?? 'null')) } catch { /* Fixture storage is optional. */ }
   const settings: AppSettings = {
@@ -82,7 +83,7 @@ export function installFixtureBridge(): void {
         return { items: items.slice(offset, offset + limit), total: items.length, offset, limit }
       },
       list: async () => fixtureSongs,
-      get: async (id) => { const song = fixtureSongs.find((item) => item.id === id); return song ? fixtureDetail(song) : null },
+      get: async (id) => { const song = fixtureSongs.find((item) => item.id === id); if (!song) return null; const detail = fixtureDetail(song); return { ...detail, practice: savedPractices.get(id) ?? detail.practice } },
       getPathForFile: () => '',
       chooseStems: async () => [],
       importStems: async () => ({ songId: null, jobId: null, duplicate: null }),
@@ -91,7 +92,7 @@ export function installFixtureBridge(): void {
       requestGuitarSplit: async () => null,
       importLyrics: async (id) => { const song = fixtureSongs.find((item) => item.id === id); return song ? fixtureDetail(song) : null },
       update: async ({ id, patch }) => { const found = fixtureSongs.find((item) => item.id === id)!; return { ...fixtureDetail(found), ...patch } },
-      delete: async () => undefined, openLocation: async () => undefined, reSeparate: async () => '99999999-9999-4999-8999-999999999999', savePractice: async () => undefined, onChanged: noop,
+      delete: async () => undefined, openLocation: async () => undefined, reSeparate: async () => '99999999-9999-4999-8999-999999999999', savePractice: async state => { savedPractices.set(state.songId, structuredClone(state)) }, onChanged: noop,
       onGuitarSplitCompleted: noop
     },
     tasks: { list: async () => [], cancel: async () => undefined, retry: async () => undefined, clearFinished: async () => undefined, onChanged: noop },

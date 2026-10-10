@@ -1,4 +1,5 @@
 import { trackEffectsSchema } from '@shared/arsenal.js'
+import { normalizeSongEq } from '@shared/equalizer.js'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
@@ -838,6 +839,7 @@ export class BandBuddyDatabase {
     const practice: PracticeState = {
       ...defaults,
       ...savedPractice,
+      eq: normalizeSongEq(savedPractice.eq),
       ...(row.bpm === null ? {} : { metronomeBpm: row.bpm }),
       metronomeOffsetMs: row.beat_offset_ms,
       guitarSplitEnabled,
@@ -990,7 +992,7 @@ export class BandBuddyDatabase {
 
   savePractice(state: PracticeState): void {
     const now = new Date().toISOString()
-    const normalized = { ...state, updatedAt: now }
+    const normalized = { ...state, eq: normalizeSongEq(state.eq), updatedAt: now }
     this.sqlite.transaction(() => {
       this.sqlite.prepare(`
         INSERT INTO practice_states(song_id, state_json, updated_at) VALUES (?, ?, ?)

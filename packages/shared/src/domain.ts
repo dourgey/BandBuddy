@@ -1,4 +1,5 @@
 import type { Appearance } from './appearance.js'
+import { createDefaultSongEq } from './equalizer.js'
 import type { TrackEffects, EffectChainSnapshot } from './arsenal.js'
 export const LEGACY_STEM_ORDER = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'] as const
 export const GUITAR_SPLIT_STEMS = ['acoustic_guitar', 'lead_guitar', 'rhythm_guitar'] as const
@@ -265,6 +266,7 @@ export function moveTrackOrder(
 }
 
 export interface PracticeState {
+  eq: import('./equalizer.js').SongEqState
   songId: string
   positionMs: number
   playbackRate: number
@@ -628,6 +630,7 @@ export interface ExportResult {
 
 export function createDefaultPracticeState(songId: string): PracticeState {
   return {
+    eq: createDefaultSongEq(),
     songId,
     positionMs: 0,
     playbackRate: 1,
