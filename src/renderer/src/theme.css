@@ -85,6 +85,11 @@ input[type="checkbox"]:checked::after { content: ''; width: 8px; height: 5px; bo
 input[type="range"] { appearance: none; height: 20px; padding: 0; border: 0; border-radius: 0; background: transparent; accent-color: var(--accent); }
 input[type="range"]::-webkit-slider-runnable-track { height: 4px; background: var(--border-strong); border-radius: 5px; }
 input[type="range"]::-webkit-slider-thumb { appearance: none; width: 13px; height: 13px; margin-top: -4.5px; background: var(--accent); border: 2px solid var(--surface-raised); border-radius: 50%; box-shadow: 0 1px 3px rgb(0 0 0 / 20%); }
+/* Keep the vertical range independent of the global horizontal range rules. */
+.master-volume-popover input[type="range"] { width: 20px; height: 108px; min-height: 108px; padding: 0; margin: 0; writing-mode: vertical-lr; direction: rtl; }
+.master-volume-popover input[type="range"]::-webkit-slider-runnable-track { width: 3px; height: 108px; border-radius: 3px; background: linear-gradient(0deg, #f4eee5, #514a41); }
+.master-volume-popover input[type="range"]::-webkit-slider-thumb { margin: 0 0 0 -5px; background: #f5efe6; box-shadow: 0 0 0 2px rgba(255,255,255,.1); }
+
 .bb-select { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; position: relative; }
 .bb-select-native { display: none !important; }
 .bb-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-width: 0; min-height: var(--control-height); padding: 7px 10px; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; text-align: left; }

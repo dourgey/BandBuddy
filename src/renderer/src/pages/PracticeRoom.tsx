@@ -125,19 +125,14 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
   )
   const toggleMute = (
     track: Pick<TrackState, 'muted' | 'gainDb' | 'solo'>,
-    update: (patch: ReturnType<typeof silenceToggle>) => void
+    update: (patch: Partial<Pick<TrackState, 'muted' | 'gainDb' | 'solo'>>) => void
   ): void => {
     const restore = isSilenced(track) || isImpliedMuted(track, soloActive)
-    if (restore && soloActive && !track.solo) {
-      for (const other of practice.tracks) {
-        if (other.solo) onTrack(other.stemType, { solo: false })
-      }
-      for (const other of song.recordingTracks) {
-        if (other.solo) onRecordingTrack(other.id, { solo: false })
-      }
-    }
-    // Treat a solo-induced mute as an active M, so clicking it restores sound.
-    update(silenceToggle(restore ? { ...track, muted: true } : track))
+    // Join the audible solo group without releasing the other tracks' implied mutes.
+    update({
+      ...silenceToggle(restore ? { ...track, muted: true } : track),
+      ...(restore && soloActive ? { solo: true } : {})
+    })
   }
   const [draggedTrack, setDraggedTrack] = useState<TrackOrderKey | null>(null)
   const [dropTarget, setDropTarget] = useState<{ key: TrackOrderKey; placement: 'before' | 'after' } | null>(null)
@@ -331,7 +326,11 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 onSeek={onSeek}
                 onRange={(start, end) => onPatch({ loopStartMs: start, loopEndMs: end, loopEnabled: true })}
                 onPatch={(patch) => onTrack(type, patch)}
-                onToggleMute={() => toggleMute(state, (patch) => onTrack(type, patch))}
+                onToggleMute={() => toggleMute(state, (patch) => {
+                  // S selects an exclusive solo; M adds this track to the existing group.
+                  if (patch.solo) onPatch({ tracks: practice.tracks.map((track) => track.stemType === type ? { ...track, ...patch } : track) })
+                  else onTrack(type, patch)
+                })}
                 onSelected={() => onSelected(type)}
                 onViewChange={(zoom, scroll) => onPatch({ zoom, scroll })}
               />

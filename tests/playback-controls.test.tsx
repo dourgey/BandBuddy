@@ -184,7 +184,7 @@ it('M shortcut restores a track silenced at the gain floor', async () => {
   fireEvent.keyDown(window, { key: 'm', code: 'KeyM' })
   expect(usePlayerStore.getState().practice!.tracks.find(t => t.stemType === 'vocals')).toMatchObject({ gainDb: 0, muted: false })
 })
-it('keeps restored stem state when cancelling recording solos refreshes the song', async () => {
+it('adds tracks via M while preserving the original solos and the remaining implied mutes', async () => {
   const song = fixtureDetail(fixtureSongs[0]!)
   song.practice.tracks.find(track => track.stemType === 'drums')!.solo = true
   Object.assign(song.practice.tracks.find(track => track.stemType === 'vocals')!, { muted: true, gainDb: -60 })
@@ -199,12 +199,20 @@ it('keeps restored stem state when cancelling recording solos refreshes the song
   await openPractice()
   const mute = document.querySelector('[data-track-order-key="stem:vocals"] .ms-buttons button')!
   fireEvent.click(mute)
-  await waitFor(() => expect(audio.load).toHaveBeenCalled())
-  expect(update).toHaveBeenCalledWith({ recordingTrackId: recordingTrack.id, patch: { solo: false } })
+  expect(update).not.toHaveBeenCalled()
   expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'vocals'))
-    .toMatchObject({ muted: false, gainDb: 0 })
-  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'drums')!.solo).toBe(false)
-  expect(usePlayerStore.getState().song!.recordingTracks[0]!.solo).toBe(false)
+    .toMatchObject({ muted: false, gainDb: 0, solo: true })
+  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'drums')!.solo).toBe(true)
+  expect(usePlayerStore.getState().song!.recordingTracks[0]!.solo).toBe(true)
+  fireEvent.click(document.querySelector('[data-track-order-key="stem:bass"] .ms-buttons button')!)
+  const tracks = usePlayerStore.getState().practice!.tracks
+  expect(tracks.filter(track => track.solo).map(track => track.stemType)).toEqual(['vocals', 'drums', 'bass'])
+  expect(document.querySelector('[data-track-order-key="stem:piano"] .ms-buttons button')!.className).toBe('is-implied-muted')
+  await waitFor(() => expect(audio.applyPractice.mock.calls.at(-1)?.[0].tracks).toEqual(tracks))
+  fireEvent.click(mute)
+  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'vocals'))
+    .toMatchObject({ muted: true, solo: false })
+  expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'drums')!.solo).toBe(true)
 })
 it('output menu consumes transport keys while choosing a channel', async () => {
   await openPractice()

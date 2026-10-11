@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { PracticeRoom } from '../src/renderer/src/pages/PracticeRoom.js'
 import { createDefaultRecordingTrackState, type RecordingTake } from '../packages/shared/src/domain.js'
+import { patchTrackStates } from '../src/renderer/src/player-store.js'
 
 vi.mock('../src/renderer/src/components/Waveform.js', () => ({
   Waveform: () => <div className="waveform" />
@@ -121,7 +122,7 @@ describe('PracticeRoom mute restoration', () => {
   it.each([
     ['stem', false, -6], ['stem', true, -6], ['stem', true, -60],
     ['recording', false, -6], ['recording', true, -6], ['recording', true, -60]
-  ] as const)('restores a %s track (muted=%s, gain=%s) and clears other solos', (kind, muted, gainDb) => {
+  ] as const)('adds a %s track (muted=%s, gain=%s) to the audible group without releasing other mutes', (kind, muted, gainDb) => {
     const song = fixtureDetail(fixtureSongs[0]!)
     song.recordingTracks = ['target', 'solo'].map((id) => ({
       ...createDefaultRecordingTrackState(song.id, id), activeTakeId: `take-${id}`
@@ -148,25 +149,36 @@ describe('PracticeRoom mute restoration', () => {
     bass.gainDb = -9
     const target = kind === 'stem' ? vocals : song.recordingTracks[0]!
     Object.assign(target, { muted, gainDb })
-    const onTrack = vi.fn((stem, patch) => Object.assign(song.practice.tracks.find((track) => track.stemType === stem)!, patch))
+    const onTrack = vi.fn((stem, patch) => {
+      for (const next of patchTrackStates(song.practice.tracks, stem, patch)) {
+        Object.assign(song.practice.tracks.find(track => track.stemType === next.stemType)!, next)
+      }
+    })
     const onRecordingTrack = vi.fn((id, patch) => Object.assign(song.recordingTracks.find((track) => track.id === id)!, patch))
-    const props = { ...practiceRoomProps(song), onTrack, onRecordingTrack }
+    const onPatch = vi.fn((patch) => {
+      for (const next of patch.tracks ?? []) Object.assign(song.practice.tracks.find(track => track.stemType === next.stemType)!, next)
+    })
+    const props = { ...practiceRoomProps(song), onTrack, onRecordingTrack, onPatch }
     const { rerender } = render(<PracticeRoom {...props} />)
     const key = kind === 'stem' ? 'stem:vocals' : 'recording:target'
     const button = () => document.querySelector(`[data-track-order-key="${key}"] .ms-buttons button`) as HTMLButtonElement
     expect(button().className).toBe(muted ? 'active' : 'is-implied-muted')
     fireEvent.click(button())
-    expect(target).toMatchObject({ muted: false, gainDb: gainDb <= -60 ? 0 : gainDb })
-    expect(drums.solo).toBe(false)
-    expect(song.recordingTracks[1]!.solo).toBe(false)
+    expect(target).toMatchObject({ muted: false, solo: true, gainDb: gainDb <= -60 ? 0 : gainDb })
+    expect(drums.solo).toBe(true)
+    expect(song.recordingTracks[1]!.solo).toBe(true)
     expect(bass).toMatchObject({ muted: true, gainDb: -9 })
     rerender(<PracticeRoom {...props} />)
     expect(button().className).toBe('')
+    const otherMute = document.querySelector('[data-track-order-key="stem:piano"] .ms-buttons button')!
+    expect(otherMute.className).toBe('is-implied-muted')
     fireEvent.click(button())
     expect(target.muted).toBe(true)
     rerender(<PracticeRoom {...props} />)
     expect(button().className).toBe('active')
     fireEvent.click(button())
     expect(target.muted).toBe(false)
+    expect(drums.solo).toBe(true)
+    expect(song.recordingTracks[1]!.solo).toBe(true)
   })
 })
