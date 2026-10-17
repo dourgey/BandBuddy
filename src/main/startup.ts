@@ -1,4 +1,5 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, clipboard, dialog, ipcMain, shell, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { diagnostics } from './diagnostics.js'
 import Database from 'better-sqlite3'
 import { normalizeAppearance, type Appearance } from '@shared/appearance.js'
 import { IPC } from '@shared/channels.js'
@@ -29,6 +30,7 @@ export class StartupCoordinator {
   }
   snapshot(): StartupState { return this.state }
   setState(patch: Partial<StartupState>): void {
+    if (patch.phase && patch.phase !== this.state.phase) diagnostics.record({ component: 'startup', stage: patch.phase, result: patch.phase, details: patch.message })
     this.state = { ...this.state, ...patch }
     const window = this.getWindow()
     if (window && !window.isDestroyed()) window.webContents.send(IPC.eventStartupChanged, this.state)
@@ -41,6 +43,13 @@ export class StartupCoordinator {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || !this.trustedUrl(event.senderFrame.url)) throw new Error('UNTRUSTED_STARTUP_SENDER')
   }
   register(): void {
+    ipcMain.handle('startup:copyDiagnostics', event => { this.assertSender(event); clipboard.writeText(diagnostics.snapshot(this.state.issue?.diagnosticId ? { diagnosticId: this.state.issue.diagnosticId } : undefined).summary) })
+    ipcMain.handle('startup:exportDiagnostics', async event => {
+      this.assertSender(event)
+      const selection = await dialog.showSaveDialog({ title: '导出启动诊断', defaultPath: 'BandBuddy-startup-diagnostics.json', filters: [{ name: '诊断信息', extensions: ['json'] }] })
+      if (selection.canceled || !selection.filePath) return null
+      await diagnostics.export(selection.filePath, undefined, { startup: this.state }); return selection.filePath
+    })
     ipcMain.handle('startup:recover', (event, safe: unknown) => {
       this.assertSender(event)
       if (typeof safe !== 'boolean') throw new Error('INVALID_STARTUP_RECOVERY')

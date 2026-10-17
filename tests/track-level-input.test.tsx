@@ -36,6 +36,7 @@ function practiceRoomProps(song = fixtureDetail(fixtureSongs[0]!)): ComponentPro
     onCycleLoop: () => undefined,
     onPatch: () => undefined,
     onGuitarSplit: () => undefined,
+    onVocalSplit: () => undefined,
     onTrack: () => undefined,
     onSelected: () => undefined,
     onExport: () => undefined,

@@ -2,6 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { DiagnosticError, errorEvidence, evidenceText, redactDiagnostics } from './diagnostic-errors.js'
+import { diagnostics } from './diagnostics.js'
 
 export interface Artifact {
   id: string
@@ -12,7 +15,15 @@ export interface Artifact {
   expandedSize?: number
 }
 export interface DownloadProgress { id: string; received: number; total: number | null; source: string; attempt: number }
-export interface DownloadAttempt { id: string; source: string; attempt: number; at: string; result: string }
+export interface DownloadAttempt { id: string; source: string; attempt: number; at: string; result: string; evidence?: import('@shared/environment.js').ErrorEvidence; elapsedMs?: number }
+
+export function downloadRetryable(error: unknown): boolean {
+  return !/HTTP_(?:400|401|403|404|407|410)|CERT|SSL|TLS|SIGNATURE|MANIFEST|CATALOG|UNEXPECTED_HTML/i.test(evidenceText(error))
+}
+export function downloadRetryDelay(error: unknown, base = 500): number {
+  const value = error instanceof DiagnosticError ? Number(error.details.retryAfterMs) : 0
+  return Math.min(30_000, Math.max(base, Number.isFinite(value) ? value : 0))
+}
 type Fetcher = (url: string, options: RequestInit) => Promise<Response>
 
 // All runtime clients share this limit, including repair and model downloads.
@@ -53,8 +64,10 @@ export class ArtifactDownloader {
   private readonly pending = new Map<string, Promise<string>>()
   private readonly attempts: DownloadAttempt[] = []
   diagnostics(): DownloadAttempt[] { return structuredClone(this.attempts) }
-  private record(artifact: Artifact, url: string, attempt: number, result: string): void {
-    this.attempts.push({ id: artifact.id, source: new URL(url).hostname, attempt, at: new Date().toISOString(), result: result.replace(/https?:\/\/\S+/g, '<url>').slice(0, 300) })
+  private record(artifact: Artifact, url: string, attempt: number, result: string, error?: unknown, elapsedMs?: number): void {
+    const item: DownloadAttempt = JSON.parse(redactDiagnostics({ id: artifact.id, source: new URL(url).hostname, attempt, at: new Date().toISOString(), result: result.slice(0, 300), ...(error ? { evidence: errorEvidence(error) } : {}), elapsedMs }))
+    this.attempts.push(item)
+    diagnostics.record({ component: 'network', stage: `download:${artifact.id}`, result, details: item })
     if (this.attempts.length > 300) this.attempts.shift()
   }
   constructor(private readonly fetcher: Fetcher, private readonly timing = { connect: 10_000, idle: 60_000 }) {}
@@ -84,6 +97,7 @@ export class ArtifactDownloader {
       let last: unknown = new Error('DOWNLOAD_FAILED')
       for (const url of [...new Set(artifact.urls)]) for (let attempt = 1; attempt <= 2; attempt++) {
         signal.throwIfAborted()
+        const started = Date.now()
         try {
           await recoverRestart(partial, artifact)
           if (!await artifactValid(partial, artifact)) await this.transfer(artifact, url, partial, signal, attempt, progress)
@@ -93,15 +107,17 @@ export class ArtifactDownloader {
           await rename(partial, destination)
           await rm(metadata, { force: true })
           progress?.({ id: artifact.id, received: (await stat(destination)).size, total: artifact.size ?? null, source: new URL(url).hostname, attempt })
-          this.record(artifact, url, attempt, 'verified')
+          this.record(artifact, url, attempt, 'verified', undefined, Date.now() - started)
           return destination
         } catch (error) {
-          this.record(artifact, url, attempt, signal.aborted ? 'paused' : String(error))
+          this.record(artifact, url, attempt, signal.aborted ? 'paused' : String(error), error, Date.now() - started)
           signal.throwIfAborted(); last = error
           if (/ENOSPC|EACCES|EPERM|EROFS/.test(String(error))) throw error
+          if (!downloadRetryable(error)) break
+          if (attempt < 2) await delay(downloadRetryDelay(error), undefined, { signal })
         }
       }
-      throw last
+      throw new DiagnosticError(errorEvidence(last).code, errorEvidence(last).message, { component: artifact.id, artifactSha256: artifact.sha256, attempts: this.attempts.filter(item => item.id === artifact.id).slice(-12) }, last)
     } finally { release() }
   }
   private async transfer(artifact: Artifact, url: string, partial: string, signal: AbortSignal, attempt: number, progress?: (value: DownloadProgress) => void): Promise<void> {
@@ -119,7 +135,12 @@ export class ArtifactDownloader {
       const response = await this.fetcher(url, { signal: controller.signal, headers: { 'Accept-Encoding': 'identity', ...(offset ? { Range: `bytes=${offset}-` } : {}) } })
       armIdle()
       if (response.status === 416) { await response.body?.cancel(); await rm(partial, { force: true }); throw new Error('DOWNLOAD_RANGE_INVALID') }
-      if (!response.ok || !response.body) { await response.body?.cancel(); throw new Error(`DOWNLOAD_HTTP_${response.status}`) }
+      if (!response.ok || !response.body) {
+        await response.body?.cancel()
+        const retry = response.headers.get('retry-after')
+        const retryAfterMs = retry ? /^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now()) : 0
+        throw new DiagnosticError(`DOWNLOAD_HTTP_${response.status}`, `DOWNLOAD_HTTP_${response.status}`, { httpStatus: response.status, source: new URL(url).hostname, retryAfterMs })
+      }
       reader = response.body.getReader()
       controller.signal.addEventListener('abort', () => { void reader?.cancel(controller.signal.reason).catch(() => {}) }, { once: true })
       if (/text\/html/i.test(response.headers.get('content-type') ?? '')) throw new Error('DOWNLOAD_UNEXPECTED_HTML')
@@ -151,6 +172,9 @@ export class ArtifactDownloader {
         if (!await artifactValid(output, artifact)) { await rm(output, { force: true }); throw new Error(`ARTIFACT_HASH_MISMATCH:${artifact.id}`) }
         await rename(output, partial)
       }
+    } catch (error) {
+      if (controller.signal.aborted) throw controller.signal.reason ?? error
+      throw error
     } finally {
       clearTimeout(timer); signal.removeEventListener('abort', abort)
       controller.abort(); await reader?.cancel().catch(() => {}); await handle?.close()

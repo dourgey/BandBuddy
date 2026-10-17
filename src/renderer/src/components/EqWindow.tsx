@@ -58,7 +58,7 @@ export function EqWindow({ engine, persistence, locked, onCommit, onClose }: {
     root.current?.focus()
     const key = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
-      if (document.querySelector('.dialog-overlay[data-dialog-open="true"], [role="dialog"][aria-modal="true"]')) return
+      if (document.querySelector('.dialog-overlay[data-dialog-open="true"], [role="dialog"][aria-modal="true"], .ai-chat-window[data-dialog-open="true"]')) return
       event.preventDefault(); event.stopImmediatePropagation(); closeRef.current()
     }
     window.addEventListener('keydown', key, true)

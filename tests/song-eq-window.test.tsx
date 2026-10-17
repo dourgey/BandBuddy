@@ -109,4 +109,16 @@ describe('song EQ window', () => {
     fireEvent.wheel(screen.getByRole('slider', { name: '125 Hz 增益' }), { deltaY: -100 })
     expect(usePlayerStore.getState().practice?.eq.enabled).toBe(false)
   })
+
+  it('leaves Escape to the floating AI conversation above the EQ', () => {
+    mount()
+    const chat = document.createElement('section')
+    chat.className = 'ai-chat-window'; chat.dataset.dialogOpen = 'true'; chat.setAttribute('role', 'dialog')
+    document.body.append(chat)
+    fireEvent.keyDown(chat, { key: 'Escape' })
+    expect(close).not.toHaveBeenCalled()
+    chat.remove()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(close).toHaveBeenCalledOnce()
+  })
 })

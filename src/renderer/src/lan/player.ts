@@ -1,7 +1,8 @@
 import type { LanSong } from '@shared/lan.js'
+import { stemPlaybackGain } from '@shared/domain.js'
 
-export interface MixState { gain: number; muted: boolean; solo: boolean }
-interface Track { element: HTMLAudioElement; source: MediaElementAudioSourceNode; gain: GainNode; state: MixState }
+export interface MixState { gain: number; muted: boolean; solo: boolean; visible?: boolean }
+interface Track { element: HTMLAudioElement; source: MediaElementAudioSourceNode; gain: GainNode; state: MixState; compensation: number }
 
 /** Streaming media avoids keeping every decoded song-length stem in mobile memory. */
 export class LanPlayer {
@@ -29,17 +30,18 @@ export class LanPlayer {
     const generation = this.generation
     this.duration = song.durationMs / 1000
     try {
-      await Promise.all(song.stems.filter((stem) => stem.defaultVisible).map(async (stem) => {
+      await Promise.all(song.stems.map(async (stem) => {
         const element = new Audio()
         element.preload = 'auto'
         element.addEventListener('error', () => { if (this.playing) this.playbackError() })
         const source = this.context.createMediaElementSource(element)
         const gain = this.context.createGain()
         source.connect(gain).connect(this.context.destination)
-        const track: Track = { element, source, gain, state: { gain: 1, muted: false, solo: false } }
+        const track: Track = { element, source, gain, compensation: stemPlaybackGain(stem), state: { gain: 1, muted: false, solo: false, visible: stem.defaultVisible } }
+        gain.gain.value = stem.defaultVisible ? track.compensation : 0
         this.tracks.push(track)
         const url = new URL(stem.audio.url, base)
-        url.searchParams.set('web', '1'); url.searchParams.set('pitch', String(pitch))
+        url.searchParams.set('web', '1'); url.searchParams.set('pitch', String(stem.type === 'drums' ? 0 : pitch))
         await new Promise<void>((resolve, reject) => {
           const cleanup = (): void => { clearTimeout(timeout); element.removeEventListener('canplay', ready); element.removeEventListener('error', failed); signal.removeEventListener('abort', aborted) }
           const ready = (): void => { cleanup(); resolve() }
@@ -96,13 +98,16 @@ export class LanPlayer {
   }
   setLoop(loop: { start: number; end: number } | null): void { this.loop = loop }
   mix(states: MixState[]): void {
-    const solo = states.some((state) => state.solo && !state.muted)
+    const solo = states.some((state) => state.visible !== false && state.solo && !state.muted)
     this.tracks.forEach((track, index) => {
       const state = states[index]
       if (!state) return
       track.state = state
-      const value = !state.muted && (!solo || state.solo) ? state.gain : 0
-      track.gain.gain.setTargetAtTime(value, this.context.currentTime, 0.015)
+      const value = state.visible !== false && !state.muted && (!solo || state.solo) ? state.gain * track.compensation : 0
+      const now = this.context.currentTime
+      track.gain.gain.cancelScheduledValues(now)
+      track.gain.gain.setValueAtTime(track.gain.gain.value, now)
+      track.gain.gain.linearRampToValueAtTime(value, now + .035)
     })
   }
   private tick(): void {

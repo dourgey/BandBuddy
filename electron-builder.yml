@@ -20,6 +20,14 @@ extraResources:
     to: runtime-catalog
   - from: resources/model-catalog.json
     to: model-catalog.json
+  - from: resources/vocal-model-catalog.json
+    to: vocal-model-catalog.json
+  - from: python/vocal_separator
+    to: worker/vocal_separator
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!tests/**"
   - from: resources/runtime-wheels.json
     to: runtime-wheels.json
   - from: python/runtime

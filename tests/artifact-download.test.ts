@@ -18,9 +18,11 @@ describe('verified resumable downloads', () => {
     const fetcher = vi.fn(async (url: string) => url.includes('one.example') ? new Response('', { status }) : new Response(bytes))
     const file = await destination(), downloader = new ArtifactDownloader(fetcher)
     await downloader.download(artifact, file, signal())
-    expect(fetcher).toHaveBeenCalledTimes(3)
+    const failures = status < 429 ? 1 : 2
+    expect(fetcher).toHaveBeenCalledTimes(failures + 1)
     expect(await readFile(file)).toEqual(bytes)
-    expect(downloader.diagnostics().map(item => item.result)).toEqual([`Error: DOWNLOAD_HTTP_${status}`, `Error: DOWNLOAD_HTTP_${status}`, 'verified'])
+    expect(downloader.diagnostics().slice(0, failures).map(item => item.evidence?.code)).toEqual(Array(failures).fill(`DOWNLOAD_HTTP_${status}`))
+    expect(downloader.diagnostics().at(-1)?.result).toBe('verified')
   })
   it.each(['html', 'wrong-hash', 'DNS'])('never installs a %s response as a successful component', async kind => {
     const fetcher = vi.fn(async () => {
@@ -30,7 +32,7 @@ describe('verified resumable downloads', () => {
     const file = await destination()
     await expect(new ArtifactDownloader(fetcher).download(artifact, file, signal())).rejects.toThrow()
     await expect(readFile(file)).rejects.toThrow()
-    expect(fetcher).toHaveBeenCalledTimes(4)
+    expect(fetcher).toHaveBeenCalledTimes(kind === 'html' ? 2 : 4)
   })
   it.each([true, false])('resumes an interrupted file when server supports Range=%s', async supportsRange => {
     const file = await destination(), controller = new AbortController()

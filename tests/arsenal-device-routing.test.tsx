@@ -83,7 +83,7 @@ it('shows real monitor readings, edits the buffer with the custom select, and re
   const reconcile = vi.spyOn(api.settings, 'reconcileAudio').mockImplementation(async request => { settings = { ...settings, recordingAudio: request.recordingAudio }; return settings })
   render(<ArsenalPage onToast={vi.fn()} />)
   await waitFor(() => expect(screen.getByRole('meter', { name: '实时输出电平' }).getAttribute('aria-valuenow')).toBe('40'))
-  expect(screen.getByText(/44\.1 kHz · 128 frames · 2\.9 ms/)).toBeTruthy()
+  expect(screen.getByText(/44\.1 kHz · 128 frames · 估算 2\.9 ms/)).toBeTruthy()
   act(() => callbacks.forEach(callback => callback({ ...active, outputPeak: .72 })))
   expect(screen.getByRole('meter', {name:'实时输出电平'}).getAttribute('aria-valuenow')).toBe('72')
   fireEvent.click(screen.getByRole('combobox', { name: '实时缓冲区' }))
@@ -96,17 +96,20 @@ it('shows real monitor readings, edits the buffer with the custom select, and re
   expect(screen.getByRole('main').classList.contains('is-sidebar-collapsed')).toBe(false)
 })
 
-it('uses the selected duplex device capabilities and its saved alignment calibration', async () => {
+it('selects independent WASAPI endpoints and their saved alignment calibration', async () => {
   const api = window.bandbuddy
   const saved = await api.settings.get()
-  const settings = { ...saved, recordingAudio: { ...saved.recordingAudio, sampleRate: 44100, inputChannels: [5], alignmentOffsetMs: 19, deviceAlignmentOffsets: { 'coreaudio|usb|usb': 7 } } }
+  const settings = { ...saved, recordingAudio: { ...saved.recordingAudio, backend: 'wasapi-shared' as const, inputDeviceId: '', outputDeviceId: 'out', sampleRate: 48000, inputChannels: [5], alignmentOffsetMs: 19, deviceAlignmentOffsets: { 'wasapi-shared|in|out': 7 } } }
   vi.spyOn(api.settings, 'get').mockResolvedValue(settings)
-  vi.spyOn(api.recording, 'devices').mockResolvedValue([{ id: 'usb', name: 'USB 声卡', backend: 'coreaudio', inputChannels: 2, outputChannels: 2, duplexChannels: 2, sampleRates: [48000], preferredSampleRate: 48000, defaultInput: false, defaultOutput: false }])
+  vi.spyOn(api.recording, 'devices').mockResolvedValue([
+    { id: 'in', name: 'USB 输入', backend: 'wasapi-shared', inputChannels: 2, outputChannels: 0, duplexChannels: 0, sampleRates: [44100], preferredSampleRate: 44100, defaultInput: true, defaultOutput: false },
+    { id: 'out', name: 'USB 输出', backend: 'wasapi-shared', inputChannels: 0, outputChannels: 2, duplexChannels: 0, sampleRates: [48000], preferredSampleRate: 48000, defaultInput: false, defaultOutput: true }
+  ])
   const reconcile = vi.spyOn(api.settings, 'reconcileAudio').mockImplementation(async request => ({ ...settings, recordingAudio: request.recordingAudio }))
   render(<ArsenalPage onToast={vi.fn()} />)
-  await waitFor(() => expect((screen.getByRole('combobox', { name: '实时音频设备' }) as HTMLButtonElement).disabled).toBe(false))
-  fireEvent.click(screen.getByRole('combobox', { name: '实时音频设备' }))
-  fireEvent.click(screen.getByRole('option', { name: 'USB 声卡 · coreaudio' }))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: '实时输入设备' }) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('combobox', { name: '实时输入设备' }))
+  fireEvent.click(screen.getByRole('option', { name: 'USB 输入' }))
   await waitFor(() => expect(reconcile).toHaveBeenCalled())
-  expect(reconcile.mock.calls[0]?.[0].recordingAudio).toMatchObject({ backend: 'coreaudio', inputDeviceId: 'usb', outputDeviceId: 'usb', sampleRate: 0, inputChannels: [0], alignmentOffsetMs: 7 })
+  expect(reconcile.mock.calls[0]?.[0].recordingAudio).toMatchObject({ backend: 'wasapi-shared', inputDeviceId: 'in', outputDeviceId: 'out', sampleRate: 48000, inputChannels: [0], alignmentOffsetMs: 7 })
 })

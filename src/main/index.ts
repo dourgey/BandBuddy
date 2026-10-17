@@ -2,9 +2,14 @@ import { StartupCoordinator, readStartupAppearance } from './startup.js'
 import { databaseNeedsPreparation, startDatabasePreparation } from './database-preparation.js'
 import { normalizeAppearance, resolveTheme, themeBackground, type Appearance } from '@shared/appearance.js'
 import { ArsenalService } from './arsenal.js'
+import { NativeAudioService } from './native-audio.js'
+import { AiService } from './ai-service.js'
+import { AiInformationReader } from './ai-information.js'
+import { AI_EVENT } from '@shared/ai.js'
+import { NATIVE_AUDIO_EVENT } from '@shared/native-audio.js'
 import { ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { join } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   app,
@@ -12,6 +17,8 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  net,
+  safeStorage,
   screen,
   protocol,
   powerMonitor,
@@ -38,8 +45,11 @@ import { RuntimeManager } from './runtime.js'
 import { EnvironmentManager } from './environment.js'
 import { ENVIRONMENT_CHANGED } from '@shared/environment.js'
 import { StartupRecovery } from './startup-recovery.js'
+import { diagnostics } from './diagnostics.js'
+import { DiagnosticError } from './diagnostic-errors.js'
+import { checkEnvironmentStorage } from './environment-storage.js'
 import { applyDatabaseRecovery } from './database-recovery.js'
-import { systemHelper } from './system-helper.js'
+import { ensureSystemRuntime } from './system-runtime-recovery.js'
 import { shutdownProcesses } from './process.js'
 import { shutdownMediaAnalysis } from './media-analysis.js'
 import { isTrustedRendererUrl } from './security.js'
@@ -63,6 +73,7 @@ function benchmarkMetric(phase: string): void {
 const developmentTestRoot = smokeMode || !app.isPackaged ? process.env.BANDBUDDY_TEST_ROOT : undefined
 app.setPath('userData', developmentTestRoot ? join(developmentTestRoot, 'appdata') : join(app.getPath('appData'), 'BandBuddy'))
 const startupRecovery = new StartupRecovery(app.getPath('userData'), process.argv.includes('--safe-mode'))
+diagnostics.initialize(app.getPath('userData'), app.getVersion())
 if (startupRecovery.safeMode) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId('com.bandbuddy.desktop')
 
@@ -83,6 +94,7 @@ let recording: RecordingService | null = null
 let rehearsalRecording: RehearsalRecordingService | null = null
 let desktopLyrics: DesktopLyricsWindow | null = null
 let shutdownTask: Promise<void> | null = null
+let ai: AiService | null = null
 let shutdownComplete = false
 let startupRecoveries: Promise<unknown> = Promise.resolve()
 let applicationIcon: NativeImage | null = null
@@ -166,8 +178,15 @@ function createWindow(paths: AppPaths): BrowserWindow {
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
     logger?.capture('error', 'renderer preload failed', { preloadPath, error })
   })
+  let rendererRecoveryAttempted = false
   window.webContents.on('render-process-gone', (_event, details) => {
     logger?.capture('error', 'renderer process exited', details)
+    if (quitting) return
+    startupRecovery.fail()
+    const issue = diagnostics.report(new DiagnosticError('RENDER_PROCESS_GONE', `界面进程退出：${details.reason}`, { exitCode: details.exitCode, reason: details.reason }), 'startup', { component: 'startup', stage: '界面进程' })
+    startup?.setState({ phase: 'failed', message: issue.message, issue, error: issue.evidence?.message })
+    void diagnostics.flush()
+    if (!rendererRecoveryAttempted && !window.isDestroyed()) { rendererRecoveryAttempted = true; window.webContents.reload() }
   })
   window.webContents.on('unresponsive', () => logger?.capture('warn', 'renderer became unresponsive'))
   state.track(window)
@@ -234,7 +253,16 @@ function createWindow(paths: AppPaths): BrowserWindow {
              environment: { phase: environment.phase, startup: environment.capabilities.startup },
            desktopLyrics
          }))
-      })()`).then(async (result: { apiType?: string }) => {
+      })()`).then(async (result: { apiType?: string; diagnostics?: unknown; recovery?: unknown }) => {
+        if (environmentManager) {
+          const destination = join(app.getPath('userData'), 'diagnostics-smoke.json')
+          await environmentManager.exportDiagnostics(destination)
+          const report = JSON.parse(await readFile(destination, 'utf8'))
+          result.diagnostics = { schema: report.schema, events: report.events.length, issues: report.issues.length, summaryAvailable: typeof report.summary === 'string' }
+          const paused = await environmentManager.pause()
+          const checked = await environmentManager.check()
+          result.recovery = { paused: paused.pausedByUser, recheckPreservesPause: checked.phase === 'paused', mediaVerified: checked.capabilities.media === 'ready' }
+        }
         await writeFile(join(app.getPath('userData'), 'smoke-result.json'), JSON.stringify(result))
         process.stdout.write(`BAND_BUDDY_SMOKE ${JSON.stringify(result)}\n`)
         if (result.apiType !== 'object') process.exitCode = 1
@@ -280,10 +308,11 @@ else {
       safeMode: startupRecovery.safeMode, success: () => startupRecovery.success(), clear: () => startupRecovery.clear(),
       repairSystem: async () => {
         if (process.platform !== 'win32') throw new Error('请使用同版本安装包修复软件，曲库数据会保留。')
-        const result = await systemHelper(['install-vc', app.isPackaged ? paths.packagedResource('prerequisites', 'vc_redist.x64.exe') : join(process.cwd(), 'resources/prerequisites/vc_redist.x64.exe'), '/repair'], 15 * 60_000)
-        if (result.code === 1223) throw new Error('系统授权已取消。可以继续保留数据，稍后再修复。')
-        if (result.code === 3010 || result.code === 1641) throw new Error('系统组件已修复，请重启电脑后打开 BandBuddy。')
-        if (result.code !== 0) throw new Error(`系统组件修复未完成（${result.code}），请导出或保留诊断信息。`)
+        try { await ensureSystemRuntime(paths, new AbortController().signal, { manual: true, onStage: message => startup?.setState({ message }) }) }
+        catch (error) {
+          const issue = diagnostics.report(error, 'startup', { component: 'system-runtime', stage: '启动页系统组件修复' })
+          startup?.setState({ message: issue.message, issue, error: issue.evidence?.message }); throw error
+        }
         startup?.setState({ message: '系统组件已修复，请点击“重新打开”。', error: undefined })
       }
     })
@@ -308,6 +337,11 @@ else {
     await startup.firstPaint
     if (quitting) return
     paths.ensure()
+    await checkEnvironmentStorage([
+      { directory: paths.dataRoot, bytes: 0, purpose: '曲库数据库与备份' },
+      { directory: paths.cacheRoot, bytes: 0, purpose: '临时文件与下载缓存' },
+      { directory: paths.jobsRoot, bytes: 0, purpose: '任务中间结果' }
+    ], 0)
     await applyDatabaseRecovery(paths.dataRoot, paths.databasePath)
     if (databaseNeedsPreparation(paths)) {
       databasePreparation = startDatabasePreparation(paths)
@@ -355,7 +389,9 @@ else {
     }
     const emitMedia = (): void => emit(IPC.eventMediaChanged, media.capabilities())
     const emitRehearsals = (): void => emit(IPC.eventRehearsalsChanged)
-    scheduler = new JobScheduler(paths, database, runtime, media, applicationLogger, emitTasks, emitLibrary, emitGuitarSplitCompleted)
+    let liveMonitor = false
+    scheduler = new JobScheduler(paths, database, runtime, media, applicationLogger, emitTasks, emitLibrary, emitGuitarSplitCompleted,
+      result => emit(IPC.eventVocalSplitCompleted, result), () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || liveMonitor))
     const kickJobs = (): void => {
       scheduler?.kick()
       if (database?.listJobs().some(job => job.status === 'blockedRuntime')) {
@@ -372,20 +408,22 @@ else {
       media,
       audioHost,
       applicationLogger,
-      (state) => { emit(IPC.eventRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio() },
+      (state) => { emit(IPC.eventRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio(); if (['idle', 'failed'].includes(state.phase)) scheduler?.kick() },
       (meter) => emit(IPC.eventRecordingMeter, meter),
       emitLibrary
     )
-    const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => { emit(ARSENAL_MONITOR_EVENT, state); if (state.active) environmentManager?.deferForLiveAudio() }, emitLibrary, () => rehearsalRecording?.isActive() ?? false)
+    const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => { liveMonitor = state.active; emit(ARSENAL_MONITOR_EVENT, state); if (state.active) environmentManager?.deferForLiveAudio(); else scheduler?.kick() }, emitLibrary, () => rehearsalRecording?.isActive() ?? false)
     const previewRenders = new Map<string, Promise<string>>()
     media.recordingPreviewEffect = async (source, takeId) => {
       const take = database!.getRecordingTake(takeId)
       const effects = take ? database!.getRecordingTrack(take.recordingTrackId)?.effects : null
       if (!effects?.enabled) return source
-      const key = JSON.stringify([source, effects])
+      const practice = take ? database!.getSong(take.songId)?.practice : null
+      const clock = { tempo: (practice?.metronomeBpm ?? 120) * (take?.playbackRate ?? 1), beatOffsetMs: (practice?.metronomeOffsetMs ?? 0) / (take?.playbackRate ?? 1) }
+      const key = JSON.stringify([source, effects, clock])
       let render = previewRenders.get(key)
       if (!render) {
-        render = arsenal.render(source, effects, new AbortController().signal).finally(() => previewRenders.delete(key))
+        render = arsenal.render(source, effects, new AbortController().signal, 0, clock).finally(() => previewRenders.delete(key))
         previewRenders.set(key, render)
       }
       return render
@@ -400,7 +438,7 @@ else {
       audioHost,
       applicationLogger,
       () => recording?.isActive() ?? false,
-      (state) => { emit(IPC.eventRehearsalRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio() },
+      (state) => { emit(IPC.eventRehearsalRecordingState, state); if (state.phase === 'preparing') environmentManager?.deferForLiveAudio(); if (['idle', 'failed'].includes(state.phase)) scheduler?.kick() },
       (meter) => emit(IPC.eventRehearsalRecordingMeter, meter),
       emitRehearsals
     )
@@ -408,9 +446,12 @@ else {
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     environmentManager = new EnvironmentManager(paths, runtime, media, applicationLogger, app.getVersion(),
       () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active),
-      startupRecovery.safeMode, smokeMode || benchmarkMode)
+      startupRecovery.safeMode, smokeMode || benchmarkMode, { inspectAudio: signal => audioHost.inspect(database!.getSettings().recordingAudio, signal) })
     environmentManager.onChanged(state => emit(ENVIRONMENT_CHANGED, state))
-    audioHost.onEvent(event => { if (event.event === 'crashed' || event.event === 'error') environmentManager?.reportAudioFailure(event.data.error) })
+    audioHost.onEvent(event => {
+      if (event.event === 'crashed' || event.event === 'error') environmentManager?.reportAudioFailure(new DiagnosticError(event.data.error.split(':')[0]!, event.data.error, { native: event.data.evidence }))
+      if (event.event === 'opened') environmentManager?.reportAudioSuccess(`设备流已打开：${event.data.sampleRate} Hz，${event.data.bufferFrames} 帧缓冲`)
+    })
     const stopCapture = async (): Promise<void> => {
       const failures: unknown[] = []
       try { await arsenal.stopMonitor() } catch (error) { failures.push(error) }
@@ -430,12 +471,28 @@ else {
     }
     powerMonitor.on('suspend', () => { void environmentManager?.suspend(); void stopCapture().catch(error => applicationLogger.warn('capture stopped for sleep', error)) })
     powerMonitor.on('resume', () => { void environmentManager?.startAutomatically().catch(error => applicationLogger.warn('environment resume deferred', error)) })
-    mainWindow.webContents.once('render-process-gone', () => startupRecovery.fail())
+    ai = new AiService(join(paths.dataRoot, 'ai-chat.db'), {
+      encrypt: token => {
+        if (!safeStorage.isEncryptionAvailable() || (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')) throw new Error('系统密钥存储不可用，暂时无法安全保存 Token。')
+        return safeStorage.encryptString(token).toString('base64')
+      },
+      decrypt: value => safeStorage.decryptString(Buffer.from(value, 'base64'))
+    }, event => emit(AI_EVENT, event), (url, options) => net.fetch(url instanceof URL ? url.toString() : url, options), undefined, new AiInformationReader({
+      application: () => ({ name: app.getName(), version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, arch: process.arch, safeMode: startupRecovery.safeMode }),
+      settings: () => database!.getSettings(),
+      devices: () => recording!.devices(),
+      separation: () => ({ runtime: runtime.getInfo(), environment: environmentManager!.get(), jobs: database!.listJobs() }),
+      diagnostics: () => diagnostics.snapshot(), logsRoot: paths.logsRoot,
+      flushLogs: () => applicationLogger.flush()
+    }))
     registerIpc({
+      ai,
       environment: environmentManager,
       devicesChanged,
       windowControlsRegistered: true,
       arsenal,
+      audioPlugins: audioHost.plugins,
+      nativeAudio: new NativeAudioService(paths, database, media, audioHost, arsenal, state => emit(NATIVE_AUDIO_EVENT, state)),
       lan,
       getWindow: () => mainWindow,
       database,
@@ -468,7 +525,9 @@ else {
     const message = error instanceof Error ? error.message : String(error)
     logger?.error('application startup failed', error)
     process.stderr.write(`BAND_BUDDY_STARTUP_FAILED ${message}\n`)
-    startup?.setState({ phase: 'failed', message: '曲库准备未完成，请关闭后重试。', error: message })
+    const issue = diagnostics.report(error, 'startup', { component: 'startup', stage: startup?.snapshot().phase ?? '创建启动窗口' })
+    startup?.setState({ phase: 'failed', message: issue.message, error: issue.evidence?.message, issue })
+    void diagnostics.flush()
   })
 }
 
@@ -508,10 +567,11 @@ app.on('before-quit', (event) => {
     }
     const workers = await Promise.allSettled([
       lan?.setEnabled(false), environmentManager?.shutdown(), runtimeManager?.shutdown(), scheduler?.shutdown(),
-      shutdownMediaAnalysis(), shutdownProcesses()
+      shutdownMediaAnalysis(), shutdownProcesses(), ai?.shutdown()
     ])
     for (const result of workers) if (result.status === 'rejected') logger?.error('worker shutdown failed', result.reason)
     await logger?.flush()
+    await diagnostics.flush()
   })().finally(() => { shutdownComplete = true; app.quit() })
   void shutdownTask.catch(error => { logger?.error('application shutdown failed', error) })
 })

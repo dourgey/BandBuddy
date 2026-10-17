@@ -13,6 +13,7 @@ import platform
 import sys
 import traceback
 import time
+import hashlib
 from typing import Any
 
 
@@ -126,6 +127,21 @@ def test_guitar_qualities(repository: Path, device: str) -> list[str]:
     return completed
 
 
+def health_fingerprint(model_root: Path) -> str:
+    from model_download import BUNDLE_FILES, bundle_path, marker_path
+    resources = []
+    for file in [marker_path(model_root), *[bundle_path(model_root) / spec.filename for spec in BUNDLE_FILES]]:
+        try:
+            stat = file.stat()
+            resources.append([file.name, stat.st_size, stat.st_mtime_ns])
+        except OSError:
+            resources.append([file.name, "missing"])
+    evidence = [sys.version, str(Path(sys.executable).resolve()), str(model_root.resolve()),
+                platform.release(), platform.machine(), os.environ.get("BANDBUDDY_HEALTH_FINGERPRINT", ""),
+                hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), resources]
+    return hashlib.sha256(json.dumps(evidence, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
 def command_probe(args: argparse.Namespace) -> None:
     from model_download import verify_bundle
     cache = Path(sys.prefix) / "bandbuddy-health.json"
@@ -137,10 +153,14 @@ def command_probe(args: argparse.Namespace) -> None:
         except importlib.metadata.PackageNotFoundError:
             versions[name] = None
     full_self_test = getattr(args, "full_self_test", False)
+    fingerprint = health_fingerprint(Path(args.model_root))
     if args.quick and not args.self_test and not full_self_test:
         try:
             cached = json.loads(cache.read_text("utf-8"))
-            if cached.get("schema") == 1 and cached.get("versions") == versions and 0 <= time.time() - cached.get("checkedAt", 0) < 86400:
+            if (cached.get("schema") == 2 and cached.get("fingerprint") == fingerprint
+                    and cached.get("versions") == versions and cached.get("result", {}).get("selfTest", {}).get("ran")
+                    and cached.get("result", {}).get("selfTest", {}).get("ok")
+                    and 0 <= time.time() - cached.get("checkedAt", 0) < 86400):
                 verify_bundle(Path(args.model_root), full=False)
                 emit("result", **cached["result"])
                 return
@@ -169,16 +189,20 @@ def command_probe(args: argparse.Namespace) -> None:
     model_root = Path(args.model_root).resolve()
     model_ready = False
     repository = None
+    model_error = None
     try:
         repository = verify_bundle(model_root, full=not args.quick)
         model_ready = True
-    except RuntimeError:
-        pass
+    except RuntimeError as error:
+        model_error = {"code": map_error(error), "message": str(error)}
     cuda_available = bool(torch.cuda.is_available())
     mps_available = bool(platform.machine() not in ("x86_64", "AMD64") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available())
-    self_test = {"ran": False, "device": "cpu", "ok": True, "modelInference": False}
+    self_test = {"ran": False, "device": "cpu", "ok": False, "modelInference": False}
+    fallbacks = []
     if args.self_test or full_self_test:
-        if not dependencies_ready or not model_ready:
+        if not model_ready:
+            raise RuntimeError(f"MODEL_VALIDATION_FAILED:{model_error}")
+        if not dependencies_ready:
             raise RuntimeError(f"RUNTIME_DEPENDENCIES_INCOMPLETE:{dependency_errors}")
         requested = getattr(args, "device", "auto")
         device = "cpu" if requested == "cpu" else "cuda" if cuda_available and requested in ("auto", "cuda") else "mps" if mps_available else "cpu"
@@ -189,9 +213,10 @@ def command_probe(args: argparse.Namespace) -> None:
             b = torch.mm(a, a)
             if device == "cuda":
                 torch.cuda.synchronize()
-        except RuntimeError:
+        except RuntimeError as error:
             if device == "cpu":
                 raise
+            fallbacks.append({"stage": "torch-operation", "device": device, "code": map_error(error), "message": str(error), "traceback": traceback.format_exc(limit=5)})
             if device == "cuda": cuda_available = False
             if device == "mps": mps_available = False
             device = "cpu"
@@ -208,9 +233,10 @@ def command_probe(args: argparse.Namespace) -> None:
                 return separator.separate_tensor(test_audio, sr=separator.samplerate)[1]
             try:
                 test_stems = test_separator(device)
-            except (RuntimeError, NotImplementedError):
+            except (RuntimeError, NotImplementedError) as error:
                 if device == "cpu":
                     raise
+                fallbacks.append({"stage": "model-inference", "device": device, "code": map_error(error), "message": str(error), "traceback": traceback.format_exc(limit=5)})
                 if device == "cuda": cuda_available = False
                 if device == "mps": mps_available = False
                 device = "cpu"
@@ -243,12 +269,14 @@ def command_probe(args: argparse.Namespace) -> None:
         modelReady=model_ready,
         dependenciesReady=dependencies_ready,
         dependencyErrors=dependency_errors,
+        modelError=model_error,
+        fallbacks=fallbacks,
         selfTest=self_test,
     )
-    if dependencies_ready and model_ready:
+    if dependencies_ready and model_ready and self_test["ran"] and self_test["ok"]:
         try:
             temporary = cache.with_suffix(".part")
-            temporary.write_text(json.dumps({"schema": 1, "versions": versions, "checkedAt": time.time(), "result": result}), "utf-8")
+            temporary.write_text(json.dumps({"schema": 2, "fingerprint": fingerprint, "versions": versions, "checkedAt": time.time(), "result": result}), "utf-8")
             os.replace(temporary, cache)
         except OSError:
             pass  # Read-only old installations can still run normally.
@@ -576,6 +604,23 @@ def command_separate(args: argparse.Namespace) -> None:
     )
 
 
+def command_separate_vocals(args: argparse.Namespace) -> None:
+    # Keep spill buffers inside this task so a killed worker leaves no orphan
+    # song-sized files in the system temporary directory.
+    os.environ["BANDBUDDY_MEMORY_DIR"] = str(Path(args.output).resolve() / ".memory")
+    from vocal_separator.separator import separate
+    result = separate(Path(args.input).resolve(), Path(args.output).resolve(), Path(args.model_root).resolve(),
+                      args.model_id, args.device,
+                      lambda fraction, message: emit("progress", stage="separating", progress=fraction, message=message),
+                      getattr(args, "batch_size", None))
+    emit("result", **result)
+
+
+def command_verify_vocals(args: argparse.Namespace) -> None:
+    from vocal_separator.separator import verify_encoded
+    emit("result", **verify_encoded(Path(args.input), Path(args.lead), Path(args.backing), args.gain, args.storage_format))
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="bandbuddy-worker")
     commands = root.add_subparsers(dest="command", required=True)
@@ -590,7 +635,7 @@ def parser() -> argparse.ArgumentParser:
     ensure = commands.add_parser("ensure-model")
     ensure.add_argument("--model-root", required=True)
 
-    for name in ("separate", "separate-demucs", "separate-guitar"):
+    for name in ("separate", "separate-demucs", "separate-guitar", "separate-vocals"):
         separate = commands.add_parser(name)
         separate.add_argument("--input", required=True)
         separate.add_argument("--output", required=True)
@@ -602,6 +647,15 @@ def parser() -> argparse.ArgumentParser:
             default="high",
             help="Guitar split policy; old queued commands retain the v2.0 HQ6 default.",
         )
+        if name == "separate-vocals":
+            separate.add_argument("--model-id", required=True, choices=("mel-karaoke-aufr33-viperx", "bs-karaoke-frazer-becruily"))
+            separate.add_argument("--batch-size", type=int)
+    verify = commands.add_parser("verify-vocals")
+    verify.add_argument("--input", required=True)
+    verify.add_argument("--lead", required=True)
+    verify.add_argument("--backing", required=True)
+    verify.add_argument("--gain", type=float, required=True)
+    verify.add_argument("--storage-format", choices=("flac24", "mp3_320"), required=True)
     return root
 
 
@@ -624,6 +678,10 @@ def main() -> int:
             command_separate_demucs(args)
         elif args.command == "separate-guitar":
             command_separate_guitar(args)
+        elif args.command == "separate-vocals":
+            command_separate_vocals(args)
+        elif args.command == "verify-vocals":
+            command_verify_vocals(args)
         return 0
     except KeyboardInterrupt:
         emit("error", code="CANCELLED", message="任务已取消")
@@ -657,14 +715,26 @@ def torch_oom_types() -> tuple[type[BaseException], ...]:
 
 def map_error(error: Exception) -> str:
     text = str(error).upper()
+    if text.startswith("VOCAL_"):
+        return text.split(":", 1)[0]
+    if isinstance(error, MemoryError) or "DEFAULTCPUALLOCATOR" in text or "BAD_ALLOC" in text:
+        return "CPU_OUT_OF_MEMORY"
+    if isinstance(error, (ModuleNotFoundError, ImportError)) or "DEPENDENCIES_INCOMPLETE" in text:
+        return "DEPENDENCIES_INCOMPLETE"
     if "CUDA_NOT_AVAILABLE" in text:
         return "CUDA_NOT_AVAILABLE"
     if "MPS_NOT_AVAILABLE" in text:
         return "MPS_NOT_AVAILABLE"
-    if "OUT OF MEMORY" in text or ("CUDA" in text and "MEMORY" in text):
+    if ("CUDA" in text or "MPS" in text) and ("OUT OF MEMORY" in text or "MEMORY" in text):
         return "ACCELERATOR_OOM"
+    if "OUT OF MEMORY" in text or "CANNOT ALLOCATE MEMORY" in text:
+        return "CPU_OUT_OF_MEMORY"
     if "MODEL_HASH" in text or "MODEL_SIZE" in text:
         return "MODEL_HASH_MISMATCH"
+    if "MODEL_" in text:
+        return "MODEL_VALIDATION_FAILED"
+    if isinstance(error, OSError) and (getattr(error, "winerror", None) or "DLL" in text):
+        return "NATIVE_LIBRARY_LOAD_FAILED"
     if "NO SPACE" in text or getattr(error, "errno", None) == 28:
         return "DISK_FULL"
     if "FFMPEG" in text or "LOADAUDIO" in type(error).__name__.upper():

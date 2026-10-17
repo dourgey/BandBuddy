@@ -3,8 +3,9 @@ import { createDefaultSongEq } from './equalizer.js'
 import type { TrackEffects, EffectChainSnapshot } from './arsenal.js'
 export const LEGACY_STEM_ORDER = ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'] as const
 export const GUITAR_SPLIT_STEMS = ['acoustic_guitar', 'lead_guitar', 'rhythm_guitar'] as const
+export const VOCAL_SPLIT_STEMS = ['lead_vocals', 'backing_vocals'] as const
 export const STEM_ORDER = [
-  'vocals', 'drums', 'bass', 'guitar',
+  'vocals', ...VOCAL_SPLIT_STEMS, 'drums', 'bass', 'guitar',
   ...GUITAR_SPLIT_STEMS,
   'piano', 'other'
 ] as const
@@ -15,14 +16,32 @@ export function stemStorageFormat(highQualityStems: boolean): StemStorageFormat 
   return highQualityStems ? 'flac24' : 'mp3_320'
 }
 
-export function isStemVisible(stemType: StemType, guitarSplitEnabled: boolean): boolean {
-  return guitarSplitEnabled
-    ? stemType !== 'guitar'
-    : !GUITAR_SPLIT_STEMS.includes(stemType as (typeof GUITAR_SPLIT_STEMS)[number])
+export const STEM_GROUPS = [
+  { parent: 'vocals', children: VOCAL_SPLIT_STEMS, mode: 'vocalSplitEnabled' },
+  { parent: 'guitar', children: GUITAR_SPLIT_STEMS, mode: 'guitarSplitEnabled' }
+] as const
+
+export function isStemVisible(stemType: StemType, guitarSplitEnabled: boolean, vocalSplitEnabled = false): boolean {
+  const modes = { guitarSplitEnabled, vocalSplitEnabled }
+  return STEM_GROUPS.every(group => modes[group.mode]
+    ? stemType !== group.parent
+    : !(group.children as readonly StemType[]).includes(stemType))
 }
 
-export function visibleStemTypes(guitarSplitEnabled: boolean): StemType[] {
-  return STEM_ORDER.filter((stemType) => isStemVisible(stemType, guitarSplitEnabled))
+export function visibleStemTypes(guitarSplitEnabled: boolean, vocalSplitEnabled = false): StemType[] {
+  return STEM_ORDER.filter((stemType) => isStemVisible(stemType, guitarSplitEnabled, vocalSplitEnabled))
+}
+
+export function normalizeSelectedStemForVocalMode(selectedStem: StemType | null, enabled: boolean): StemType | null {
+  if (enabled && selectedStem === 'vocals') return 'lead_vocals'
+  if (!enabled && selectedStem && (VOCAL_SPLIT_STEMS as readonly StemType[]).includes(selectedStem)) return 'vocals'
+  return selectedStem
+}
+
+/** Encoding headroom belongs to the asset, never to the user's mix fader. */
+export function stemPlaybackGain(stem: Pick<StemRecord, 'encodingGain'> | undefined): number {
+  const gain = stem?.encodingGain ?? 1
+  return Number.isFinite(gain) && gain > 0 && gain <= 1 ? 1 / gain : 1
 }
 
 export function normalizeSelectedStemForGuitarMode(
@@ -57,6 +76,14 @@ export const MAX_ROUTABLE_OUTPUT_CHANNELS = 32
 export type ComputeDevice = 'auto' | 'cuda' | 'mps' | 'cpu'
 export type GuitarSeparationQuality = 'fast' | 'balanced' | 'high'
 export type GuitarSplitStatus = 'missing' | 'pending' | 'ready' | 'failed'
+export type VocalSplitStatus = GuitarSplitStatus
+export type VocalModelId = 'mel-karaoke-aufr33-viperx' | 'bs-karaoke-frazer-becruily'
+export type VocalSeparationQuality = 'fast' | 'high'
+export const VOCAL_SEPARATION_PROFILES: Record<VocalSeparationQuality, { label: string; modelName: string; modelId: VocalModelId }> = {
+  fast: { label: '效率档', modelName: 'Mel-Band RoFormer', modelId: 'mel-karaoke-aufr33-viperx' },
+  high: { label: '质量档', modelName: 'BS-RoFormer', modelId: 'bs-karaoke-frazer-becruily' }
+}
+export interface VocalSplitCompleted { songId: string; baseSeparationId: string; refinementId: string; enableVocalSplitOnSuccess?: boolean }
 export type RuntimeStatus =
   | 'missing'
   | 'detecting'
@@ -149,6 +176,8 @@ export interface StemMeta {
 
 export const STEM_META: Record<StemType, StemMeta> = {
   vocals: { label: '人声', shortLabel: 'Vocal', color: '#a58a67', icon: 'mic' },
+  lead_vocals: { label: '主唱', shortLabel: '主唱', color: '#b88a68', icon: 'mic' },
+  backing_vocals: { label: '和声', shortLabel: '和声', color: '#a79b79', icon: 'mic' },
   drums: { label: '鼓组', shortLabel: 'Drums', color: '#718da9', icon: 'drums' },
   bass: { label: '贝斯', shortLabel: 'Bass', color: '#809779', icon: 'bass' },
   guitar: { label: '吉他', shortLabel: 'Guitar', color: '#b98358', icon: 'guitar' },
@@ -235,14 +264,16 @@ export function normalizeTrackOrder(
     seen.add(key)
     normalized.push(key)
   }
-  const splitKeys = GUITAR_SPLIT_STEMS.map(stemTrackOrderKey)
+  for (const group of STEM_GROUPS) {
+  const splitKeys = group.children.map(stemTrackOrderKey)
   for (const [splitIndex, key] of splitKeys.entries()) {
     if (seen.has(key)) continue
-    const predecessor = splitIndex === 0 ? stemTrackOrderKey('guitar') : splitKeys[splitIndex - 1]!
+    const predecessor = splitIndex === 0 ? stemTrackOrderKey(group.parent) : splitKeys[splitIndex - 1]!
     const predecessorIndex = normalized.indexOf(predecessor)
     if (predecessorIndex < 0) continue
     seen.add(key)
     normalized.splice(predecessorIndex + 1, 0, key)
+  }
   }
   for (const key of available) {
     if (seen.has(key)) continue
@@ -278,6 +309,7 @@ export interface PracticeState {
   metronomeGainDb: number
   desktopLyricsEnabled: boolean
   guitarSplitEnabled: boolean
+  vocalSplitEnabled: boolean
   countInBeats: 0 | 4 | 8
   loopStartMs: number | null
   loopEndMs: number | null
@@ -291,6 +323,9 @@ export interface PracticeState {
 }
 
 export interface StemRecord {
+  numFrames?: number
+  encodingGain?: number
+  refinementId?: string | null
   name?: string | null
   id: string
   songId: string
@@ -316,6 +351,7 @@ export interface SongSummary {
   stemTypes: StemType[]
   stemNames?: Partial<Record<StemType, string>>
   guitarSplitStatus: GuitarSplitStatus
+  vocalSplitStatus: VocalSplitStatus
   createdAt: string
   updatedAt: string
   lastPracticedAt: string | null
@@ -395,6 +431,9 @@ export interface RecordingTake {
 }
 
 export interface RecordingDeviceSnapshot {
+  pluginFaults?: import('./audio-plugins.js').PluginFaults | null
+  audioDiagnostics?: import('./audio-plugins.js').AudioDiagnostics
+  originalCaptureRelPath?: string
   backend: Exclude<AudioBackend, 'auto'>
   inputDeviceId: string
   inputDeviceName: string
@@ -436,6 +475,7 @@ export interface RecordingDeviceInfo {
 }
 
 export interface RecordingAudioSettings {
+  desktopEngine?: 'native' | 'compatibility'
   backend: AudioBackend
   inputDeviceId: string
   outputDeviceId: string
@@ -482,7 +522,7 @@ export interface RecordingStartRequest {
 export interface JobRecord {
   id: string
   songId: string | null
-  type: 'separate' | 'guitarSplit' | 'normalizeStems' | 'export' | 'runtimeInstall'
+  type: 'separate' | 'guitarSplit' | 'vocalSplit' | 'normalizeStems' | 'export' | 'runtimeInstall'
   status: JobStatus
   phase: string
   progress: number
@@ -500,6 +540,10 @@ export interface GpuInfo {
 }
 
 export interface RuntimeInfo {
+  checks?: import('./environment.js').EnvironmentCheck[]
+  issue?: import('./environment.js').EnvironmentIssue | null
+  warnings?: import('./environment.js').EnvironmentIssue[]
+  hardware?: Record<string, unknown>
   downloadedBytes?: number
   downloadTotalBytes?: number | null
   status: RuntimeStatus
@@ -561,6 +605,7 @@ export interface AppSettings {
   closeToTrayWhileWorking: boolean
   highQualityStems: boolean
   guitarSeparationQuality: GuitarSeparationQuality
+  vocalSeparationQuality: VocalSeparationQuality
   network: NetworkSettings
 }
 
@@ -642,6 +687,7 @@ export function createDefaultPracticeState(songId: string): PracticeState {
     metronomeGainDb: 0,
     desktopLyricsEnabled: false,
     guitarSplitEnabled: false,
+    vocalSplitEnabled: false,
     countInBeats: 0,
     loopStartMs: null,
     loopEndMs: null,
@@ -699,20 +745,22 @@ export function normalizeBeatOffsetMs(offsetMs: number, bpm: number): number {
 
 export function visibleTrackStates(
   tracks: readonly TrackState[],
-  guitarSplitEnabled: boolean
+  guitarSplitEnabled: boolean,
+  vocalSplitEnabled = false
 ): TrackState[] {
-  return tracks.filter((track) => isStemVisible(track.stemType, guitarSplitEnabled))
+  return tracks.filter((track) => isStemVisible(track.stemType, guitarSplitEnabled, vocalSplitEnabled))
 }
 
 export function isTrackAudible(
   track: TrackState,
   allTracks: readonly TrackState[],
-  guitarSplitEnabled = false
+  guitarSplitEnabled = false,
+  vocalSplitEnabled = false
 ): boolean {
-  if (!isStemVisible(track.stemType, guitarSplitEnabled)) return false
+  if (!isStemVisible(track.stemType, guitarSplitEnabled, vocalSplitEnabled)) return false
   if (track.muted) return false
   const hasSolo = allTracks.some((candidate) =>
-    isStemVisible(candidate.stemType, guitarSplitEnabled) && candidate.solo && !candidate.muted
+    isStemVisible(candidate.stemType, guitarSplitEnabled, vocalSplitEnabled) && candidate.solo && !candidate.muted
   )
   return !hasSolo || track.solo
 }

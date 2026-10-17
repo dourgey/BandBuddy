@@ -25,6 +25,7 @@ export const exportFormatSchema = z.enum(['wav', 'flac', 'mp3'])
 export const audioBackendSchema = z.enum(['auto', 'asio', 'wasapi-exclusive', 'wasapi-shared', 'coreaudio'])
 
 export const recordingAudioSettingsSchema = z.object({
+  desktopEngine: z.enum(['native', 'compatibility']).optional(),
   backend: audioBackendSchema,
   inputDeviceId: z.string().max(500),
   outputDeviceId: z.string().max(500),
@@ -105,6 +106,7 @@ export const practiceStateSchema = z.object({
   metronomeGainDb: z.number().min(-60).max(6),
   desktopLyricsEnabled: z.boolean(),
   guitarSplitEnabled: z.boolean(),
+  vocalSplitEnabled: z.boolean().default(false),
   countInBeats: z.union([z.literal(0), z.literal(4), z.literal(8)]),
   loopStartMs: z.number().nonnegative().nullable(),
   loopEndMs: z.number().nonnegative().nullable(),
@@ -116,11 +118,11 @@ export const practiceStateSchema = z.object({
   trackOrder: z.array(trackOrderKeySchema).min(STEM_ORDER.length),
   updatedAt: z.string()
 }).refine((value) => new Set(value.tracks.map((track) => track.stemType)).size === STEM_ORDER.length, {
-  message: '练习状态必须包含九条唯一音轨'
+  message: '练习状态必须包含全部唯一音轨'
 }).refine((value) => new Set(value.trackOrder).size === value.trackOrder.length, {
   message: '轨道顺序不能包含重复项'
 }).refine((value) => STEM_ORDER.every((stemType) => value.trackOrder.includes(stemTrackOrderKey(stemType))), {
-  message: '轨道顺序必须包含九条分轨'
+  message: '轨道顺序必须包含全部分轨'
 }).refine((value) => value.loopStartMs === null || value.loopEndMs === null || value.loopEndMs > value.loopStartMs, {
   message: 'B 点必须晚于 A 点'
 })
@@ -187,6 +189,7 @@ export const appSettingsSchema = z.object({
   closeToTrayWhileWorking: z.boolean(),
   highQualityStems: z.boolean(),
   guitarSeparationQuality: z.enum(['fast', 'balanced', 'high']),
+  vocalSeparationQuality: z.enum(['fast', 'high']).default('fast'),
   network: networkSettingsSchema
 })
 

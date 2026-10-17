@@ -2,6 +2,7 @@ import type { ProcessResult } from './process.js'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { systemHelperPath } from './system-helper.js'
+import { DiagnosticError, errorEvidence } from './diagnostic-errors.js'
 
 export const VC_RUNTIME_MIN_VERSION = '14.44.0.0'
 export const VC_RUNTIME_DOWNLOAD_URL = 'https://aka.ms/vc14/vc_redist.x64.exe'
@@ -11,6 +12,7 @@ export interface WindowsVcRuntimeInfo {
   installed: boolean
   version: string | null
   supported: boolean
+  probeError?: import('@shared/environment.js').ErrorEvidence
 }
 
 export interface AuthenticodeInfo {
@@ -52,14 +54,17 @@ export async function detectWindowsVcRuntime(run: ProcessRunner): Promise<Window
     const helper = systemHelperPath()
     if (existsSync(helper)) {
       const result = await run(helper, ['vc-runtime'], { timeoutMs: 8_000 })
-      const data = JSON.parse(result.stdout) as { installed: boolean; version: string }
+      let data: { installed: boolean; version: string; probeError?: number }
+      try { data = JSON.parse(result.stdout) }
+      catch (error) { throw new DiagnosticError('VC_RUNTIME_PROBE_FAILED', '系统运行库探测未返回有效结果', { result }, error) }
+      if (!data || result.code !== 0 || data.probeError || typeof data.installed !== 'boolean' || typeof data.version !== 'string' || data.installed && Number.isNaN(compareRuntimeVersions(data.version, VC_RUNTIME_MIN_VERSION))) throw new DiagnosticError('VC_RUNTIME_PROBE_FAILED', '系统运行库探测失败', { result, probeError: data?.probeError })
       return { installed: data.installed === true, version: data.version || null, supported: result.code === 0 && data.installed === true && compareRuntimeVersions(data.version, VC_RUNTIME_MIN_VERSION) >= 0 }
     }
     const result = await run(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'reg.exe'), ['query', VC_RUNTIME_REGISTRY_KEY, '/reg:64'], { timeoutMs: 8_000 })
-    if (result.code !== 0) return { installed: false, version: null, supported: false }
+    if (result.code !== 0) throw new DiagnosticError('VC_RUNTIME_PROBE_FAILED', '备用注册表探测未完成，不能确定运行库缺失', { result })
     return parseVcRuntimeRegistry(result.stdout)
-  } catch {
-    return { installed: false, version: null, supported: false }
+  } catch (error) {
+    return { installed: false, version: null, supported: false, probeError: errorEvidence(error) }
   }
 }
 

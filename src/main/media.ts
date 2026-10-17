@@ -10,7 +10,10 @@ import type { BpmAnalysis } from './bpm-detection.js'
 import { runMediaAnalysis } from './media-analysis.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
-import { runProcess } from './process.js'
+import { processFailure, runProcess } from './process.js'
+import { DiagnosticError, errorEvidence } from './diagnostic-errors.js'
+import { diagnostics } from './diagnostics.js'
+import { checkEnvironmentStorage } from './environment-storage.js'
 import type { Logger } from './logger.js'
 import { mediaResponseHeaders, parseByteRange } from './media-range.js'
 import { decodeNcmFile } from './ncm.js'
@@ -54,6 +57,9 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
+  private readonly network = new RuntimeNetwork()
+  private integrityEvidence: unknown[] = []
+  private launchVerified = false
   private downloadAttempts: DownloadAttempt[] = []
   downloadDiagnostics(): DownloadAttempt[] { return this.downloadAttempts }
   recordingPreviewEffect: ((source: string, takeId: string) => Promise<string>) | null = null
@@ -90,10 +96,32 @@ export class MediaService {
   /** Explicit tool consumers may share verification; status reads stay inexpensive. */
   ready(): Promise<void> { return this.ensureVerified() }
 
+  async networkReachable(signal: AbortSignal): Promise<boolean> {
+    const urls = TOOL_TARGET.files.filter(file => ['ffmpeg', 'ffprobe', 'ffmpegDependency'].includes(file.role)).map(file => TOOL_TARGET.sources[file.source]!.url)
+    return this.network.reachable(this.database.getSettings().network, urls, signal)
+  }
+  async healthCheck(signal: AbortSignal, fresh = false): Promise<void> {
+    signal.throwIfAborted()
+    if (fresh) { this.verification = null; this.verifiedToolRoot = null; this.launchVerified = false }
+    await this.ensureVerified()
+    if (!this.verifiedToolRoot) throw new DiagnosticError('FFMPEG_MISSING', '媒体工具完整性检查失败', { candidates: this.integrityEvidence })
+    if (this.launchVerified) return
+    const ffprobe = path.join(this.verifiedToolRoot, toolFile(TOOL_TARGET, 'ffprobe').output)
+    const ffmpeg = path.join(this.verifiedToolRoot, toolFile(TOOL_TARGET, 'ffmpeg').output)
+    const probe = await runProcess(ffprobe, ['-version'], { signal, timeoutMs: 10_000, component: 'media', stage: 'ffprobe-launch' })
+    if (probe.code !== 0) throw processFailure(probe, 'FFPROBE_LAUNCH_FAILED')
+    // Generated silence goes to a null sink: no microphone, speakers or user audio.
+    const codec = await runProcess(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', '0.02', '-c:a', 'pcm_s24le', '-f', 'null', '-'], { signal, timeoutMs: 15_000, component: 'media', stage: 'ffmpeg-codec-test' })
+    if (codec.code !== 0) throw processFailure(codec, 'FFMPEG_SELF_TEST_FAILED')
+    signal.throwIfAborted(); this.launchVerified = true
+    diagnostics.record({ component: 'media', stage: 'media-tools', result: 'passed', details: { version: TOOL_TARGET.ffmpegVersion, level: 'launch' } })
+  }
+
   async repair(signal: AbortSignal): Promise<void> {
     const root = path.join(this.paths.toolsRoot, `ffmpeg-${TOOL_TARGET.ffmpegVersion}`)
-    const network = new RuntimeNetwork()
+    const network = this.network
     try {
+      await checkEnvironmentStorage([{ directory: this.paths.downloadRoot, bytes: 512 * 1024 * 1024, purpose: '媒体工具下载及解压' }, { directory: root, bytes: 256 * 1024 * 1024, purpose: '媒体工具修复副本' }])
       await mkdir(root, { recursive: true })
       for (const file of TOOL_TARGET.files.filter(file => ['ffmpeg', 'ffprobe', 'ffmpegDependency'].includes(file.role))) {
         if (path.basename(file.output) !== file.output) throw new Error('UNSAFE_TOOL_PATH')
@@ -116,12 +144,13 @@ export class MediaService {
           await rename(temporary, destination)
         } finally { await rm(temporary, { force: true }) }
       }
-      this.verification = null; this.verifiedToolRoot = null
-      await this.ensureVerified()
+      this.verification = null; this.verifiedToolRoot = null; this.launchVerified = false
+      await this.healthCheck(signal)
     } finally { this.downloadAttempts = network.diagnostics(); network.close() }
   }
 
   private async findVerifiedToolRoot(): Promise<string | null> {
+    this.integrityEvidence = []
     const candidates = [
       this.paths.packagedResource('bin'),
       path.join(this.paths.toolsRoot ?? '', `ffmpeg-${TOOL_TARGET.ffmpegVersion}`),
@@ -133,10 +162,12 @@ export class MediaService {
         try {
           const hash = createHash('sha256')
           for await (const chunk of createReadStream(path.join(root, name))) hash.update(chunk as Buffer)
-          if (hash.digest('hex') !== expected) {
+          const actual = hash.digest('hex')
+          if (actual !== expected) {
+            this.integrityEvidence.push({ component: name, location: root === this.paths.packagedResource('bin') ? '应用安装目录' : '工具缓存目录', expected, actual })
             if (root !== this.paths.packagedResource('bin') || !await isTrustedWindowsTool(path.join(root, name))) { valid = false; break }
           }
-        } catch { valid = false; break }
+        } catch (error) { this.integrityEvidence.push({ component: name, error: errorEvidence(error) }); valid = false; break }
       }
       if (valid) return root
       if (root === this.paths.packagedResource('bin')
@@ -177,7 +208,7 @@ export class MediaService {
       return { durationMs: 0, sampleRate: null, channels: null, format: path.extname(filePath).slice(1), title: null, artist: null, video: null }
     }
     const result = await runProcess(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', filePath])
-    if (result.code !== 0) throw new Error(`AUDIO_PROBE_FAILED:${result.stderr.slice(-800)}`)
+    if (result.code !== 0) throw processFailure(result, 'AUDIO_PROBE_FAILED', { stage: '读取源媒体信息' })
     const parsed = JSON.parse(result.stdout) as ProbeJson
     const audio = parsed.streams?.find((stream) => stream.codec_type === 'audio')
     if (!audio) throw new Error('NO_AUDIO_STREAM')
@@ -209,7 +240,7 @@ export class MediaService {
         '-f', 'wav', temporaryOutput
       ], { signal })
       if (signal.aborted) throw new Error('JOB_CANCELLED')
-      if (result.code !== 0) throw new Error(`AUDIO_DECODE_FAILED:${result.stderr.slice(-800)}`)
+      if (result.code !== 0) throw processFailure(result, 'AUDIO_DECODE_FAILED', { stage: '解码源音频' })
       await rename(temporaryOutput, finalOutput)
     } finally {
       await unlink(temporaryOutput).catch(() => undefined)
@@ -234,7 +265,7 @@ export class MediaService {
         '-t', (probe.durationMs / 1000).toFixed(3), '-ar', '44100', '-ac', '2', '-c:a', 'pcm_f32le', '-f', 'wav', temporaryOutput
       ], { signal })
       if (signal.aborted) throw new Error('JOB_CANCELLED')
-      if (result.code !== 0) throw new Error(`VIDEO_AUDIO_EXTRACTION_FAILED:${result.stderr.slice(-800)}`)
+      if (result.code !== 0) throw processFailure(result, 'VIDEO_AUDIO_EXTRACTION_FAILED', { stage: '提取源视频音频' })
       await rename(temporaryOutput, finalOutput)
     } finally {
       await unlink(temporaryOutput).catch(() => undefined)
@@ -265,7 +296,7 @@ export class MediaService {
         temporaryOutput
       ], { signal })
       if (signal.aborted) throw new Error('JOB_CANCELLED')
-      if (result.code !== 0) throw new Error(`VIDEO_PREPARATION_FAILED:${result.stderr.slice(-800)}`)
+      if (result.code !== 0) throw processFailure(result, 'VIDEO_PREPARATION_FAILED', { stage: '准备视频' })
       await rename(temporaryOutput, finalOutput)
       return finalOutput
     } finally {
@@ -308,7 +339,7 @@ export class MediaService {
         '-y', '-v', 'error', ...inputArgs, ...mapArgs, '-map_metadata', '-1', ...metadataArgs,
         '-c:a', 'libmp3lame', '-b:a', '320k', temporaryOutput
       ])
-      if (result.code !== 0) throw new Error(`AUDIO_CONVERSION_FAILED:${result.stderr.slice(-800)}`)
+      if (result.code !== 0) throw processFailure(result, 'AUDIO_CONVERSION_FAILED', { stage: '转换音频' })
       await rename(temporaryOutput, finalOutput)
     } finally {
       await Promise.allSettled([
@@ -339,7 +370,9 @@ export class MediaService {
     finalOutput: string,
     targetDurationMs?: number,
     storageFormat: StemStorageFormat = 'flac24',
-    linearGain = 1
+    linearGain = 1,
+    targetFrames?: number,
+    signal?: AbortSignal
   ): Promise<AudioProbe> {
     const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
@@ -349,17 +382,20 @@ export class MediaService {
     const durationSeconds = targetDurationMs && targetDurationMs > 0
       ? (targetDurationMs / 1000).toFixed(3)
       : null
-    if (durationSeconds) filters.push(`apad=whole_dur=${durationSeconds}`)
+    if (targetFrames !== undefined) {
+      if (!Number.isSafeInteger(targetFrames) || targetFrames <= 0) throw new Error('INVALID_STEM_FRAME_COUNT')
+      filters.push(`apad=whole_len=${targetFrames}`, `atrim=end_sample=${targetFrames}`)
+    } else if (durationSeconds) filters.push(`apad=whole_dur=${durationSeconds}`)
     const filterArgs = filters.length > 0 ? ['-af', filters.join(',')] : []
-    const durationArgs = durationSeconds ? ['-t', durationSeconds] : []
+    const durationArgs = durationSeconds && targetFrames === undefined ? ['-t', durationSeconds] : []
     const codecArgs = storageFormat === 'flac24'
       ? ['-c:a', 'flac', '-sample_fmt', 's32', '-bits_per_raw_sample', '24']
       : ['-c:a', 'libmp3lame', '-b:a', '320k']
     const result = await runProcess(ffmpeg, [
       '-y', '-v', 'error', '-i', input, '-map_metadata', '-1', '-vn', ...filterArgs, ...durationArgs, '-ar', '44100', '-ac', '2',
       ...codecArgs, temporaryOutput
-    ])
-    if (result.code !== 0) throw new Error(`NORMALIZE_FAILED:${result.stderr.slice(-800)}`)
+    ], { signal })
+    if (result.code !== 0) throw processFailure(result, 'NORMALIZE_FAILED', { stage: '编码分轨结果' })
     await rename(temporaryOutput, finalOutput)
     return await this.probe(finalOutput)
   }

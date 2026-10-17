@@ -32,6 +32,9 @@ export function statusLabel(status: string): string {
 }
 
 const USER_ERROR_MESSAGES: ReadonlyArray<{ pattern: RegExp; message: string }> = [
+  { pattern: /STALE_VOCAL_SPLIT/, message: '基础分轨已更新，请重新生成主唱与和声' },
+  { pattern: /VOCAL_SOURCE_NOT_AVAILABLE/, message: '完整人声文件不可用，请先完成基础分轨' },
+  { pattern: /VOCAL_(MODEL|CONFIG)_/, message: '人声细分模型不完整或校验失败，请在任务中重试' },
   {
     pattern: /SELECTED_INPUT_DEVICE_(?:MISSING|MESSING)|NO_AUDIO_INPUT_DEVICE/,
     message: '输入设备未就绪，请检查您的声卡'
@@ -329,11 +332,12 @@ export function clamp(value: number, min: number, max: number): number {
 export function hasEffectiveSolo(
   tracks: readonly TrackState[],
   guitarSplitEnabled: boolean,
-  recordingSoloActive = false
+  recordingSoloActive = false,
+  vocalSplitEnabled = false
 ): boolean {
   if (recordingSoloActive) return true
   return tracks.some((track) =>
-    isStemVisible(track.stemType, guitarSplitEnabled) && track.solo && !track.muted
+    isStemVisible(track.stemType, guitarSplitEnabled, vocalSplitEnabled) && track.solo && !track.muted
   )
 }
 

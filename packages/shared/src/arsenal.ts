@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { externalPluginSchema, type ExternalPlugin } from './audio-plugins.js'
 
 export const EFFECT_BLOCKS = ['dynamic', 'drive', 'amp', 'cab', 'eq', 'mod', 'delay', 'reverb'] as const
 export const CLASSIC_AMPS = [
@@ -88,10 +89,10 @@ const legacyChainSchema = z.object({
 })
 export const effectModuleSchema = z.object({ id: z.string().min(1).max(80), type: z.enum(EFFECT_BLOCKS), settings: legacyChainSchema })
 export type EffectModule = z.infer<typeof effectModuleSchema>
-const runtimeChainSchema = legacyChainSchema.extend({ modules: z.array(effectModuleSchema).max(24).refine(modules => new Set(modules.map(m => m.id)).size === modules.length, '模块 ID 不可重复').optional() })
+const runtimeChainSchema = legacyChainSchema.extend({ plugins: z.array(externalPluginSchema).refine(nodes => new Set(nodes.map(n => n.instanceId)).size === nodes.length, '插件实例 ID 不可重复').optional(), modules: z.array(effectModuleSchema).max(24).refine(modules => new Set(modules.map(m => m.id)).size === modules.length, '模块 ID 不可重复').optional() })
 export type EffectChainSnapshot = z.infer<typeof runtimeChainSchema>
 const storedModuleSchema = z.object({ id: z.string().min(1).max(80), type: z.enum(EFFECT_BLOCKS), revision: z.union([z.literal(1), z.literal(2)]), params: z.unknown() })
-export const storedChainSchema = z.object({ version: z.literal(2), inputGainDb: db, outputGainDb: db, modules: z.array(storedModuleSchema).max(24) })
+export const storedChainSchema = z.object({ version: z.literal(2), inputGainDb: db, outputGainDb: db, plugins: z.array(externalPluginSchema).optional(), modules: z.array(storedModuleSchema).max(24) })
 export type StoredEffectChain = z.infer<typeof storedChainSchema>
 /** Version 1 is an adapter for the existing native ABI; persisted V2 modules are compact. */
 export const effectChainSchema = z.preprocess((input, ctx): unknown => {
@@ -99,12 +100,12 @@ export const effectChainSchema = z.preprocess((input, ctx): unknown => {
   try {
   const stored = storedChainSchema.parse(input)
   const chain = defaultEffectChain()
-  return { ...chain, inputGainDb: stored.inputGainDb, outputGainDb: stored.outputGainDb, modules: stored.modules.map(m => ({ id: m.id, type: m.type, settings: legacyChainSchema.parse({ ...defaultEffectChain(), dspRevision: m.revision, [m.type]: legacyChainSchema.shape[m.type].parse(m.params) }) })) }
+  return { ...chain, plugins: stored.plugins, inputGainDb: stored.inputGainDb, outputGainDb: stored.outputGainDb, modules: stored.modules.map(m => ({ id: m.id, type: m.type, settings: legacyChainSchema.parse({ ...defaultEffectChain(), dspRevision: m.revision, [m.type]: legacyChainSchema.shape[m.type].parse(m.params) }) })) }
   } catch { ctx.addIssue({ code: 'custom', message: '无效的 v2 效果链' }); return z.NEVER }
 }, runtimeChainSchema)
 export function storeEffectChain(input: EffectChainSnapshot): StoredEffectChain {
   const chain = effectChainSchema.parse(input)
-  return { version: 2, inputGainDb: chain.inputGainDb, outputGainDb: chain.outputGainDb, modules: chainModules(chain).map(m => ({ id: m.id, type: m.type, revision: m.settings.dspRevision, params: m.settings[m.type] })) }
+  return { version: 2, inputGainDb: chain.inputGainDb, outputGainDb: chain.outputGainDb, ...(chain.plugins?.length ? { plugins: chain.plugins } : {}), modules: chainModules(chain).map(m => ({ id: m.id, type: m.type, revision: m.settings.dspRevision, params: m.settings[m.type] })) }
 }
 export function chainModules(chain: EffectChainSnapshot): EffectModule[] {
   if (chain.modules) return chain.modules
@@ -130,13 +131,18 @@ export interface ToneAsset { id: string; kind: 'nam' | 'ir'; name: string; sampl
 export interface ArsenalPreset { id: string; name: string; chain: EffectChainSnapshot; revision: number; createdAt: string; updatedAt: string; tags?: string[]; favorite?: boolean; factory?: boolean }
 export interface TrackEffects { enabled: boolean; presetId: string | null; chain: EffectChainSnapshot; monitorMode: MonitorMode }
 export const trackEffectsSchema = z.object({ enabled: z.boolean(), presetId: z.string().uuid().nullable(), chain: effectChainSchema, monitorMode: z.enum(['off', 'dry', 'wet']) })
-export interface ArsenalTake { id: string; name: string; createdAt: string; durationMs: number; sampleRate: number; channels: number; chain: EffectChainSnapshot; recovered?: boolean }
+export interface ArsenalTake { pluginFaults?: import('./audio-plugins.js').PluginFaults | null;  id: string; name: string; createdAt: string; durationMs: number; sampleRate: number; channels: number; chain: EffectChainSnapshot; recovered?: boolean }
 export interface ArsenalDraft { name: string; presetId?: string; chain: EffectChainSnapshot; selected?: string; dirty: boolean }
 export interface ArsenalWorkspace { favorites?: string[]; draft: ArsenalDraft | null; takes: ArsenalTake[]; quick: { recording: boolean; looping: boolean; durationMs: number }; }
 export type ArsenalCommand = {action:'favorite';id:string;value:boolean} | { action: 'tuner'; enabled: boolean } | { action: 'workspace' | 'stopRecord' | 'stopLoop' } | { action: 'draft'; draft: ArsenalDraft } | { action: 'record'; name: string; chain: EffectChainSnapshot } | { action: 'loop'; id: string; startMs: number; endMs: number } | { action: 'exportTake'; id: string; wet: boolean; chain?: EffectChainSnapshot } | { action: 'deleteTake'; id: string } | { action: 'exportPreset'; preset: ArsenalPreset } | { action: 'importPreset' } | { action: 'asset'; id: string; name: string; tags: string[]; role: 'amp' | 'pedal' | 'rig' | 'unknown'; favorite: boolean; notes: string }
 export interface ArsenalState { presets: ArsenalPreset[]; assets: ToneAsset[] }
-export interface ArsenalMonitorState { active: boolean; mode: MonitorMode; sampleRate: number; bufferFrames: number; latencyMs: number; peak: number[]; outputPeak: number; xruns: number; error: string | null; tunerActive?: boolean; tunerHz?: number; dspLoad?: number; dspLatencyMs?: number }
-export interface PreparedEffects { modules?: PreparedEffects[]; chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number; secondaryIr?: number[][] | null; secondaryIrRate?: number; namInputGain?: number; namOutputGain?: number }
+export interface ArsenalMonitorState {
+  diagnostics?: import('./audio-plugins.js').AudioDiagnostics
+  clock?: import('./audio-plugins.js').ClockDiagnostics
+  plugin?: import('./audio-plugins.js').PluginDiagnostics | null
+  pcmUnderruns?: number
+ active: boolean; mode: MonitorMode; sampleRate: number; bufferFrames: number; latencyMs: number; peak: number[]; outputPeak: number; xruns: number; error: string | null; tunerActive?: boolean; tunerHz?: number; dspLoad?: number; dspLatencyMs?: number }
+export interface PreparedEffects { pluginGraph?: { version: 1; inputGainDb: number; outputGainDb: number; nodes: Array<({ kind: 'plugin'; id: string } & ExternalPlugin) | { kind: 'builtin'; id: string; prepared: PreparedEffects }> }; modules?: PreparedEffects[]; chain: EffectChainSnapshot; model: string | null; modelRate: number; ir: number[][] | null; irRate: number; secondaryIr?: number[][] | null; secondaryIrRate?: number; namInputGain?: number; namOutputGain?: number }
 export interface ArsenalApi {
   feed(input:{bus:number;sampleRate:number;samples:number[];reset?:boolean}):Promise<boolean>
   list(): Promise<ArsenalState>
@@ -161,6 +167,7 @@ export function defaultEffectChain(): EffectChainSnapshot {
     reverb: { enabled: false, decay: 2.5, preDelayMs: 20, damping: .5, mix: .2 } })
 }
 export function effectStructureKey(chain: EffectChainSnapshot): string {
+  if (chain.plugins?.length) return JSON.stringify(chain)
   if (chain.modules) return JSON.stringify(chain.modules.map(m => [m.id, m.type, effectStructureKey(moduleChain(m))]))
   return JSON.stringify([chain.order, chain.dspRevision, chain.amp.assetId, chain.amp.quality, chain.amp.calibration, chain.amp.inputDbU, chain.amp.outputDbU, chain.amp.outputMode, chain.cab.assetId, chain.cab.secondaryAssetId, chain.drive?.device, chain.drive?.revision, chain.drive?.oversampling, chain.amp.engine, chain.amp.classic.device, chain.cab.engine, chain.cab.physical.device, chain.mod.device])
 }

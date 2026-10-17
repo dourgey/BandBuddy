@@ -1,4 +1,5 @@
 const { run, scanCode, selectIdentity, assertRequiredCode, verifyApp } = require('./macos-signing.cjs')
+const path = require('node:path')
 
 module.exports = async function signMacApp(options) {
   if (process.platform !== 'darwin' || options.platform !== 'darwin') throw new Error('MAC_SIGNING_REQUIRES_MACOS')
@@ -17,7 +18,9 @@ module.exports = async function signMacApp(options) {
     if (perFile.hardenedRuntime === false) throw new Error('MAC_HARDENED_RUNTIME_REQUIRED')
     const args = ['--force', '--sign', identity.hash, '--timestamp', '--options', 'runtime']
     if (options.keychain) args.push('--keychain', options.keychain)
-    if (perFile.entitlements) args.push('--entitlements', perFile.entitlements)
+    const entitlements = path.basename(file) === 'bandbuddy-plugin-host'
+      ? path.resolve(__dirname, '../build/entitlements.plugin-host.mac.plist') : perFile.entitlements
+    if (entitlements) args.push('--entitlements', entitlements)
     if (perFile.requirements) args.push('--requirements', perFile.requirements)
     args.push(file)
     await run('/usr/bin/codesign', args)

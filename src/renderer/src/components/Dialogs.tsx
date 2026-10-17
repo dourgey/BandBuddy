@@ -1,9 +1,12 @@
 import { RuntimePreparation } from './RuntimePreparation.js'
 import { EnvironmentStatus, ENVIRONMENT_SETTINGS_EVENT } from './EnvironmentStatus.js'
+import { DiagnosticDetails } from './DiagnosticDetails.js'
+import { SystemInformationButton } from './SystemInformation.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
 import { getAppearance } from '../appearance.js'
 import { Select } from './ui/Select.js'
 import { LanSettings } from './LanSettings.js'
+import { LaboratoryDialog } from '../ai/LaboratoryDialog.js'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   AlertTriangle,
@@ -32,6 +35,7 @@ import {
   MUSICAL_KEY_TONICS,
   STEM_META,
   STEM_ORDER,
+  VOCAL_SEPARATION_PROFILES,
   formatMusicalKey,
   isStemVisible,
   parseMusicalKey,
@@ -39,6 +43,7 @@ import {
   type AudioBackend,
   type ExportFormat,
   type GuitarSeparationQuality,
+  type VocalSeparationQuality,
   type JobRecord,
   type MusicalKeyAnalysis,
   type MusicalKeyMode,
@@ -57,6 +62,7 @@ import { applyRuntimeSourcePreset, matchRuntimeSourcePreset, type RuntimeSourceP
 import { formatDate, formatTime, isCancellationError, statusLabel, toUserErrorMessage } from '../utils.js'
 
 const GUITAR_QUALITY_VALUES: readonly GuitarSeparationQuality[] = ['fast', 'balanced', 'high']
+const VOCAL_QUALITY_VALUES: readonly VocalSeparationQuality[] = ['fast', 'high']
 const GUITAR_QUALITY_DETAILS: Record<GuitarSeparationQuality, { label: string }> = {
   fast: {
     label: '极速',
@@ -199,16 +205,17 @@ export function TasksDrawer({ open, onOpenChange, jobs, runtime, onRefresh }: { 
     <div className="drawer-summary"><Gauge /><span><b>{active.length ? `${active.length} 个进行中任务` : '当前没有活动任务'}</b><small>{jobs.length} 条任务记录</small></span></div>
     {runtime && <RuntimePreparation runtime={runtime} />}
     <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>任务列表是空的</b><span>导入歌曲后，分离进度会显示在这里。</span></div> : jobs.map((job) => <article key={job.id}>
-      <header><span className={`task-dot ${job.status}`} /> <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b><em>{statusLabel(job.status)}</em></header>
+      <header><span className={`task-dot ${job.status}`} /> <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'vocalSplit' ? '主唱／和声' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b><em>{statusLabel(job.status)}</em></header>
       <p>{job.phase}</p><div className="progress-line"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><small>{Math.round(job.progress * 100)}% · {formatDate(job.createdAt)}</small>
       {job.errorMessage && job.status !== 'cancelled' && <pre>{toUserErrorMessage(`${job.errorCode ?? ''} ${job.errorMessage}`, '任务执行失败，请重试')}</pre>}
+      {['failed', 'interrupted', 'blockedRuntime'].includes(job.status) && <DiagnosticDetails scope={{ jobId: job.id }} />}
       <footer>{['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing'].includes(job.status) && <button onClick={() => void window.bandbuddy.tasks.cancel(job.id).then(onRefresh)}>取消</button>}{['failed', 'cancelled', 'interrupted'].includes(job.status) && <><button onClick={() => void window.bandbuddy.tasks.retry(job.id).then(onRefresh)}>重试</button>{['ACCELERATOR_OOM', 'CUDA_OOM'].includes(job.errorCode ?? '') && <button onClick={() => void window.bandbuddy.tasks.retry(job.id, true).then(onRefresh)}>使用 CPU 重试</button>}</>}</footer>
     </article>)}</div>
     <footer className="drawer-footer"><button className="outline-button" onClick={() => void window.bandbuddy.tasks.clearFinished().then(onRefresh)}><Trash2 size={16} />清除已完成</button><button className="outline-button" onClick={onRefresh}><RefreshCw size={16} />刷新</button></footer>
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }
 
-type SettingsCategory = 'separation' | 'audio' | 'general' | 'network' | 'storage'
+type SettingsCategory = 'separation' | 'audio' | 'general' | 'network' | 'storage' | 'ai'
 
 function SettingsGroup({ title, description, summary, icon, open, onOpenChange, saving, disabled, error, children }: {
   title: string
@@ -443,13 +450,17 @@ export function SettingsDrawer({
   })
   const guitarQualityIndex = GUITAR_QUALITY_VALUES.indexOf(draft.guitarSeparationQuality)
   const guitarQuality = GUITAR_QUALITY_DETAILS[draft.guitarSeparationQuality]
+  const vocalQualityIndex = VOCAL_QUALITY_VALUES.indexOf(draft.vocalSeparationQuality)
+  const vocalQuality = VOCAL_SEPARATION_PROFILES[draft.vocalSeparationQuality]
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer settings-drawer" data-dialog-open="true" aria-describedby={undefined} onEscapeKeyDown={(event) => {
     if (activeCategory) { event.preventDefault(); setActiveCategory(null) }
   }}>
     <Dialog.Close className="dialog-close" aria-label="关闭设置"><X /></Dialog.Close><div className="settings-scroll">
     <Dialog.Title>设置</Dialog.Title><p className="dialog-lead">按用途整理偏好，让练习保持顺手。</p>
+    <SystemInformationButton />
     {recordingBusy && <p className="source-note">录音进行中，可浏览设置分类和调整外观；其他设置请在录音结束后修改。</p>}
     <div className="settings-categories">
+    <LaboratoryDialog trigger open={open && activeCategory === 'ai'} onOpenChange={next => setActiveCategory(next ? 'ai' : null)} />
     <SettingsGroup title="分轨与运行环境" description="分轨音质、计算设备与本地环境" summary={`${guitarQuality.label} · ${draft.highQualityStems ? 'FLAC' : 'MP3'} · ${statusLabel(runtime.status)}`} icon={<Zap />} {...groupProps('separation')}>
     <section className="settings-section"><h3><HardDrive />分轨音质</h3>
       <div className="guitar-quality-setting">
@@ -468,6 +479,23 @@ export function SettingsDrawer({
           }}
         />
         <div className="guitar-quality-labels" aria-hidden="true"><span>极速</span><span>平衡</span><span>高质量</span></div>
+      </div>
+      <div className="guitar-quality-setting">
+        <header><span><b>人声分轨档位</b><small>{vocalQuality.modelName}</small></span><strong>{vocalQuality.label}</strong></header>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="1"
+          value={Math.max(0, vocalQualityIndex)}
+          aria-label="人声分轨档位"
+          aria-valuetext={`${vocalQuality.label} · ${vocalQuality.modelName}`}
+          onChange={event => {
+            const next = VOCAL_QUALITY_VALUES[Number(event.currentTarget.value)] ?? 'fast'
+            setDraft(current => ({ ...current, vocalSeparationQuality: next }))
+          }}
+        />
+        <div className="guitar-quality-labels" aria-hidden="true"><span>效率档</span><span>质量档</span></div>
       </div>
       <label className="settings-toggle"><input type="checkbox" aria-label="高音质分轨" checked={draft.highQualityStems} onChange={(event) => setDraft({ ...draft, highQualityStems: event.target.checked })} /><span><b>高音质分轨</b><small>{draft.highQualityStems ? '新分轨保存为 24-bit FLAC，占用空间较大' : '新分轨保存为 320 kbps MP3，节省空间'}</small></span></label>
     </section>
@@ -489,6 +517,7 @@ export function SettingsDrawer({
     <SettingsGroup title="音频与录音" description="播放输出、录音设备、延迟与输入测试" summary={`${draft.latencyMode === 'interactive' ? '低延迟' : draft.latencyMode === 'balanced' ? '平衡延迟' : '稳定播放'} · ${draft.recordingAudio.inputChannelMode === 'mono' ? '单声道输入' : '立体声输入'}`} icon={<AudioLines />} {...groupProps('audio')}>
     <section className="settings-section"><h3><SlidersHorizontal />音频播放</h3><div className="settings-grid"><label>音频输出<Select value={draft.audioOutputDeviceId} onChange={(event) => setDraft({ ...draft, audioOutputDeviceId: event.target.value })}><option value="">系统默认输出</option>{audioOutputs.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `音频输出 ${index + 1}`}</option>)}</Select></label><label>延迟模式<Select value={draft.latencyMode} onChange={(event) => setDraft({ ...draft, latencyMode: event.target.value as AppSettings['latencyMode'] })}><option value="interactive">低延迟</option><option value="balanced">平衡</option><option value="playback">稳定播放</option></Select></label></div></section>
     <section className="settings-section recording-device-settings"><h3><AudioLines />练习录音设备</h3>
+      <label>练习室播放引擎<Select value={draft.recordingAudio.desktopEngine??'compatibility'} onChange={event=>patchRecording({desktopEngine:event.target.value as 'native'|'compatibility'})}><option value="native">原生引擎（预览 · 立体声）</option><option value="compatibility">兼容引擎（Web Audio）</option></Select><small>原生模式由下方声卡统一输出，重新打开歌曲后生效。排练房及多通道分流继续使用兼容引擎。</small></label>
       <p className="security-note">如需监听自己的输入，请使用声卡或调音台的硬件直通监听。</p>
       <div className="settings-grid">
         <label>音频后端<Select value={draft.recordingAudio.backend} onChange={(event) => patchRecording({ backend: event.target.value as AudioBackend, inputDeviceId: '', outputDeviceId: '', inputChannels: draft.recordingAudio.inputChannelMode === 'mono' ? [0] : [0, 1] })}><option value="auto">自动（系统默认）</option>{recordingDevices.some((device) => device.backend === 'asio') && <option value="asio">ASIO</option>}{recordingDevices.some((device) => device.backend === 'wasapi-shared') && <option value="wasapi-shared">WASAPI Shared</option>}{recordingDevices.some((device) => device.backend === 'wasapi-exclusive') && <option value="wasapi-exclusive">WASAPI Exclusive</option>}{recordingDevices.some((device) => device.backend === 'coreaudio') && <option value="coreaudio">CoreAudio</option>}</Select></label>
@@ -550,7 +579,7 @@ export function SettingsDrawer({
     </section>
     </SettingsGroup>
     </div>
-    <p className="settings-overview-note">选择分类查看详细选项，所有修改自动保存。</p>
+    <p className="settings-overview-note">常规选项自动保存；AI 接口配置请在详情中点击保存。</p>
     {saveError && <p className="form-error" role="alert">{saveError}</p>}
     </div>
 
@@ -562,15 +591,15 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
   const [format, setFormat] = useState<ExportFormat>('flac')
   const allAvailable = useMemo(() => STEM_ORDER.filter((type) => song.stems.some((stem) => stem.type === type)), [song])
   const available = useMemo(
-    () => allAvailable.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled)),
-    [allAvailable, practice.guitarSplitEnabled, song.sourceFormat]
+    () => allAvailable.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled, practice.vocalSplitEnabled)),
+    [allAvailable, practice.guitarSplitEnabled, practice.vocalSplitEnabled, song.sourceFormat]
   )
-  const hiddenGuitarAlternatives = useMemo(
-    () => allAvailable.filter((type) => song.sourceFormat !== 'existing-stems' && !isStemVisible(type, practice.guitarSplitEnabled)),
-    [allAvailable, practice.guitarSplitEnabled, song.sourceFormat]
+  const hiddenAlternatives = useMemo(
+    () => allAvailable.filter((type) => song.sourceFormat !== 'existing-stems' && !isStemVisible(type, practice.guitarSplitEnabled, practice.vocalSplitEnabled)),
+    [allAvailable, practice.guitarSplitEnabled, practice.vocalSplitEnabled, song.sourceFormat]
   )
   const [selected, setSelected] = useState<StemType[]>(available)
-  const [includeHiddenGuitars, setIncludeHiddenGuitars] = useState(false)
+  const [includeHiddenAlternatives, setIncludeHiddenAlternatives] = useState(false)
   const [applyRate, setApplyRate] = useState(false)
   const [applyLoop, setApplyLoop] = useState(false)
   const [includeTake, setIncludeTake] = useState(false)
@@ -586,7 +615,7 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
   useEffect(() => {
     if (!open) return
     setSelected(available)
-    setIncludeHiddenGuitars(false)
+    setIncludeHiddenAlternatives(false)
     setMessage('')
     setIncludeTake(takePracticeMatches)
     if (takePracticeMatches) setApplyRate(true)
@@ -597,9 +626,9 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
       await onBeforeStart()
       const outputPath = await window.bandbuddy.export.choosePath(kind, format, song.title)
       if (!outputPath) return
-      const requestedStems = kind === 'stems' && includeHiddenGuitars
-        ? [...selected, ...hiddenGuitarAlternatives.filter((type) => !selected.includes(type))]
-        : selected.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled))
+      const requestedStems = kind === 'stems' && includeHiddenAlternatives
+        ? [...selected, ...hiddenAlternatives.filter((type) => !selected.includes(type))]
+        : selected.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
       const result = await window.bandbuddy.export.start({
         songId: song.id, kind, format, stemTypes: requestedStems, outputPath,
         applyPlaybackRate: kind === 'mix' && (applyRate || includeTake), playbackRate: practice.playbackRate,
@@ -617,7 +646,7 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
     <Dialog.Title>导出音频</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">导出会保留当前升降调；当前混音还会应用练习室的 Mute、Solo 与增益。</p>
     <div className="dialog-tabs"><button className={kind === 'mix' ? 'active' : ''} onClick={() => setKind('mix')}><SlidersHorizontal />导出当前混音</button><button className={kind === 'stems' ? 'active' : ''} onClick={() => setKind('stems')}><FileAudio />分别导出音轨</button></div>
     <fieldset><legend>选择音轨</legend><div className="export-stems">{available.map((type) => <label key={type} style={{ '--track': STEM_META[type].color } as React.CSSProperties}><input type="checkbox" checked={selected.includes(type)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, type] : current.filter((item) => item !== type))} /><i /><span>{song.stems.find((stem) => stem.type === type)?.name || STEM_META[type].shortLabel}<small>{STEM_META[type].label}</small></span></label>)}</div></fieldset>
-    {kind === 'stems' && hiddenGuitarAlternatives.length > 0 && <label className="check-line"><input type="checkbox" checked={includeHiddenGuitars} onChange={(event) => setIncludeHiddenGuitars(event.target.checked)} /><span>包含隐藏吉他备选轨 <small>{hiddenGuitarAlternatives.map((type) => STEM_META[type].shortLabel).join(' / ')}</small></span></label>}
+    {kind === 'stems' && hiddenAlternatives.length > 0 && <label className="check-line"><input type="checkbox" checked={includeHiddenAlternatives} onChange={(event) => setIncludeHiddenAlternatives(event.target.checked)} /><span>包含隐藏备选轨 <small>{hiddenAlternatives.map((type) => STEM_META[type].shortLabel).join(' / ')}</small></span></label>}
     <fieldset><legend>输出格式</legend><div className="format-options">{(['wav', 'flac', 'mp3'] as const).map((item) => <button className={format === item ? 'active' : ''} onClick={() => setFormat(item)} key={item}><b>{item.toUpperCase()}</b><small>{item === 'mp3' ? '320 kbps' : '44.1 kHz · 24-bit'}</small></button>)}</div></fieldset>
     <div className="export-pitch-note"><AudioLines size={17} /><span><b>{practice.pitchSemitones === 0 ? '按原调导出' : `导出当前 ${practice.pitchSemitones > 0 ? '+' : '−'}${Math.abs(practice.pitchSemitones)} 半音`}</b><small>Signalsmith 处理所有非鼓轨，鼓轨保持原音</small></span></div>
     {kind === 'mix' && <fieldset><legend>混音范围</legend><label className="check-line"><input type="checkbox" checked={applyRate || includeTake} disabled={includeTake} onChange={(event) => setApplyRate(event.target.checked)} /><span>应用当前速度 <small>{practice.playbackRate.toFixed(2)}×，保持音高</small></span></label><label className="check-line"><input type="checkbox" disabled={practice.loopStartMs === null || practice.loopEndMs === null} checked={applyLoop} onChange={(event) => setApplyLoop(event.target.checked)} /><span>仅导出当前 A–B <small>默认导出整首歌曲</small></span></label>{activeRecordings.length > 0 && <label className="check-line"><input type="checkbox" checked={includeTake} disabled={!takePracticeMatches} onChange={(event) => { setIncludeTake(event.target.checked); if (event.target.checked) setApplyRate(true) }} /><span>包含{activeRecordings.length === 1 ? `“${activeRecordings[0]!.track.name}”` : `${activeRecordings.length} 条录音轨`} <small>{takePracticeMatches ? `绑定 ${practice.playbackRate.toFixed(2)}× · ${practice.pitchSemitones === 0 ? '原调' : `${practice.pitchSemitones > 0 ? '+' : '−'}${Math.abs(practice.pitchSemitones)} 半音`}` : '部分录音轨的速度或调性不匹配，请先切回录制设置'}</small></span></label>}</fieldset>}

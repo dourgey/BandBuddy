@@ -6,6 +6,7 @@ import {
   STEM_ORDER,
   dbToGain,
   isStemVisible,
+  stemPlaybackGain,
   normalizePitchSemitones,
   type PracticeState,
   type RecordingTake,
@@ -157,6 +158,11 @@ export async function setAudioContextOutputDeviceOrDefault(
 }
 
 export class MultiTrackAudioEngine {
+  private native = false
+  private nativeUnsubscribe: (() => void) | null = null
+  private nativeEnded = false
+  private nativeError = ''
+  private nativeResponse: EqResponse | null = null
   private eqResponse: EqResponse | null = null
   private musicEq: SongEqBus | null = null
   private recordingEq: SongEqBus | null = null
@@ -167,7 +173,7 @@ export class MultiTrackAudioEngine {
   private readonly spectrumPower = new Float32Array(EQ_FFT_SIZE / 2)
   private readonly spectrumDb = new Float32Array(EQ_FFT_SIZE / 2).fill(-100)
 
-  constructor(private readonly options: { applySongEq?: boolean } = {}) {}
+  constructor(private readonly options: { applySongEq?: boolean; nativeTransport?: boolean } = {}) {}
 
   setEqVisualizationActive(active: boolean): void {
     this.spectrumActive = active
@@ -176,6 +182,10 @@ export class MultiTrackAudioEngine {
   }
 
   getEqVisualData(): EqVisualData | null {
+    if (this.native && this.nativeResponse) {
+      this.nativeResponse.configure(this.practice?.eq ?? createDefaultSongEq())
+      return { frequencies: this.nativeResponse.frequencies, responseDb: this.nativeResponse.responseDb, spectrumDb: this.spectrumDb, sampleRate: 48000, compensationDb: this.nativeResponse.compensationDb }
+    }
     if (!this.context || !this.eqResponse) return null
     this.spectrumPower.fill(0)
     const playing = Boolean(this.anchor() && !this.anchor()!.paused)
@@ -265,8 +275,30 @@ export class MultiTrackAudioEngine {
     const generation = ++this.loadGeneration
     this.pause()
     this.destroyTracks()
+    const previousNative = this.native
+    this.nativeUnsubscribe?.(); this.nativeUnsubscribe = null
+    this.nativeResponse?.destroy(); this.nativeResponse = null
+    this.nativeEnded = false; this.nativeError = ''
     this.song = song
     this.practice = song.practice
+    const native = typeof window === 'undefined' ? undefined : window.bandbuddy?.nativeAudio
+    const useNative = Boolean(this.options.nativeTransport && native && await native.enabled())
+    if (generation !== this.loadGeneration) return
+    this.native = useNative
+    if (previousNative && !this.native) await native?.unload()
+    if (this.native && native) {
+      this.nativeUnsubscribe = native.onState(state => {
+        if (!this.native) return
+        this.timeListener?.(state.positionMs); this.countInListener?.(state.countInRemaining)
+        if (state.error && state.error !== this.nativeError) this.errorListener?.(new Error(state.error))
+        this.nativeError = state.error
+        if (state.ended && !this.nativeEnded) this.endedListener?.()
+        this.nativeEnded = state.ended
+      })
+      if (typeof OfflineAudioContext !== 'undefined') this.nativeResponse = new EqResponse(new OfflineAudioContext(2, 1, 48000))
+      await native.load(song.id, song.practice)
+      return
+    }
     await this.ensureContext(latencyMode)
     if (generation !== this.loadGeneration) return
     // Serialize device changes; an older slow setSinkId must not win a later selection.
@@ -333,28 +365,54 @@ export class MultiTrackAudioEngine {
   }
 
   async updateStemSources(song: SongDetail): Promise<void> {
+    if (this.native) { if (this.song?.id !== song.id) return; await window.bandbuddy.nativeAudio!.refresh(song.id); this.song = song; return }
     if (!this.song || this.song.id !== song.id) return
-    const anchor = this.anchor()
-    const currentTime = anchor?.currentTime ?? (this.practice?.positionMs ?? 0) / 1000
-    const mediaPlaying = Boolean(anchor && !anchor.paused)
     const previousStemByType = new Map(this.song.stems.map((stem) => [stem.type, stem]))
     const stemByType = new Map(song.stems.map((stem) => [stem.type, stem]))
-    const changed: HTMLAudioElement[] = []
+    const generation = this.playbackGeneration
+    const prepared: Array<{ type: StemType; element: HTMLAudioElement }> = []
     for (const type of STEM_ORDER) {
       const stem = stemByType.get(type)
       const track = this.tracks.get(type)
       if (!stem || !track || previousStemByType.get(type)?.mediaUrl === stem.mediaUrl) continue
-      track.element.src = stem.mediaUrl
-      track.element.playbackRate = this.practice?.playbackRate ?? song.practice.playbackRate
-      track.element.currentTime = currentTime
-      changed.push(track.element)
+      const element = new Audio()
+      element.preload = 'auto'
+      element.src = stem.mediaUrl
+      element.crossOrigin = 'anonymous'
+      prepared.push({ type, element })
+    }
+    try {
+      await Promise.all(prepared.map(({ element }) => new Promise<void>((resolve, reject) => {
+        if (element.readyState >= 3) { resolve(); return }
+        const timer = window.setTimeout(() => finish(new Error('STEM_PRELOAD_TIMEOUT')), 30_000)
+        const ready = (): void => finish()
+        const failed = (): void => finish(new Error('STEM_PRELOAD_FAILED'))
+        const finish = (error?: Error): void => { clearTimeout(timer); element.removeEventListener('canplay', ready); element.removeEventListener('error', failed); error ? reject(error) : resolve() }
+        element.addEventListener('canplay', ready, { once: true }); element.addEventListener('error', failed, { once: true }); element.load()
+      })))
+      if (this.song?.id !== song.id || !this.context) return
+      const anchor = this.anchor(), currentTime = anchor?.currentTime ?? (this.practice?.positionMs ?? 0) / 1000
+      const mediaPlaying = Boolean(anchor && !anchor.paused)
+      for (const { type, element } of prepared) {
+        const track = this.tracks.get(type)!
+        element.playbackRate = this.practice?.playbackRate ?? song.practice.playbackRate
+        element.preservesPitch = true
+        element.currentTime = currentTime
+        const source = this.context.createMediaElementSource(element)
+        source.connect(track.gain)
+        track.element.pause(); track.source.disconnect()
+        track.element = element; track.source = source
+      }
+      if (mediaPlaying && generation === this.playbackGeneration) await Promise.all(prepared.map(({ element }) => element.play()))
+    } finally {
+      for (const { type, element } of prepared) if (this.tracks.get(type)?.element !== element) { element.pause(); element.removeAttribute('src'); element.load() }
     }
     this.song = { ...song, practice: this.practice ?? song.practice }
     if (this.practice) this.applyPractice(this.practice)
-    if (mediaPlaying) await Promise.allSettled(changed.map((element) => element.play()))
   }
 
   async play(countInBeats: 0 | 4 | 8 = 0, onCountIn?: (remaining: number) => void): Promise<boolean> {
+    if (this.native) { this.nativeEnded = false; this.countInListener = onCountIn ?? null; await window.bandbuddy.nativeAudio!.play(countInBeats); return true }
     if (!this.song || !this.practice) return false
     const generation = ++this.playbackGeneration
     await this.ensureContext()
@@ -405,6 +463,7 @@ export class MultiTrackAudioEngine {
   }
 
   pause(): void {
+    if (this.native) { void window.bandbuddy.nativeAudio!.pause().catch(error => this.errorListener?.(error)); this.countInListener?.(0); return }
     clearTrackLevels()
     this.playbackGeneration += 1
     cancelAnimationFrame(this.frame)
@@ -417,6 +476,7 @@ export class MultiTrackAudioEngine {
   }
 
   seek(milliseconds: number): void {
+    if (this.native) { this.nativeEnded = false; void window.bandbuddy.nativeAudio!.seek(milliseconds).catch(error => this.errorListener?.(error)); return }
     const seconds = Math.max(0, Math.min(milliseconds, this.song?.durationMs ?? milliseconds) / 1000)
     const mediaPlaying = Boolean(this.anchor() && !this.anchor()!.paused)
     for (const { element } of this.tracks.values()) if (element.src) element.currentTime = seconds
@@ -428,9 +488,10 @@ export class MultiTrackAudioEngine {
   }
 
   applyPractice(practice: PracticeState, immediate = false): void {
+    if (this.native) { this.practice = practice; void window.bandbuddy.nativeAudio!.update(practice).catch(error => this.errorListener?.(error)); return }
     const previousPractice = this.practice
     const guitarModeChanged = previousPractice !== null
-      && previousPractice.guitarSplitEnabled !== practice.guitarSplitEnabled
+      && (previousPractice.guitarSplitEnabled !== practice.guitarSplitEnabled || previousPractice.vocalSplitEnabled !== practice.vocalSplitEnabled)
     const pitchChanged = (this.practice?.pitchSemitones ?? 0) !== (practice.pitchSemitones ?? 0)
     const metronomeChanged = this.practice?.metronomeEnabled !== practice.metronomeEnabled
       || this.practice?.metronomeBpm !== practice.metronomeBpm
@@ -438,6 +499,7 @@ export class MultiTrackAudioEngine {
       || this.practice?.playbackRate !== practice.playbackRate
     const routingChanged = immediate
       || previousPractice?.guitarSplitEnabled !== practice.guitarSplitEnabled
+      || previousPractice?.vocalSplitEnabled !== practice.vocalSplitEnabled
       || STEM_ORDER.some((stemType) => {
       const previous = previousPractice?.tracks.find((track) => track.stemType === stemType)?.outputChannelPair
       const next = practice.tracks.find((track) => track.stemType === stemType)?.outputChannelPair
@@ -448,7 +510,7 @@ export class MultiTrackAudioEngine {
     this.applyEq(immediate)
     if (guitarModeChanged && !immediate) {
       this.cancelOutputRouteTransition()
-      // Keep both guitar alternatives connected while their gains crossfade.
+      // Keep both stem representations connected while their gains crossfade.
       // The hidden alternative is removed from hardware routing after the
       // 35 ms gain ramp has reached silence.
       this.rebuildOutputRoutes(true)
@@ -466,14 +528,14 @@ export class MultiTrackAudioEngine {
     }
     const recordingStates = this.song?.recordingTracks ?? []
     const hasSolo = practice.tracks.some((state) =>
-      (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled)) && state.solo && !state.muted
+      (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled)) && state.solo && !state.muted
     )
       || recordingStates.some((state) => this.recordings.has(state.id) && state.solo && !state.muted)
     for (const state of practice.tracks) {
       const track = this.tracks.get(state.stemType)
       if (!track) continue
-      const visible = (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled))
-      const gain = visible && !state.muted && (!hasSolo || state.solo) ? dbToGain(state.gainDb) : 0
+      const visible = (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
+      const gain = visible && !state.muted && (!hasSolo || state.solo) ? dbToGain(state.gainDb) * stemPlaybackGain(this.song?.stems.find(stem => stem.type === state.stemType)) : 0
       track.gain.gain.cancelScheduledValues(now)
       track.gain.gain.setValueAtTime(track.gain.gain.value, now)
       track.gain.gain.linearRampToValueAtTime(gain, now + ramp)
@@ -514,6 +576,7 @@ export class MultiTrackAudioEngine {
   }
 
   async setOutputDevice(deviceId: string): Promise<void> {
+    if (this.native) return // Native output is selected in the shared device settings.
     this.outputTransition = this.outputTransition.catch(() => undefined).then(() => setAudioContextOutputDevice(this.context, deviceId))
     await this.outputTransition
     this.configureOutputGraph()
@@ -762,7 +825,7 @@ export class MultiTrackAudioEngine {
     const merger = this.outputMerger
     if (!merger) return
     for (const stemType of STEM_ORDER) {
-      if (!includeHidden && this.practice && this.song?.sourceFormat !== 'existing-stems' && !isStemVisible(stemType, this.practice.guitarSplitEnabled)) continue
+      if (!includeHidden && this.practice && this.song?.sourceFormat !== 'existing-stems' && !isStemVisible(stemType, this.practice.guitarSplitEnabled, this.practice.vocalSplitEnabled)) continue
       const requestedPair = this.practice?.tracks.find((track) => track.stemType === stemType)?.outputChannelPair
       const firstChannel = resolveOutputChannelPair(requestedPair, this.routableOutputChannels) - 1
       if (stemType === 'drums') {
@@ -962,6 +1025,7 @@ export class MultiTrackAudioEngine {
   }
 
   unload(): void {
+    if (this.native) { this.nativeUnsubscribe?.(); this.nativeUnsubscribe = null; void window.bandbuddy.nativeAudio!.unload().catch(error => this.errorListener?.(error)); this.native = false; this.nativeResponse?.destroy(); this.nativeResponse = null }
     this.loadGeneration++
     this.pause()
     this.destroyTracks()
@@ -970,6 +1034,7 @@ export class MultiTrackAudioEngine {
   }
 
   destroy(): void {
+    if (this.native) this.unload()
     this.loadGeneration++
     this.pause()
     this.pitchGeneration += 1

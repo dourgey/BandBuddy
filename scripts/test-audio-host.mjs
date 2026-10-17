@@ -172,7 +172,7 @@ try {
   if (finished.frames <= 0 || finished.channels !== 2 || finished.xruns <= 0) throw new Error('Simulated recording result failed')
   const capture = readFileSync(capturePath)
   if (capture.length <= 44 || capture.subarray(0, 4).toString('ascii') !== 'RIFF') throw new Error('Simulated WAV capture failed')
-  const captureFrames = capture.readUInt32LE(40) / (finished.channels * 4)
+  const captureFrames = capture.readUInt32LE(capture.indexOf(Buffer.from('data')) + 4) / (finished.channels * 4)
   if (captureFrames !== finished.frames || captureFrames >= 4 * 60 / 600 * 48_000) {
     throw new Error('Count-in leaked into the simulated capture')
   }

@@ -5,9 +5,16 @@ import type { Appearance } from '@shared/appearance.js'
 import type { LibraryUpdate } from '@shared/domain.js'
 import { ARSENAL_CHANNEL, effectChainSchema, trackEffectsSchema } from '@shared/arsenal.js'
 import type { ArsenalService } from './arsenal.js'
+import type { AudioPluginService } from './audio-plugins.js'
+import { PLUGINS_CHANNEL } from '@shared/audio-plugins.js'
+import { NATIVE_AUDIO_CHANNEL } from '@shared/native-audio.js'
+import type { NativeAudioService } from './native-audio.js'
+import type { AiService } from './ai-service.js'
+import { AI_CHANNEL } from '@shared/ai.js'
 import { migrateDataRoots } from './data-migration.js'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
-import { dialog, ipcMain, shell } from 'electron'
+import { clipboard, dialog, ipcMain, shell } from 'electron'
+import { diagnostics } from './diagnostics.js'
 import path from 'node:path'
 import { z } from 'zod'
 import {
@@ -39,6 +46,7 @@ import type { JobScheduler } from './jobs.js'
 import type { RuntimeManager } from './runtime.js'
 import type { EnvironmentManager } from './environment.js'
 import { ENVIRONMENT_CHANNEL } from '@shared/environment.js'
+import { SystemInformationService } from './system-information.js'
 import type { MediaService } from './media.js'
 import type { RecordingService } from './recording.js'
 import type { DesktopLyricsWindow } from './desktop-lyrics.js'
@@ -48,9 +56,12 @@ import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
+  ai?: AiService
   devicesChanged?: () => Promise<void>
   windowControlsRegistered?: boolean
   arsenal: ArsenalService
+  audioPlugins?: AudioPluginService
+  nativeAudio?: NativeAudioService
   getWindow: () => BrowserWindow | null
   database: BandBuddyDatabase
   lan: LanService
@@ -74,6 +85,34 @@ interface IpcServices {
 }
 
 export function registerIpc(services: IpcServices): void {
+  // Chat content and credentials never enter the generic IPC diagnostics logger.
+  ipcMain.handle(AI_CHANNEL, async (event, input: unknown) => {
+    assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
+    const value = z.object({ op: z.enum(['settings', 'saveSettings', 'testSettings', 'list', 'get', 'create', 'rename', 'delete', 'send', 'retry', 'cancel']), id: z.string().uuid().optional(), title: z.string().trim().min(1).max(100).optional(), input: z.unknown().optional() }).parse(input)
+    const ai = services.ai
+    if (!ai) throw new Error('AI 服务不可用，请重新打开应用。')
+    switch (value.op) {
+      case 'settings': return ai.getSettings()
+      case 'saveSettings': return ai.saveSettings(value.input)
+      case 'testSettings': return ai.testSettings(value.input)
+      case 'list': return ai.list()
+      case 'get': return ai.get(uuidSchema.parse(value.id))
+      case 'create': return ai.create()
+      case 'rename': return ai.rename(uuidSchema.parse(value.id), z.string().trim().min(1).max(100).parse(value.title))
+      case 'delete': return ai.delete(uuidSchema.parse(value.id))
+      case 'send': return ai.send(value.input)
+      case 'retry': return ai.retry(uuidSchema.parse(value.id))
+      case 'cancel': return ai.cancel(uuidSchema.parse(value.id))
+    }
+  })
+  const systemInformation = new SystemInformationService({
+    settings: () => services.database.getSettings(),
+    environment: () => services.environment!.get(),
+    runtime: () => services.runtime.getInfo(),
+    media: () => services.media.capabilities(),
+    diagnostics: () => services.environment!.diagnosticReport(),
+    devices: () => services.recording.devices()
+  })
   let recordingRecovery: Promise<void> | undefined
   let rehearsalRecovery: Promise<void> | undefined
   const recoverRecording = (): Promise<void> => recordingRecovery ??= services.recording.recoverInterruptedSessions()
@@ -82,7 +121,7 @@ export function registerIpc(services: IpcServices): void {
   let activeMutations = 0
   const storageMutations = new Set<string>([
     IPC.libraryImportStems, IPC.libraryImportSource, IPC.libraryDelete, IPC.libraryReseparate,
-    IPC.libraryRequestGuitarSplit, IPC.libraryImportLyrics, IPC.exportStart,
+    IPC.libraryRequestGuitarSplit, IPC.libraryRequestVocalSplit, IPC.libraryImportLyrics, IPC.exportStart,
     IPC.recordingStart, IPC.rehearsalRecordingStart, IPC.runtimeInstall, IPC.runtimeRepair,
     IPC.runtimeRemove, IPC.runtimeClearModel, IPC.settingsUpdate, IPC.tasksRetry,
     IPC.recordingUpdateTake, IPC.recordingDeleteTrack, IPC.recordingDeleteTake, IPC.recordingCreateTrack, IPC.recordingUpdateTrack,
@@ -103,6 +142,8 @@ export function registerIpc(services: IpcServices): void {
         return result
       } catch (error) {
         services.logger.capture('error', 'ipc invoke failed', { channel, durationMs: Date.now() - startedAt, error })
+        if (/recording|arsenal/i.test(channel) && /AUDIO|DEVICE|MICROPHONE|SAMPLE_RATE|INPUT_CHANNEL|PORTAUDIO|RTAUDIO/i.test(String(error))) services.environment?.reportAudioFailure(error)
+        else if (channel !== `${ARSENAL_CHANNEL}:pcm`) diagnostics.record({ component: 'task', stage: channel, result: 'failed', details: error })
         throw error
       } finally {
         if (storageMutations.has(channel)) activeMutations--
@@ -114,6 +155,33 @@ export function registerIpc(services: IpcServices): void {
   ipcMain.handle(`${ARSENAL_CHANNEL}:pcm`, async (event,input) => {
     assertTrustedSender(event,services.getWindow(),services.isTrustedUrl)
     return services.arsenal.feed(z.object({bus:z.number().int().min(0).max(7),sampleRate:z.number().min(8000).max(192000),samples:z.array(z.number().finite()).max(16384),reset:z.boolean().optional()}).parse(input))
+  })
+  handle(NATIVE_AUDIO_CHANNEL, async (_event, input) => {
+    const service = services.nativeAudio; if (!service) throw new Error('NATIVE_AUDIO_UNAVAILABLE')
+    const value = z.object({ op: z.enum(['enabled', 'load', 'refresh', 'update', 'play', 'pause', 'seek', 'unload']), songId: uuidSchema.optional(), practice: practiceStateSchema.optional(), countInBeats: z.union([z.literal(0), z.literal(4), z.literal(8)]).optional(), positionMs: z.number().finite().nonnegative().optional() }).parse(input)
+    if (value.op === 'enabled') return service.enabled()
+    if (value.op === 'load') return service.load(uuidSchema.parse(value.songId), practiceStateSchema.parse(value.practice))
+    if (value.op === 'refresh') return service.refresh(uuidSchema.parse(value.songId))
+    if (value.op === 'update') return service.update(practiceStateSchema.parse(value.practice))
+    return service.command(value.op, { ...(value.countInBeats !== undefined ? { countInBeats: value.countInBeats } : {}), ...(value.positionMs !== undefined ? { positionMs: value.positionMs } : {}) })
+  })
+  handle(PLUGINS_CHANNEL, async (_event, input) => {
+    const service = services.audioPlugins
+    if (!service) throw new Error('PLUGIN_HOST_UNAVAILABLE')
+    const value = z.object({ op: z.enum(['list', 'scan', 'addDirectory', 'editor', 'parameters', 'parameter', 'save', 'status']), instanceId: z.string().uuid().optional(), open: z.boolean().optional(), retryFailed: z.boolean().optional(), parameterId: z.number().int().nonnegative().optional(), value: z.number().finite().min(0).max(1).optional() }).parse(input)
+    switch (value.op) {
+      case 'list': return service.list()
+      case 'scan': return service.scan(value.retryFailed)
+      case 'status': return service.status()
+      case 'addDirectory': {
+        const result = await dialog.showOpenDialog({ title: '添加本机插件目录', properties: ['openDirectory'] })
+        return result.canceled || !result.filePaths[0] ? service.list() : service.addDirectory(result.filePaths[0])
+      }
+      case 'editor': return service.editor(uuidSchema.parse(value.instanceId), value.open ?? true)
+      case 'parameters': return service.parameters(uuidSchema.parse(value.instanceId))
+      case 'parameter': return service.parameter(uuidSchema.parse(value.instanceId), z.number().int().nonnegative().parse(value.parameterId), z.number().min(0).max(1).parse(value.value))
+      case 'save': return service.save(uuidSchema.parse(value.instanceId))
+    }
   })
   handle(ARSENAL_CHANNEL, async (_event, input) => {
     const i = z.object({op:z.string()}).passthrough().parse(input)
@@ -183,6 +251,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.libraryOpenLocation, (_event, input) => services.imports.openLocation(uuidSchema.parse(input)))
   handle(IPC.libraryReseparate, (_event, input) => services.imports.reSeparate(uuidSchema.parse(input)))
   handle(IPC.libraryRequestGuitarSplit, (_event, input) => services.imports.requestGuitarSplit(uuidSchema.parse(input)))
+  handle(IPC.libraryRequestVocalSplit, (_event, input) => services.imports.requestVocalSplit(uuidSchema.parse(input)))
   handle(IPC.practiceSave, (_event, input) => {
     const practice = practiceStateSchema.parse(input)
     services.database.savePractice(practice)
@@ -202,7 +271,7 @@ export function registerIpc(services: IpcServices): void {
   })
 
   handle(IPC.runtimeGet, () => services.runtime.getInfo())
-  handle(IPC.runtimeDetect, () => services.runtime.detect())
+  handle(IPC.runtimeDetect, async () => { if (services.environment) { await services.environment.check(); return services.runtime.getInfo() }; return services.runtime.detect() })
   handle(IPC.runtimeInstall, async () => { if (services.environment) { await services.environment.resume(); return services.runtime.getInfo() }; return services.runtime.install() })
   handle(IPC.runtimeCancel, async () => { if (services.environment) await services.environment.pause(); else services.runtime.cancelInstall() })
   handle(IPC.runtimeRepair, async () => { if (services.environment) { await services.environment.repair(); return services.runtime.getInfo() }; return services.runtime.repair() })
@@ -210,30 +279,37 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.runtimeClearModel, async () => { await services.environment?.pause(); return services.runtime.clearModelCache() })
 
   handle(ENVIRONMENT_CHANNEL, async (_event, input) => {
-    const request = z.object({ op: z.enum(['get', 'check', 'prepare', 'pause', 'resume', 'repair', 'export', 'action', 'networkRestored', 'devicesChanged']), action: z.enum(['retry', 'repair', 'storage', 'network', 'audio', 'microphone', 'driver', 'time', 'security', 'restart', 'repairApplication']).optional() }).parse(input)
+    const request = z.object({ op: z.enum(['get', 'check', 'prepare', 'pause', 'resume', 'repair', 'export', 'diagnostics', 'copy', 'systemInformation', 'copySystemInformation', 'action', 'networkRestored', 'devicesChanged']), reportId: z.string().uuid().optional(), diagnosticId: z.string().uuid().optional(), scope: z.object({ diagnosticId: z.string().uuid().optional(), jobId: z.string().max(100).optional() }).optional(), action: z.enum(['retry', 'repair', 'storage', 'network', 'audio', 'microphone', 'driver', 'time', 'security', 'restart', 'repairApplication']).optional() }).parse(input)
     const environment = services.environment!
     if (!environment) throw new Error('ENVIRONMENT_SERVICE_UNAVAILABLE')
-    if (migrating && !['get', 'pause', 'export'].includes(request.op)) throw new Error('数据目录正在迁移，请完成后重试。')
+    if (migrating && !['get', 'pause', 'export', 'diagnostics', 'copy', 'systemInformation', 'copySystemInformation'].includes(request.op)) throw new Error('数据目录正在迁移，请完成后重试。')
+    if (request.op === 'systemInformation') return systemInformation.collect()
+    if (request.op === 'copySystemInformation') { clipboard.writeText(systemInformation.text(z.string().uuid().parse(request.reportId))); return }
     if (request.op === 'get') return environment.get()
-    if (request.op === 'check') return environment.check()
+    if (request.op === 'check') return environment.check(request.diagnosticId)
     if (request.op === 'prepare') { await environment.startAutomatically(); return environment.get() }
     if (request.op === 'pause') return environment.pause()
     if (request.op === 'resume') return environment.resume()
-    if (request.op === 'repair') return environment.repair()
+    if (request.op === 'repair') return environment.repair(request.diagnosticId)
+    if (request.op === 'diagnostics') return environment.diagnosticReport(request.scope)
+    if (request.op === 'copy') { clipboard.writeText(environment.diagnosticReport(request.scope).summary); return }
     if (request.op === 'networkRestored') return environment.networkRestored()
     if (request.op === 'devicesChanged') return services.devicesChanged?.()
     if (request.op === 'export') {
       const selected = await dialog.showSaveDialog({ title: '导出诊断信息', defaultPath: 'BandBuddy-diagnostics.json', filters: [{ name: '诊断信息', extensions: ['json'] }] })
       if (selected.canceled || !selected.filePath) return null
-      await environment.exportDiagnostics(selected.filePath); return selected.filePath
+      await environment.exportDiagnostics(selected.filePath, request.scope); return selected.filePath
     }
-    if (request.action === 'retry' || request.action === 'repair') { await environment.repair(); return }
+    if (request.action === 'retry' || request.action === 'repair') { await environment.repair(request.diagnosticId); return }
     const mac = process.platform === 'darwin'
+    const issue = environment.get().issues.find(item => item.diagnosticId === request.diagnosticId)
+    const gpu = services.runtime.getInfo().gpu
+    const driver = mac ? 'x-apple.systempreferences:com.apple.Software-Update-Settings.extension' : issue?.capability !== 'recording' && /nvidia/i.test(`${gpu?.name ?? ''} ${JSON.stringify(issue?.evidence ?? {})}`) ? 'https://www.nvidia.com/en-us/drivers/' : 'ms-settings:windowsupdate'
     const links = {
       network: mac ? 'x-apple.systempreferences:com.apple.Network-Settings.extension' : 'ms-settings:network-status',
       microphone: mac ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone' : 'ms-settings:privacy-microphone',
       audio: mac ? 'x-apple.systempreferences:com.apple.Sound-Settings.extension' : 'ms-settings:sound',
-      driver: 'https://www.nvidia.com/en-us/drivers/',
+      driver,
       time: mac ? 'x-apple.systempreferences:com.apple.preference.datetime' : 'ms-settings:dateandtime',
       security: mac ? 'x-apple.systempreferences:com.apple.preference.security' : 'windowsdefender:',
       storage: mac ? 'x-apple.systempreferences:com.apple.settings.Storage' : 'ms-settings:storagesense',

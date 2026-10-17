@@ -8,6 +8,61 @@ vi.mock('../src/main/process.js', () => ({ spawnSafe: mocks.spawn }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
 
 describe('native audio transport', () => {
+  it('rejects an incompatible native core before publishing a timeline', async () => {
+    const methods: string[] = []
+    mocks.spawn.mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString()); methods.push(method)
+        child.stdout.write(JSON.stringify({ id, ok: true, result: method === 'capabilities' ? { protocol: 1 } : true }) + '\n')
+        if (method === 'shutdown') child.emit('exit', 0, null)
+      })
+      return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    await expect(client.timeline({ action: 'play' })).rejects.toMatchObject({ code: 'AUDIO_HOST_PROTOCOL_MISMATCH' })
+    expect(methods).toEqual(['capabilities'])
+    await client.shutdown()
+  })
+  it('waits for core shutdown acknowledgement before releasing plugin mappings', async () => {
+    let mappingsOpen = true
+    mocks.spawn.mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString())
+        if (method === 'shutdown') mappingsOpen = false
+        child.stdout.write(JSON.stringify({ id, ok: true, result: { sampleRate: 48000 } }) + '\n')
+        if (method === 'shutdown') child.emit('exit', 0, null)
+      })
+      return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    const stop = vi.spyOn(client.plugins, 'stop').mockImplementation(async () => { expect(mappingsOpen).toBe(false) })
+    await client.startTest({})
+    await client.shutdown()
+    expect(stop).toHaveBeenCalled()
+  })
+  it.skipIf(process.platform !== 'win32')('retains a failed unused backend without blocking a valid selection or opening the microphone', async () => {
+    const methods: string[] = []
+    mocks.spawn.mockImplementation((_exe, args: string[]) => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString()); methods.push(method)
+        const failed = args.includes('asio') && method === 'devices'
+        child.stdout.write(JSON.stringify({ id, ok: !failed, error: failed ? 'AUDIO_DRIVER_PROBE_FAILED' : undefined, evidence: failed ? { driverCode: 5 } : undefined,
+          result: method === 'devices' ? [{ id: 'wasapi', backend: 'wasapi-shared', name: 'Shared', inputChannels: 2, outputChannels: 2, sampleRates: [48000], defaultInput: true, defaultOutput: true }] : true }) + '\n')
+        if (method === 'shutdown') child.emit('exit', 0, null)
+      }); return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    const result = await client.inspect({ backend: 'auto', sampleRate: 48000, inputChannels: [0] } as never, new AbortController().signal)
+    expect(result.checks).toContainEqual(expect.objectContaining({ id: 'audio-device', status: 'passed' }))
+    expect(result.checks).toContainEqual(expect.objectContaining({ id: 'audio-enumerate:asio', status: 'failed' }))
+    expect(result.issues).toHaveLength(1)
+    expect(result.issues[0]?.severity).toBe('warning')
+    expect(JSON.stringify(result.issues[0]?.evidence)).toContain('driverCode')
+    expect(methods.every(method => ['devices', 'shutdown'].includes(method))).toBe(true)
+  })
   it.skipIf(process.platform !== 'win32')('kills a hung ASIO probe while preserving WASAPI and the live audio process', async () => {
     vi.useFakeTimers()
     const children: Array<{ backend: string; child: ReturnType<typeof mocks.spawn> }> = []

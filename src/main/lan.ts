@@ -7,7 +7,7 @@ import { createSocket, type Socket } from 'node:dgram'
 import { networkInterfaces, tmpdir } from 'node:os'
 import path from 'node:path'
 import type { LanStatus, SongDetail } from '@shared/domain.js'
-import { isStemVisible, STEM_META } from '@shared/domain.js'
+import { isStemVisible, STEM_META, STEM_GROUPS, VOCAL_SPLIT_STEMS } from '@shared/domain.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { MediaService } from './media.js'
 import type { AppPaths } from './paths.js'
@@ -136,7 +136,7 @@ export class LanService {
 
   private discovery(): object {
     return { service: LAN_PROTOCOL, version: 1, name: 'BandBuddy', port: this.port,
-      handshake: '/api/v1/handshake', capabilities: ['stems', 'lyrics', 'video', 'range', 'sha256'] }
+      handshake: '/api/v1/handshake', capabilities: ['stems', 'lyrics', 'video', 'range', 'sha256', 'stem-groups-v2'] }
   }
 
   private startDiscovery(): void {
@@ -199,19 +199,20 @@ export class LanService {
       response.on('close', () => { clearInterval(heartbeat); this.appearanceClients.delete(response) })
       return
     }
-    if (route === 'api/v1/songs') {
+    if (route === 'api/v1/songs' || route === 'api/v2/songs') {
+      const version = route.includes('/v2/') ? 2 : 1
       const songs = this.database.listSongs('', 'all').filter((song) => song.status === 'ready')
-      return this.json(response, 200, { version: 1, songs: songs.map((song) => ({
+      return this.json(response, 200, { version, songs: songs.map((song) => ({
         id: song.id, title: song.title, artist: song.artist, durationMs: song.durationMs,
         updatedAt: song.updatedAt, stemCount: song.stemTypes.length,
-        manifest: `api/v1/songs/${song.id}/manifest`
+        manifest: `api/v${version}/songs/${song.id}/manifest`
       })) })
     }
-    const manifest = /^api\/v1\/songs\/([0-9a-f-]{36})\/manifest$/.exec(route)
+    const manifest = /^api\/v[12]\/songs\/([0-9a-f-]{36})\/manifest$/.exec(route)
     if (manifest) {
       const song = this.database.getSong(manifest[1]!)
       if (!song || song.status !== 'ready') return this.json(response, 404, { error: 'SONG_NOT_READY' })
-      return this.json(response, 200, await this.manifest(song))
+      return this.json(response, 200, await this.manifest(song, route.includes('/v2/') ? 2 : 1))
     }
     const asset = /^media\/([0-9a-f-]{36})\/(stem|peaks|video|artwork)(?:\/([0-9a-f-]{36}))?$/.exec(route)
     if (asset) {
@@ -260,14 +261,16 @@ export class LanService {
     return { url: relative, bytes: info.size, sha256: await digest, mimeType: MIME[path.extname(file)] ?? 'application/octet-stream' }
   }
 
-  private async manifest(song: SongDetail): Promise<object> {
+  private async manifest(song: SongDetail, version: 1 | 2): Promise<object> {
     return {
-      version: 1, id: song.id, title: song.title, artist: song.artist, durationMs: song.durationMs,
+      version, id: song.id, title: song.title, artist: song.artist, durationMs: song.durationMs,
+      ...(version === 2 ? { stemGroups: STEM_GROUPS.map(group => ({ parent: group.parent, children: group.children, splitEnabled: song.practice[group.mode], available: group.children.every(type => song.stems.some(stem => stem.type === type)) })) } : {}),
       updatedAt: song.updatedAt, lyrics: song.lyrics, bpm: song.bpm, musicalKey: song.musicalKey,
-      stems: await Promise.all(song.stems.map(async (stem) => ({
+      stems: await Promise.all(song.stems.filter(stem => version === 2 || !(VOCAL_SPLIT_STEMS as readonly string[]).includes(stem.type)).map(async (stem) => ({
         id: stem.id, type: stem.type, name: stem.name || STEM_META[stem.type].label,
         durationMs: stem.durationMs, sampleRate: stem.sampleRate, channels: stem.channels,
-        defaultVisible: song.sourceFormat === 'existing-stems' || isStemVisible(stem.type, song.practice.guitarSplitEnabled),
+        ...(version === 2 ? { encodingGain: stem.encodingGain ?? 1, numFrames: stem.numFrames } : {}),
+        defaultVisible: song.sourceFormat === 'existing-stems' || isStemVisible(stem.type, song.practice.guitarSplitEnabled, version === 2 && song.practice.vocalSplitEnabled),
         audio: await this.assetInfo(song.id, 'stem', stem.id),
         peaks: stem.peaksUrl ? await this.assetInfo(song.id, 'peaks', stem.id) : null
       }))),

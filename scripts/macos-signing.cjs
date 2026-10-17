@@ -57,6 +57,7 @@ function assertRequiredCode(appPath, inventory) {
   const required = ['Contents/MacOS/BandBuddy', 'Contents/Resources/bin/uv', 'Contents/Resources/bin/ffmpeg', 'Contents/Resources/bin/ffprobe']
   for (const file of required) if (!relative.includes(file)) throw new Error(`MAC_REQUIRED_BINARY_MISSING:${file}`)
   if (!relative.some(file => /^Contents\/Resources\/audio-host\/darwin-(arm64|x64)\/bandbuddy-audio-host$/.test(file))) throw new Error('MAC_REQUIRED_BINARY_MISSING:audio-host')
+  if (!relative.some(file => /^Contents\/Resources\/audio-host\/darwin-(arm64|x64)\/bandbuddy-plugin-host$/.test(file))) throw new Error('MAC_REQUIRED_BINARY_MISSING:plugin-host')
   if (!relative.some(file => file.endsWith('/better_sqlite3.node'))) throw new Error('MAC_REQUIRED_BINARY_MISSING:better_sqlite3.node')
 }
 
@@ -72,6 +73,9 @@ async function verifyArchitecture(appPath, architecture = process.arch, inventor
   assertRequiredCode(appPath, code)
   if (!code.binaries.some(file => file.endsWith(`/audio-host/darwin-${architecture}/bandbuddy-audio-host`))) {
     throw new Error(`MAC_AUDIO_HOST_ARCHITECTURE_MISSING:${architecture}`)
+  }
+  if (!code.binaries.some(file => file.endsWith(`/audio-host/darwin-${architecture}/bandbuddy-plugin-host`))) {
+    throw new Error(`MAC_PLUGIN_HOST_ARCHITECTURE_MISSING:${architecture}`)
   }
   for (const binary of code.binaries) {
     const { stdout: slices } = await run('/usr/bin/lipo', ['-archs', binary])

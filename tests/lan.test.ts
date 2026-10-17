@@ -100,6 +100,22 @@ describe('LAN HTTP and discovery integration', () => {
     expect((await fetch(`${origin}/assets/root-test.js`, { headers: { Cookie: cookie } })).status).toBe(200)
     expect((await fetch(`${origin}/secret.txt`, { headers: { Cookie: cookie } })).status).toBe(404)
   })
+  it('serves full vocals to v1 clients and explicit vocal alternatives with gain and frames to v2 clients', async () => {
+    const previous = { stems: song.stems, sourceFormat: song.sourceFormat }
+    try {
+      song.sourceFormat = 'flac'; song.practice.vocalSplitEnabled = true
+      song.stems = ['vocals', 'lead_vocals', 'backing_vocals'].map(type => ({ ...previous.stems[0]!, type, encodingGain: .8, numFrames: 529200 }))
+      const old = await (await fetch(`${session}api/v1/songs/${songId}/manifest`)).json()
+      expect(old.stems.map((stem: { type: string }) => stem.type)).toEqual(['vocals'])
+      expect(old.stems[0].defaultVisible).toBe(true)
+      const list = await (await fetch(`${session}api/v2/songs`)).json()
+      expect(list.version).toBe(2)
+      const current = await (await fetch(session + list.songs[0].manifest)).json()
+      expect(current.stemGroups).toContainEqual({ parent: 'vocals', children: ['lead_vocals', 'backing_vocals'], available: true, splitEnabled: true })
+      expect(current.stems.map((stem: { defaultVisible: boolean }) => stem.defaultVisible)).toEqual([false, true, true])
+      expect(current.stems[1]).toMatchObject({ encodingGain: .8, numFrames: 529200 })
+    } finally { song.stems = previous.stems; song.sourceFormat = previous.sourceFormat; song.practice.vocalSplitEnabled = false }
+  })
   it('supports GET, HEAD, suffix/ranged downloads and rejects bad ranges', async () => {
     const url = `${session}media/${songId}/stem/${stemId}`
     const full = await fetch(url)

@@ -22,7 +22,7 @@ function appSettings(): AppSettings {
     debugMode: false,
     desktopLyricsFontSize: 24,
     desktopLyricsBackgroundTransparency: 20,
-    highQualityStems: false,
+    highQualityStems: false, vocalSeparationQuality: 'fast',
     guitarSeparationQuality: 'balanced',
     preferredDevice: 'auto',
     audioOutputDeviceId: '',

@@ -6,14 +6,15 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { defaultEffectChain } from '../packages/shared/src/arsenal.ts'
+import './lib/source-imports.mjs'
 import createModule from '../src/renderer/src/arsenal/dsp/arsenal-dsp.js'
 
 const root = process.cwd()
+const { defaultEffectChain } = await import('../packages/shared/src/arsenal.ts')
 const nativeRoot = path.join(root, 'native/audio-host/build', `${process.platform}-${process.arch}`)
 const suffix = process.platform === 'win32' ? '.exe' : ''
-const native = process.env.BB_EFFECTS_TEST || path.join(nativeRoot, 'effects', `bandbuddy-effects-test${suffix}`)
-const host = process.env.BB_AUDIO_HOST || path.join(nativeRoot, `bandbuddy-audio-host${suffix}`)
+const native = process.env.BB_EFFECTS_TEST || path.join(nativeRoot, 'effects', ...(process.platform === 'win32' ? ['Release'] : []), `bandbuddy-effects-test${suffix}`)
+const host = process.env.BB_AUDIO_HOST || path.join(nativeRoot, ...(process.platform === 'win32' ? ['Release'] : []), `bandbuddy-audio-host${suffix}`)
 const m = await createModule({ wasmBinary: await readFile(path.join(root, 'src/renderer/src/arsenal/dsp/arsenal-dsp.wasm')) })
 const dir = await mkdtemp(path.join(tmpdir(), 'bb-nam-dsp-'))
 const leaf = gain => ({ version: '0.7.0', architecture: 'Linear', config: { receptive_field: 1, bias: false }, weights: [gain], sample_rate: 48000 })

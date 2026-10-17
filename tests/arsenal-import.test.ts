@@ -61,6 +61,21 @@ describe('NAM asset import', () => {
   })
 
   it.each([
+    [-40, 12], [-3, -12], [-18, 0], [-14, -4],
+    [null, 0], [undefined, 0], [-101, 0], [1, 0]
+  ])('matches reference normalization for loudness %s', async (loudness, adjustmentDb) => {
+    await select({ ...container(), metadata: { loudness, input_level_dbu: 15, output_level_dbu: 14 } })
+    const asset = await service.importAsset('nam')
+    const chain = defaultEffectChain()
+    chain.amp = { ...chain.amp, enabled: true, assetId: asset!.id, outputMode: 'normalized', calibration: true, inputDbU: 12 }
+    const prepared = await service.prepare(chain)
+    expect(prepared.namInputGain).toBeCloseTo(10 ** (-3 / 20), 12)
+    expect(prepared.namOutputGain).toBeCloseTo(10 ** (adjustmentDb! / 20), 12)
+    chain.amp.outputMode = 'raw'
+    expect((await service.prepare(chain)).namOutputGain).toBe(1)
+  })
+
+  it.each([
     ['empty ordinary weights', { ...leaf(), weights: [] }],
     ['empty container', { ...container(), config: { submodels: [] } }],
     ['invalid child weights', { ...container(), config: { submodels: [{ max_value: 1, model: { ...leaf(), weights: [null] } }] } }],

@@ -8,7 +8,7 @@ import createModule from '../src/renderer/src/arsenal/dsp/arsenal-dsp.js'
 
 const root = process.cwd()
 const platform = `${process.platform}-${process.arch}`
-const native = process.env.BB_EFFECTS_TEST || path.join(root, 'native/audio-host/build', platform, 'effects', `bandbuddy-effects-test${process.platform === 'win32' ? '.exe' : ''}`)
+const native = process.env.BB_EFFECTS_TEST || path.join(root, 'native/audio-host/build', platform, 'effects', ...(process.platform === 'win32' ? ['Release'] : []), `bandbuddy-effects-test${process.platform === 'win32' ? '.exe' : ''}`)
 const m = await createModule({ wasmBinary: await readFile(path.join(root, 'src/renderer/src/arsenal/dsp/arsenal-dsp.wasm')) })
 const dir = await mkdtemp(path.join(tmpdir(), 'bb-whitebox-'))
 const frames = 8192
@@ -70,7 +70,7 @@ try {
       const wavIn=path.join(dir,'dry.wav'),wavOut=path.join(dir,'wet.wav'),job=path.join(dir,'job.json')
       await writeFile(wavIn,Buffer.concat([header,Buffer.from(source.buffer)]))
       await writeFile(job,JSON.stringify({input:wavIn,output:wavOut,prepared,tailSeconds:.1}))
-      const host=process.env.BB_AUDIO_HOST || path.resolve(path.dirname(native),'..',`bandbuddy-audio-host${process.platform==='win32'?'.exe':''}`)
+      const host=process.env.BB_AUDIO_HOST || path.join(root,'native/audio-host/build',platform,...(process.platform==='win32'?['Release']:[]),`bandbuddy-audio-host${process.platform==='win32'?'.exe':''}`)
       const result=spawnSync(host,['--render-effects',job],{encoding:'utf8'})
       if(result.error||result.status)throw new Error(result.error?.message||result.stderr)
       const wave=await readFile(wavOut);let data

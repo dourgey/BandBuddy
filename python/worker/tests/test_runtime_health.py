@@ -19,8 +19,8 @@ class RuntimeHealthTests(unittest.TestCase):
         packages = ("torch", "torchaudio", "demucs", "onnxruntime", "numpy", "librosa", "soundfile", "sphn")
         with tempfile.TemporaryDirectory() as temporary:
             Path(temporary, "bandbuddy-health.json").write_text(json.dumps({
-                "schema": 1, "checkedAt": time.time(), "versions": {key: "test" for key in packages},
-                "result": {"modelReady": True, "dependenciesReady": True, "cudaAvailable": False},
+                "schema": 2, "fingerprint": worker.health_fingerprint(Path(temporary)), "checkedAt": time.time(), "versions": {key: "test" for key in packages},
+                "result": {"modelReady": True, "dependenciesReady": True, "cudaAvailable": False, "selfTest": {"ran": True, "ok": True}},
             }))
             output = io.StringIO()
             with patch.object(sys, "prefix", temporary), patch.object(importlib.metadata, "version", return_value="test"), patch("model_download.verify_bundle") as verify, contextlib.redirect_stdout(output):
@@ -32,6 +32,33 @@ class RuntimeHealthTests(unittest.TestCase):
         args = worker.parser().parse_args(["probe", "--model-root", "中文路径", "--self-test", "--device", "cpu"])
         self.assertEqual(args.device, "cpu")
         self.assertFalse(args.quick)
+
+    def test_unverified_expired_changed_and_legacy_cache_do_not_claim_ready(self):
+        packages = ("torch", "torchaudio", "demucs", "onnxruntime", "numpy", "librosa", "soundfile", "sphn")
+        for change in ({"schema": 1}, {"checkedAt": time.time() - 86401}, {"fingerprint": "old-driver"}, {"result": {"selfTest": {"ran": False, "ok": True}}}):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                value = {"schema": 2, "fingerprint": worker.health_fingerprint(Path(temporary)), "checkedAt": time.time(), "versions": {key: "test" for key in packages}, "result": {"selfTest": {"ran": True, "ok": True}}}
+                value.update(change)
+                Path(temporary, "bandbuddy-health.json").write_text(json.dumps(value))
+                import torch
+                with patch.object(sys, "prefix", temporary), patch.object(importlib.metadata, "version", return_value="test"), patch.object(torch, "set_num_threads", side_effect=RuntimeError("fresh-probe-required")):
+                    with self.assertRaisesRegex(RuntimeError, "fresh-probe-required"):
+                        worker.command_probe(argparse.Namespace(quick=True, self_test=False, model_root=temporary))
+
+    def test_model_file_change_invalidates_health_fingerprint(self):
+        from model_download import bundle_path, BUNDLE_FILES
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            before = worker.health_fingerprint(root)
+            folder = bundle_path(root)
+            folder.mkdir(parents=True)
+            (folder / BUNDLE_FILES[0].filename).write_bytes(b"modified")
+            self.assertNotEqual(before, worker.health_fingerprint(root))
+
+    def test_cpu_oom_is_distinct_from_gpu_oom(self):
+        self.assertEqual(worker.map_error(MemoryError("allocation failed")), "CPU_OUT_OF_MEMORY")
+        self.assertEqual(worker.map_error(RuntimeError("DefaultCPUAllocator: not enough memory")), "CPU_OUT_OF_MEMORY")
+        self.assertEqual(worker.map_error(RuntimeError("CUDA out of memory")), "ACCELERATOR_OOM")
 
     def test_onnx_cpu_executes_without_an_onnx_compiler_dependency(self):
         worker.test_onnx_cpu()

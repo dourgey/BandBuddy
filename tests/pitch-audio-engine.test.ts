@@ -101,7 +101,7 @@ class FakeAudioContext {
   resume(): Promise<void> { return Promise.resolve() }
 }
 
-class FakeAudioElement {
+class FakeAudioElement extends EventTarget { readyState = 4;
   preload = ''
   crossOrigin: string | null = null
   preservesPitch = true
@@ -169,7 +169,7 @@ describe('Signalsmith realtime pitch graph', () => {
     const context = FakeAudioContext.latest!
     const harmonicBus = context.mergers[0]!
     const vocalsGain = context.gains[5]!
-    const drumsGain = context.gains[6]!
+    const drumsGain = context.gains[STEM_ORDER.indexOf('drums') + 5]!
     const harmonicOutputSplitter = context.splitters[0]!
     const drumsOutputSplitter = context.splitters[1]!
     const vocalsInputSplitter = context.splitters[3]!
@@ -188,8 +188,8 @@ describe('Signalsmith realtime pitch graph', () => {
     expect((stretchMock.create as typeof stretchMock.create & { moduleUrl?: string }).moduleUrl)
       .not.toMatch(/^blob:/)
     expect(stretchMock.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      outputChannelCount: [16],
-      channelCount: 16,
+      outputChannelCount: [20],
+      channelCount: 20,
       channelInterpretation: 'discrete'
     }))
     expect(harmonicBus.connections.some(({ destination }) => destination === stretchMock.node)).toBe(true)
@@ -200,8 +200,8 @@ describe('Signalsmith realtime pitch graph', () => {
     ]))
     expect(drumsGain.connections.some(({ destination }) => destination === bypassDelay)).toBe(true)
     for (const [stemType, channels] of Object.entries({
-      vocals: [0, 1], bass: [2, 3], guitar: [4, 5], acoustic_guitar: [6, 7],
-      lead_guitar: [8, 9], rhythm_guitar: [10, 11], piano: [12, 13], other: [14, 15]
+      vocals: [0, 1], lead_vocals: [2, 3], backing_vocals: [4, 5], bass: [6, 7], guitar: [8, 9], acoustic_guitar: [10, 11],
+      lead_guitar: [12, 13], rhythm_guitar: [14, 15], piano: [16, 17], other: [18, 19]
     })) {
       const source = context.sources[STEM_ORDER.indexOf(stemType as (typeof STEM_ORDER)[number])]!
       const gain = source.connections[0]!.destination as FakeGainNode
@@ -240,7 +240,7 @@ describe('Signalsmith realtime pitch graph', () => {
     expect(harmonicOutputSplitter.connections.length).toBeGreaterThan(unchangedRouteCount)
     expect(harmonicOutputSplitter.connections.at(-2)).toMatchObject({
       destination: outputMerger,
-      output: 14,
+      output: 18,
       input: 0
     })
     expect(harmonicOutputSplitter.connections).toContainEqual(
@@ -270,7 +270,7 @@ describe('Signalsmith realtime pitch graph', () => {
     try {
       const splitPractice = { ...song.practice, guitarSplitEnabled: true }
       engine.applyPractice(splitPractice)
-      expect(internals.outputConnections).toHaveLength(20)
+      expect(internals.outputConnections).toHaveLength(24)
       expect(gainsByStem.guitar!.gain.value).toBe(0)
       expect(gainsByStem.acoustic_guitar!.gain.value).toBe(1)
       expect(gainsByStem.lead_guitar!.gain.value).toBe(1)
@@ -307,7 +307,7 @@ describe('Signalsmith realtime pitch graph', () => {
       await engine.updateStemSources(completedSong)
 
       for (const stem of GUITAR_SPLIT_STEMS) {
-        const element = context.sources[STEM_ORDER.indexOf(stem)]!.element
+        const element = context.sources.findLast(source => source.element.src === `https://audio.test/${stem}.flac`)!.element
         expect(element).toMatchObject({
           src: `https://audio.test/${stem}.flac`,
           currentTime: 31,

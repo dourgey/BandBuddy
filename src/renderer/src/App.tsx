@@ -2,11 +2,14 @@ import { allowAudioAction, getRecordingSession, isRecordingLocked, publishRecord
 import { BackgroundRecording } from './components/BackgroundRecording.js'
 import { claimAudioSession, isAudioSessionCurrent, pauseAudioSession, releaseAudioSession, useAudioSession } from './audio-session.js'
 import { BackgroundTransport } from './components/BackgroundTransport.js'
+import { AiLauncher } from './ai/AiLauncher.js'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Library, Plus } from 'lucide-react'
 import {
   GUITAR_SPLIT_STEMS,
+  VOCAL_SPLIT_STEMS,
+  type VocalSplitCompleted,
   getStemTypeFromTrackOrderKey,
   isStemVisible,
   normalizeSelectedStemForGuitarMode,
@@ -57,7 +60,7 @@ const fixtureGuitarPreview = import.meta.env.DEV ? previewParams.get('guitarSpli
 
 export default function App(): React.JSX.Element {
   const client = useQueryClient()
-  const [audioEngine] = useState(() => new MultiTrackAudioEngine({ applySongEq: true }))
+  const [audioEngine] = useState(() => new MultiTrackAudioEngine({ applySongEq: true, nativeTransport: true }))
   const engine = useRef(audioEngine)
   const [practicePersistence] = useState(() => new PracticePersistence(snapshot => window.bandbuddy.library.savePractice(snapshot)))
   const [eqOpen, setEqOpen] = useState(false)
@@ -72,6 +75,7 @@ export default function App(): React.JSX.Element {
   const audioSession = useAudioSession()
   const recordingSession = useRecordingSession()
   const globallyRecording = Boolean(recordingSession)
+  const pendingVocalRefresh = useRef<VocalSplitCompleted | null>(null)
   useEffect(() => { if (globallyRecording) pauseAudioSession() }, [globallyRecording])
   const recordingStartGeneration = useRef(0)
   const recordingStateRevision = useRef(0)
@@ -110,6 +114,7 @@ export default function App(): React.JSX.Element {
     return () => window.removeEventListener(ENVIRONMENT_SETTINGS_EVENT, open)
   }, [globallyRecording, rehearsalRecordingLocked])
   const [guitarSplitJob, setGuitarSplitJob] = useState<{ songId: string; jobId: string } | null>(null)
+  const [vocalSplitRequestSongId, setVocalSplitRequestSongId] = useState<string | null>(null)
   const [guitarSplitReadySongId, setGuitarSplitReadySongId] = useState<string | null>(null)
   const [fixtureGuitarReadyDismissed, setFixtureGuitarReadyDismissed] = useState(false)
   const [countInRemaining, setCountInRemaining] = useState(0)
@@ -310,6 +315,41 @@ export default function App(): React.JSX.Element {
     const timer = window.setTimeout(() => setGuitarSplitReadySongId(null), 7_000)
     return () => window.clearTimeout(timer)
   }, [guitarSplitReadySongId])
+
+  useEffect(() => {
+    let active = true
+    const refresh = async (result: VocalSplitCompleted): Promise<void> => {
+      pendingVocalRefresh.current = result
+      void client.invalidateQueries({ queryKey: ['songs'] })
+      void client.invalidateQueries({ queryKey: ['tasks'] })
+      if (isRecordingLocked()) { pendingVocalRefresh.current = result; return }
+      const current = usePlayerStore.getState()
+      if (current.song?.id !== result.songId) return
+      const updated = await window.bandbuddy.library.get(result.songId)
+      if (!active || !updated || !VOCAL_SPLIT_STEMS.every(type => updated.stems.some(stem => stem.type === type && stem.refinementId === result.refinementId))) return
+      if (isRecordingLocked()) { pendingVocalRefresh.current = result; return }
+      await engine.current.updateStemSources(updated)
+      if (isRecordingLocked()) { pendingVocalRefresh.current = result; return }
+      const latest = usePlayerStore.getState()
+      if (!active || latest.song?.id !== result.songId || !latest.practice) return
+      // Completion uses the latest unsaved faders, not the queued snapshot.
+      const first = !VOCAL_SPLIT_STEMS.every(type => latest.song!.stems.some(stem => stem.type === type))
+      updateSongDetails(updated)
+      if (first || result.enableVocalSplitOnSuccess) {
+        const parent = latest.practice.tracks.find(track => track.stemType === 'vocals')!
+        patchPractice({
+          ...(result.enableVocalSplitOnSuccess ? { vocalSplitEnabled: true } : {}),
+          ...(first ? { tracks: latest.practice.tracks.map(track => (VOCAL_SPLIT_STEMS as readonly string[]).includes(track.stemType) ? { ...parent, stemType: track.stemType } : track) } : {})
+        })
+      }
+      pendingVocalRefresh.current = null
+      setToast(result.enableVocalSplitOnSuccess ? '已开启人声分轨，再次点击可恢复完整人声' : '主唱与和声已就绪，点击「人声分轨」即可开启')
+    }
+    const run = (result: VocalSplitCompleted): void => { void refresh(result).catch(error => setToast(toUserErrorMessage(error, '人声细分已完成，刷新音轨失败；重新进入练习室可加载'))) }
+    const stop = window.bandbuddy.library.onVocalSplitCompleted(run)
+    if (!globallyRecording && pendingVocalRefresh.current) run(pendingVocalRefresh.current)
+    return () => { active = false; stop() }
+  }, [client, globallyRecording, patchPractice, updateSongDetails])
 
   useEffect(() => {
     engine.current.onTime(setCurrentMs)
@@ -726,6 +766,73 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  const setVocalSplitMode = async (enabled: boolean): Promise<void> => {
+    if (!allowAudioAction()) return
+    const state = usePlayerStore.getState()
+    if (!state.song || !state.practice || state.song.sourceFormat === 'existing-stems' || vocalSplitRequestSongId === state.song.id) return
+    if (!enabled || VOCAL_SPLIT_STEMS.every(type => state.song!.stems.some(stem => stem.type === type))) {
+      patchPractice({ vocalSplitEnabled: enabled })
+      return
+    }
+    setVocalSplitRequestSongId(state.song.id)
+    try {
+      await saveNow()
+      if (isRecordingLocked()) return
+      const jobId = await window.bandbuddy.library.requestVocalSplit(state.song.id)
+      // Replace a previous failure before marking this retry as pending.
+      await client.invalidateQueries({ queryKey: ['tasks'] })
+      const latest = usePlayerStore.getState()
+      if (latest.song?.id !== state.song.id) return
+      if (jobId) {
+        if (VOCAL_SPLIT_STEMS.every(type => latest.song!.stems.some(stem => stem.type === type))) return
+        updateSongDetails({ ...latest.song, vocalSplitStatus: 'pending' })
+        setToast('正在生成主唱与和声，完成后自动开启人声分轨')
+      } else {
+        const updated = await window.bandbuddy.library.get(state.song.id)
+        if (!updated || usePlayerStore.getState().song?.id !== state.song.id) return
+        if (!VOCAL_SPLIT_STEMS.every(type => updated.stems.some(stem => stem.type === type))) throw new Error('VOCAL_SPLIT_NOT_READY')
+        await engine.current.updateStemSources(updated)
+        const current = usePlayerStore.getState()
+        if (current.song?.id !== state.song.id || !current.practice) return
+        const first = !VOCAL_SPLIT_STEMS.every(type => current.song!.stems.some(stem => stem.type === type))
+        const parent = current.practice.tracks.find(track => track.stemType === 'vocals')!
+        updateSongDetails(updated)
+        if (!isRecordingLocked()) patchPractice({
+          vocalSplitEnabled: true,
+          ...(first ? { tracks: current.practice.tracks.map(track => (VOCAL_SPLIT_STEMS as readonly string[]).includes(track.stemType) ? { ...parent, stemType: track.stemType } : track) } : {})
+        })
+      }
+    } catch (error) { setToast(toUserErrorMessage(error, '无法开始人声分轨，请重试')) }
+    finally { setVocalSplitRequestSongId(active => active === state.song!.id ? null : active) }
+  }
+
+  const vocalAction = async (action: 'removeLead' | 'soloBacking'): Promise<void> => {
+    if (!allowAudioAction()) return
+    const state = usePlayerStore.getState()
+    if (!state.song || !state.practice || !VOCAL_SPLIT_STEMS.every(type => state.song!.stems.some(stem => stem.type === type))) return
+    try {
+      const recordingTracks = state.song.recordingTracks.filter(track => track.solo)
+      await Promise.all(recordingTracks.map(track => window.bandbuddy.recording.updateTrack({ recordingTrackId: track.id, patch: { solo: false } })))
+      const latest = usePlayerStore.getState()
+      if (latest.song?.id !== state.song.id || !latest.practice) return
+      patchPractice({
+        vocalSplitEnabled: true,
+        tracks: latest.practice.tracks.map(track => isStemVisible(track.stemType, latest.practice!.guitarSplitEnabled, true) ? {
+          ...track,
+          solo: action === 'soloBacking' && track.stemType === 'backing_vocals',
+          ...(track.stemType === 'lead_vocals' ? { muted: action === 'removeLead' } : track.stemType === 'backing_vocals' ? { muted: false } : {})
+        } : track)
+      })
+      if (recordingTracks.length) await refreshCurrentSong()
+    } catch (error) { setToast(toUserErrorMessage(error, '人声操作未完成，请重试')) }
+  }
+
+  useEffect(() => {
+    if (!song || song.vocalSplitStatus !== 'pending') return
+    const job = tasksQuery.data?.find(item => item.songId === song.id && item.type === 'vocalSplit')
+    if (job && ['failed', 'cancelled', 'interrupted'].includes(job.status)) updateSongDetails({ ...song, vocalSplitStatus: 'failed' })
+  }, [tasksQuery.data, song, updateSongDetails])
+
   useEffect(() => {
     if (!guitarSplitJob) return
     const job = tasksQuery.data?.find((candidate) => candidate.id === guitarSplitJob.jobId)
@@ -769,6 +876,7 @@ export default function App(): React.JSX.Element {
       ? !['completed', 'cancelled', 'failed', 'interrupted'].includes(currentGuitarSplitTask.status)
       : song.guitarSplitStatus === 'pending')
   ))
+  const vocalSplitPending = Boolean(song && (vocalSplitRequestSongId === song.id || song.vocalSplitStatus === 'pending'))
   const rehearsalInitialId = activeRehearsalId ?? rehearsalReturn?.rehearsalId ?? null
   const restoreRehearsalContext = Boolean(
     rehearsalReturn && rehearsalReturn.rehearsalId === rehearsalInitialId
@@ -792,6 +900,7 @@ export default function App(): React.JSX.Element {
   }
 
   return <div className="app-shell">
+    <AiLauncher />
     <GlobalMonitor visible={view !== 'arsenal'} onOpen={() => void changeView('arsenal')} />
     <Header
       onClose={() => { void saveNow().then(() => window.bandbuddy.window.close()).catch(() => setToast('练习设置保存失败，请重试后关闭')) }}
@@ -817,6 +926,8 @@ export default function App(): React.JSX.Element {
       outputLatencyMs={engine.current.outputLatencySeconds * 1000}
       onTogglePlayback={() => void togglePlayback()} onRestart={restartPlayback} onCycleLoop={cycleLoop}
       recordingState={recordingState} locked={globallyRecording}
+      onVocalAction={action => void vocalAction(action)} vocalSplitStatus={tasksQuery.data?.find(job => job.songId === song.id && job.type === 'vocalSplit' && !['completed', 'failed', 'cancelled', 'interrupted'].includes(job.status))?.phase}
+      onVocalSplit={enabled => void setVocalSplitMode(enabled)} vocalSplitPending={vocalSplitPending}
       guitarSplitPending={fixtureGuitarPreview === 'pending' || guitarSplitPending}
       guitarSplitReady={(fixtureGuitarPreview === 'ready' && !fixtureGuitarReadyDismissed) || guitarSplitReadySongId === song.id}
       onDismissGuitarSplitReady={() => { setFixtureGuitarReadyDismissed(true); setGuitarSplitReadySongId(null) }}
@@ -916,7 +1027,7 @@ function useKeyboardShortcuts({
       const selected = practice.tracks.find((track) => track.stemType === selectedStem)
       const stemOrder = normalizeTrackOrder(practice.trackOrder, song.recordingTracks.map((track) => track.id))
         .map(getStemTypeFromTrackOrderKey)
-        .filter((stemType): stemType is StemType => stemType !== null && (song.sourceFormat === 'existing-stems' ? song.stems.some((stem) => stem.type === stemType) : isStemVisible(stemType, practice.guitarSplitEnabled)))
+        .filter((stemType): stemType is StemType => stemType !== null && (song.sourceFormat === 'existing-stems' ? song.stems.some((stem) => stem.type === stemType) : isStemVisible(stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled)))
       const index = stemOrder.indexOf(selectedStem)
       if (event.code === 'Space') { event.preventDefault(); void togglePlayback() }
       else if (event.key === 'Home') { event.preventDefault(); restartPlayback() }

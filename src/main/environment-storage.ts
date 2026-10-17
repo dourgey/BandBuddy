@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, open, rm, stat, statfs } from 'node:fs/promises'
 import path from 'node:path'
 import { artifactValid, type Artifact } from './artifact-download.js'
+import { DiagnosticError } from './diagnostic-errors.js'
 
 export async function remainingDownloadBytes(artifact: Artifact, destination: string): Promise<number> {
   if (await artifactValid(destination, artifact)) return 0
@@ -17,16 +18,19 @@ export async function remainingDownloadBytes(artifact: Artifact, destination: st
 }
 
 /** Accounts for cache and extraction peaks on each actual destination volume. */
-export async function checkEnvironmentStorage(requests: Array<{ directory: string; bytes: number }>, reserve = 1024 ** 3): Promise<void> {
-  const volumes = new Map<number, { available: number; needed: number }>()
+export async function checkEnvironmentStorage(requests: Array<{ directory: string; bytes: number; purpose?: string }>, reserve = 1024 ** 3): Promise<void> {
+  const volumes = new Map<number, { available: number; needed: number; directories: Array<{ directory: string; purpose: string }> }>()
   for (const request of requests) {
+    try {
     await mkdir(request.directory, { recursive: true })
     const probe = path.join(request.directory, `.bandbuddy-write-${randomUUID()}`)
     const handle = await open(probe, 'wx')
     try { await handle.writeFile('ok'); await handle.sync() } finally { await handle.close(); await rm(probe, { force: true }) }
     const [space, info] = await Promise.all([statfs(request.directory), stat(request.directory)])
-    const volume = volumes.get(info.dev) ?? { available: space.bavail * space.bsize, needed: 0 }
+    const volume = volumes.get(info.dev) ?? { available: space.bavail * space.bsize, needed: 0, directories: [] }
+    volume.directories.push({ directory: request.directory, purpose: request.purpose ?? path.basename(request.directory) })
     volume.needed += request.bytes; volumes.set(info.dev, volume)
+    } catch (error) { throw new DiagnosticError('STORAGE_UNAVAILABLE', '组件存储位置无法写入或检查', { directory: request.directory, purpose: request.purpose ?? path.basename(request.directory), requiredBytes: request.bytes }, error) }
   }
-  for (const volume of volumes.values()) if (volume.available < volume.needed + reserve) throw new Error(`ENVIRONMENT_DISK_FULL:required=${volume.needed + reserve}:available=${volume.available}`)
+  for (const volume of volumes.values()) if (volume.available < volume.needed + reserve) throw new DiagnosticError('DISK_FULL', `磁盘空间不足：需要 ${volume.needed + reserve} 字节，可用 ${volume.available} 字节`, { ...volume, requiredBytes: volume.needed + reserve })
 }

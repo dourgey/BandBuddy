@@ -1,18 +1,19 @@
 import { create } from 'zustand'
 import { normalizeSongEq } from '@shared/equalizer.js'
-import { createDefaultPracticeState, isStemVisible, normalizePitchSemitones, normalizeSelectedStemForGuitarMode, type RecordingMeter, type PracticeState, type SongDetail, type StemType, type TrackState } from '@shared/domain.js'
+import { createDefaultPracticeState, isStemVisible, normalizePitchSemitones, normalizeSelectedStemForGuitarMode, normalizeSelectedStemForVocalMode, normalizeTrackStates, type RecordingMeter, type PracticeState, type SongDetail, type StemType, type TrackState } from '@shared/domain.js'
 
 export function patchTrackStates(
   tracks: readonly TrackState[],
   stemType: StemType,
   patch: Partial<TrackState>,
   guitarSplitEnabled = false,
-  importedStems = false
+  importedStems = false,
+  vocalSplitEnabled = false
 ): TrackState[] {
   const enablesSolo = patch.solo === true
   return tracks.map((track) => {
     if (track.stemType !== stemType) {
-      return enablesSolo && track.solo && (importedStems || isStemVisible(track.stemType, guitarSplitEnabled))
+      return enablesSolo && track.solo && (importedStems || isStemVisible(track.stemType, guitarSplitEnabled, vocalSplitEnabled))
         ? { ...track, solo: false }
         : track
     }
@@ -47,24 +48,26 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   selectedStem: 'vocals',
   loadSong: (song) => set(() => {
     const guitarSplitEnabled = song.practice.guitarSplitEnabled ?? false
+    const vocalSplitEnabled = Boolean(song.practice.vocalSplitEnabled && song.stems.some(s => s.type === 'lead_vocals') && song.stems.some(s => s.type === 'backing_vocals'))
     const selectedStem = song.sourceFormat === 'existing-stems'
       ? song.practice.selectedStem ?? song.stems[0]?.type ?? 'vocals'
-      : normalizeSelectedStemForGuitarMode(
-      song.practice.selectedStem ?? 'vocals',
-      guitarSplitEnabled
-    ) ?? 'vocals'
+      : normalizeSelectedStemForVocalMode(normalizeSelectedStemForGuitarMode(
+        song.practice.selectedStem ?? 'vocals',
+        guitarSplitEnabled
+      ), vocalSplitEnabled) ?? 'vocals'
     return {
       song,
       practice: {
-      ...createDefaultPracticeState(song.id),
-      ...song.practice,
-      eq: normalizeSongEq(song.practice.eq),
-      guitarSplitEnabled,
-      selectedStem,
-      pitchSemitones: normalizePitchSemitones(song.practice.pitchSemitones),
-      ...(song.bpm === null ? {} : { metronomeBpm: song.bpm }),
-      metronomeOffsetMs: song.beatOffsetMs,
-      tracks: song.practice.tracks.map((track) => ({ ...track }))
+        ...createDefaultPracticeState(song.id),
+        ...song.practice,
+        eq: normalizeSongEq(song.practice.eq),
+        guitarSplitEnabled,
+        vocalSplitEnabled,
+        selectedStem,
+        pitchSemitones: normalizePitchSemitones(song.practice.pitchSemitones),
+        ...(song.bpm === null ? {} : { metronomeBpm: song.bpm }),
+        metronomeOffsetMs: song.beatOffsetMs,
+        tracks: normalizeTrackStates(song.practice.tracks)
       },
       currentMs: song.practice.positionMs,
       selectedStem,
@@ -80,12 +83,13 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   patchPractice: (patch) => set((state) => {
     if (!state.practice) return state
     const guitarSplitEnabled = patch.guitarSplitEnabled ?? state.practice.guitarSplitEnabled
+    const vocalSplitEnabled = patch.vocalSplitEnabled ?? state.practice.vocalSplitEnabled
     const selectedStem = state.song?.sourceFormat === 'existing-stems'
       ? patch.selectedStem ?? state.selectedStem
-      : normalizeSelectedStemForGuitarMode(
-      patch.selectedStem ?? state.selectedStem,
-      guitarSplitEnabled
-    ) ?? 'vocals'
+      : normalizeSelectedStemForVocalMode(normalizeSelectedStemForGuitarMode(
+        patch.selectedStem ?? state.selectedStem,
+        guitarSplitEnabled
+      ), vocalSplitEnabled) ?? 'vocals'
     return {
       selectedStem,
       practice: {
@@ -93,6 +97,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
         ...patch,
         eq: patch.eq ? normalizeSongEq(patch.eq) : state.practice.eq,
         guitarSplitEnabled,
+        vocalSplitEnabled,
         selectedStem,
         pitchSemitones: normalizePitchSemitones(patch.pitchSemitones ?? state.practice.pitchSemitones)
       }
@@ -101,7 +106,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   patchTrack: (stemType, patch) => set((state) => state.practice ? {
     practice: {
       ...state.practice,
-      tracks: patchTrackStates(state.practice.tracks, stemType, patch, state.practice.guitarSplitEnabled, state.song?.sourceFormat === 'existing-stems')
+      tracks: patchTrackStates(state.practice.tracks, stemType, patch, state.practice.guitarSplitEnabled, state.song?.sourceFormat === 'existing-stems', state.practice.vocalSplitEnabled)
     }
   } : state),
   setSelectedStem: (selectedStem) => set((state) => ({

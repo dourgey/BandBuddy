@@ -11,6 +11,13 @@ interface NamModel extends Record<string, unknown> {
 
 function invalid(): never { throw new Error('NAM 模型结构无效') }
 
+// TONE3000's per-block normalization targets -18 dB and caps the adjustment
+// at +/-12 dB. Missing or implausible metadata leaves the model at unity.
+export function namNormalizationGain(loudness: unknown): number {
+  if (typeof loudness !== 'number' || !Number.isFinite(loudness) || loudness < -100 || loudness > 0) return 1
+  return 10 ** (Math.max(-12, Math.min(12, -18 - loudness)) / 20)
+}
+
 function validateModel(model: unknown, depth = 0): asserts model is NamModel {
   if (depth > 16 || !record(model) || typeof model.architecture !== 'string' || !model.architecture
     || !record(model.config) || !Array.isArray(model.weights)

@@ -23,6 +23,8 @@ export const IPC = {
   libraryOpenLocation: 'library:open-location',
   libraryReseparate: 'library:re-separate',
   libraryRequestGuitarSplit: 'library:request-guitar-split',
+  libraryRequestVocalSplit: 'library:request-vocal-split',
+  eventVocalSplitCompleted: 'event:vocal-split-completed',
   practiceSave: 'practice:save',
   tasksList: 'tasks:list',
   tasksCancel: 'tasks:cancel',

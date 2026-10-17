@@ -1,11 +1,13 @@
+import { recoverFloatCapture } from './wave-recovery.js'
 import type { ArsenalService } from './arsenal.js'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
-import { open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
   dbToGain,
   isStemVisible,
+  stemPlaybackGain,
   type AudioBackend,
   type RecordingAudioSettings,
   type RecordingDeviceInfo,
@@ -30,6 +32,7 @@ interface ResolvedDeviceConfiguration {
   input: RecordingDeviceInfo
   output: RecordingDeviceInfo
   sampleRate: number
+  inputSampleRate?: number
   bufferFrames: number
   splitDevices: boolean
   deviceAlignmentOffsetMs: number
@@ -114,7 +117,6 @@ export class RecordingService {
   async arsenalDeviceConfiguration(): Promise<Record<string, unknown>> {
     await this.ensureInputPermission()
     const device=await this.resolveDeviceConfiguration()
-    if(device.splitDevices) throw new Error('实时监听需要同一声卡输入与输出')
     return this.hostParameters(device)
   }
   private state = idleState()
@@ -291,7 +293,7 @@ export class RecordingService {
         ...this.hostParameters(device),
         backingPath,
         capturePath,
-        ...(recordingTrack.effects ? { effects: await this.arsenal?.prepare(recordingTrack.effects.chain), monitorMode: recordingTrack.effects.monitorMode === 'off' || device.splitDevices ? 0 : recordingTrack.effects.monitorMode === 'dry' || !recordingTrack.effects.enabled ? 1 : 2, monitorGainDb: 0 } : {}),
+        ...(recordingTrack.effects ? { effects: await this.arsenal?.prepare(recordingTrack.effects.chain), monitorMode: recordingTrack.effects.monitorMode === 'off' ? 0 : recordingTrack.effects.monitorMode === 'dry' || !recordingTrack.effects.enabled ? 1 : 2, monitorGainDb: 0 } : {}),
         playbackRate: request.practice.playbackRate,
         startPositionMs,
         endPositionMs,
@@ -476,22 +478,26 @@ export class RecordingService {
     if (channels.length !== (settings.inputChannelMode === 'mono' ? 1 : 2)) throw new Error('INPUT_CHANNEL_CONFIGURATION_INVALID')
     if (channels.some((channel) => channel < 0 || channel >= input.inputChannels)) throw new Error('INPUT_CHANNEL_UNAVAILABLE')
     if (channels.length === 2 && channels[1] !== channels[0]! + 1) throw new Error('STEREO_INPUT_CHANNELS_MUST_BE_ADJACENT')
+    const independent = backend.startsWith('wasapi') || input.id !== output.id
     const commonRates = input.sampleRates.filter((rate) => output.sampleRates.includes(rate))
-    const ratesUnknown = input.sampleRates.length === 0 || output.sampleRates.length === 0
-    if (!ratesUnknown && commonRates.length === 0) throw new Error('NO_COMMON_SAMPLE_RATE')
+    const rates = independent ? output.sampleRates : commonRates
+    const ratesUnknown = !output.sampleRates.length || (!independent && !input.sampleRates.length)
+    if (!ratesUnknown && rates.length === 0) throw new Error('NO_COMMON_SAMPLE_RATE')
     const sampleRate = settings.sampleRate
-      || [output.preferredSampleRate, input.preferredSampleRate, 48_000, 44_100].find((rate) => rate > 0 && (ratesUnknown || commonRates.includes(rate)))
-      || commonRates[0]
+      || [output.preferredSampleRate, input.preferredSampleRate, 48_000, 44_100].find((rate) => rate > 0 && (ratesUnknown || rates.includes(rate)))
+      || rates[0]
     if (!sampleRate) throw new Error('NO_COMMON_SAMPLE_RATE')
-    if (settings.sampleRate && !ratesUnknown && !commonRates.includes(settings.sampleRate)) throw new Error('SELECTED_SAMPLE_RATE_UNAVAILABLE')
+    if (settings.sampleRate && !ratesUnknown && !rates.includes(settings.sampleRate)) throw new Error('SELECTED_SAMPLE_RATE_UNAVAILABLE')
+    const inputSampleRate = !independent || !input.sampleRates.length || input.sampleRates.includes(sampleRate) ? sampleRate : input.preferredSampleRate || input.sampleRates[0]!
     return {
       settings,
       backend,
       input,
       output,
       sampleRate,
+      inputSampleRate,
       bufferFrames: settings.bufferFrames,
-      splitDevices: input.id !== output.id,
+      splitDevices: independent,
       deviceAlignmentOffsetMs: settings.deviceAlignmentOffsets[
         `${backend}|${settings.inputDeviceId || 'default'}|${settings.outputDeviceId || 'default'}`
       ] ?? settings.alignmentOffsetMs
@@ -514,6 +520,7 @@ export class RecordingService {
       outputDeviceId: device.output.id,
       inputChannels: device.settings.inputChannels,
       sampleRate: device.sampleRate,
+      inputSampleRate: device.inputSampleRate ?? device.sampleRate,
       bufferFrames: device.bufferFrames,
       softwareMonitoring: false
     }
@@ -538,11 +545,11 @@ export class RecordingService {
       return take ? [{ track, take }] : []
     })
     const hasSolo = request.practice.tracks.some((track) =>
-      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled)) && track.solo && !track.muted
+      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled, request.practice.vocalSplitEnabled)) && track.solo && !track.muted
     )
       || activeRecordings.some(({ track }) => track.solo && !track.muted)
     const audibleStems = request.practice.tracks
-      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
+      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled, request.practice.vocalSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
       .map((state) => ({ state, file: files.find((file) => file.type === state.stemType) }))
       .filter((entry): entry is { state: TrackState; file: NonNullable<typeof entry.file> } => Boolean(entry.file))
     const settings = this.database.getSettings()
@@ -568,7 +575,7 @@ export class RecordingService {
       ffmpeg,
       stems: harmonicStems.map(({ state, file }) => ({
         path: this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath),
-        gainDb: state.gainDb
+        gainDb: state.gainDb + 20 * Math.log10(stemPlaybackGain(file))
       })),
       startPositionMs,
       endPositionMs,
@@ -600,11 +607,12 @@ export class RecordingService {
       finalStems.forEach(({ state, file }, index) => {
         const label = `back${index}`
         inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath))
-        filters.push(`[${inputIndex}:a]atrim=start=${(startPositionMs / 1000).toFixed(6)}:end=${(endPositionMs / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${dbToGain(state.gainDb).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`)
+        filters.push(`[${inputIndex}:a]atrim=start=${(startPositionMs / 1000).toFixed(6)}:end=${(endPositionMs / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${(dbToGain(state.gainDb) * stemPlaybackGain(file)).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`)
         labels.push(`[${label}]`)
         inputIndex += 1
       })
-      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,file}) => this.arsenal?.render(this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath),track.effects,signal) ?? this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath)))
+      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,file}) => this.arsenal?.render(this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath),track.effects,signal,0,
+        { tempo: request.practice.metronomeBpm * request.practice.playbackRate, beatOffsetMs: request.practice.metronomeOffsetMs / request.practice.playbackRate }) ?? this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath)))
       audibleRecordings.forEach(({ track, file }, recordingIndex) => {
         const label = `recorded${recordingIndex}`
         inputs.push('-i', wetRecordings[recordingIndex]!)
@@ -660,6 +668,7 @@ export class RecordingService {
       void this.beginFinalize(session, event.data, false).catch((error) => this.fail(error))
       return
     }
+    if (event.event !== 'meter') return
     this.emitMeter({
       peak: event.data.peak,
       rms: event.data.rms,
@@ -700,6 +709,7 @@ export class RecordingService {
       mkdirSync(preparedRoot, { recursive: true })
       const sourcePart = path.join(preparedRoot, 'source.part.flac')
       const source = path.join(preparedRoot, 'source.flac')
+      await copyFile(session.capturePath, path.join(preparedRoot, 'dry-original.wav'))
       const correctionRatio = result.clockCorrectionRatio ?? 1
       const sourceFilter = buildClockCorrectionFilters(result.sampleRate, session.device.splitDevices, correctionRatio)
       const sourceResult = await runProcess(ffmpeg, [
@@ -715,7 +725,7 @@ export class RecordingService {
         session.host?.latencyMs ?? 0,
         session.device.splitDevices,
         result.inputStartOutputFrames ?? 0,
-        result.sampleRate
+        result.outputSampleRate ?? result.sampleRate
       )
       const durationMs = probe.durationMs || result.durationMs
       const endPositionMs = session.plannedEnd
@@ -757,7 +767,9 @@ export class RecordingService {
           bufferFrames: session.host?.bufferFrames ?? session.device.bufferFrames,
           latencyMs: session.host?.latencyMs ?? 0,
           splitDevices: session.device.splitDevices,
-          softwareMonitoring: false
+          softwareMonitoring: false,
+          pluginFaults: result.pluginFaults, audioDiagnostics: result.diagnostics,
+          originalCaptureRelPath: path.relative(settings.libraryRoot, path.join(finalRoot, 'dry-original.wav')).replaceAll('\\','/')
         },
         interrupted
       })
@@ -876,18 +888,5 @@ function atempoFilters(rate: number): string {
 }
 
 export async function repairWaveHeader(file: string): Promise<void> {
-  const info = await stat(file)
-  if (info.size < 44) throw new Error('INTERRUPTED_CAPTURE_TOO_SHORT')
-  const handle = await open(file, 'r+')
-  try {
-    const riffSize = Math.min(0xffffffff, info.size - 8)
-    const dataSize = Math.min(0xffffffff, info.size - 44)
-    const value = Buffer.alloc(4)
-    value.writeUInt32LE(riffSize, 0)
-    await handle.write(value, 0, 4, 4)
-    value.writeUInt32LE(dataSize, 0)
-    await handle.write(value, 0, 4, 40)
-  } finally {
-    await handle.close()
-  }
+  recoverFloatCapture(file)
 }

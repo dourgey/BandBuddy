@@ -5,6 +5,7 @@ import path from 'node:path'
 import { dialog, shell } from 'electron'
 import {
   GUITAR_SPLIT_STEMS,
+  VOCAL_SEPARATION_PROFILES,
   normalizeSelectedStemForGuitarMode,
   stemStorageFormat,
   type ImportResult,
@@ -209,6 +210,7 @@ export class ImportService {
         sourceRelPath: this.paths.toLibraryRelative(settings.libraryRoot, copiedSource),
         storageFormat: stemStorageFormat(settings.highQualityStems),
         guitarQuality: settings.guitarSeparationQuality,
+        vocalModelId: VOCAL_SEPARATION_PROFILES[settings.vocalSeparationQuality].modelId,
         retry: 0
       }
     )
@@ -243,9 +245,27 @@ export class ImportService {
       sourceRelPath: row.source_rel_path,
       storageFormat: stemStorageFormat(settings.highQualityStems),
       guitarQuality: settings.guitarSeparationQuality,
+      vocalModelId: VOCAL_SEPARATION_PROFILES[settings.vocalSeparationQuality].modelId,
       retry: 0
     })
     this.database.setJobState(jobId, status, phase, 0)
+    this.changed()
+    this.kickJobs()
+    return jobId
+  }
+
+  async requestVocalSplit(songId: string): Promise<string | null> {
+    const song = this.database.getSong(songId)
+    if (!song) throw new Error('SONG_NOT_FOUND')
+    const settings = this.database.getSettings()
+    const file = this.database.getActiveStemFiles(songId).find(stem => stem.type === 'vocals')
+    if (!file) throw new Error('VOCAL_SOURCE_NOT_AVAILABLE')
+    const input = this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath)
+    if (!existsSync(input)) throw new Error('VOCAL_SOURCE_NOT_AVAILABLE')
+    const hash = await sha256(input)
+    // The input may have been replaced while hashing the file.
+    if (this.database.getActiveStemFiles(songId).find(stem => stem.type === 'vocals')?.id !== file.id) throw new Error('STALE_VOCAL_SPLIT')
+    const jobId = this.database.queueVocalSplit(songId, hash, VOCAL_SEPARATION_PROFILES[settings.vocalSeparationQuality].modelId, stemStorageFormat(settings.highQualityStems), true)
     this.changed()
     this.kickJobs()
     return jobId
@@ -301,6 +321,7 @@ export class ImportService {
         sourceRelPath: row.source_rel_path,
         storageFormat: stemStorageFormat(settings.highQualityStems),
         guitarQuality: settings.guitarSeparationQuality,
+        vocalModelId: VOCAL_SEPARATION_PROFILES[settings.vocalSeparationQuality].modelId,
         enableGuitarSplitOnSuccess: true,
         retry: 0
       })
@@ -316,6 +337,7 @@ export class ImportService {
       sourceRelPath: row.source_rel_path,
       storageFormat: stemStorageFormat(settings.highQualityStems),
       guitarQuality: settings.guitarSeparationQuality,
+      vocalModelId: VOCAL_SEPARATION_PROFILES[settings.vocalSeparationQuality].modelId,
       baseSeparationId: row.active_separation_id,
       expectedActiveSeparationId: row.active_separation_id,
       baseEncodingGain: 1,

@@ -28,8 +28,8 @@ export function databaseNeedsPreparation(paths: DatabasePaths): boolean {
     return Boolean(database.prepare(`
       SELECT 1 FROM jobs AS job JOIN songs AS song ON song.id = job.song_id
       WHERE job.status = 'interrupted' AND (
-        (song.active_separation_id IS NOT NULL AND job.type = 'guitarSplit'
-          AND (song.status != 'ready' OR song.progress != 1 OR song.phase IS NOT '吉他细分未完成，基础分轨可继续'))
+        (song.active_separation_id IS NOT NULL AND job.type IN ('guitarSplit', 'vocalSplit')
+          AND (song.status != 'ready' OR song.progress != 1 OR song.phase IS NOT '细分未完成，基础分轨可继续'))
         OR (song.active_separation_id IS NULL
           AND (song.status != 'failed' OR song.phase IS NOT '任务已中断'))
       ) LIMIT 1

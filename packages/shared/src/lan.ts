@@ -5,9 +5,10 @@ export interface LanSongSummary {
   id: string; title: string; artist: string; durationMs: number; updatedAt: string; stemCount: number; manifest: string
 }
 export interface LanSong {
-  version: 1
+  version: 1 | 2
+  stemGroups?: Array<{ parent: StemType; children: readonly StemType[]; splitEnabled: boolean; available: boolean }>
   id: string; title: string; artist: string; durationMs: number; updatedAt: string
   lyrics: LyricsDocument | null; bpm: number | null; musicalKey: string | null
-  stems: Array<{ id: string; type: StemType; name: string; durationMs: number; sampleRate: number; channels: number; defaultVisible: boolean; audio: LanAsset; peaks: LanAsset | null }>
+  stems: Array<{ id: string; type: StemType; name: string; durationMs: number; sampleRate: number; channels: number; numFrames?: number; encodingGain?: number; defaultVisible: boolean; audio: LanAsset; peaks: LanAsset | null }>
   artwork: LanAsset | null; video: LanAsset | null
 }

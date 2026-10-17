@@ -1,8 +1,11 @@
 import { session, type Session } from 'electron'
 import type { NetworkSettings } from '@shared/domain.js'
 import { RuntimeProxyBridge } from './runtime-proxy.js'
-import { ArtifactDownloader, type Artifact, type DownloadProgress } from './artifact-download.js'
+import { ArtifactDownloader, downloadRetryable, downloadRetryDelay, type Artifact, type DownloadProgress } from './artifact-download.js'
 import { matchRuntimeSourcePreset } from '@shared/runtime-sources.js'
+import { setTimeout as delay } from 'node:timers/promises'
+import { DiagnosticError, errorEvidence } from './diagnostic-errors.js'
+import { diagnostics } from './diagnostics.js'
 
 const PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']
 
@@ -35,6 +38,7 @@ export function proxyFromPac(result: string): string | null {
 /** One network policy for Electron downloads and managed Python/uv processes. */
 export class RuntimeNetwork {
   private downloader: ArtifactDownloader | null = null
+  private readonly failedUrls = new Set<string>()
   diagnostics(): ReturnType<ArtifactDownloader['diagnostics']> { return this.downloader?.diagnostics() ?? [] }
 
   async download(artifact: Artifact, destination: string, network: NetworkSettings, signal: AbortSignal, progress?: (value: DownloadProgress) => void): Promise<string> {
@@ -42,7 +46,25 @@ export class RuntimeNetwork {
     this.downloader ??= new ArtifactDownloader((url, options) => client.fetch(url, options))
     const official = (url: string): number => /(?:^|\.)(?:pythonhosted.org|pytorch.org|github.com|astral.sh)$/.test(new URL(url).hostname) ? 0 : 1
     const urls = matchRuntimeSourcePreset(network) === 'official' ? [...artifact.urls].sort((a, b) => official(a) - official(b)) : artifact.urls
-    return this.downloader.download({ ...artifact, urls }, destination, signal, progress)
+    try {
+      const file = await this.downloader.download({ ...artifact, urls }, destination, signal, progress)
+      urls.forEach(url => this.failedUrls.delete(url)); return file
+    } catch (error) { if (!signal.aborted) urls.forEach(url => this.failedUrls.add(url)); throw error }
+  }
+  async reachable(network: NetworkSettings, defaults: string[], signal: AbortSignal): Promise<boolean> {
+    const client = await this.configured(network)
+    for (const url of [...(this.failedUrls.size ? this.failedUrls : defaults)].slice(0, 6)) {
+      if (new URL(url).protocol !== 'https:') continue
+      const timeout = AbortSignal.timeout(8000), combined = AbortSignal.any([signal, timeout])
+      try {
+        const response = await client.fetch(url, { signal: combined, headers: { Range: 'bytes=0-0', 'Accept-Encoding': 'identity' } })
+        const ok = [200, 206].includes(response.status) && !/text\/html/i.test(response.headers.get('content-type') ?? '')
+        await response.body?.cancel()
+        diagnostics.record({ component: 'network', stage: 'reconnect-probe', result: ok ? 'reachable' : 'unavailable', details: { source: new URL(url).hostname, status: response.status } })
+        if (ok) return true
+      } catch (error) { signal.throwIfAborted(); diagnostics.record({ component: 'network', stage: 'reconnect-probe', result: 'failed', details: errorEvidence(error) }) }
+    }
+    return false
   }
   private client: Session | null = null
   private policy = ''
@@ -88,7 +110,7 @@ export class RuntimeNetwork {
         const timer = setTimeout(() => controller.abort(new Error('DOWNLOAD_TIMEOUT')), 120_000)
         try {
           const response = await client.fetch(url, { signal: controller.signal })
-          if (!response.ok) throw new Error(`DOWNLOAD_HTTP_${response.status}`)
+          if (!response.ok) { await response.body?.cancel(); throw new DiagnosticError(`DOWNLOAD_HTTP_${response.status}`, `DOWNLOAD_HTTP_${response.status}`, { source: new URL(url).hostname, status: response.status }) }
           const chunks: Buffer[] = []
           let size = 0
           if (!response.body) throw new Error('DOWNLOAD_EMPTY')
@@ -100,7 +122,10 @@ export class RuntimeNetwork {
           return Buffer.concat(chunks)
         } catch (error) {
           signal.throwIfAborted()
-          last = error
+          last = controller.signal.aborted ? controller.signal.reason : error
+          diagnostics.record({ component: 'network', stage: 'download-metadata', result: 'failed', details: { source: new URL(url).hostname, attempt, error: errorEvidence(last) } })
+          if (!downloadRetryable(last)) break
+          if (attempt === 0) await delay(downloadRetryDelay(last), undefined, { signal })
         } finally {
           clearTimeout(timer)
           signal.removeEventListener('abort', cancel)

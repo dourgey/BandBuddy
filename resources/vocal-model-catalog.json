@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "repository": "Zzzzzzorz/BandBuddy-Models",
+  "downloadRevision": "vocal-v1.0",
+  "defaultModelId": "mel-karaoke-aufr33-viperx",
+  "models": [
+    {
+      "id": "mel-karaoke-aufr33-viperx",
+      "architecture": "mel_band_roformer",
+      "name": "Karaoke Mel-Band RoFormer — aufr33 / viperx",
+      "filename": "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt",
+      "config": "config_mel_band_roformer_karaoke.yaml",
+      "configUrl": "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/vocal-v1.0/config_mel_band_roformer_karaoke.yaml",
+      "sourceConfigUrl": "https://raw.githubusercontent.com/TRvlvr/application_data/3826b05b570dbd4fbedbc807758803b35348ba1b/mdx_model_data/mdx_c_configs/config_mel_band_roformer_karaoke.yaml",
+      "revision": "TRvlvr/all_public_uvr_models+application_data@3826b05b570dbd4fbedbc807758803b35348ba1b",
+      "configSha256": "30364842112e18500aca7ff7b1acf235251eb4ee93b377278176b432410eae33",
+      "sha256": "1de20d459332fe8869aeb01327a31df0032262706e1365114e852dc271779813",
+      "size": 913096801,
+      "sourceUrl": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/vocal-v1.0/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
+      ]
+    },
+    {
+      "id": "bs-karaoke-frazer-becruily",
+      "architecture": "bs_roformer",
+      "name": "Karaoke BS-RoFormer — frazer / becruily",
+      "filename": "bs_roformer_karaoke_frazer_becruily.ckpt",
+      "config": "config_karaoke_frazer_becruily.yaml",
+      "configUrl": "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/vocal-v1.0/config_karaoke_frazer_becruily.yaml",
+      "sourceConfigUrl": "https://huggingface.co/becruily/bs-roformer-karaoke/resolve/f7849ae934209184dc288d1018cd8a76a7fc8b3c/config_karaoke_frazer_becruily.yaml",
+      "revision": "f7849ae934209184dc288d1018cd8a76a7fc8b3c",
+      "configSha256": "1d3b58b473025183d0d3c91e7a444cb5f1418d9f34e8f46b8d2fb10d2cc8ab34",
+      "sha256": "eb90ee24c1154d83fbcfd27e96182f19e061557cc6e4746953125e08c29389f9",
+      "size": 204436907,
+      "sourceUrl": "https://huggingface.co/becruily/bs-roformer-karaoke/resolve/f7849ae934209184dc288d1018cd8a76a7fc8b3c/bs_roformer_karaoke_frazer_becruily.ckpt",
+      "urls": [
+        "https://modelscope.cn/models/Zzzzzzorz/BandBuddy-Models/resolve/vocal-v1.0/bs_roformer_karaoke_frazer_becruily.ckpt"
+      ]
+    }
+  ]
+}

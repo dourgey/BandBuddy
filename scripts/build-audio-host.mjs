@@ -67,6 +67,8 @@ if (process.env.BANDBUDDY_SKIP_AUDIO_HOST !== '1') {
     '--component', 'BandBuddyAudioHost'
   ])
   if (!existsSync(executable)) throw new Error(`Audio host was not installed at ${executable}`)
+  const pluginHost = path.join(outputRoot, process.platform === 'win32' ? 'bandbuddy-plugin-host.exe' : 'bandbuddy-plugin-host')
+  if (!existsSync(pluginHost) || !existsSync(path.join(outputRoot, 'licenses', 'VST3-SDK-LICENSE.txt'))) throw new Error('Plugin host or its license was not installed')
   run(executable, ['--self-test'])
   run(process.execPath, [path.join(root, 'scripts', 'test-audio-host.mjs'), executable])
 }

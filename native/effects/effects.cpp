@@ -2,6 +2,7 @@
 #include "whitebox.h"
 #include "classic.h"
 #include "modern.h"
+#include "nam-dsp.h"
 #include <NAM/get_dsp.h>
 #include <NAM/slimmable.h>
 #include <algorithm>
@@ -129,15 +130,25 @@ struct Effects::Impl {
   Convolver secondaryCab[2];DelayLine secondaryAlignment[2];bool dualCab=false;std::array<float,B> secondaryBuffer[2]{};float namInputGain=1,namOutputGain=1;
   std::unique_ptr<whitebox::Drive> drives[2];
   std::unique_ptr<classic::Amp> classicAmps[2];std::unique_ptr<classic::Cabinet> physicalCabs[2];std::unique_ptr<classic::Modulation> modulation[2];
-  std::unique_ptr<nam::DSP> models[2]; Resampler up[2],down[2]; bool convert=false;
-  std::array<float,4096> modelIn[2],modelOut[2],converted[2],fifo[2]; size_t write[2]{},read[2]{};
+  std::unique_ptr<nam::DSP> models[2]; bool convert=false;
+  std::unique_ptr<NamBoundary> namBoundary;
+  NamBoundary::BlockProcessFunc namProcess;
+  unsigned namLatency=0;
+  NamDcBlocker namDc;
+  bool root=true,hasNam=false;
+  float namDcBlend=0;
+  std::array<float,4096> modelOut[2];
   Convolver cab[2]; Biquad eq[2][7],cut[2][2]; DelayLine delay[2],pre[2],comb[2][8],diffuser[2][4]; float dispersion[2][32]{}; float damp[2][8]{},delayTone[2]{};
   std::array<float,B> input[2]{},output[2]{}; unsigned index=0; float fade=0;
   float bypassBlend=1;std::array<float,B> bypassDry[2]{};
   bool* bypassFlag(){if(target.modern.revision<2||order.size()!=1)return nullptr;switch(order[0]){case 0:return &target.amp;case 1:return &target.eq;case 6:return &target.cab;case 7:return &target.dynamic;default:return nullptr;}}
-  Impl(const nlohmann::json& prepared,unsigned sr):rate(sr) {
+  bool namEnabled() const {
+    if(modular)return std::any_of(modules.begin(),modules.end(),[](const auto& child){return child->namEnabled();});
+    return hasNam&&target.amp;
+  }
+  Impl(const nlohmann::json& prepared,unsigned sr,bool isRoot=true):rate(sr),namDc(sr),root(isRoot) {
     const auto& chain=prepared.at("chain"); target=current=parse(chain);
-    if(prepared.contains("modules")){modular=true;for(const auto& child:prepared.at("modules"))modules.push_back(std::make_unique<Impl>(child,sr));return;}
+    if(prepared.contains("modules")){modular=true;for(const auto& child:prepared.at("modules"))modules.push_back(std::make_unique<Impl>(child,sr,false));hasNam=std::any_of(modules.begin(),modules.end(),[](const auto& child){return child->hasNam;});namDcBlend=namEnabled()?1.f:0.f;return;}
     current.mix=target.delay?target.mix:0;current.revMix=target.reverb?target.revMix:0;
     std::vector<std::string> blocks=chain.at("order").get<std::vector<std::string>>();
     if(blocks.size()>24) throw std::runtime_error("INVALID_EFFECT_ORDER");
@@ -154,7 +165,13 @@ struct Effects::Impl {
     double modelRate=prepared.value("modelRate",double(sr));if(modelRate<=0) modelRate=sr;
     convert=!target.useClassic && !prepared["model"].is_null() && modelRate!=sr;
     namInputGain=prepared.value("namInputGain",1.f);namOutputGain=prepared.value("namOutputGain",1.f);
-    if(has(0)&&!target.useClassic && !prepared["model"].is_null()) {auto model=nlohmann::json::parse(prepared["model"].get<std::string>()); for(int c=0;c<2;++c) {models[c]=nam::get_dsp(model);if(models[c]->NumInputChannels()!=1 || models[c]->NumOutputChannels()!=1) throw std::runtime_error("NAM_REQUIRES_MONO_MODEL");if(auto* slim=dynamic_cast<nam::SlimmableModel*>(models[c].get())) slim->SetSlimmableSize(chain["amp"]["quality"]=="lite"?0:1);models[c]->Reset(modelRate,4096);up[c].init(sr,modelRate);down[c].init(modelRate,sr); if(convert) write[c]=64;}}
+    if(has(0)&&!target.useClassic && !prepared["model"].is_null()) {auto model=nlohmann::json::parse(prepared["model"].get<std::string>()); for(int c=0;c<2;++c) {models[c]=nam::get_dsp(model);if(models[c]->NumInputChannels()!=1 || models[c]->NumOutputChannels()!=1) throw std::runtime_error("NAM_REQUIRES_MONO_MODEL");models[c]->ResetAndPrewarm(modelRate,4096);if(auto* slim=dynamic_cast<nam::SlimmableModel*>(models[c].get())) slim->SetSlimmableSize(chain["amp"]["quality"]=="lite"?0:1);}hasNam=true;namDcBlend=namEnabled()?1.f:0.f;
+      // Per-model gain and calibration belong inside the model-rate boundary.
+      // Applying them at the host rate changes rounding before a nonlinear NAM
+      // and moves normalization across the Lanczos output filter.
+      namProcess=[this](float** in,float** out,int frames){if(frames)for(int c=0;c<2;++c){for(int i=0;i<frames;++i){in[c][i]*=current.modern.ampTrim;in[c][i]*=namInputGain;}models[c]->process(&in[c],&out[c],frames);for(int i=0;i<frames;++i){out[c][i]*=namOutputGain;out[c][i]*=current.modern.ampLevel;}}};
+      if(convert){namBoundary=std::make_unique<NamBoundary>(modelRate);namBoundary->Reset(sr,4096);namLatency=namBoundaryLatency(sr,modelRate,B);}
+    }
     if(has(3)&&target.modern.revision>=2)roomNetwork.init(sr);
     for(int c=0;c<2;++c) {
       if(has(2))delay[c].init(sr*4+4);
@@ -187,11 +204,10 @@ struct Effects::Impl {
         for(int c=0;c<2;++c) {modulation[c]->update(target.mod);for(auto& x:output[c])x=modulation[c]->tick(x);}
       } else if(effect==0) {
         if(target.useClassic)for(int c=0;c<2;++c){classicAmps[c]->update(target.classicAmp);for(auto& x:output[c])x=classicAmps[c]->tick(x);}
-        if(!target.useClassic && target.amp) for(int c=0;c<2;++c) if(models[c]) {
-          for(auto& x:output[c])x*=current.modern.ampTrim*namInputGain;
-          if(convert) {int n=up[c].push(output[c].data(),B,modelIn[c].data());float* in=modelIn[c].data();float* out=modelOut[c].data();if(n) models[c]->process(&in,&out,n);int m=down[c].push(out,n,converted[c].data());for(int k=0;k<m;++k) fifo[c][write[c]++%4096]=converted[c][k];for(int k=0;k<B;++k) output[c][k]=read[c]<write[c]?fifo[c][read[c]++%4096]:0;}
-          else {float* in=output[c].data();float* out=modelOut[c].data();models[c]->process(&in,&out,B);std::copy_n(out,B,output[c].data());}
-          for(auto& x:output[c])x*=current.modern.ampLevel*namOutputGain;
+        if(!target.useClassic && target.amp && hasNam) {
+          float* data[]={output[0].data(),output[1].data()};
+          if(convert)namBoundary->ProcessBlock(data,data,B,namProcess);
+          else {float* out[]={modelOut[0].data(),modelOut[1].data()};namProcess(data,out,B);for(int c=0;c<2;++c)std::copy_n(out[c],B,output[c].data());}
         }
       } else if(effect==6) {
         if(target.usePhysical)for(int c=0;c<2;++c){physicalCabs[c]->update(target.physicalCab);for(auto& x:output[c])x=physicalCabs[c]->tick(x);}
@@ -235,7 +251,8 @@ struct Effects::Impl {
     }
     delayClock+=B;
     if(enabled){*enabled=audible;target.classicAmp.enabled=ampEnabled;target.physicalCab.enabled=cabEnabled;const float step=1.f/(rate*.005f);for(int i=0;i<B;++i){bypassBlend=audible?std::min(1.f,bypassBlend+step):std::max(0.f,bypassBlend-step);for(int c=0;c<2;++c)output[c][i]=bypassDry[c][i]*(1-bypassBlend)+output[c][i]*bypassBlend;}}
-    for(int i=0;i<B;++i) {fade=std::min(1.f,fade+1.f/(rate*.01f));for(int c=0;c<2;++c) {float x=output[c][i]*current.out*fade;output[c][i]=std::isfinite(x)?x:0;}}
+    const bool dcEnabled=namEnabled();
+    for(int i=0;i<B;++i) {fade=std::min(1.f,fade+1.f/(rate*.01f));if(root&&hasNam)namDcBlend=dcEnabled?std::min(1.f,namDcBlend+1.f/(rate*.005f)):std::max(0.f,namDcBlend-1.f/(rate*.005f));for(int c=0;c<2;++c) {float x=output[c][i];if(root&&hasNam){const float wet=namDc.tick(x,c);x=namDcBlend==1.f?wet:x+namDcBlend*(wet-x);}x*=current.out*fade;output[c][i]=std::isfinite(x)?x:0;}}
   }
 };
 Effects::Effects(const nlohmann::json& p,unsigned r):impl(std::make_unique<Impl>(p,r)) {}
@@ -243,7 +260,7 @@ Effects::~Effects()=default;
 void Effects::update(const nlohmann::json& j) {
   if(impl->modular){if(!j.contains("modules")||j.at("modules").size()!=impl->modules.size())throw std::runtime_error("EFFECT_REBUILD_REQUIRED");for(size_t i=0;i<impl->modules.size();++i){const auto& m=j.at("modules").at(i);auto settings=m.at("settings");const auto type=m.at("type").get<std::string>();settings["inputGainDb"]=0;settings["outputGainDb"]=0;for(const auto& key:{"dynamic","drive","amp","cab","eq","mod","delay","reverb"})if(type!=key&&settings.contains(key))settings[key]["enabled"]=false;auto& child=impl->modules[i];auto w=child->updateWrite.load();if(w-child->updateRead.load(std::memory_order_acquire)<64){child->updates[w%64]=parse(settings);child->updateWrite.store(w+1,std::memory_order_release);}}}
   auto p=parse(j);if(p.drive.device!=impl->current.drive.device||p.drive.oversampling!=impl->current.drive.oversampling||p.useClassic!=impl->current.useClassic||p.usePhysical!=impl->current.usePhysical||p.classicAmp.kind!=impl->current.classicAmp.kind||p.physicalCab.kind!=impl->current.physicalCab.kind||p.mod.kind!=impl->current.mod.kind) throw std::runtime_error("WHITEBOX_REBUILD_REQUIRED");auto w=impl->updateWrite.load();if(w-impl->updateRead.load(std::memory_order_acquire)>=64) throw std::runtime_error("EFFECT_PARAMETER_QUEUE_FULL");impl->updates[w%64]=p;impl->updateWrite.store(w+1,std::memory_order_release);}
-unsigned Effects::latency() const {unsigned result=B;auto add=[&](const Impl& i){if(std::find(i.order.begin(),i.order.end(),4)!=i.order.end())result+=whitebox::Drive::latencyFrames;if(std::find(i.order.begin(),i.order.end(),0)!=i.order.end()){if(i.current.useClassic)result+=classic::Amp::latencyFrames;if(i.convert)result+=64;}};if(impl->modular)for(const auto& child:impl->modules)add(*child);else add(*impl);return result;}
+unsigned Effects::latency() const {unsigned result=B;auto add=[&](const Impl& i){if(std::find(i.order.begin(),i.order.end(),4)!=i.order.end())result+=whitebox::Drive::latencyFrames;if(std::find(i.order.begin(),i.order.end(),0)!=i.order.end()){if(i.current.useClassic)result+=classic::Amp::latencyFrames;if(i.convert)result+=i.namLatency;}};if(impl->modular)for(const auto& child:impl->modules)add(*child);else add(*impl);return result;}
 void Effects::process(const float* in,float* out,unsigned frames,unsigned channels) {
   for(unsigned i=0;i<frames;++i) {for(int c=0;c<2;++c) {impl->input[c][impl->index]=in?in[i*channels+std::min(unsigned(c),channels-1)]:0;out[i*2+c]=impl->output[c][impl->index];} if(++impl->index==B) {impl->block();impl->index=0;} }
 }

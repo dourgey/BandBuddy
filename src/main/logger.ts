@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
+import { errorEvidence, redactDiagnostics } from './diagnostic-errors.js'
 
 const SENSITIVE = /(https?:\/\/)([^\s/:@]+):([^\s/@]+)@/gi
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -23,16 +24,16 @@ export class Logger {
   private redact(value: unknown): string {
     let text: string
     if (typeof value === 'string') text = value
-    else if (value instanceof Error) text = `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ''}`
+    else if (value instanceof Error) text = redactDiagnostics(errorEvidence(value))
     else {
       try {
         text = JSON.stringify(value, (_key, nested) => nested instanceof Error
-          ? { name: nested.name, message: nested.message, stack: nested.stack }
+          ? errorEvidence(nested)
           : nested) ?? String(value)
       }
       catch { text = String(value) }
     }
-    return text.replace(SENSITIVE, '$1***:***@').replace(/(token|password|authorization)["'=:\s]+[^\s",}]+/gi, '$1=***')
+    return JSON.parse(redactDiagnostics(text.replace(SENSITIVE, '$1***:***@').replace(/(token|password|authorization)["'=:\s]+[^\s",}]+/gi, '$1=***'))) as string
   }
 
   private format(level: LogLevel, message: string, detail?: unknown): string {

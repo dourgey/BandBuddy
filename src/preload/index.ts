@@ -1,11 +1,14 @@
 import { normalizeAppearance, resolveTheme } from '@shared/appearance.js'
 import type { StartupState } from '@shared/startup.js'
 import { ARSENAL_CHANNEL, ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
+import { PLUGINS_CHANNEL } from '@shared/audio-plugins.js'
+import { NATIVE_AUDIO_CHANNEL, NATIVE_AUDIO_EVENT } from '@shared/native-audio.js'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BandBuddyApi } from '@shared/bridge.js'
 import type { JobRecord } from '@shared/domain.js'
 import { IPC } from '@shared/channels.js'
 import { ENVIRONMENT_CHANNEL, ENVIRONMENT_CHANGED } from '@shared/environment.js'
+import { AI_CHANNEL, AI_EVENT } from '@shared/ai.js'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -55,20 +58,40 @@ async function invoke(channel: string, ...args: unknown[]): Promise<any> {
 }
 
 const api: BandBuddyApi = {
+  ai: {
+    getSettings: () => invoke(AI_CHANNEL, { op: 'settings' }),
+    saveSettings: input => invoke(AI_CHANNEL, { op: 'saveSettings', input }),
+    testSettings: input => invoke(AI_CHANNEL, { op: 'testSettings', input }),
+    list: () => invoke(AI_CHANNEL, { op: 'list' }),
+    get: id => invoke(AI_CHANNEL, { op: 'get', id }),
+    create: () => invoke(AI_CHANNEL, { op: 'create' }),
+    rename: (id, title) => invoke(AI_CHANNEL, { op: 'rename', id, title }),
+    delete: id => invoke(AI_CHANNEL, { op: 'delete', id }),
+    send: input => invoke(AI_CHANNEL, { op: 'send', input }),
+    retry: id => invoke(AI_CHANNEL, { op: 'retry', id }),
+    cancel: id => invoke(AI_CHANNEL, { op: 'cancel', id }),
+    onChanged: callback => subscribe(AI_EVENT, callback)
+  },
   environment: {
     get: () => invoke(ENVIRONMENT_CHANNEL, { op: 'get' }),
-    check: () => invoke(ENVIRONMENT_CHANNEL, { op: 'check' }),
+    check: diagnosticId => invoke(ENVIRONMENT_CHANNEL, { op: 'check', diagnosticId }),
     prepare: () => invoke(ENVIRONMENT_CHANNEL, { op: 'prepare' }),
     pause: () => invoke(ENVIRONMENT_CHANNEL, { op: 'pause' }),
     resume: () => invoke(ENVIRONMENT_CHANNEL, { op: 'resume' }),
-    repair: () => invoke(ENVIRONMENT_CHANNEL, { op: 'repair' }),
+    repair: diagnosticId => invoke(ENVIRONMENT_CHANNEL, { op: 'repair', diagnosticId }),
     networkRestored: () => invoke(ENVIRONMENT_CHANNEL, { op: 'networkRestored' }),
     devicesChanged: () => invoke(ENVIRONMENT_CHANNEL, { op: 'devicesChanged' }),
-    exportDiagnostics: () => invoke(ENVIRONMENT_CHANNEL, { op: 'export' }),
-    openAction: action => invoke(ENVIRONMENT_CHANNEL, { op: 'action', action }),
+    exportDiagnostics: scope => invoke(ENVIRONMENT_CHANNEL, { op: 'export', scope }),
+    diagnostics: scope => invoke(ENVIRONMENT_CHANNEL, { op: 'diagnostics', scope }),
+    copyDiagnostics: scope => invoke(ENVIRONMENT_CHANNEL, { op: 'copy', scope }),
+    systemInformation: () => invoke(ENVIRONMENT_CHANNEL, { op: 'systemInformation' }),
+    copySystemInformation: reportId => invoke(ENVIRONMENT_CHANNEL, { op: 'copySystemInformation', reportId }),
+    openAction: (action, diagnosticId) => invoke(ENVIRONMENT_CHANNEL, { op: 'action', action, diagnosticId }),
     onChanged: callback => subscribe(ENVIRONMENT_CHANGED, callback)
   },
   startup: {
+    copyDiagnostics: () => ipcRenderer.invoke('startup:copyDiagnostics'),
+    exportDiagnostics: () => ipcRenderer.invoke('startup:exportDiagnostics'),
     interactive: () => ipcRenderer.invoke('startup:interactive'),
     repairSystem: () => ipcRenderer.invoke('startup:repairSystem'),
     restoreBackup: () => ipcRenderer.invoke('startup:restoreBackup'),
@@ -98,6 +121,27 @@ const api: BandBuddyApi = {
     monitorState: () => invoke(ARSENAL_CHANNEL, { op: 'state' }),
     onMonitor: (callback) => subscribe(ARSENAL_MONITOR_EVENT, callback)
   },
+  audioPlugins: {
+    list: () => invoke(PLUGINS_CHANNEL, { op: 'list' }),
+    scan: retryFailed => invoke(PLUGINS_CHANNEL, { op: 'scan', retryFailed }),
+    addDirectory: () => invoke(PLUGINS_CHANNEL, { op: 'addDirectory' }),
+    editor: (instanceId, open = true) => invoke(PLUGINS_CHANNEL, { op: 'editor', instanceId, open }),
+    parameters: instanceId => invoke(PLUGINS_CHANNEL, { op: 'parameters', instanceId }),
+    parameter: (instanceId, parameterId, value) => invoke(PLUGINS_CHANNEL, { op: 'parameter', instanceId, parameterId, value }),
+    save: instanceId => invoke(PLUGINS_CHANNEL, { op: 'save', instanceId }),
+    status: () => invoke(PLUGINS_CHANNEL, { op: 'status' })
+  },
+  nativeAudio: {
+    enabled: () => invoke(NATIVE_AUDIO_CHANNEL, { op: 'enabled' }),
+    load: (songId, practice) => invoke(NATIVE_AUDIO_CHANNEL, { op: 'load', songId, practice }),
+    refresh: songId => invoke(NATIVE_AUDIO_CHANNEL, { op: 'refresh', songId }),
+    update: practice => invoke(NATIVE_AUDIO_CHANNEL, { op: 'update', practice }),
+    play: (countInBeats = 0) => invoke(NATIVE_AUDIO_CHANNEL, { op: 'play', countInBeats }),
+    pause: () => invoke(NATIVE_AUDIO_CHANNEL, { op: 'pause' }),
+    seek: positionMs => invoke(NATIVE_AUDIO_CHANNEL, { op: 'seek', positionMs }),
+    unload: () => invoke(NATIVE_AUDIO_CHANNEL, { op: 'unload' }),
+    onState: callback => subscribe(NATIVE_AUDIO_EVENT, callback)
+  },
   library: {
     listPage: (input = {}) => invoke(IPC.libraryListPage, input),
     onUpdated: (callback) => subscribe(IPC.eventLibraryUpdated, callback),
@@ -114,9 +158,11 @@ const api: BandBuddyApi = {
     openLocation: (songId) => invoke(IPC.libraryOpenLocation, songId),
     reSeparate: (songId) => invoke(IPC.libraryReseparate, songId),
     requestGuitarSplit: (songId) => invoke(IPC.libraryRequestGuitarSplit, songId),
+    requestVocalSplit: (songId) => invoke(IPC.libraryRequestVocalSplit, songId),
     savePractice: (state) => invoke(IPC.practiceSave, state),
     onChanged: (callback) => subscribe<void>(IPC.eventLibraryChanged, callback),
-    onGuitarSplitCompleted: (callback) => subscribe<string>(IPC.eventGuitarSplitCompleted, callback)
+    onGuitarSplitCompleted: (callback) => subscribe<string>(IPC.eventGuitarSplitCompleted, callback),
+    onVocalSplitCompleted: (callback) => subscribe<import('@shared/domain.js').VocalSplitCompleted>(IPC.eventVocalSplitCompleted, callback)
   },
   tasks: {
     list: () => invoke(IPC.tasksList),

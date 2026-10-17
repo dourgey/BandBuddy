@@ -144,7 +144,7 @@ describe('database startup probe and prepared open', () => {
     raw.close()
     expect(databaseNeedsPreparation(paths)).toBe(true)
     const recovered = new BandBuddyDatabase(paths)
-    expect(recovered.sqlite.prepare("SELECT status,progress,phase FROM songs WHERE id='song'").get()).toMatchObject({ status: 'ready', progress: 1, phase: '吉他细分未完成，基础分轨可继续' })
+    expect(recovered.sqlite.prepare("SELECT status,progress,phase FROM songs WHERE id='song'").get()).toMatchObject({ status: 'ready', progress: 1, phase: '细分未完成，基础分轨可继续' })
     recovered.close()
     expect(databaseNeedsPreparation(paths)).toBe(false)
   })

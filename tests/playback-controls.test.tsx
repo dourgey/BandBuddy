@@ -8,11 +8,12 @@ import { VideoPlayer } from '../src/renderer/src/components/VideoPlayer.js'
 import { fixtureDetail, fixtureSongs } from '../src/renderer/src/fixtures.js'
 import { installFixtureBridge } from '../src/renderer/src/mock-bridge.js'
 import { usePlayerStore } from '../src/renderer/src/player-store.js'
-import { createDefaultRecordingTrackState } from '../packages/shared/src/domain.js'
+import { createDefaultRecordingTrackState, type JobRecord } from '../packages/shared/src/domain.js'
 
 const audio = vi.hoisted(() => ({
   play: vi.fn(async () => true), pause: vi.fn(), seek: vi.fn(), applyPractice: vi.fn(),
   load: vi.fn(async () => undefined), destroy: vi.fn(), onTime: vi.fn(), onEnded: vi.fn(), onError: vi.fn(),
+  updateStemSources: vi.fn(async (): Promise<void> => undefined),
   setOutputDevice: vi.fn(async () => undefined), outputLatencySeconds: 0, availableOutputChannelPairs: 1
 }))
 vi.mock('../src/renderer/src/audio-engine.js', () => ({ MultiTrackAudioEngine: class { constructor() { return audio } } }))
@@ -43,6 +44,83 @@ async function openPractice(): Promise<void> {
 }
 
 describe('practice transport interaction', () => {
+  it('preloads a manually generated vocal pair, then enables it using the latest mix without resetting transport', async () => {
+    const ready = fixtureDetail(fixtureSongs[0]!)
+    for (const stem of ready.stems) if (['lead_vocals', 'backing_vocals'].includes(stem.type)) stem.refinementId = 'vocal-refinement'
+    const missing = { ...ready, vocalSplitStatus: 'missing' as const, stems: ready.stems.filter(stem => !['lead_vocals', 'backing_vocals'].includes(stem.type)) }
+    usePlayerStore.getState().loadSong(missing)
+    let completed!: Parameters<typeof window.bandbuddy.library.onVocalSplitCompleted>[0]
+    vi.spyOn(window.bandbuddy.library, 'onVocalSplitCompleted').mockImplementation(callback => { completed = callback; return () => undefined })
+    vi.spyOn(window.bandbuddy.library, 'requestVocalSplit').mockResolvedValue('vocal-job')
+    vi.spyOn(window.bandbuddy.library, 'get').mockResolvedValue(ready)
+    await openPractice()
+    const loads = audio.load.mock.calls.length
+    const button = await screen.findByRole('button', { name: '人声分轨' })
+    fireEvent.click(button)
+    await waitFor(() => expect(window.bandbuddy.library.requestVocalSplit).toHaveBeenCalledExactlyOnceWith(ready.id))
+    expect(button.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('combobox', { name: '人声输出通道' })).toBeTruthy()
+    let finishPreload!: () => void
+    audio.updateStemSources.mockImplementationOnce(() => new Promise<void>(resolve => { finishPreload = resolve }))
+    act(() => completed({ songId: ready.id, baseSeparationId: ready.stems[0]!.separationId, refinementId: 'vocal-refinement', enableVocalSplitOnSuccess: true }))
+    await waitFor(() => expect(audio.updateStemSources).toHaveBeenCalledOnce())
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    act(() => usePlayerStore.getState().patchTrack('vocals', { gainDb: -3, solo: true, outputChannelPair: 3 }))
+    await act(async () => { finishPreload() })
+    await waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'))
+    expect(screen.queryByRole('combobox', { name: '人声输出通道' })).toBeNull()
+    expect(screen.getByRole('combobox', { name: '主唱输出通道' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: '和声输出通道' })).toBeTruthy()
+    for (const type of ['lead_vocals', 'backing_vocals']) expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === type)).toMatchObject({ gainDb: -3, solo: true, outputChannelPair: 3 })
+    fireEvent.click(button)
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('combobox', { name: '人声输出通道' })).toBeTruthy()
+    expect(audio.load.mock.calls).toHaveLength(loads)
+    expect(window.bandbuddy.library.requestVocalSplit).toHaveBeenCalledOnce()
+  })
+
+  it('leaves full vocals selected when an automatic background refinement completes', async () => {
+    const ready = fixtureDetail(fixtureSongs[0]!)
+    for (const stem of ready.stems) if (['lead_vocals', 'backing_vocals'].includes(stem.type)) stem.refinementId = 'auto-refinement'
+    usePlayerStore.getState().loadSong({ ...ready, vocalSplitStatus: 'pending', stems: ready.stems.filter(stem => !['lead_vocals', 'backing_vocals'].includes(stem.type)) })
+    let completed!: Parameters<typeof window.bandbuddy.library.onVocalSplitCompleted>[0]
+    vi.spyOn(window.bandbuddy.library, 'onVocalSplitCompleted').mockImplementation(callback => { completed = callback; return () => undefined })
+    vi.spyOn(window.bandbuddy.library, 'get').mockResolvedValue(ready)
+    await openPractice()
+    await screen.findByRole('button', { name: '人声分轨' })
+    await act(async () => completed({ songId: ready.id, baseSeparationId: ready.stems[0]!.separationId, refinementId: 'auto-refinement', enableVocalSplitOnSuccess: false }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '人声分轨' }).hasAttribute('disabled')).toBe(false))
+    expect(screen.getByRole('button', { name: '人声分轨' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('combobox', { name: '人声输出通道' })).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: '主唱输出通道' })).toBeNull()
+  })
+
+  it('keeps a retry pending while the task list replaces a previous failed attempt', async () => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    usePlayerStore.getState().loadSong({ ...song, vocalSplitStatus: 'failed', stems: song.stems.filter(stem => !['lead_vocals', 'backing_vocals'].includes(stem.type)) })
+    const failed: JobRecord = {
+      id: 'previous-vocal-job', type: 'vocalSplit', songId: song.id, status: 'failed', phase: '上次失败',
+      progress: 0, errorCode: 'VOCAL_MODEL_MISSING', createdAt: song.createdAt, startedAt: null, finishedAt: song.updatedAt
+    }
+    const pending: JobRecord = { ...failed, id: 'new-vocal-job', status: 'queued', phase: '等待细分主唱与和声', errorCode: null, finishedAt: null }
+    const list = vi.spyOn(window.bandbuddy.tasks, 'list').mockResolvedValue([failed])
+    let finishRefresh!: (jobs: JobRecord[]) => void
+    vi.spyOn(window.bandbuddy.library, 'requestVocalSplit').mockImplementation(async () => {
+      list.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve }))
+      return pending.id
+    })
+    await openPractice()
+    const button = await screen.findByRole('button', { name: '人声分轨' })
+    fireEvent.click(button)
+    await waitFor(() => expect(finishRefresh).toBeTypeOf('function'))
+    expect(button.hasAttribute('disabled')).toBe(true)
+    await act(async () => { finishRefresh([pending]) })
+    await waitFor(() => expect(usePlayerStore.getState().song!.vocalSplitStatus).toBe('pending'))
+    expect(button.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(button)
+    expect(window.bandbuddy.library.requestVocalSplit).toHaveBeenCalledOnce()
+  })
+
   it('keeps playback running when navigating between practice and library', async () => {
     await openPractice()
     act(() => { usePlayerStore.getState().setPlaying(true); usePlayerStore.getState().setCurrentMs(12345) })

@@ -11,7 +11,6 @@ release-store/
 release-*/
 output/
 electron-builder.local-unsigned.yml
-src/renderer/public/woodshed/drums/**/*.flac
 models/
 coverage/
 playwright-report/
@@ -23,6 +22,7 @@ resources/.downloads/
 resources/.extract/
 resources/audio-host/
 native/audio-host/build/
+native/effects/build/wasm/out/
 native/system-helper/build/
 resources/system-helper/
 resources/prerequisites/

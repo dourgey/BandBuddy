@@ -55,7 +55,7 @@ describe('track mix rules', () => {
 
     expect(order[0]).toBe(recordingTrackOrderKey(recordingId))
     expect(order[1]).toBe(stemTrackOrderKey('drums'))
-    expect(new Set(order).size).toBe(10)
+    expect(new Set(order).size).toBe(12)
     expect(order.slice(order.indexOf(stemTrackOrderKey('guitar')) + 1, order.indexOf(stemTrackOrderKey('guitar')) + 4)).toEqual([
       stemTrackOrderKey('acoustic_guitar'),
       stemTrackOrderKey('lead_guitar'),
@@ -71,7 +71,7 @@ describe('track mix rules', () => {
       { stemType: 'drums', gainDb: 1, muted: false, solo: true, outputChannelPair: 5 }
     ])
 
-    expect(tracks).toHaveLength(9)
+    expect(tracks).toHaveLength(11)
     expect(tracks.find((track) => track.stemType === 'vocals')).toMatchObject({
       gainDb: -4,
       muted: true,

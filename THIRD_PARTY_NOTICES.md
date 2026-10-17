@@ -4,9 +4,11 @@ BandBuddy bundles or installs the following third-party software. The applicatio
 
 - Electron 43.1.1 — MIT License — https://github.com/electron/electron
 - React 19.2.7 — MIT License — https://github.com/facebook/react
+- react-markdown 10.1.0 and remark-gfm 4.0.1 — MIT License — https://github.com/remarkjs/react-markdown and https://github.com/remarkjs/remark-gfm
 - Signalsmith Stretch 1.3.2 — MIT License — https://github.com/Signalsmith-Audio/signalsmith-stretch
 - Signalsmith Linear 0.3.1 — MIT License — https://github.com/Signalsmith-Audio/linear
 - NeuralAmpModelerCore v0.5.4 — MIT License — https://github.com/sdatkinson/NeuralAmpModelerCore. BandBuddy uses its A2-capable DSP core for local NAM model inference; user-imported `.nam` and IR files are not bundled.
+- AudioDSPTools — MIT, with the retained iPlug2/WDL notices and Lanczos resampler MIT/BSD exception — https://github.com/sdatkinson/AudioDSPTools. NAM sample-rate conversion uses the upstream Lanczos filter; full notices are installed in `audio-host/<platform>/licenses/AudioDSPTools-NOTICES.txt`.
 - better-sqlite3 / SQLite — MIT / Public Domain — https://github.com/WiseLibs/better-sqlite3
 - FFmpeg n8.1.2 Windows x64 LGPL shared build — LGPL 2.1 or later — https://ffmpeg.org and https://github.com/BtbN/FFmpeg-Builds. The full build license is installed as `resources/bin/FFmpeg-LICENSE.txt`; the build deliberately uses shared libraries.
 - FFmpeg/FFprobe macOS arm64 static builds from `ffmpeg-static` release `b6.1.1` — GPL 3.0 or later — https://ffmpeg.org and https://github.com/eugeneware/ffmpeg-static. Each macOS package includes the upstream build README and license in its `Resources/bin` directory; corresponding source and build provenance are linked from those files and the upstream release.
@@ -299,3 +301,26 @@ Redistribution and use in source and binary forms, with or without modification,
 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+## Steinberg VST 3 SDK
+
+The isolated BandBuddy plugin host uses VST 3 SDK 3.8.0, pinned to commit
+`9fad9770f2ae8542ab1a548a68c1ad1ac690abe0`, under the MIT license.
+Source: https://github.com/steinbergmedia/vst3sdk
+The complete SDK license is distributed with the native runtime in
+`audio-host/<platform-architecture>/licenses/VST3-SDK-LICENSE.txt`.
+Third-party plugins remain subject to their respective publishers' licenses.
+
+## Optional lead/backing vocal models
+
+The application can download the following optional checkpoints on demand:
+
+- Karaoke Mel-Band RoFormer by aufr33 / viperx, from https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models
+- Karaoke BS-RoFormer by frazer / becruily, from https://huggingface.co/becruily/bs-roformer-karaoke
+
+Checkpoint and configuration revisions, source URLs, sizes and SHA-256 hashes
+are recorded in `resources/vocal-model-catalog.json`. Checkpoints are not bundled
+with the application. Downloads use the public ModelScope repository
+`Zzzzzzorz/BandBuddy-Models`, tag `vocal-v1.0`. The mirrored checkpoints
+and configurations retain the original filenames and byte contents.

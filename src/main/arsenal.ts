@@ -1,6 +1,7 @@
+import { recoverFloatCapture } from './wave-recovery.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile, rename, rm, stat, copyFile } from 'node:fs/promises'
-import { createReadStream, existsSync, readFileSync, statSync, openSync, readSync, writeSync, closeSync, ftruncateSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { dialog } from 'electron'
 import { z } from 'zod'
@@ -12,7 +13,8 @@ import type { MediaService } from './media.js'
 import type { AudioHostClient } from './audio-host.js'
 import type { RecordingService } from './recording.js'
 import { runProcess } from './process.js'
-import { decodeNam } from './nam.js'
+import { decodeNam, namNormalizationGain } from './nam.js'
+import { chainModules } from '@shared/arsenal.js'
 
 const hash = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex')
 async function hashFile(file:string):Promise<string>{const h=createHash('sha256');for await(const chunk of createReadStream(file))h.update(chunk as Buffer);return h.digest('hex')}
@@ -45,7 +47,7 @@ export class ArsenalService {
   constructor(private paths:AppPaths,private db:BandBuddyDatabase,private media:MediaService,private host:AudioHostClient,private recording:RecordingService,private emit:(s:ArsenalMonitorState)=>void,private changed:()=>void,private occupied:()=>boolean) {
     this.root=path.join(paths.dataRoot,'arsenal')
     try {const saved=JSON.parse(readFileSync(path.join(this.root,'workspace.json'),'utf8'));this.workspace.favorites=saved.favorites??[];this.workspace.draft=saved.draft?{...saved.draft,chain:effectChainSchema.parse(saved.draft.chain)}:null;this.workspace.takes=(saved.takes??[]).map((t:ArsenalTake)=>({...t,chain:effectChainSchema.parse(t.chain)}));if(saved.pending){const t=saved.pending as ArsenalTake;const file=path.join(this.root,`${t.id}.dry.wav`);if(existsSync(file)){this.workspace.takes.unshift(this.recoverTake(t));}}}catch { /* A first launch has no workspace. Existing audio files remain untouched. */ }
-    host.onEvent(e=>{if(!this.state.active)return;if(e.event==='meter'){this.state={...this.state,peak:e.data.peak,outputPeak:e.data.outputPeak??0,xruns:e.data.xruns,tunerActive:e.data.tunerActive,tunerHz:e.data.tunerHz,dspLoad:e.data.dspLoad,dspLatencyMs:e.data.dspLatencyMs};this.emit(this.state)}else if(e.event==='error'||e.event==='crashed'){this.state={...this.state,active:false,mode:'off',error:e.data.error};this.workspace.quick={recording:false,looping:false,durationMs:0};if(this.currentTake){const pending=this.currentTake;this.currentTake=null;const recovery=this.busy.catch(()=>undefined).then(async()=>{this.workspace.takes.unshift(this.recoverTake(pending));await this.persistWorkspace()});this.busy=recovery;void recovery.catch(()=>undefined)}this.emit(this.state)}})
+    host.onEvent(e=>{if(!this.state.active)return;if(e.event==='meter'){this.state={...this.state,peak:e.data.peak,outputPeak:e.data.diagnostics?.finalPeak??e.data.outputPeak??0,xruns:e.data.xruns,tunerActive:e.data.tunerActive,tunerHz:e.data.tunerHz,dspLoad:e.data.dspLoad,dspLatencyMs:e.data.dspLatencyMs,diagnostics:e.data.diagnostics,clock:e.data.clock,plugin:e.data.plugin,pcmUnderruns:e.data.pcmUnderruns};this.emit(this.state)}else if(e.event==='error'||e.event==='crashed'){this.state={...this.state,active:false,mode:'off',error:e.data.error};this.workspace.quick={recording:false,looping:false,durationMs:0};if(this.currentTake){const pending=this.currentTake;this.currentTake=null;const recovery=this.busy.catch(()=>undefined).then(async()=>{this.workspace.takes.unshift(this.recoverTake(pending));await this.persistWorkspace()});this.busy=recovery;void recovery.catch(()=>undefined)}this.emit(this.state)}})
   }
   list(): ArsenalState {
     const assets = this.db.sqlite.prepare('SELECT json FROM tone_assets ORDER BY created_at DESC').all() as { json: string }[]
@@ -103,13 +105,24 @@ export class ArsenalService {
   }
   async prepare(input:EffectChainSnapshot):Promise<PreparedEffects> {
     const chain=effectChainSchema.parse(input);this.validateReferences(chain)
+    if (chain.plugins?.length) {
+      const modules = chainModules(chain)
+      const nodes: NonNullable<PreparedEffects['pluginGraph']>['nodes'] = []
+      for (const module of modules) {
+        for (const plugin of chain.plugins.filter(p => p.beforeModuleId === module.id)) nodes.push({ ...plugin, kind: 'plugin', id: plugin.instanceId })
+        nodes.push({ kind: 'builtin', id: module.id, prepared: await this.prepare(moduleChain(module)) })
+      }
+      for (const plugin of chain.plugins.filter(p => !modules.some(m => m.id === p.beforeModuleId))) nodes.push({ ...plugin, kind: 'plugin', id: plugin.instanceId })
+      const base = await this.prepare({ ...chain, plugins: undefined })
+      return { ...base, pluginGraph: { version: 1, inputGainDb: chain.inputGainDb, outputGainDb: chain.outputGainDb, nodes } }
+    }
     if (chain.modules) return { chain, modules: await Promise.all(chain.modules.map(m => this.prepare(moduleChain(m)))), model: null, modelRate: 48000, ir: null, irRate: 48000 }
     const model=chain.order.includes('amp')&&chain.amp.engine==='nam'&&chain.amp.assetId?this.asset(chain.amp.assetId):null,ir=(chain.order.includes('cab')||chain.order.includes('amp'))&&chain.cab.engine==='ir'&&chain.cab.assetId?this.asset(chain.cab.assetId):null
     const secondary=chain.order.includes('cab')&&chain.cab.engine==='ir'&&chain.cab.secondaryAssetId?this.asset(chain.cab.secondaryAssetId):null
     let namInputGain=1,namOutputGain=1
     if(model&&chain.amp.calibration){const input=model.metadata.input_level_dbu;if(chain.amp.inputDbU===null||typeof input!=='number')throw new Error('模型或声卡缺少输入标定值');namInputGain=10**((chain.amp.inputDbU-input)/20)}
     if(model&&chain.amp.outputMode==='calibrated'){const output=model.metadata.output_level_dbu;if(chain.amp.outputDbU===null||typeof output!=='number')throw new Error('模型或声卡缺少输出标定值');namOutputGain=10**((output-chain.amp.outputDbU)/20)}
-    if(model&&chain.amp.outputMode==='normalized'){const loudness=model.metadata.loudness;if(typeof loudness!=='number'||!Number.isFinite(loudness))throw new Error('模型没有响度元数据');namOutputGain=10**((-18-loudness)/20)}
+    if(model&&chain.amp.outputMode==='normalized')namOutputGain=namNormalizationGain(model.metadata.loudness)
     return {chain,model:model?(await this.decoded(model)).model!:null,modelRate:model?.sampleRate??48000,ir:ir?(await this.decoded(ir)).ir!:null,irRate:ir?.sampleRate??48000,secondaryIr:secondary?(await this.decoded(secondary)).ir!:null,secondaryIrRate:secondary?.sampleRate??48000,namInputGain,namOutputGain}
   }
   async setTrack(trackId:string,input:TrackEffects):Promise<void> {
@@ -127,8 +140,7 @@ export class ArsenalService {
   monitorState():ArsenalMonitorState{return this.state}
   async feed(input:{bus:number;sampleRate:number;samples:number[];reset?:boolean}):Promise<boolean>{if(!this.state.active)return false;return this.host.arsenalPcm(input)}
   private recoverTake(t:ArsenalTake):ArsenalTake {
-    const file=this.takeFile(t.id),size=statSync(file).size,fd=openSync(file,'r+');let durationMs=0
-    try{const header=Buffer.alloc(44);readSync(fd,header,0,44,0);if(header.toString('ascii',0,4)!=='RIFF'||header.toString('ascii',36,40)!=='data')throw new Error('快录文件头无效');const channels=header.readUInt16LE(22),rate=header.readUInt32LE(24);if(![1,2].includes(channels)||rate<8000)throw new Error('快录格式无效');const bytes=Math.max(0,Math.floor((size-44)/(4*channels))*4*channels);header.writeUInt32LE(36+bytes,4);header.writeUInt32LE(bytes,40);writeSync(fd,header,0,44,0);ftruncateSync(fd,44+bytes);durationMs=bytes/(4*channels*rate)*1000}finally{closeSync(fd)}
+    const { durationMs } = recoverFloatCapture(this.takeFile(t.id))
     return {...t,chain:effectChainSchema.parse(t.chain),durationMs,recovered:true}
   }
   private async persistWorkspace():Promise<void> {
@@ -143,7 +155,7 @@ export class ArsenalService {
     if(!this.currentTake)return
     let result:Awaited<ReturnType<AudioHostClient['arsenalQuick']>>
     try{result=await this.host.arsenalQuick({action:'stopRecord'})}catch(e){const pending=this.currentTake;this.currentTake=null;this.workspace.quick={recording:false,looping:false,durationMs:0};try{this.workspace.takes.unshift(this.recoverTake(pending));await this.persistWorkspace()}catch{}throw e}
-    this.workspace.takes.unshift({...this.currentTake,durationMs:result.durationMs,sampleRate:result.sampleRate,channels:result.channels})
+    this.workspace.takes.unshift({...this.currentTake,durationMs:result.durationMs,sampleRate:result.sampleRate,channels:result.channels,pluginFaults:result.pluginFaults})
     this.currentTake=null;this.workspace.quick={recording:false,looping:false,durationMs:result.durationMs};await this.persistWorkspace()
   }
   command(input:ArsenalCommand):Promise<ArsenalWorkspace> {
@@ -157,6 +169,7 @@ export class ArsenalService {
           if(this.currentTake)throw new Error('快录已开始')
           if(!this.state.active)throw new Error('请先启动监听')
           const chain=effectChainSchema.parse(input.chain);this.validateReferences(chain)
+          if(chain.plugins?.length) chain.plugins=await Promise.all(chain.plugins.map(async p=>({...p,stateHash:await this.host.plugins.save(p.instanceId)})))
           this.currentTake={id:randomUUID(),name:z.string().trim().min(1).max(100).parse(input.name),createdAt:new Date().toISOString(),durationMs:0,sampleRate:this.state.sampleRate,channels:1,chain}
           const config=await this.recording.arsenalDeviceConfiguration();this.currentTake.channels=Array.isArray(config.inputChannels)?config.inputChannels.length:1
           await this.persistWorkspace()
@@ -184,12 +197,23 @@ export class ArsenalService {
           const file=this.takeFile(input.id);this.workspace.takes=this.workspace.takes.filter(t=>t.id!==input.id);await this.persistWorkspace();await rm(file,{force:true});break
         }
         case 'exportPreset':{
-          const result=await dialog.showSaveDialog({title:'导出预设',defaultPath:`${input.preset.name}.bbtone`,filters:[{name:'BandBuddy 音色',extensions:['bbtone']}]});if(!result.canceled&&result.filePath)await writeFile(result.filePath,JSON.stringify({format:'bandbuddy-tone',version:1,name:input.preset.name,tags:input.preset.tags??[],chain:storeEffectChain(input.preset.chain)},null,2));break
+          const result=await dialog.showSaveDialog({title:'导出预设',defaultPath:`${input.preset.name}.bbtone`,filters:[{name:'BandBuddy 音色',extensions:['bbtone']}]})
+          if(!result.canceled&&result.filePath) {
+            const hashes=(input.preset.chain.plugins??[]).flatMap(p=>p.stateHash?[p.stateHash]:[])
+            const pluginStates=hashes.length?await this.host.plugins.exportStates(hashes):undefined
+            await writeFile(result.filePath,JSON.stringify({format:'bandbuddy-tone',version:pluginStates?2:1,name:input.preset.name,tags:input.preset.tags??[],chain:storeEffectChain(input.preset.chain),pluginStates},null,2))
+          }
+          break
         }
         case 'importPreset':{
           const result=await dialog.showOpenDialog({title:'导入预设',properties:['openFile'],filters:[{name:'BandBuddy 音色',extensions:['bbtone','json']}]});if(result.canceled||!result.filePaths[0])break
-          if((await stat(result.filePaths[0])).size>2*1024*1024)throw new Error('预设文件超过 2 MB')
-          const data=z.object({format:z.literal('bandbuddy-tone'),version:z.literal(1),name:z.string().max(100),tags:z.array(z.string().max(30)).max(20).optional(),chain:effectChainSchema}).parse(JSON.parse(await readFile(result.filePaths[0],'utf8')))
+          if((await stat(result.filePaths[0])).size>180*1024*1024)throw new Error('预设文件超过 180 MB')
+          const data=z.object({format:z.literal('bandbuddy-tone'),version:z.union([z.literal(1),z.literal(2)]),name:z.string().max(100),tags:z.array(z.string().max(30)).max(20).optional(),chain:effectChainSchema,pluginStates:z.record(z.string(),z.string()).optional()}).parse(JSON.parse(await readFile(result.filePaths[0],'utf8')))
+          if(data.version===2) {
+            const states=data.pluginStates??{}
+            for(const plugin of data.chain.plugins??[]) if(plugin.stateHash&&!states[plugin.stateHash])throw new Error(`预设缺少插件状态：${plugin.name}`)
+            await this.host.plugins.importStates(states)
+          }
           this.savePreset(data);break
         }
         case 'asset':{
@@ -220,17 +244,18 @@ export class ArsenalService {
       this.structure=structure;this.emit(this.state);return this.state
     });this.busy=next;return next
   }
-  async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0):Promise<string> {
+  async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0,clock: { tempo: number; positionMs?: number; beatOffsetMs?: number } = { tempo: 120 }):Promise<string> {
     if(!effects?.enabled)return source
-    const prepared=await this.prepare(effects.chain),sourceHash=await hashFile(source),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,'bb-dsp-4-modular']))
+    const prepared=await this.prepare(effects.chain),sourceHash=await hashFile(source),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,clock,'bb-dsp-5-native']))
     const root=path.join(this.paths.cacheRoot,'arsenal');await mkdir(root,{recursive:true});const target=path.join(root,`${key}.wav`)
     try{await stat(target);return target}catch{}
     const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`
     try {
       const ffmpeg=await this.media.tool('ffmpeg');if(!ffmpeg)throw new Error('FFMPEG_MISSING')
       const decode=await runProcess(ffmpeg,['-y','-v','error','-i',source,'-ar','48000','-ac','2','-c:a','pcm_f32le',input],{signal});if(decode.code)throw new Error(decode.stderr)
-      await writeFile(manifest,JSON.stringify({input,output,prepared,tailSeconds}))
-      const result=await runProcess(this.paths.audioHostExecutable(),['--render-effects',manifest],{signal});if(result.code)throw new Error(`湿声渲染失败：${result.stderr}`)
+      const graph = prepared.pluginGraph ? await this.host.plugins.resolveGraph(prepared) : undefined
+      await writeFile(manifest,JSON.stringify({input,output,prepared,graph,tailSeconds,tailLimitSeconds:30,...clock}))
+      const result=await runProcess(graph ? this.host.plugins.executablePath() : this.paths.audioHostExecutable(),[graph ? '--render' : '--render-effects',manifest],{signal,timeoutMs:30*60*1000});if(result.code)throw new Error(`湿声渲染失败：${result.stderr}`)
       if(signal.aborted)throw new Error('EXPORT_CANCELLED');await rename(output,target);return target
     } finally {await Promise.all([input,output,manifest].map(p=>rm(p,{force:true})))}
   }

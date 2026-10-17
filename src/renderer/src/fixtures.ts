@@ -14,7 +14,7 @@ export const fixtureSongs: SongSummary[] = [
 ].map(([id, title, artist, durationMs], index) => ({
   id: String(id), title: String(title), artist: String(artist), durationMs: Number(durationMs), artworkUrl: null,
   favorite: index === 1, status: index === 3 ? 'processing' : 'ready', progress: index === 3 ? 0.68 : 1,
-  phase: index === 3 ? '正在分轨' : null, stemTypes: [...STEM_ORDER], guitarSplitStatus: 'ready', createdAt: now, updatedAt: now,
+  phase: index === 3 ? '正在分轨' : null, stemTypes: [...STEM_ORDER], guitarSplitStatus: 'ready', vocalSplitStatus: 'ready', createdAt: now, updatedAt: now,
   lastPracticedAt: new Date(Date.now() - index * 86_400_000).toISOString()
 }))
 

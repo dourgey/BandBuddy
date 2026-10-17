@@ -36,10 +36,18 @@ describe('managed process transport', () => {
       signal: controller.signal, killGraceMs: 30, onStdoutLine: () => controller.abort()
     })
     expect(result.code).not.toBe(0)
+    expect(result.termination).toBe('cancelled')
   })
 
   it('times out a silent system probe', async () => {
     const result = await runProcess(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { timeoutMs: 50, killGraceMs: 30 })
     expect(result.code).not.toBe(0)
+    expect(result.termination).toBe('timeout')
+  })
+  it('preserves spawn errors and distinguishes sleep interruption from cancellation', async () => {
+    await expect(runProcess('does-not-exist-bandbuddy.exe', [])).rejects.toMatchObject({ code: 'PROCESS_SPAWN_FAILED', cause: { code: 'ENOENT' } })
+    const controller = new AbortController()
+    const result = await runProcess(process.execPath, ['-e', "console.log('ready'); setInterval(() => {}, 1000)"], { signal: controller.signal, onStdoutLine: () => controller.abort({ code: 'SYSTEM_SUSPEND' }) })
+    expect(result.termination).toBe('interrupted')
   })
 })

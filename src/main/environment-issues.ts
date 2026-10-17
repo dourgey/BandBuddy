@@ -1,0 +1,51 @@
+import { randomUUID } from 'node:crypto'
+import type { EnvironmentCapability, EnvironmentIssue } from '@shared/environment.js'
+import { errorEvidence } from './diagnostic-errors.js'
+
+export function environmentIssue(error: unknown, capability: EnvironmentCapability = 'separation', context: Partial<EnvironmentIssue> = {}): EnvironmentIssue {
+  const evidence = errorEvidence(error), text = JSON.stringify(evidence)
+  const issue = (code: string, message: string, action: EnvironmentIssue['action'], nextSteps: string[], confidence: EnvironmentIssue['confidence'] = 'confirmed'): EnvironmentIssue => ({
+    diagnosticId: randomUUID(), component: capability === 'recording' ? 'audio-device' : capability === 'separation' ? 'dependencies' : capability === 'acceleration' ? 'compute' : capability,
+    stage: typeof evidence.details?.stage === 'string' ? evidence.details.stage : '检测与准备', capability, affectedCapabilities: [capability], severity: 'error', confidence, evidence, attempts: [], ...context, code, message, action, nextSteps
+  })
+  if (/STALE_VOCAL_SPLIT/.test(text)) return issue('STALE_VOCAL_SPLIT', '基础分轨已更新，本次主唱与和声结果未挂载。', 'retry', ['在当前歌曲的人声选项中重新生成主唱与和声。'])
+  if (/VOCAL_CONFIG_|VOCAL_MODEL_(?:CONFIG|CATALOG|UNKNOWN)/.test(text)) return issue(evidence.code, '人声细分配置未通过验证，基础分轨可继续使用。', 'repairApplication', ['查看模型编号、配置文件与哈希证据。', '使用配置完整的应用版本，无需重建基础分轨环境。'])
+  if (/VOCAL_MODEL_(?:MISSING|HASH|SIZE)/.test(text)) return issue(evidence.code, '可选人声模型缺失或校验失败，基础分轨可继续使用。', 'retry', ['重试当前任务，会重新校验并获取该人声模型。', '若仍失败，查看下载来源和校验详情。'])
+  if (/VOCAL_(?:ENCODED|ENCODING|RECONSTRUCTION|WRITTEN)|INVALID_VOCAL_FRAME_COUNT/.test(text)) return issue(evidence.code, '主唱与和声结果未通过音频校验，已保留完整人声。', 'retry', ['查看采样数、声道、编码增益与重建误差。', '重试后仍失败时导出诊断，供定位模型或编码问题。'])
+  if (/DISK_FULL|ENOSPC|NO SPACE/i.test(text)) return issue('DISK_FULL', '所在磁盘空间不足，操作已停止，原有数据已保留。', 'storage', ['查看详情中的目录用途、所需和剩余空间。', '释放空间或更换数据位置后，重新检测此项。'])
+  if (/spawn.*(?:EACCES|EPERM)|EXECUTION_BLOCKED|ACCESS_DISABLED_BY_POLICY/i.test(text)) return issue('EXECUTION_BLOCKED', '系统拒绝启动组件，具体阻止原因需核实。', 'security', ['查看系统安全记录和设备管理策略。', '确认官方组件可运行后重新检测。'], 'suspected')
+  if (/EACCES|EPERM|EROFS|STORAGE_UNAVAILABLE|ENOTDIR|EBUSY|SHARING_VIOLATION/i.test(text)) return issue('STORAGE_UNAVAILABLE', '组件目录无法读写或文件被占用。', 'storage', ['检查目录权限、磁盘连接和文件占用。', '关闭占用程序或更换位置后重新检测。'])
+  if (/MICROPHONE_PERMISSION/.test(text)) return issue('MICROPHONE_PERMISSION', '麦克风访问未获允许。', 'microphone', ['在系统隐私设置中允许麦克风访问。', '返回音频设置手动开始输入测试。'])
+  if (/UNSUPPORTED_SYSTEM|UNSUPPORTED_CPU|UNSUPPORTED_ARCH/.test(text)) return issue('UNSUPPORTED_SYSTEM', '当前系统或架构不符合该组件的要求。', 'repairApplication', ['核对详情中的系统版本和组件最低要求。', '安装适合当前系统的版本，其他已就绪功能仍可使用。'])
+  if (/VC_RUNTIME_RESTART_REQUIRED|RESTART_REQUIRED/.test(text)) return issue('RESTART_REQUIRED', '系统组件已更新，需要重启电脑后继续验证。', 'restart', ['保存其他工作并重启电脑。', '重新打开 BandBuddy，软件会复检系统组件。'])
+  if (/VC_RUNTIME_ELEVATION_CANCELLED/.test(text)) return issue('AUTHORIZATION_REQUIRED', '系统组件安装授权已取消。', 'retry', ['点击修复此项后确认系统授权；不会自动重复请求授权。'])
+  if (/SYSTEM_INSTALL_INTERRUPTED|VC_RUNTIME_INSTALL_BUSY/.test(text)) return issue('SYSTEM_INSTALL_PENDING', '系统安装尚未确认完成。', 'retry', ['等待其他系统安装结束，重新检测此项。', '若仍未完成，再手动启动修复。'])
+  if (/VC_RUNTIME_PROBE_FAILED|HARDWARE_PROBE_FAILED/.test(text)) return issue('SYSTEM_PROBE_FAILED', '系统信息探测失败，尚不能确定组件是否缺失。', 'security', ['查看探测进程、退出码和系统错误。', '检查运行权限后重新检测；不要据此反复安装。'], 'unknown')
+  if (/VC_RUNTIME_MISSING/.test(text)) return issue('SYSTEM_RUNTIME_MISSING', '所需 Microsoft Visual C++ 运行库缺失或版本不足。', 'repair', ['修复此项以安装随软件提供的微软运行库。'])
+  if (/VC_RUNTIME_INSTALL_FAILED|VC_RUNTIME_SELF_TEST_FAILED/.test(text)) return issue('SYSTEM_RUNTIME_FAILED', '系统组件安装或安装后验证未通过。', 'repairApplication', ['查看安装器退出码及自检错误。', '使用官方同版本安装包修复，保留曲库数据。'])
+  if (/SIGNATURE/.test(text)) return issue('SIGNATURE_INVALID', '组件签名验证未通过，已停止执行。', 'repairApplication', ['从官方来源重新获取组件或应用安装包。', '若再次失败，检查系统信任和安全记录。'])
+  if (/CERT_DATE_INVALID|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CLOCK_SKEW/i.test(text)) return issue('CERTIFICATE_TIME_INVALID', '证书时间校验未通过。', 'time', ['核对系统日期、时间及时区。', '时间正确时检查当前网络提供的证书。'])
+  if (/CERT|SSL|TLS/i.test(text)) return issue('TRUST_CHECK_FAILED', '网络证书校验未通过。', 'security', ['检查代理证书或联系网络管理员。', '使用证书有效的网络后重试；保持证书校验开启。'])
+  if (/HTTP_407|PROXY_AUTH/i.test(text)) return issue('PROXY_AUTH_REQUIRED', '代理要求身份验证。', 'network', ['在网络设置中核对代理地址和凭据。', '企业代理仍拒绝时联系网络管理员。'])
+  if (/HTTP_404|HTTP_410/.test(text)) return issue('DOWNLOAD_SOURCE_MISSING', '下载来源未提供所需版本的组件。', 'network', ['查看已尝试的来源和组件版本。', '切换可用的可信来源，或获取官方更新后的应用；恢复联网本身不能修复资源缺失。'])
+  if (/HTTP_401|HTTP_403/.test(text)) return issue('DOWNLOAD_ACCESS_DENIED', '下载请求被来源或网络拒绝。', 'network', ['核对代理和网络访问限制。', '查看各来源响应，切换可信来源后重试。'])
+  if (/HTTP_429/.test(text)) return issue('DOWNLOAD_RATE_LIMITED', '下载来源暂时限制请求频率。', 'retry', ['稍后重试；已下载的有效内容会保留。'])
+  if (/MODEL_(?:HASH|FILE|BAG|MARKER|VALIDATION)/.test(text)) return issue('MODEL_INVALID', '模型资源未通过验证。', 'repair', ['重新获取未通过验证的模型文件，然后执行短推理验证。'])
+  if (/HASH_MISMATCH|UNEXPECTED_HTML|DOWNLOAD_TOO_LARGE|DOWNLOAD_INCOMPLETE|RANGE_INVALID/.test(text)) return issue('DOWNLOAD_INTEGRITY_FAILED', '组件内容或传输范围验证未通过。', 'network', ['查看失败文件和来源；软件只重新获取失败的组件。', '检查网络登录页、代理和下载源后重试。'])
+  if (/DOWNLOAD|NETWORK|ENOTFOUND|ECONN|ETIMEDOUT|ERR_PROXY|PROXY_|fetch failed/i.test(text)) return issue('NETWORK_UNAVAILABLE', '下载连接未完成，等待目标来源恢复可达。', 'network', ['检查网络和代理设置。', '目标来源可达后继续下载；已有进度会保留。'])
+  if (/SQLITE|DATABASE_/i.test(text)) return issue('DATABASE_UNAVAILABLE', '曲库数据库无法打开或验证。', 'storage', ['检查数据目录的权限、空间和占用。', '必要时在启动恢复页选择有效备份，恢复前会保留原数据库。'])
+  if (/APPLICATION_COMPONENT_MISSING|RUNTIME_PROFILE_|SYSTEM_HELPER_MISSING|AUDIO_HOST_MISSING|FFMPEG_MISSING|UNSUPPORTED_TOOL|ABI|NODE_MODULE_VERSION|MANIFEST_INVALID|CATALOG_INVALID/.test(text)) return issue('APPLICATION_COMPONENT_MISSING', '应用组件缺失、损坏或与当前系统不匹配。', 'repairApplication', ['查看具体组件及完整性证据。', '媒体工具可定向修复；其他包内组件使用官方同版本安装包修复。'])
+  if (/CPU_OUT_OF_MEMORY|CPU_OOM|MemoryError|DefaultCPUAllocator|bad_alloc/.test(text)) return issue('CPU_OUT_OF_MEMORY', '系统内存不足，当前任务未能完成。', 'retry', ['关闭占用内存较多的程序。', '确认系统可用内存后重试；重装环境不能解决内存不足。'])
+  if (/ACCELERATOR_OOM|CUDA_OOM/.test(text)) return issue('ACCELERATOR_OOM', '加速设备内存不足。', 'retry', ['软件会尝试使用已验证的 CPU 环境继续原任务。', '若 CPU 也失败，查看后续独立原因。'])
+  if (/ILLEGAL_INSTRUCTION|3221225501|-1073741795|3221225477|-1073741819|NATIVE_CRASH/.test(text)) return issue('NATIVE_PROCESS_FAILED', '原生进程异常退出，硬件或驱动原因尚未确认。', 'driver', ['查看退出码、组件版本和实际使用设备。', '验证兼容 CPU 环境；仍失败时携带诊断信息排查。'], 'unknown')
+  if (/CUDA_NOT_AVAILABLE|MPS_NOT_AVAILABLE|GPU_PROBE_FAILED|DRIVER_PROBLEM|ACCELERATION_FAILED/.test(text)) return issue('ACCELERATION_UNAVAILABLE', '硬件加速未通过检测，使用兼容处理。', 'driver', ['查看实际设备、驱动版本和运算验证结果。', '按设备厂商官方说明更新驱动后重新检测。'], 'suspected')
+  if (/DEVICE_CHANGED|DEVICE_DISCONNECTED/.test(text)) return issue('AUDIO_DEVICE_CHANGED', '音频设备连接发生变化，相关采集已停止。', 'audio', ['检查所选设备及连接。', '确认后手动开始测试、录音或监听。'])
+  if (/DECODE|INVALID_INPUT|NO_AUDIO_STREAM|NO_VIDEO_STREAM|AUDIO_PROBE_FAILED|VIDEO_AUDIO_EXTRACTION_FAILED/.test(text)) return issue('SOURCE_MEDIA_INVALID', '源媒体未通过解码或内容检查。', 'retry', ['检查源文件是否完整、是否包含可用音频。', '更换有效源文件后重试，无需重装分轨环境。'])
+  if (/SAMPLE_RATE|INPUT_CHANNEL|STEREO_INPUT|SPLIT_DEVICE/.test(text)) return issue('AUDIO_CONFIGURATION_INVALID', '所选音频设备配置无法使用。', 'audio', ['核对输入输出设备、通道和共同支持的采样率。', '使用同一声卡的输入输出进行监听，再手动测试。'])
+  if (/AUDIO_|DEVICE_|PORTAUDIO|RTAUDIO/.test(text)) return issue('AUDIO_UNAVAILABLE', '音频设备或驱动未通过当前阶段的验证。', 'audio', ['查看失败的音频后端、所选设备和底层错误。', '检查设备占用、权限与驱动后手动测试；不会自动换用其他设备。'], 'suspected')
+  if (/PROCESS_TIMEOUT|WORKER_TIMEOUT/.test(text)) return issue('PROCESS_TIMEOUT', '组件在限定时间内没有完成。', 'retry', ['查看超时阶段、耗时与进程输出。', '检查系统负载或驱动响应后重新检测。'], 'unknown')
+  if (/PYTHON_MISSING|PYTHON_|UV_FAILED|DEPENDENCIES_INCOMPLETE|MODULE_NOT_FOUND|NATIVE_LIBRARY_LOAD_FAILED|DLL|WinError|3221225781|3221225794/.test(text)) return issue('RUNTIME_COMPONENT_FAILED', '私有运行环境未能启动或导入依赖。', 'repair', ['查看解释器、依赖模块与原始加载错误。', '修复此项会验证候选环境，失败时保留原环境。'], 'suspected')
+  if (/MODEL_/.test(text)) return issue('MODEL_INVALID', '模型资源未通过验证。', 'repair', ['重新获取未通过验证的模型文件，然后执行短推理验证。'])
+  if (/DECODE|INVALID_INPUT|NO_AUDIO_STREAM|NO_VIDEO_STREAM/.test(text)) return issue('SOURCE_MEDIA_INVALID', '源媒体未通过解码或内容检查。', 'retry', ['检查源文件是否完整、是否包含可用音频。', '更换有效源文件后重试，无需重装分轨环境。'])
+  return issue(evidence.code === 'UNKNOWN_ERROR' ? 'UNCLASSIFIED_FAILURE' : evidence.code, '当前阶段未完成，具体原因需要查看诊断证据。', 'retry', ['展开失败阶段和原始错误。', '复制问题摘要或导出诊断，供进一步定位。'], 'unknown')
+}

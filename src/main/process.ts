@@ -1,8 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
+import { DiagnosticError } from './diagnostic-errors.js'
+import { diagnostics } from './diagnostics.js'
 
 const activeProcesses = new Map<ChildProcessWithoutNullStreams, () => void>()
 let closing = false
+type Termination = 'exited' | 'timeout' | 'cancelled' | 'interrupted' | 'signal'
+const outcomes = new WeakMap<ChildProcessWithoutNullStreams, { started: number; termination?: Termination }>()
 
 /** Await every managed child before Electron exits and removes kill timers. */
 export async function shutdownProcesses(): Promise<void> {
@@ -17,6 +21,9 @@ export interface ProcessResult {
   code: number
   stdout: string
   stderr: string
+  termination?: Termination
+  signal?: NodeJS.Signals | null
+  elapsedMs?: number
 }
 
 export interface RunProcessOptions {
@@ -28,6 +35,8 @@ export interface RunProcessOptions {
   timeoutMs?: number
   maxOutputChars?: number
   killGraceMs?: number
+  component?: import('@shared/environment.js').EnvironmentComponent
+  stage?: string
 }
 
 export function spawnSafe(command: string, args: readonly string[], options: RunProcessOptions = {}): ChildProcessWithoutNullStreams {
@@ -42,6 +51,8 @@ export function spawnSafe(command: string, args: readonly string[], options: Run
     detached: process.platform !== 'win32',
     stdio: ['pipe', 'pipe', 'pipe']
   })
+  const outcome: { started: number; termination?: Termination } = { started: Date.now() }
+  outcomes.set(child, outcome)
   let escalation: NodeJS.Timeout | undefined
   let timeout: NodeJS.Timeout | undefined
   let stopping = false
@@ -52,6 +63,7 @@ export function spawnSafe(command: string, args: readonly string[], options: Run
   const abort = (): void => {
     if (stopping) return
     stopping = true
+    outcome.termination ??= closing ? 'interrupted' : options.signal?.reason?.code === 'SYSTEM_SUSPEND' ? 'interrupted' : 'cancelled'
     if (process.platform === 'win32' && child.pid) {
       const killer = spawn(path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, shell: false, stdio: 'ignore' })
       killer.once('error', () => child.kill())
@@ -64,7 +76,7 @@ export function spawnSafe(command: string, args: readonly string[], options: Run
   }
   options.signal?.addEventListener('abort', abort, { once: true })
   activeProcesses.set(child, abort)
-  if (options.timeoutMs && options.timeoutMs > 0) timeout = setTimeout(abort, options.timeoutMs)
+  if (options.timeoutMs && options.timeoutMs > 0) timeout = setTimeout(() => { outcome.termination = 'timeout'; abort() }, options.timeoutMs)
   const cleanup = (): void => {
     activeProcesses.delete(child)
     options.signal?.removeEventListener('abort', abort)
@@ -107,11 +119,19 @@ export async function runProcess(command: string, args: readonly string[], optio
       stderr = tail(stderr + chunk)
       drainLines(chunk, 'stderr')
     })
-    child.once('error', reject)
-    child.once('close', (code) => {
+    child.once('error', error => reject(new DiagnosticError('PROCESS_SPAWN_FAILED', `无法启动 ${path.basename(command)}`, { executable: path.basename(command), stage: options.stage, elapsedMs: Date.now() - outcomes.get(child)!.started }, error)))
+    child.once('close', (code, signal) => {
       if (stdoutPending) options.onStdoutLine?.(stdoutPending)
       if (stderrPending) options.onStderrLine?.(stderrPending)
-      resolve({ code: code ?? -1, stdout, stderr })
+      const outcome = outcomes.get(child)!
+      const result = { code: code ?? -1, stdout, stderr, signal, termination: outcome.termination ?? (signal ? 'signal' : 'exited'), elapsedMs: Date.now() - outcome.started }
+      if (result.code !== 0 || result.termination !== 'exited') diagnostics.record({ component: options.component ?? 'task', stage: options.stage ?? path.basename(command), result: result.termination, details: { executable: path.basename(command), ...result, stdout: stdout.slice(-2000), stderr: stderr.slice(-8000) } })
+      resolve(result)
     })
   })
+}
+
+export function processFailure(result: ProcessResult, code: string, details: Record<string, unknown> = {}): DiagnosticError {
+  const failureCode = result.termination === 'timeout' ? 'PROCESS_TIMEOUT' : result.termination === 'cancelled' ? 'PROCESS_CANCELLED' : result.termination === 'interrupted' ? 'PROCESS_INTERRUPTED' : code
+  return new DiagnosticError(failureCode, `${failureCode}:退出码=${result.code}${result.signal ? `，信号=${result.signal}` : ''}`, { ...details, exitCode: result.code, termination: result.termination, elapsedMs: result.elapsedMs, stderr: result.stderr.slice(-8000), stdout: result.stdout.slice(-2000) })
 }

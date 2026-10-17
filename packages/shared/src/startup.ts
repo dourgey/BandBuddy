@@ -5,6 +5,7 @@ export interface StartupState {
   message: string
   error?: string
   safeMode?: boolean
+  issue?: import('./environment.js').EnvironmentIssue
 }
 export interface StartupApi {
   snapshot(): StartupState
@@ -16,4 +17,6 @@ export interface StartupApi {
   restoreBackup?(): Promise<void>
   recover?(safe: boolean): Promise<void>
   revealRecovery?(): Promise<void>
+  copyDiagnostics?(): Promise<void>
+  exportDiagnostics?(): Promise<string | null>
 }

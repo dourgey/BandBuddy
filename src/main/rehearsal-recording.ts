@@ -5,6 +5,7 @@ import path from 'node:path'
 import {
   dbToGain,
   isStemVisible,
+  stemPlaybackGain,
   type AudioBackend,
   type RecordingAudioSettings,
   type RecordingDeviceInfo,
@@ -582,11 +583,11 @@ export class RehearsalRecordingService {
         : []
     })
     const hasSolo = song.practice.tracks.some((track) =>
-      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && track.solo && !track.muted
+      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)) && track.solo && !track.muted
     )
       || activeRecordings.some(({ track }) => track.solo && !track.muted)
     const audibleStems = song.practice.tracks
-      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
+      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
       .map((state) => ({ state, file: files.find((file) => file.type === state.stemType) }))
       .filter((entry): entry is { state: TrackState; file: NonNullable<typeof entry.file> } => Boolean(entry.file))
     const audibleRecordings = activeRecordings
@@ -608,7 +609,7 @@ export class RehearsalRecordingService {
       ffmpeg,
       stems: harmonicStems.map(({ state, file }) => ({
         path: this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath),
-        gainDb: state.gainDb
+        gainDb: state.gainDb + 20 * Math.log10(stemPlaybackGain(file))
       })),
       startPositionMs,
       endPositionMs,
@@ -643,7 +644,7 @@ export class RehearsalRecordingService {
       filters.push(
         `[${inputIndex}:a]atrim=start=${(startPositionMs / 1000).toFixed(6)}:end=${(endPositionMs / 1000).toFixed(6)},` +
         `asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,` +
-        `volume=${dbToGain(state.gainDb).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`
+        `volume=${(dbToGain(state.gainDb) * stemPlaybackGain(file)).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`
       )
       labels.push(`[${label}]`)
       inputIndex += 1
@@ -855,6 +856,7 @@ export class RehearsalRecordingService {
       void this.beginFinalize(session, event.data, false).catch((error) => this.fail(error))
       return
     }
+    if (event.event !== 'meter') return
     this.emitMeter({
       peak: event.data.peak,
       rms: event.data.rms,

@@ -1,10 +1,14 @@
-import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
+import { createReadStream, existsSync, mkdirSync } from 'node:fs'
 import { rename, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Notification } from 'electron'
 import {
   GUITAR_SPLIT_STEMS,
+  VOCAL_SPLIT_STEMS,
+  VOCAL_SEPARATION_PROFILES,
+  type VocalModelId,
+  type VocalSplitCompleted,
   LEGACY_STEM_ORDER,
   type ExportRequest,
   type GuitarSeparationQuality,
@@ -12,8 +16,9 @@ import {
   type StemStorageFormat,
   type StemType
 } from '@shared/domain.js'
+import { prepareVocalModel } from './vocal-models.js'
 import { isVideoSource } from '@shared/media-formats.js'
-import type { BandBuddyDatabase, GuitarSplitJobPayload, StoredStemInput } from './database.js'
+import type { BandBuddyDatabase, GuitarSplitJobPayload, VocalSplitJobPayload, StoredStemInput } from './database.js'
 import type { ExportService } from './exporter.js'
 import type { Logger } from './logger.js'
 import type { MediaService } from './media.js'
@@ -22,6 +27,8 @@ import { RUNTIME_VERSIONS, type RuntimeManager } from './runtime.js'
 import { fallbackComputeDevice } from './runtime-device.js'
 import { classifyJobError } from './job-state.js'
 import { ProgressCoalescer } from './progress-coalescer.js'
+import { diagnostics } from './diagnostics.js'
+import { DiagnosticError, errorEvidence } from './diagnostic-errors.js'
 
 interface SeparationPayload {
   sourceRelPath: string
@@ -31,6 +38,7 @@ interface SeparationPayload {
   enableGuitarSplitOnSuccess?: boolean
   guitarQuality?: GuitarSeparationQuality
   environmentRepairs?: number
+  vocalModelId?: VocalModelId
 }
 
 interface NormalizePayload {
@@ -74,7 +82,9 @@ export class JobScheduler {
     private readonly logger: Logger,
     private readonly changed: (jobId?: string) => void,
     private readonly libraryChanged: () => void,
-    private readonly guitarSplitCompleted: (songId: string) => void = () => undefined
+    private readonly guitarSplitCompleted: (songId: string) => void = () => undefined,
+    private readonly vocalSplitCompleted: (result: VocalSplitCompleted) => void = () => undefined,
+    private readonly liveAudioActive: () => boolean = () => false
   ) {
     runtime.onChange((info) => {
       if (info.status === 'ready') {
@@ -105,7 +115,9 @@ export class JobScheduler {
       while (!this.active && !this.stopping) {
         const job = this.database.nextQueuedJob()
         if (!job) break
-        if (job.type === 'separate' || job.type === 'guitarSplit') {
+        // Detection can itself launch probes; defer it before live capture too.
+        if (['separate', 'guitarSplit', 'vocalSplit'].includes(job.type) && this.liveAudioActive()) break
+        if (job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit') {
           try { await this.runtime.ensureDetected() }
           catch (error) {
             if (this.stopping) break
@@ -119,15 +131,16 @@ export class JobScheduler {
         }
         if (this.stopping) break
         if (this.database.getJob(job.id)?.status !== 'queued') continue
-        if ((job.type === 'separate' || job.type === 'guitarSplit') && this.runtime.getInfo().status !== 'ready') {
+        if ((job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit') && this.runtime.getInfo().status !== 'ready') {
           this.setJobState(job.id, 'blockedRuntime', '等待安装本地分离环境', 0)
           this.changed()
           continue
         }
+        if (['separate', 'guitarSplit', 'vocalSplit'].includes(job.type) && this.liveAudioActive()) break
         const controller = new AbortController()
         this.active = { id: job.id, songId: job.songId, controller }
         try {
-          await this.runJob(job, controller.signal)
+          await diagnostics.withScope({ jobId: job.id }, () => this.runJob(job, controller.signal))
         } catch (error) {
           if (!this.stopping) await this.handleFailure(job, error, controller.signal.aborted)
         } finally {
@@ -139,13 +152,14 @@ export class JobScheduler {
       }
     } finally {
       this.running = false
-      if (!this.stopping && !this.active && this.database.nextQueuedJob()) this.kick()
+      if (!this.stopping && !this.active && this.database.nextQueuedJob() && !this.liveAudioActive()) this.kick()
     }
   }
 
   private async runJob(job: JobRecord & { payload: unknown }, signal: AbortSignal): Promise<void> {
     if (!job.songId && job.type !== 'runtimeInstall') throw new Error('JOB_SONG_MISSING')
     if (job.type === 'separate') await this.runSeparation(job.id, job.songId!, job.payload as SeparationPayload, signal)
+    else if (job.type === 'vocalSplit') await this.runVocalSplit(job.id, job.songId!, job.payload as VocalSplitJobPayload, signal)
     else if (job.type === 'guitarSplit') await this.runGuitarSplit(job.id, job.songId!, job.payload as GuitarSplitJobPayload, signal)
     else if (job.type === 'normalizeStems') await this.runNormalize(job.id, job.songId!, job.payload as NormalizePayload, signal)
     else if (job.type === 'export') {
@@ -233,20 +247,83 @@ export class JobScheduler {
         storageFormat,
         baseEncodingGain: encoded.encodingGain,
         targetDurationMs: encoded.targetDurationMs,
-        guitarQuality: payload.guitarQuality ?? 'high',
+        guitarQuality: ('guitarQuality' in payload ? payload.guitarQuality : undefined) ?? 'high',
         retry: 0,
         enableGuitarSplitOnSuccess: payload.enableGuitarSplitOnSuccess ?? false
       }
     )
+    try {
+      const input = this.database.getActiveStemFiles(songId).find(stem => stem.type === 'vocals')
+      if (input) {
+        this.database.queueVocalSplit(songId, await this.fileHash(this.paths.resolveLibraryPath(settings.libraryRoot, input.relPath)), payload.vocalModelId ?? VOCAL_SEPARATION_PROFILES.fast.modelId, storageFormat)
+      }
+    } catch (error) { this.logger.warn('optional vocal split queue failed; base stems remain ready', error) }
     this.changed()
     await rm(taskRoot, { recursive: true, force: true })
     const song = this.database.getSong(songId)
     this.notify('基础分轨完成', `${song?.title ?? 'BandBuddy'} 已可进入练习室`)
   }
 
+  private async fileHash(file: string): Promise<string> {
+    const hash = createHash('sha256')
+    for await (const chunk of createReadStream(file)) hash.update(chunk)
+    return hash.digest('hex')
+  }
+
+  private async runVocalSplit(jobId: string, songId: string, payload: VocalSplitJobPayload, signal: AbortSignal): Promise<void> {
+    const settings = this.database.getSettings()
+    this.database.assertVocalSplitInput(songId, payload)
+    const source = this.paths.resolveLibraryPath(settings.libraryRoot, payload.sourceRelPath)
+    if (await this.fileHash(source) !== payload.inputSha256) throw new Error('STALE_VOCAL_SPLIT')
+    const songRoot = this.paths.songDirectory(settings.libraryRoot, songId)
+    const taskRoot = path.join(songRoot, '.tasks', jobId), workerRoot = path.join(taskRoot, 'worker'), preparedRoot = path.join(taskRoot, 'prepared')
+    let finalRoot: string | null = null, published = false
+    mkdirSync(workerRoot, { recursive: true }); mkdirSync(preparedRoot, { recursive: true })
+    try {
+      this.setJobState(jobId, 'preparing', '准备主唱与和声模型', .01)
+      await prepareVocalModel(this.paths, settings.modelRoot, payload.modelId, settings.network, signal, progress => {
+        this.reportProgress(jobId, 'preparing', '正在下载并校验人声细分模型', Math.min(.08, .01 + (progress.received / Math.max(1, progress.total ?? 1)) * .07))
+      })
+      const input = path.join(taskRoot, 'vocals.wav')
+      await this.media.decodeAudio(source, path.join(taskRoot, 'vocals.part.wav'), input, signal)
+      const worker = await this.runStemWorker(jobId, payload, 'separate-vocals', input, workerRoot, settings.modelRoot, .08, '正在细分主唱与和声', signal)
+      const frames = worker.result.result.frames
+      if (typeof frames !== 'number' || !Number.isSafeInteger(frames) || frames <= 0) throw new Error('INVALID_VOCAL_FRAME_COUNT')
+      const encoded = await this.encodeWorkerStems(jobId, VOCAL_SPLIT_STEMS, worker.result, preparedRoot, payload.storageFormat, '正在保存主唱与和声', signal, frames / 44.1, 1, frames, true)
+      const decoded: string[] = []
+      for (const stem of VOCAL_SPLIT_STEMS) {
+        const target = path.join(taskRoot, `${stem}.decoded.wav`)
+        await this.media.decodeAudio(path.join(preparedRoot, `${stem}.${encoded.extension}`), target + '.part.wav', target, signal)
+        decoded.push(target)
+      }
+      const verified = await this.runtime.runWorker(['verify-vocals', '--input', input, '--lead', decoded[0]!, '--backing', decoded[1]!, '--gain', String(encoded.encodingGain), '--storage-format', payload.storageFormat], signal)
+      if (verified.code !== 0) throw new Error(verified.error ?? 'VOCAL_ENCODING_VERIFY_FAILED')
+      signal.throwIfAborted()
+      this.database.assertVocalSplitInput(songId, payload)
+      if (await this.fileHash(source) !== payload.inputSha256) throw new Error('STALE_VOCAL_SPLIT')
+      signal.throwIfAborted()
+      finalRoot = path.join(songRoot, 'versions', randomUUID())
+      mkdirSync(path.dirname(finalRoot), { recursive: true }); await rename(preparedRoot, finalRoot)
+      signal.throwIfAborted()
+      for (const stem of encoded.stored) {
+        stem.relPath = this.paths.toLibraryRelative(settings.libraryRoot, path.join(finalRoot, `${stem.type}.${encoded.extension}`))
+        stem.peaksRelPath = this.paths.toLibraryRelative(settings.libraryRoot, path.join(finalRoot, `${stem.type}.peaks.json`))
+      }
+      const { files: _files, stats: _stats, ...inference } = worker.result.result
+      this.progress.cancel()
+      const result = this.database.completeVocalSplit(songId, jobId, payload, encoded.stored, { ...inference, encodingGain: encoded.encodingGain, storageFormat: payload.storageFormat, encodedVerification: verified.result })
+      published = true
+      this.changed(); this.libraryChanged(); this.vocalSplitCompleted(result)
+      this.notify('主唱与和声已就绪', this.database.getSong(songId)?.title ?? 'BandBuddy')
+    } finally {
+      await rm(taskRoot, { recursive: true, force: true })
+      if (finalRoot && !published) await rm(finalRoot, { recursive: true, force: true })
+    }
+  }
+
   private async runGuitarSplit(jobId: string, songId: string, payload: GuitarSplitJobPayload, signal: AbortSignal): Promise<void> {
     const settings = this.database.getSettings()
-    const guitarQuality = payload.guitarQuality ?? 'high'
+    const guitarQuality = ('guitarQuality' in payload ? payload.guitarQuality : undefined) ?? 'high'
     const source = this.paths.resolveLibraryPath(settings.libraryRoot, payload.sourceRelPath)
     const songRoot = this.paths.songDirectory(settings.libraryRoot, songId)
     const taskRoot = path.join(songRoot, '.tasks', jobId)
@@ -316,8 +393,8 @@ export class JobScheduler {
 
   private async runStemWorker(
     jobId: string,
-    payload: SeparationPayload | GuitarSplitJobPayload,
-    command: 'separate-demucs' | 'separate-guitar',
+    payload: SeparationPayload | GuitarSplitJobPayload | VocalSplitJobPayload,
+    command: 'separate-demucs' | 'separate-guitar' | 'separate-vocals',
     source: string,
     workerRoot: string,
     modelRoot: string,
@@ -337,10 +414,11 @@ export class JobScheduler {
       const workerArgs = [
         command, '--input', source, '--output', workerRoot, '--model-root', modelRoot, '--device', selected
       ]
+      if (command === 'separate-vocals') workerArgs.push('--model-id', (payload as VocalSplitJobPayload).modelId)
       if (command === 'separate-guitar') {
-        workerArgs.push('--quality', payload.guitarQuality ?? 'high')
+        workerArgs.push('--quality', ('guitarQuality' in payload ? payload.guitarQuality : undefined) ?? 'high')
       }
-      return await this.runtime.runWorker(workerArgs, signal, 0, (message) => {
+      const result = await this.runtime.runWorker(workerArgs, signal, 0, (message) => {
         if (message.type === 'error') workerErrorCode = String(message.code ?? 'WORKER_FAILED')
         if (message.type === 'progress') {
           const workerProgress = typeof message.progress === 'number' ? message.progress : 0
@@ -354,17 +432,19 @@ export class JobScheduler {
           )
         }
       })
+      diagnostics.record({ component: 'task', stage: command, jobId, diagnosticId: result.diagnosticId, result: result.code === 0 ? 'passed' : 'failed', details: { device: selected, failure: result.failure ?? result.error } })
+      return result
     }
 
     let result = await execute()
-    if (result.code !== 0 && !signal.aborted && (payload.environmentRepairs ?? 0) < 1
+    if (result.code !== 0 && !(command === 'separate-vocals' && /VOCAL_(MODEL|CONFIG)/.test(workerErrorCode ?? result.error ?? '')) && !signal.aborted && (payload.environmentRepairs ?? 0) < 1
       && /PYTHON_MISSING|MODEL_.*(?:MISSING|HASH|SIZE|INVALID)|DEPENDENCIES_INCOMPLETE|DLL|WinError|WINDOWS_NATIVE|3221225781|3221225794|3221225477|-1073741819/i.test(`${workerErrorCode ?? ''}:${result.error ?? ''}`)) {
       payload = { ...payload, environmentRepairs: 1 }
       this.database.updateJobPayload(jobId, payload)
       this.setJobState(jobId, 'preparing', '正在恢复分轨组件，任务会自动继续', preparationProgress)
       const nativeFailure = /DLL|WinError|WINDOWS_NATIVE|3221225781|3221225794|3221225477|-1073741819/i.test(result.error ?? '')
       const repaired = await this.runtime.recoverWorker?.(nativeFailure && selected !== 'cpu')
-      if (!repaired) throw new Error('RUNTIME_RECOVERY_PENDING')
+      if (!repaired) throw new DiagnosticError('RUNTIME_RECOVERY_PENDING', '环境恢复尚未完成，原任务等待处理', { originalDiagnosticId: result.diagnosticId }, result.failure ?? result.error)
       signal.throwIfAborted()
       selected = this.runtime.getInfo().selectedDevice
       await rm(workerRoot, { recursive: true, force: true }); mkdirSync(workerRoot, { recursive: true })
@@ -373,19 +453,21 @@ export class JobScheduler {
     let fallback = fallbackComputeDevice(selected, process.platform, workerErrorCode)
     while (result.code !== 0 && fallback && !signal.aborted) {
       selected = fallback
+      diagnostics.record({ component: 'compute', stage: 'task-cpu-fallback', jobId, diagnosticId: result.diagnosticId, result: 'retrying-cpu', details: { cause: result.failure ?? result.error, quality: 'guitarQuality' in payload ? payload.guitarQuality : undefined } })
       this.database.updateJobPayload(jobId, {
         ...payload,
         deviceOverride: selected,
         retry: (payload.retry ?? 0) + 1
       })
-      this.setJobState(jobId, 'preparing', '正在切换到 CPU 继续分轨', 0.02)
+      this.setJobState(jobId, 'preparing', '正在验证独立 CPU 环境', 0.02)
+      if (!await this.runtime.recoverWorker?.(true)) throw new DiagnosticError('RUNTIME_RECOVERY_PENDING', '兼容 CPU 环境尚未通过验证，原任务等待处理', { diagnosticId: result.diagnosticId }, result.failure ?? result.error)
       await rm(workerRoot, { recursive: true, force: true })
       mkdirSync(workerRoot, { recursive: true })
       result = await execute()
       fallback = fallbackComputeDevice(selected, process.platform, workerErrorCode)
     }
     if (signal.aborted) throw new Error('JOB_CANCELLED')
-    if (result.code !== 0) throw new Error(`${workerErrorCode ?? 'SEPARATION_FAILED'}:${result.error ?? ''}`)
+    if (result.code !== 0) throw new DiagnosticError(workerErrorCode ?? result.failure?.code ?? 'SEPARATION_FAILED', result.error ?? '分轨进程未完成', { diagnosticId: result.diagnosticId, selectedDevice: selected }, result.failure)
     return { result, selected }
   }
 
@@ -398,7 +480,9 @@ export class JobScheduler {
     phase: string,
     signal: AbortSignal,
     requestedDurationMs?: number,
-    gainLimit = 1
+    gainLimit = 1,
+    exactFrames?: number,
+    compensateGain = false
   ): Promise<{
     stored: StoredStemInput[]
     targetDurationMs: number
@@ -415,7 +499,8 @@ export class JobScheduler {
       return typeof peak === 'number' && Number.isFinite(peak) && peak >= 0
     })) throw new Error('INVALID_STEM_PEAKS')
     const maximumPeak = Math.max(...stems.map((stem) => workerStats[stem]!.peak as number))
-    const safeGain = maximumPeak > 0.999 ? 0.999 / maximumPeak : 1
+    const ceiling = compensateGain && storageFormat === 'mp3_320' ? .95 : .999
+    const safeGain = maximumPeak > ceiling ? ceiling / maximumPeak : 1
     const encodingGain = Math.min(safeGain, gainLimit)
     const extension = storageFormat === 'flac24' ? 'flac' : 'mp3'
     this.setJobState(jobId, 'postprocessing', phase, 0.83)
@@ -428,12 +513,13 @@ export class JobScheduler {
       const finalStem = path.join(preparedRoot, `${stem}.${extension}`)
       const temporaryStem = path.join(preparedRoot, `${stem}.part.${extension}`)
       const peakFile = path.join(preparedRoot, `${stem}.peaks.json`)
-      const probe = await this.media.normalize(files[stem]!, temporaryStem, finalStem, targetDurationMs, storageFormat, encodingGain)
+      const probe = await this.media.normalize(files[stem]!, temporaryStem, finalStem, targetDurationMs, storageFormat, encodingGain, exactFrames, signal)
       if (probe.sampleRate !== 44_100 || probe.channels !== 2) throw new Error(`STEM_FORMAT_VERIFY_FAILED:${stem}`)
       await this.media.generatePeaks(finalStem, peakFile, probe.durationMs, 1800, signal)
       stored.push({
+        numFrames: exactFrames, encodingGain: compensateGain ? encodingGain : 1,
         id: randomUUID(), type: stem, relPath: '', peaksRelPath: null,
-        durationMs: probe.durationMs, sampleRate: probe.sampleRate ?? 44100, channels: probe.channels ?? 2
+        durationMs: exactFrames !== undefined ? exactFrames / 44.1 : probe.durationMs, sampleRate: probe.sampleRate ?? 44100, channels: probe.channels ?? 2
       })
       this.setJobState(jobId, 'postprocessing', phase, 0.83 + ((index + 1) / stems.length) * 0.16)
       this.changed()
@@ -480,24 +566,27 @@ export class JobScheduler {
 
   private async handleFailure(job: JobRecord, error: unknown, cancelled: boolean): Promise<void> {
     const text = String(error)
-    if (!cancelled && text.includes('RUNTIME_RECOVERY_PENDING')) {
-      this.setJobState(job.id, 'blockedRuntime', '等待组件就绪后自动继续', 0, 'RUNTIME_RECOVERY_PENDING', null)
+    if (!cancelled && errorEvidence(error).code === 'RUNTIME_RECOVERY_PENDING') {
+      const issue = diagnostics.report(error, 'separation', { component: 'task', stage: job.phase, jobId: job.id })
+      this.setJobState(job.id, 'blockedRuntime', '等待组件就绪后自动继续', 0, 'RUNTIME_RECOVERY_PENDING', `诊断编号：${issue.diagnosticId}；${issue.message}`)
       return
     }
     const classified = classifyJobError(error, cancelled)
     const isCancelled = classified.cancelled
     const code = classified.code
-    this.setJobState(job.id, isCancelled ? 'cancelled' : 'failed', isCancelled ? '已取消' : this.humanError(code), 0, code, text.slice(0, 1200))
+    const issue = isCancelled ? null : diagnostics.report(error, job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit' ? 'separation' : 'media', { component: 'task', stage: job.phase, jobId: job.id })
+    this.setJobState(job.id, isCancelled ? 'cancelled' : 'failed', isCancelled ? '已取消' : issue?.message ?? this.humanError(code), 0, code, issue ? `诊断编号：${issue.diagnosticId}；${issue.message}` : text.slice(0, 1200))
     if (job.songId) {
       const settings = this.database.getSettings()
       const taskRoot = path.join(this.paths.songDirectory(settings.libraryRoot, job.songId), '.tasks', job.id)
       await rm(taskRoot, { recursive: true, force: true }).catch(() => undefined)
     }
     this.logger.error('job failed', { jobId: job.id, code, error: text })
-    if (!isCancelled) this.notify('任务失败', this.humanError(code))
+    if (!isCancelled) this.notify('任务失败', issue?.message ?? this.humanError(code))
   }
 
   private humanError(code: string): string {
+    if (code === 'CPU_OUT_OF_MEMORY') return '系统内存不足，请释放内存后重试'
     if (code === 'ACCELERATOR_OOM' || code === 'CUDA_OOM') return '加速设备内存不足，CPU 分轨也未能完成'
     if (code === 'FFMPEG_MISSING') return '音频工具缺失，请修复应用资源'
     if (code === 'VIDEO_AUDIO_EXTRACTION_FAILED') return '视频音频提取失败，请检查源文件后重试'
@@ -545,7 +634,7 @@ export class JobScheduler {
   retry(jobId: string, useCpu = false): void {
     const job = this.database.getJob(jobId)
     if (!job) return
-    if (useCpu && (job.type === 'separate' || job.type === 'guitarSplit')) {
+    if (useCpu && (job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit')) {
       const payload = job.payload as SeparationPayload | GuitarSplitJobPayload
       this.database.updateJobPayload(jobId, { ...payload, deviceOverride: 'cpu', retry: 0 })
     }

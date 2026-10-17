@@ -118,7 +118,7 @@ describe('uv integrity and distribution signing fallback', () => {
 
   it('reports download failures rather than running unverified packaged uv', async () => {
     await writeFile(packaged, 'signed binary')
-    fixture.fetch.mockResolvedValue({ ok: false, status: 503 })
+    fixture.fetch.mockResolvedValue(new Response('', { status: 503 }))
     await expect(ensureUv()).rejects.toThrow('DOWNLOAD_HTTP_503')
     expect(existsSync(cached)).toBe(false)
   })

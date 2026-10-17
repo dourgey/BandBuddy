@@ -3,6 +3,9 @@ import type { EnvironmentApi } from './environment.js'
 import type { AppearanceApi } from './appearance.js'
 import type { LibraryPageInput, LibraryPageResult, LibraryUpdate, ReconcileAudioRequest } from './domain.js'
 import type { ArsenalApi } from './arsenal.js'
+import type { AudioPluginsApi } from './audio-plugins.js'
+import type { NativeAudioApi } from './native-audio.js'
+import type { AiApi } from './ai.js'
 import type {
   ImportStemsOptions,
   LanStatus,
@@ -31,6 +34,7 @@ import type {
   SourceChoice,
   StoragePaths
 } from './domain.js'
+import type { VocalSplitCompleted } from './domain.js'
 import type {
   RehearsalRecordingStartRequest,
   RehearsalRecordingState,
@@ -44,10 +48,13 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  ai?: AiApi
   environment?: EnvironmentApi
   startup?: StartupApi
   appearance: AppearanceApi
   arsenal: ArsenalApi
+  audioPlugins?: AudioPluginsApi
+  nativeAudio?: NativeAudioApi
   library: {
     listPage(input?: LibraryPageInput): Promise<LibraryPageResult>
     onUpdated(callback: (update: LibraryUpdate) => void): Unsubscribe
@@ -64,9 +71,11 @@ export interface BandBuddyApi {
     openLocation(songId: string): Promise<void>
     reSeparate(songId: string): Promise<string>
     requestGuitarSplit(songId: string): Promise<string | null>
+    requestVocalSplit(songId: string): Promise<string | null>
     savePractice(state: PracticeState): Promise<void>
     onChanged(callback: () => void): Unsubscribe
     onGuitarSplitCompleted(callback: (songId: string) => void): Unsubscribe
+    onVocalSplitCompleted(callback: (result: VocalSplitCompleted) => void): Unsubscribe
   }
   tasks: {
     list(): Promise<JobRecord[]>

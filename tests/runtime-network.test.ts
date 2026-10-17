@@ -7,6 +7,16 @@ const network = { proxyMode: 'manual' as const, proxyUrl: 'http://127.0.0.1:7890
 beforeEach(() => { vi.clearAllMocks(); mocks.setProxy.mockResolvedValue(undefined) })
 
 describe('consistent runtime network policy', () => {
+  it('requires the actual source to respond and rejects captive portals, 404 and proxy authentication', async () => {
+    const client = new RuntimeNetwork()
+    for (const response of [new Response('missing', { status: 404 }), new Response('proxy', { status: 407 }), new Response('<html>login</html>', { headers: { 'content-type': 'text/html' } })]) {
+      mocks.fetch.mockResolvedValueOnce(response)
+      expect(await client.reachable(network, ['https://actual.example/file.whl'], new AbortController().signal)).toBe(false)
+    }
+    mocks.fetch.mockResolvedValueOnce(new Response('x', { status: 206 }))
+    expect(await client.reachable(network, ['https://actual.example/file.whl'], new AbortController().signal)).toBe(true)
+    expect(mocks.fetch.mock.calls.every(call => call[0] === 'https://actual.example/file.whl')).toBe(true)
+  })
   it('disables inherited lowercase and uppercase proxies for every child client', () => {
     const env = proxyEnvironment({ http_proxy: 'old', HTTPS_PROXY: 'old', ALL_PROXY: 'old', PATH: 'keep' }, { ...network, proxyMode: 'none' })
     expect(env).toEqual({ PATH: 'keep', NO_PROXY: '*', no_proxy: '*' })

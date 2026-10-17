@@ -195,14 +195,14 @@ describe('library dialogs', () => {
     render(<ExportDialog open onOpenChange={() => undefined} song={song} practice={song.practice} onBeforeStart={async () => undefined} />)
 
     fireEvent.click(screen.getByRole('button', { name: /分别导出音轨/ }))
-    expect(screen.getByText(/包含隐藏吉他备选轨/).textContent).toContain('Acoustic / Lead / Rhythm')
-    fireEvent.click(screen.getByRole('checkbox', { name: /包含隐藏吉他备选轨/ }))
+    expect(screen.getByText(/包含隐藏备选轨/).textContent).toContain('Acoustic / Lead / Rhythm')
+    fireEvent.click(screen.getByRole('checkbox', { name: /包含隐藏备选轨/ }))
     fireEvent.click(screen.getByRole('button', { name: /选择位置并导出/ }))
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'stems',
       stemTypes: expect.arrayContaining(['guitar', 'acoustic_guitar', 'lead_guitar', 'rhythm_guitar'])
     })))
-    expect(start.mock.calls[0]![0].stemTypes).toHaveLength(9)
+    expect(start.mock.calls[0]![0].stemTypes).toHaveLength(11)
   })
 
   it('saves the high-quality switch as a future-task setting', async () => {
@@ -250,6 +250,24 @@ describe('library dialogs', () => {
     expect(screen.queryByText(/共享 BS-RoFormer/)).toBeNull()
     expect(slider.getAttribute('aria-valuetext')).toBe('极速')
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ guitarSeparationQuality: 'fast' })))
+  })
+
+  it('saves both vocal model tiers and shows the matching model', async () => {
+    const [settings, runtime] = await Promise.all([window.bandbuddy.settings.get(), window.bandbuddy.runtime.get()])
+    const update = vi.spyOn(window.bandbuddy.settings, 'update').mockImplementation(async next => next)
+    render(<SettingsDrawer open onOpenChange={() => undefined} runtime={runtime}
+      settings={{ ...settings, vocalSeparationQuality: 'fast' }} onSaved={() => undefined} onRefresh={() => undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: '分轨与运行环境' }))
+    const slider = screen.getByRole('slider', { name: '人声分轨档位' })
+    expect(screen.queryByRole('checkbox', { name: '自动细分主唱与和声' })).toBeNull()
+    expect(slider.getAttribute('aria-valuetext')).toBe('效率档 · Mel-Band RoFormer')
+    fireEvent.change(slider, { target: { value: '1' } })
+    expect(slider.getAttribute('aria-valuetext')).toBe('质量档 · BS-RoFormer')
+    expect(screen.getByText('BS-RoFormer')).toBeTruthy()
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ vocalSeparationQuality: 'high' })))
+    fireEvent.change(slider, { target: { value: '0' } })
+    expect(screen.getByText('Mel-Band RoFormer')).toBeTruthy()
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ vocalSeparationQuality: 'fast' })))
   })
 
   it('enables debug mode immediately and reveals the debug log from settings', async () => {

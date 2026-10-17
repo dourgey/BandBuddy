@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { connect as connectTls } from 'node:tls'
+import { DiagnosticError } from './diagnostic-errors.js'
 
 export function redactNetworkCredentials(text: string): string {
   return text.replace(/(https?:\/\/)[^\s/@]+@/gi, '$1***@')
@@ -36,7 +37,8 @@ async function tunnel(host: string, port: number, proxy: string | null): Promise
       socket.off('error', failed)
       socket.off('close', closed)
       if (end === -1 || !/^HTTP\/1\.[01] 200\b/.test(received.toString('ascii', 0, end))) {
-        failed(new Error('SYSTEM_PROXY_CONNECT_FAILED'))
+        const status = /^HTTP\/1\.[01] (\d+)/.exec(received.toString('ascii', 0, Math.max(0, end)))?.[1]
+        failed(new DiagnosticError(status === '407' ? 'PROXY_AUTH_REQUIRED' : 'SYSTEM_PROXY_CONNECT_FAILED', `SYSTEM_PROXY_CONNECT_FAILED${status ? `:HTTP_${status}` : ''}`, { status }))
         return
       }
       socket.pause()

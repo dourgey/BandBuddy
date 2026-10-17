@@ -15,7 +15,7 @@ function install() {
   let settings: AppSettings = {
     appearance: { ...DEFAULT_APPEARANCE }, libraryRoot: '/离线磁盘/音乐', runtimeRoot: '/离线磁盘/环境', modelRoot: '/离线磁盘/环境/模型',
     desktopLyricsFontSize: 24, desktopLyricsBackgroundTransparency: 20, debugMode: false, preferredDevice: 'auto', audioOutputDeviceId: '离线声卡', latencyMode: 'balanced',
-    recordingAudio: createDefaultRecordingAudioSettings(), keepSource: true, closeToTrayWhileWorking: true, highQualityStems: false, guitarSeparationQuality: 'balanced',
+    recordingAudio: createDefaultRecordingAudioSettings(), keepSource: true, closeToTrayWhileWorking: true, highQualityStems: false, guitarSeparationQuality: 'balanced', vocalSeparationQuality: 'fast',
     network: { proxyMode: 'manual', proxyUrl: 'http://127.0.0.1:9876', pythonInstallMirror: '', pythonIndexUrl: '', pytorchIndexUrl: '' }
   }
   const original = settings

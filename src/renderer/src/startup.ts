@@ -21,10 +21,10 @@ export async function startRenderer(api: BandBuddyApi | undefined, mount: () => 
     root.style.colorScheme = root.dataset.theme === 'dark' ? 'dark' : 'light'
     if (status) status.textContent = state.message
     if (detail && state.phase === 'failed') {
-      detail.textContent = '曲库尚未打开，已有数据和备份已保留。可尝试兼容启动，或打开数据位置检查备份。'
+      detail.textContent = state.issue ? `${state.issue.stage}：${state.issue.message} ${(state.issue.nextSteps ?? []).join(' ')}` : '曲库尚未打开，已有数据和备份已保留。可尝试兼容启动，或打开数据位置检查备份。'
       if (!document.getElementById('startup-recovery-actions')) {
         const actions = document.createElement('div'); actions.id = 'startup-recovery-actions'
-        for (const [text, action] of [['修复系统组件', () => api?.startup?.repairSystem?.()], ['兼容启动', () => api?.startup?.recover?.(true)], ['重新打开', () => api?.startup?.recover?.(false)], ['从备份恢复', () => api?.startup?.restoreBackup?.()], ['打开数据位置', () => api?.startup?.revealRecovery?.()]] as const) {
+        for (const [text, action] of [['复制问题摘要', () => api?.startup?.copyDiagnostics?.()], ['导出诊断', () => api?.startup?.exportDiagnostics?.()], ['修复系统组件', () => api?.startup?.repairSystem?.()], ['兼容启动', () => api?.startup?.recover?.(true)], ['重新打开', () => api?.startup?.recover?.(false)], ['从备份恢复', () => api?.startup?.restoreBackup?.()], ['打开数据位置', () => api?.startup?.revealRecovery?.()]] as const) {
           const button = document.createElement('button'); button.textContent = text
           button.addEventListener('click', () => { button.disabled = true; void Promise.resolve(action()).catch(reason => { if (detail) detail.textContent = String(reason).replace(/^Error: /, '') }).finally(() => { button.disabled = false }) }); actions.append(button)
         }

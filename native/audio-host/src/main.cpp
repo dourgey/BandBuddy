@@ -1,3 +1,4 @@
+#include "../../audio-ipc/worker-wait.h"
 #include <RtAudio.h>
 #include <nlohmann/json.hpp>
 #include <signalsmith-stretch/signalsmith-stretch.h>
@@ -32,6 +33,10 @@
 #include "loopback-output.h"
 #include "effects.h"
 #include "arsenal-analysis.h"
+#include "realtime-safety.h"
+#include "input-clock.h"
+#include "../../audio-ipc/shared-audio.h"
+#include "timeline.h"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -115,7 +120,9 @@ class FloatRing {
     const auto read = read_.load(std::memory_order_acquire);
     const auto free = read > write ? read - write - 1 : data_.size() - write + read - 1;
     if (count > free) return false;
-    for (std::size_t i = 0; i < count; ++i) { data_[write] = source[i]; write = (write + 1) % data_.size(); }
+    const auto first = std::min(count, data_.size() - write);
+    std::copy_n(source, first, data_.data() + write); std::copy_n(source + first, count - first, data_.data());
+    write = (write + count) % data_.size();
     write_.store(write, std::memory_order_release);
     return true;
   }
@@ -124,7 +131,9 @@ class FloatRing {
     const auto write = write_.load(std::memory_order_acquire);
     const auto available = write >= read ? write - read : data_.size() - read + write;
     const auto count = std::min(maximum, available);
-    for (std::size_t i = 0; i < count; ++i) { target[i] = data_[read]; read = (read + 1) % data_.size(); }
+    const auto first = std::min(count, data_.size() - read);
+    std::copy_n(data_.data() + read, first, target); std::copy_n(data_.data(), count - first, target + first);
+    read = (read + count) % data_.size();
     read_.store(read, std::memory_order_release);
     return count;
   }
@@ -143,19 +152,26 @@ class WaveStream {
     if (!stream_) throw std::runtime_error("BACKING_OPEN_FAILED");
     char header[12]{};
     stream_.read(header, sizeof(header));
-    if (std::memcmp(header, "RIFF", 4) != 0 || std::memcmp(header + 8, "WAVE", 4) != 0) {
+    if ((std::memcmp(header, "RIFF", 4) != 0 && std::memcmp(header, "RF64", 4) != 0) || std::memcmp(header + 8, "WAVE", 4) != 0) {
       throw std::runtime_error("BACKING_WAV_INVALID");
     }
     std::uint16_t format = 0;
     std::uint16_t bits = 0;
     std::uint64_t dataBytes = 0;
+    std::uint64_t extendedDataBytes = 0;
     std::streampos dataOffset = 0;
     while (stream_) {
       char chunk[8]{};
       stream_.read(chunk, sizeof(chunk));
       if (stream_.gcount() != sizeof(chunk)) break;
       const auto size = getU32(chunk + 4);
+      if (std::memcmp(chunk, "ds64", 4) == 0) {
+        if (size < 28 || size > 65536) throw std::runtime_error("BACKING_DS64_INVALID");
+        std::vector<char> ds(size); stream_.read(ds.data(), size); extendedDataBytes = bb::wave64(ds.data() + 8);
+        continue;
+      }
       if (std::memcmp(chunk, "fmt ", 4) == 0) {
+        if (size > 65536) throw std::runtime_error("BACKING_FMT_TOO_LARGE");
         std::vector<char> fmt(size);
         stream_.read(fmt.data(), static_cast<std::streamsize>(size));
         if (fmt.size() < 16) throw std::runtime_error("BACKING_WAV_INVALID");
@@ -175,8 +191,8 @@ class WaveStream {
         }
       } else if (std::memcmp(chunk, "data", 4) == 0) {
         dataOffset = stream_.tellg();
-        dataBytes = size;
-        stream_.seekg(size + (size & 1u), std::ios::cur);
+        dataBytes = size == 0xffffffffu && extendedDataBytes ? extendedDataBytes : size;
+        break;
       } else {
         stream_.seekg(size + (size & 1u), std::ios::cur);
       }
@@ -184,6 +200,7 @@ class WaveStream {
     if (format != 3 || bits != 32 || channels_ == 0 || sampleRate_ == 0 || dataBytes == 0 || dataOffset <= 0) {
       throw std::runtime_error("BACKING_WAV_FORMAT_UNSUPPORTED");
     }
+    if (std::uint64_t(dataOffset) + dataBytes > fs::file_size(path)) throw std::runtime_error("BACKING_EARLY_EOF");
     totalSamples_ = dataBytes / sizeof(float);
     totalFrames_ = totalSamples_ / channels_;
     bufferFrames_ = static_cast<std::size_t>(sampleRate_) * 10;
@@ -218,10 +235,9 @@ class WaveStream {
   std::size_t bufferFrames() const { return bufferFrames_; }
 
   std::size_t read(float* target, std::size_t maximum) {
-    const auto count = ring_->pop(target, maximum);
-    cv_.notify_one();
-    return count;
+    return ring_->pop(target, maximum);
   }
+  bool healthy() const { return !failed_.load(); }
 
   void close() {
     if (closed_.exchange(true)) return;
@@ -242,7 +258,7 @@ class WaveStream {
         static_cast<std::streamsize>(requested * sizeof(float))
       );
       const auto count = static_cast<std::size_t>(stream_.gcount()) / sizeof(float);
-      if (count == 0) break;
+      if (count == 0) { failed_.store(true); break; }
       while (!closed_.load() && !ring_->push(block.data(), count)) {
         std::unique_lock lock(waitMutex_);
         cv_.wait_for(lock, std::chrono::milliseconds(4));
@@ -257,6 +273,7 @@ class WaveStream {
   std::condition_variable cv_;
   std::mutex waitMutex_;
   std::atomic<bool> closed_{false};
+  std::atomic<bool> failed_{false};
   unsigned sampleRate_ = 0;
   unsigned channels_ = 0;
   std::uint64_t totalSamples_ = 0;
@@ -267,8 +284,8 @@ class WaveStream {
 
 class WaveWriter {
  public:
-  WaveWriter(const fs::path& path, unsigned sampleRate, unsigned channels)
-    : path_(path), sampleRate_(sampleRate), channels_(channels), ring_(static_cast<std::size_t>(sampleRate) * channels * 10) {
+  WaveWriter(const fs::path& path, unsigned sampleRate, unsigned channels, bool longCapture = false)
+    : path_(path), sampleRate_(sampleRate), channels_(channels), ring_(static_cast<std::size_t>(sampleRate) * channels * 10), longCapture_(longCapture) {
     fs::create_directories(path.parent_path());
     stream_.open(path, std::ios::binary | std::ios::trunc);
     if (!stream_) throw std::runtime_error("CAPTURE_OPEN_FAILED");
@@ -279,19 +296,19 @@ class WaveWriter {
   bool write(const float* samples, std::size_t count) {
     if(failed_.load())return false;
     if (!ring_.push(samples, count)) return false;
-    cv_.notify_one();
     return true;
   }
   void close() {
     if (closed_.exchange(true)) return;
     cv_.notify_all();
     if (worker_.joinable()) worker_.join();
-    stream_.seekp(0); writeHeader(samplesWritten_ * sizeof(float)); stream_.close();
+    stream_.seekp(0); writeHeader(samplesWritten_ * sizeof(float)); stream_.flush(); if (!stream_) failed_.store(true); stream_.close();
   }
   std::uint64_t framesWritten() const { return samplesWritten_ / channels_; }
   bool healthy() const {return !failed_.load();}
  private:
   void writeHeader(std::uint64_t dataBytes64) {
+    if (longCapture_) { bb::writeWaveHeader(stream_, sampleRate_, channels_, dataBytes64); return; }
     const auto dataBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(dataBytes64, 0xffffffffu - 44));
     stream_.write("RIFF", 4); putU32(stream_, 36 + dataBytes); stream_.write("WAVE", 4);
     stream_.write("fmt ", 4); putU32(stream_, 16); putU16(stream_, 3); putU16(stream_, static_cast<std::uint16_t>(channels_));
@@ -318,6 +335,7 @@ class WaveWriter {
   std::atomic<bool> closed_{false};
   std::atomic<bool> failed_{false};
   std::uint64_t samplesWritten_ = 0;
+  bool longCapture_ = false;
 };
 
 struct InterleavedChannels {
@@ -349,6 +367,7 @@ WaveData readFloatWaveFile(const fs::path& path) {
   while (offset < result.samples.size()) {
     const auto read = stream.read(result.samples.data() + offset, result.samples.size() - offset);
     if (read == 0) {
+      if (!stream.healthy()) throw std::runtime_error("BACKING_EARLY_EOF");
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
@@ -403,12 +422,14 @@ void writeFloatWaveFile(const fs::path& path, const WaveData& data) {
   while (offset < data.samples.size()) {
     const auto count = std::min(blockSamples, data.samples.size() - offset);
     if (!writer.write(data.samples.data() + offset, count)) {
+      if (!writer.healthy()) throw std::runtime_error("CAPTURE_WRITE_FAILED");
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
     offset += count;
   }
   writer.close();
+  if (!writer.healthy()) throw std::runtime_error("CAPTURE_WRITE_FAILED");
 }
 
 json pitchShiftFile(const fs::path& inputPath, const fs::path& outputPath, int semitones) {
@@ -472,6 +493,16 @@ std::optional<unsigned> parseDeviceId(const std::string& value) {
 }
 
 struct Session {
+  std::unique_ptr<bb::Timeline> timeline;
+  std::atomic<bb::Timeline*> activeTimeline{nullptr};
+  std::atomic<unsigned> timelineReaders{0};
+  std::unique_ptr<bb::ipc::Client> plugin;
+  std::atomic<bb::ipc::Client*> activePlugin{nullptr};
+  std::atomic<unsigned> pluginReaders{0};
+  bb::OutputSafety diagnostics;
+  std::unique_ptr<bb::InputClockBridge> inputClock;
+  std::vector<float> synchronizedInput;
+  std::atomic<double> inputAdcSeconds{0}, outputDacSeconds{0};
   std::unique_ptr<RtAudio> audio;
   std::unique_ptr<RtAudio> inputAudio;
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
@@ -486,6 +517,7 @@ struct Session {
   std::unique_ptr<WaveStream> backingStream;
   std::vector<float> backingScratch;
   std::unique_ptr<WaveWriter> writer;
+  unsigned inputSampleRate = 48000;
   unsigned sampleRate = 0;
   unsigned bufferFrames = 0;
   unsigned inputBufferFrames = 0;
@@ -522,6 +554,7 @@ struct Session {
   bool testing = false;
   bool splitDevices = false;
   std::atomic<std::uint64_t> callbackFrames{0};
+  std::atomic<std::uint64_t> outputClockFrames{0};
   std::atomic<std::uint64_t> transportFrames{0};
   std::atomic<std::uint64_t> inputFrames{0};
   std::atomic<std::uint64_t> inputStartTransportFrames{std::numeric_limits<std::uint64_t>::max()};
@@ -573,26 +606,50 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
   auto& s = *static_cast<Session*>(userData);
   auto* output = static_cast<float*>(outputBuffer);
   auto* input = static_cast<float*>(inputBuffer);
+  bb::OutputCallbackScope safety{s.diagnostics, output, nFrames, s.outputChannels, s.sampleRate};
+  const auto continuousPosition = s.outputClockFrames.fetch_add(nFrames, std::memory_order_relaxed);
+  if (status & RTAUDIO_INPUT_OVERFLOW) s.diagnostics.inputOverflows.fetch_add(1);
+  if (status & RTAUDIO_OUTPUT_UNDERFLOW) s.diagnostics.outputUnderflows.fetch_add(1);
+  if (s.inputClock && nFrames * s.inputChannels <= s.synchronizedInput.size()) {
+    s.inputClock->pull(s.synchronizedInput.data(), nFrames);
+    input = s.synchronizedInput.data();
+  }
   if (output) std::fill(output, output + static_cast<std::size_t>(nFrames) * s.outputChannels, 0.0f);
   if (status) s.xruns.fetch_add(1, std::memory_order_relaxed);
   if (!s.fadingEffects && !s.retiredEffects.load()&&s.pendingEffects.load()){s.graphSwapping.store(true);if(auto* next=s.pendingEffects.exchange(nullptr)){s.fadingEffects=s.effects;s.fadeRemaining=s.sampleRate/50;s.effects=next;s.publishedEffects.store(next);}s.graphSwapping.store(false);}
   s.quickReaders.fetch_add(1);
-  if(auto* writer=s.quickWriter.load())if(input){if(!writer->write(input,nFrames*s.inputChannels))s.writeOverflow.store(true);s.quickFrames.fetch_add(nFrames);}
+  if(!s.splitDevices)if(auto* writer=s.quickWriter.load())if(input){if(!writer->write(input,nFrames*s.inputChannels))s.writeOverflow.store(true);s.quickFrames.fetch_add(nFrames);}
   const float* effectInput=input;unsigned effectChannels=s.inputChannels;
   if(auto* loop=s.quickLoop.load())if(nFrames*2<=s.loopScratch.size()&&!loop->samples.empty()){auto cursor=s.loopCursor.load();auto count=loop->samples.size()/loop->channels;for(unsigned i=0;i<nFrames;++i)for(unsigned c=0;c<2;++c)s.loopScratch[i*2+c]=loop->samples[((cursor+i)%count)*loop->channels+std::min(c,loop->channels-1)]*std::min(1.f,float(std::min((cursor+i)%count,count-1-(cursor+i)%count))/64.f);s.loopCursor.store((cursor+nFrames)%count);effectInput=s.loopScratch.data();effectChannels=2;}
   s.quickReaders.fetch_sub(1);
   const int mode = s.monitorMode.load();
   const auto dspStart=std::chrono::steady_clock::now();
   if(s.tunerEnabled.load()&&input){const unsigned stride=std::max(1u,s.sampleRate/12000);for(unsigned i=0;i<nFrames;++i){s.tunerLow+=(input[i*s.inputChannels]-s.tunerLow)*float(1-std::exp(-2*3.141592653589793*1600/s.sampleRate));if(++s.tunerDecimate>=stride){s.tunerDecimate=0;s.tunerRing.push(&s.tunerLow,1);}}}
-  if (effectInput && output && mode && !s.splitDevices && nFrames * 2 <= s.effectsScratch.size()) {
-    if (mode == 2 && s.effects) s.effects->process(effectInput, s.effectsScratch.data(), nFrames, effectChannels);
+  if (effectInput && output && mode && nFrames * 2 <= s.effectsScratch.size()) {
+    s.pluginReaders.fetch_add(1);
+    auto* plugin = s.activePlugin.load();
+    if (mode == 2 && plugin) {
+      auto position = s.transportFrames.load() + std::uint64_t(s.startPositionMs / 1000 / s.playbackRate * s.sampleRate);
+      double tempo = s.bpm * s.playbackRate, beatOffset = s.beatOffsetMs / 1000 / s.playbackRate;
+      bool playing = !s.testing && !s.paused.load() && s.recording.load();
+      s.timelineReaders.fetch_add(1);
+      if (const auto* timeline = s.activeTimeline.load()) { position = timeline->positionFrames(); tempo = timeline->tempo(); beatOffset = timeline->beatOffsetSeconds(); playing = timeline->playing(); }
+      s.timelineReaders.fetch_sub(1);
+      plugin->process(effectInput, s.effectsScratch.data(), nFrames, effectChannels,
+        position, s.sampleRate, tempo, playing, continuousPosition, beatOffset);
+    }
+    else if (mode == 2 && s.effects) s.effects->process(effectInput, s.effectsScratch.data(), nFrames, effectChannels);
     else for(unsigned i=0;i<nFrames;++i) for(unsigned c=0;c<2;++c) s.effectsScratch[i*2+c]=effectInput[i*effectChannels+std::min(c,effectChannels-1)];
-    if(s.fadingEffects){if(mode==2)s.fadingEffects->process(effectInput,s.fadeScratch.data(),nFrames,effectChannels);for(unsigned i=0;i<nFrames;++i){float blend=1.f-float(s.fadeRemaining)/std::max(1u,s.sampleRate/50);for(unsigned c=0;c<2;++c)if(mode==2)s.effectsScratch[i*2+c]=s.effectsScratch[i*2+c]*blend+s.fadeScratch[i*2+c]*(1-blend);if(s.fadeRemaining)--s.fadeRemaining;}if(!s.fadeRemaining){s.retiredEffects.store(s.fadingEffects);s.fadingEffects=nullptr;}}
+    s.pluginReaders.fetch_sub(1);
+    if(s.fadingEffects){if(mode==2&&!plugin)s.fadingEffects->process(effectInput,s.fadeScratch.data(),nFrames,effectChannels);for(unsigned i=0;i<nFrames;++i){float blend=1.f-float(s.fadeRemaining)/std::max(1u,s.sampleRate/50);for(unsigned c=0;c<2;++c)if(mode==2&&!plugin)s.effectsScratch[i*2+c]=s.effectsScratch[i*2+c]*blend+s.fadeScratch[i*2+c]*(1-blend);if(s.fadeRemaining)--s.fadeRemaining;}if(!s.fadeRemaining){s.retiredEffects.store(s.fadingEffects);s.fadingEffects=nullptr;}}
     for(unsigned i=0;i<nFrames*2;++i) { output[i]=s.tunerEnabled.load()?0:s.effectsScratch[i]*s.monitorGain; storeMaximum(s.outputPeak,std::abs(output[i])); }
   }
   s.dspLoad.store(float(std::chrono::duration<double>(std::chrono::steady_clock::now()-dspStart).count()*s.sampleRate/std::max(1u,nFrames)));
   if(s.testing&&output&&nFrames*2<=s.pcmScratch.size())for(auto& bus:s.pcmBuses){if(bus.clear.exchange(false)||!bus.enabled.load()){bus.ring.pop(s.pcmScratch.data(),s.pcmScratch.size());bus.started=false;continue;}if(!bus.started){if(bus.ring.available()<4096)continue;bus.started=true;}const auto count=bus.ring.pop(s.pcmScratch.data(),nFrames*2);if(count<nFrames*2){bus.started=false;s.pcmUnderruns.fetch_add(1);}for(size_t i=0;i<count;++i){output[i]+=s.pcmScratch[i];storeMaximum(s.outputPeak,std::abs(output[i]));}}
   if (s.testing) {
+    s.timelineReaders.fetch_add(1);
+    if (auto* timeline = s.activeTimeline.load()) timeline->mix(output, nFrames);
+    s.timelineReaders.fetch_sub(1);
     if (input) {
       for (unsigned ch = 0; ch < std::min(2u, s.inputChannels); ++ch) {
         double squares = 0; float peak = 0;
@@ -601,6 +658,8 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
         if (peak >= 0.999f) s.clipped.store(true);
       }
     }
+    s.callbackFrames.fetch_add(nFrames, std::memory_order_relaxed);
+    s.transportFrames.fetch_add(nFrames, std::memory_order_relaxed);
     return 0;
   }
 
@@ -648,7 +707,7 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
 
   for (unsigned i = 0; i < nFrames; ++i) {
     const auto absolute = initial + i;
-    if (output && input && s.monitor && !mode && !s.splitDevices) {
+    if (output && input && s.monitor && !mode) {
       for (unsigned ch = 0; ch < 2; ++ch) output[i * 2 + ch] += input[i * s.inputChannels + std::min(ch, s.inputChannels - 1)] * s.monitorGain;
     }
     if (absolute < countIn) {
@@ -696,12 +755,6 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
     }
   }
 
-  if (output) {
-    for (std::size_t sample = 0; sample < static_cast<std::size_t>(nFrames) * s.outputChannels; ++sample) {
-      output[sample] = std::clamp(output[sample], -0.98f, 0.98f);
-    }
-  }
-
   if (initial + nFrames > countIn) {
     const auto activeFrames = nFrames - static_cast<unsigned>(transportStartInBuffer);
     auto unsetTimestamp = std::int64_t{0};
@@ -712,7 +765,7 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
     s.recording.store(true);
   }
 
-  if (input && initial + nFrames > countIn) {
+  if (input && !s.splitDevices && initial + nFrames > countIn) {
     const unsigned skip = static_cast<unsigned>(transportStartInBuffer);
     auto unsetTimestamp = std::int64_t{0};
     const auto captureStartNs = steadyNowNs() + static_cast<std::int64_t>(
@@ -741,6 +794,14 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
 int splitInputCallback(void*, void* inputBuffer, unsigned nFrames, double, RtAudioStreamStatus status, void* userData) {
   auto& s = *static_cast<Session*>(userData);
   auto* input = static_cast<float*>(inputBuffer);
+  if (status & RTAUDIO_INPUT_OVERFLOW) s.diagnostics.inputOverflows.fetch_add(1);
+  if (s.inputClock) s.inputClock->push(input, nFrames, s.inputAdcSeconds.load());
+  s.quickReaders.fetch_add(1);
+  if (auto* writer = s.quickWriter.load()) if (input) {
+    if (!writer->write(input, nFrames * s.inputChannels)) s.writeOverflow.store(true);
+    s.quickFrames.fetch_add(nFrames);
+  }
+  s.quickReaders.fetch_sub(1);
   if (status) s.xruns.fetch_add(1, std::memory_order_relaxed);
   if (s.finished.load()) return 1;
   if (!input || (!s.testing && !s.recording.load())) return 0;
@@ -798,22 +859,25 @@ int toPortAudioResult(int result) {
   return result == 0 ? paContinue : result == 1 ? paComplete : paAbort;
 }
 
-int portAudioOutputCallback(const void*, void* output, unsigned long frames, const PaStreamCallbackTimeInfo*, PaStreamCallbackFlags flags, void* userData) {
+int portAudioOutputCallback(const void*, void* output, unsigned long frames, const PaStreamCallbackTimeInfo* time, PaStreamCallbackFlags flags, void* userData) {
   if (frames > std::numeric_limits<unsigned>::max()) return paAbort;
+  if (time) static_cast<Session*>(userData)->outputDacSeconds.store(time->outputBufferDacTime);
   return toPortAudioResult(audioCallback(output, nullptr, static_cast<unsigned>(frames), 0, portAudioStatus(flags), userData));
 }
 
-int portAudioInputCallback(const void* input, void*, unsigned long frames, const PaStreamCallbackTimeInfo*, PaStreamCallbackFlags flags, void* userData) {
+int portAudioInputCallback(const void* input, void*, unsigned long frames, const PaStreamCallbackTimeInfo* time, PaStreamCallbackFlags flags, void* userData) {
   if (frames > std::numeric_limits<unsigned>::max()) return paAbort;
   auto& session = *static_cast<Session*>(userData);
+  if (time) { session.inputAdcSeconds.store(time->inputBufferAdcTime); }
   const auto* selected = selectPortAudioInput(session, input, frames);
   if (session.writeOverflow.load()) return paAbort;
   return toPortAudioResult(splitInputCallback(nullptr, const_cast<float*>(selected), static_cast<unsigned>(frames), 0, portAudioStatus(flags), userData));
 }
 
-int portAudioDuplexCallback(const void* input, void* output, unsigned long frames, const PaStreamCallbackTimeInfo*, PaStreamCallbackFlags flags, void* userData) {
+int portAudioDuplexCallback(const void* input, void* output, unsigned long frames, const PaStreamCallbackTimeInfo* time, PaStreamCallbackFlags flags, void* userData) {
   if (frames > std::numeric_limits<unsigned>::max()) return paAbort;
   auto& session = *static_cast<Session*>(userData);
+  if (time) { session.inputAdcSeconds.store(time->inputBufferAdcTime); session.outputDacSeconds.store(time->outputBufferDacTime); }
   const auto* selected = selectPortAudioInput(session, input, frames);
   if (session.writeOverflow.load()) return paAbort;
   return toPortAudioResult(audioCallback(output, const_cast<float*>(selected), static_cast<unsigned>(frames), 0, portAudioStatus(flags), userData));
@@ -838,7 +902,12 @@ PaWasapiStreamInfo wasapiStreamInfo(bool exclusive) {
 }
 
 std::string portAudioError(const char* operation, PaError error) {
-  return std::string(operation) + ":" + (Pa_GetErrorText(error) ? Pa_GetErrorText(error) : "unknown");
+  std::string message = std::string(operation) + ":code=" + std::to_string(error) + ":" + (Pa_GetErrorText(error) ? Pa_GetErrorText(error) : "unknown");
+  if (error == paUnanticipatedHostError) {
+    const auto* host = Pa_GetLastHostErrorInfo();
+    if (host) message += ":hostApi=" + std::to_string(host->hostApiType) + ":hostCode=" + std::to_string(host->errorCode) + ":" + (host->errorText ? host->errorText : "unknown");
+  }
+  return message;
 }
 #endif
 
@@ -889,10 +958,14 @@ class Host {
     if (portAudioInitialized_) {
       bool canRefresh = false;
       { std::lock_guard lock(sessionMutex_); canRefresh = !session_; }
-      if (canRefresh) PaWasapi_UpdateDeviceList();
+      if (canRefresh) {
+        const auto refreshed = PaWasapi_UpdateDeviceList();
+        if (refreshed != paNoError) throw std::runtime_error(portAudioError("AUDIO_DEVICE_REFRESH_FAILED", refreshed));
+      }
       const auto hostApi = Pa_HostApiTypeIdToHostApiIndex(paWASAPI);
       const auto* hostInfo = hostApi >= 0 ? Pa_GetHostApiInfo(hostApi) : nullptr;
       const auto count = Pa_GetDeviceCount();
+      if (count < 0) throw std::runtime_error(portAudioError("AUDIO_DEVICE_ENUMERATION_FAILED", count));
       constexpr std::array<unsigned, 14> standardRates{
         4000, 5512, 8000, 9600, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000, 176400, 192000
       };
@@ -948,7 +1021,9 @@ class Host {
         // unplugged. RtAudio reports that normal probe miss as a warning on
         // stderr; use a callback so the driver is simply omitted from this
         // fresh snapshot instead of presenting it as an application failure.
-        RtAudio audio(api, [](RtAudioErrorType, const std::string&) {});
+        RtAudio audio(api, [](RtAudioErrorType code, const std::string& message) {
+          std::cerr << json({{"stage", "device-enumeration"}, {"driverErrorCode", code}, {"message", message}}).dump(-1, ' ', false, json::error_handler_t::replace) << '\n';
+        });
         for (const auto id : audio.getDeviceIds()) {
           const auto info = audio.getDeviceInfo(id);
           const std::array<bool, 2> variants = api == RtAudio::WINDOWS_WASAPI ? std::array<bool, 2>{false, true} : std::array<bool, 2>{false, false};
@@ -962,7 +1037,7 @@ class Host {
             });
           }
         }
-      } catch (...) {}
+      } catch (const std::exception& error) { throw std::runtime_error(std::string("AUDIO_DEVICE_ENUMERATION_FAILED:") + error.what()); }
     }
     return devices;
   }
@@ -970,6 +1045,7 @@ class Host {
   json start(const json& params, bool testing) {
     stopSession(false);
     auto session = std::make_unique<Session>();
+    const bool outputOnly = params.value("outputOnly", false);
     const auto backend = params.value("backend", "auto");
     const auto api = backendApi(backend);
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
@@ -996,7 +1072,7 @@ class Host {
       const auto hostApi = Pa_HostApiTypeIdToHostApiIndex(paWASAPI);
       const auto* hostInfo = hostApi >= 0 ? Pa_GetHostApiInfo(hostApi) : nullptr;
       if (!hostInfo) throw std::runtime_error("WASAPI_HOST_API_MISSING");
-      if (!parsedInputId && hostInfo->defaultInputDevice == paNoDevice) throw std::runtime_error("NO_AUDIO_INPUT_DEVICE");
+      if (!outputOnly && !parsedInputId && hostInfo->defaultInputDevice == paNoDevice) throw std::runtime_error("NO_AUDIO_INPUT_DEVICE");
       if (!parsedOutputId && hostInfo->defaultOutputDevice == paNoDevice) throw std::runtime_error("NO_AUDIO_OUTPUT_DEVICE");
       inputId = parsedInputId.value_or(static_cast<unsigned>(hostInfo->defaultInputDevice));
       outputId = parsedOutputId.value_or(static_cast<unsigned>(hostInfo->defaultOutputDevice));
@@ -1005,10 +1081,10 @@ class Host {
       inputId = parsedInputId.value_or(session->audio->getDefaultInputDevice());
       outputId = parsedOutputId.value_or(session->audio->getDefaultOutputDevice());
     }
-    const auto inputChannels = params.value("inputChannels", std::vector<unsigned>{0});
-    if (inputChannels.empty() || inputChannels.size() > 2) throw std::runtime_error("INPUT_CHANNELS_INVALID");
+    const auto inputChannels = outputOnly ? std::vector<unsigned>{} : params.value("inputChannels", std::vector<unsigned>{0});
+    if ((!outputOnly && inputChannels.empty()) || inputChannels.size() > 2) throw std::runtime_error("INPUT_CHANNELS_INVALID");
     session->inputChannels = static_cast<unsigned>(inputChannels.size());
-    session->splitDevices = inputId != outputId;
+    session->splitDevices = !outputOnly && (usePortAudio || inputId != outputId);
     if (!simulate_ && !usePortAudio && session->splitDevices) {
       Session* target = session.get();
       session->inputAudio = std::make_unique<RtAudio>(api, [target](RtAudioErrorType type, const std::string&) {
@@ -1031,21 +1107,32 @@ class Host {
         session->sampleRate = outputInfo.preferredSampleRate ? outputInfo.preferredSampleRate : 48000;
       }
     }
+    session->inputSampleRate = session->splitDevices ? params.value("inputSampleRate", session->sampleRate) : session->sampleRate;
+    if (session->inputSampleRate < 8000 || session->inputSampleRate > 192000 || session->sampleRate < 8000 || session->sampleRate > 192000) throw std::runtime_error("AUDIO_SAMPLE_RATE_INVALID");
     session->bufferFrames = params.value("bufferFrames", 0u);
     if (simulate_ && !session->bufferFrames) session->bufferFrames = 256;
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
     if (usePortAudio) {
-      session->inputFirstChannel = inputChannels.front();
-      session->deviceInputChannels = inputChannels.front() + session->inputChannels;
+      session->inputFirstChannel = outputOnly ? 0 : inputChannels.front();
+      session->deviceInputChannels = session->inputFirstChannel + session->inputChannels;
       session->mappedInput.resize(static_cast<std::size_t>(std::max(16384u, session->bufferFrames)) * session->inputChannels);
     }
 #endif
-    session->monitor = params.value("softwareMonitoring", false) && !session->splitDevices;
+    session->monitor = params.value("softwareMonitoring", false);
+    if (session->splitDevices) {
+      session->inputClock = std::make_unique<bb::InputClockBridge>(session->inputSampleRate, session->sampleRate,
+        session->inputChannels, session->bufferFrames ? session->bufferFrames : 256);
+      session->synchronizedInput.resize(262144 * session->inputChannels);
+    }
     session->effectsScratch.resize(262144 * 2);
     session->fadeScratch.resize(262144 * 2);session->loopScratch.resize(262144 * 2);
     session->monitorMode.store(params.value("monitorMode", 0));
     if (params.contains("effects")) session->effects = new bb::Effects(params["effects"], session->sampleRate);
     session->publishedEffects.store(session->effects);
+    if (params.contains("pluginMapping")) {
+      session->plugin = std::make_unique<bb::ipc::Client>(pathFromUtf8(params.at("pluginMapping")), session->bufferFrames ? session->bufferFrames : 2048);
+      session->activePlugin.store(session->plugin.get());
+    }
     session->monitorGain = std::pow(10.0f, params.value("monitorGainDb", -6.0f) / 20.0f);
     session->playbackRate = params.value("playbackRate", 1.0);
     session->startPositionMs = params.value("startPositionMs", 0.0);
@@ -1063,10 +1150,10 @@ class Host {
       session->backingScratch.resize(
         static_cast<std::size_t>(262144) * session->backingStream->channels()
       );
-      session->writer = std::make_unique<WaveWriter>(pathFromUtf8(params.at("capturePath").get<std::string>()), session->sampleRate, session->inputChannels);
+      session->writer = std::make_unique<WaveWriter>(pathFromUtf8(params.at("capturePath").get<std::string>()), session->inputSampleRate, session->inputChannels, true);
     }
     if (simulate_) {
-      const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
+      const auto result = json{{"inputSampleRate", session->inputSampleRate}, {"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
         {"latencyMs", session->bufferFrames * 2000.0 / session->sampleRate}, {"splitDevices", session->splitDevices},
         {"streamingBacking", !testing}, {"backingBufferFrames", testing ? 0 : session->backingStream->bufferFrames()}};
       Session* running = session.get();
@@ -1077,7 +1164,7 @@ class Host {
           std::uint64_t generatedFrames = 0;
           std::uint64_t callback = 0;
           double pendingInputFrames = 0;
-          const auto clockScale = 1.0 + running->simulateInputClockPpm / 1'000'000.0;
+          const auto clockScale = double(running->inputSampleRate) / running->sampleRate * (1.0 + running->simulateInputClockPpm / 1'000'000.0);
           while (!running->stopRequested.load() && !running->finished.load()) {
             if (audioCallback(output.data(), nullptr, running->bufferFrames, 0, 0, running) != 0) break;
             pendingInputFrames += running->bufferFrames * clockScale;
@@ -1087,7 +1174,7 @@ class Host {
                   const double frequency = channel == 0 ? 440.0 : 660.0;
                   const float amplitude = channel == 0 ? 0.25f : 0.125f;
                   input[static_cast<std::size_t>(frame) * running->inputChannels + channel] =
-                    amplitude * static_cast<float>(std::sin(2 * kPi * frequency * (generatedFrames + frame) / running->sampleRate));
+                    amplitude * static_cast<float>(std::sin(2 * kPi * frequency * (generatedFrames + frame) / running->inputSampleRate));
                 }
               }
               generatedFrames += running->bufferFrames;
@@ -1097,7 +1184,7 @@ class Host {
               if (splitInputCallback(nullptr, input.data(), running->bufferFrames, 0, status, running) != 0) break;
             }
             const auto blockDuration = std::chrono::duration<double>(running->bufferFrames / static_cast<double>(running->sampleRate) * running->simulateTimeScale);
-            if (blockDuration >= std::chrono::milliseconds(1)) std::this_thread::sleep_for(blockDuration);
+            if (blockDuration >= std::chrono::milliseconds(1)) { thread_local bb::WorkerWait wait; wait.wait(std::chrono::duration_cast<std::chrono::nanoseconds>(blockDuration)); }
             else std::this_thread::yield();
           }
         });
@@ -1120,7 +1207,7 @@ class Host {
               ? static_cast<RtAudioStreamStatus>(RTAUDIO_INPUT_OVERFLOW) : 0u;
             if (audioCallback(output.data(), input.data(), running->bufferFrames, 0, status, running) != 0) break;
             const auto blockDuration = std::chrono::duration<double>(running->bufferFrames / static_cast<double>(running->sampleRate) * running->simulateTimeScale);
-            if (blockDuration >= std::chrono::milliseconds(1)) std::this_thread::sleep_for(blockDuration);
+            if (blockDuration >= std::chrono::milliseconds(1)) { thread_local bb::WorkerWait wait; wait.wait(std::chrono::duration_cast<std::chrono::nanoseconds>(blockDuration)); }
             else std::this_thread::yield();
           }
         });
@@ -1135,9 +1222,9 @@ class Host {
       const auto* inputDevice = Pa_GetDeviceInfo(static_cast<PaDeviceIndex>(inputId));
       const auto* outputDevice = Pa_GetDeviceInfo(static_cast<PaDeviceIndex>(outputId));
       const auto hostApi = Pa_HostApiTypeIdToHostApiIndex(paWASAPI);
-      if (!inputDevice || inputDevice->hostApi != hostApi) throw std::runtime_error("SELECTED_INPUT_DEVICE_MISSING");
+      if (!outputOnly && (!inputDevice || inputDevice->hostApi != hostApi)) throw std::runtime_error("SELECTED_INPUT_DEVICE_MISSING");
       if (!outputDevice || outputDevice->hostApi != hostApi) throw std::runtime_error("SELECTED_OUTPUT_DEVICE_MISSING");
-      if (session->deviceInputChannels > static_cast<unsigned>(inputDevice->maxInputChannels)) throw std::runtime_error("INPUT_CHANNEL_UNAVAILABLE");
+      if (!outputOnly && session->deviceInputChannels > static_cast<unsigned>(inputDevice->maxInputChannels)) throw std::runtime_error("INPUT_CHANNEL_UNAVAILABLE");
       if (outputDevice->maxOutputChannels < 2) throw std::runtime_error("OUTPUT_STEREO_UNAVAILABLE");
 
       const bool exclusive = backend == "wasapi-exclusive";
@@ -1149,7 +1236,7 @@ class Host {
       input.device = static_cast<PaDeviceIndex>(inputId);
       input.channelCount = static_cast<int>(session->deviceInputChannels);
       input.sampleFormat = paFloat32;
-      input.suggestedLatency = requestedFrames ? requestedLatency : inputDevice->defaultLowInputLatency;
+      input.suggestedLatency = outputOnly ? 0 : requestedFrames ? requestedLatency : inputDevice->defaultLowInputLatency;
       input.hostApiSpecificStreamInfo = &inputWasapi;
       PaStreamParameters output{};
       output.device = static_cast<PaDeviceIndex>(outputId);
@@ -1160,7 +1247,7 @@ class Host {
       const auto streamFlags = static_cast<PaStreamFlags>(paClipOff | paDitherOff);
 
       if (session->splitDevices) {
-        auto error = Pa_OpenStream(&session->paInputAudio, &input, nullptr, session->sampleRate, requestedFrames,
+        auto error = Pa_OpenStream(&session->paInputAudio, &input, nullptr, session->inputSampleRate, requestedFrames,
           streamFlags, portAudioInputCallback, session.get());
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_INPUT_OPEN_FAILED", error));
         error = PaWasapi_SetStreamStateHandler(session->paInputAudio, portAudioStateCallback, session.get());
@@ -1170,16 +1257,18 @@ class Host {
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_OUTPUT_OPEN_FAILED", error));
         error = PaWasapi_SetStreamStateHandler(session->paAudio, portAudioStateCallback, session.get());
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_OUTPUT_STATE_HANDLER_FAILED", error));
+        if (session->plugin) { unsigned frames = 0; PaWasapi_GetFramesPerHostBuffer(session->paAudio, nullptr, &frames); session->plugin->configureBuffer(frames ? frames : requestedFrames ? requestedFrames : 2048); }
         error = Pa_StartStream(session->paInputAudio);
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_INPUT_START_FAILED", error));
         error = Pa_StartStream(session->paAudio);
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_OUTPUT_START_FAILED", error));
       } else {
-        auto error = Pa_OpenStream(&session->paAudio, &input, &output, session->sampleRate, requestedFrames,
+        auto error = Pa_OpenStream(&session->paAudio, outputOnly ? nullptr : &input, &output, session->sampleRate, requestedFrames,
           streamFlags, portAudioDuplexCallback, session.get());
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_OPEN_FAILED", error));
         error = PaWasapi_SetStreamStateHandler(session->paAudio, portAudioStateCallback, session.get());
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_STATE_HANDLER_FAILED", error));
+        if (session->plugin) { unsigned frames = 0; PaWasapi_GetFramesPerHostBuffer(session->paAudio, nullptr, &frames); session->plugin->configureBuffer(frames ? frames : requestedFrames ? requestedFrames : 2048); }
         error = Pa_StartStream(session->paAudio);
         if (error != paNoError) throw std::runtime_error(portAudioError("AUDIO_START_FAILED", error));
       }
@@ -1200,14 +1289,14 @@ class Host {
       if (!session->bufferFrames) session->bufferFrames = requestedFrames ? requestedFrames : 256;
       session->inputBufferFrames = session->bufferFrames;
       const auto latencyMs = (inputStream->inputLatency + outputStream->outputLatency) * 1000.0;
-      const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
+      const auto result = json{{"inputSampleRate", session->inputSampleRate}, {"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
         {"latencyMs", latencyMs}, {"splitDevices", session->splitDevices},
         {"streamingBacking", !testing}, {"backingBufferFrames", session->backingStream ? session->backingStream->bufferFrames() : 0}};
       { std::lock_guard lock(sessionMutex_); session_ = std::move(session); }
       return result;
     }
 #endif
-    RtAudio::StreamParameters input{inputId, session->inputChannels, inputChannels.front()};
+    RtAudio::StreamParameters input{inputId, session->inputChannels, outputOnly ? 0 : inputChannels.front()};
     RtAudio::StreamParameters output{outputId, 2, 0};
     RtAudio::StreamOptions options;
     options.flags = RTAUDIO_MINIMIZE_LATENCY | RTAUDIO_SCHEDULE_REALTIME;
@@ -1215,13 +1304,14 @@ class Host {
     long latency = 0;
     if (session->splitDevices) {
       auto inputBufferFrames = session->bufferFrames;
-      const auto inputError = session->inputAudio->openStream(nullptr, &input, RTAUDIO_FLOAT32, session->sampleRate, &inputBufferFrames, splitInputCallback, session.get(), &options);
+      const auto inputError = session->inputAudio->openStream(nullptr, &input, RTAUDIO_FLOAT32, session->inputSampleRate, &inputBufferFrames, splitInputCallback, session.get(), &options);
       if (inputError != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_INPUT_OPEN_FAILED:" + session->inputAudio->getErrorText());
       session->inputBufferFrames = inputBufferFrames;
       auto outputBufferFrames = session->bufferFrames;
       const auto outputError = session->audio->openStream(&output, nullptr, RTAUDIO_FLOAT32, session->sampleRate, &outputBufferFrames, audioCallback, session.get(), &options);
       if (outputError != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_OUTPUT_OPEN_FAILED:" + session->audio->getErrorText());
       session->bufferFrames = outputBufferFrames;
+      if (session->plugin) session->plugin->configureBuffer(outputBufferFrames);
       latency = session->inputAudio->getStreamLatency() + session->audio->getStreamLatency();
       const auto inputStartError = session->inputAudio->startStream();
       if (inputStartError != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_INPUT_START_FAILED:" + session->inputAudio->getErrorText());
@@ -1229,17 +1319,18 @@ class Host {
       if (outputStartError != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_OUTPUT_START_FAILED:" + session->audio->getErrorText());
     } else {
       auto bufferFrames = session->bufferFrames;
-      const auto error = session->audio->openStream(&output, &input, RTAUDIO_FLOAT32, session->sampleRate, &bufferFrames, audioCallback, session.get(), &options);
+      const auto error = session->audio->openStream(&output, outputOnly ? nullptr : &input, RTAUDIO_FLOAT32, session->sampleRate, &bufferFrames, audioCallback, session.get(), &options);
       if (error != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_OPEN_FAILED:" + session->audio->getErrorText());
       session->bufferFrames = bufferFrames;
       session->inputBufferFrames = bufferFrames;
+      if (session->plugin) session->plugin->configureBuffer(bufferFrames);
       latency = session->audio->getStreamLatency();
       const auto startError = session->audio->startStream();
       if (startError != RTAUDIO_NO_ERROR) throw std::runtime_error("AUDIO_START_FAILED:" + session->audio->getErrorText());
     }
     const auto actualRate = session->audio->getStreamSampleRate();
     if (actualRate && actualRate != session->sampleRate) throw std::runtime_error("AUDIO_SAMPLE_RATE_CHANGED");
-    const auto result = json{{"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
+    const auto result = json{{"inputSampleRate", session->inputSampleRate}, {"sampleRate", session->sampleRate}, {"bufferFrames", session->bufferFrames},
       {"latencyMs", latency > 0 ? latency * 1000.0 / session->sampleRate : 0.0}, {"splitDevices", session->splitDevices},
       {"streamingBacking", !testing}, {"backingBufferFrames", session->backingStream ? session->backingStream->bufferFrames() : 0}};
     { std::lock_guard lock(sessionMutex_); session_ = std::move(session); }
@@ -1275,20 +1366,21 @@ class Host {
     auto correctionOutputFrames = session->transportFrames.load();
     const auto inputStartOutputFrames = session->inputStartTransportFrames.load() == std::numeric_limits<std::uint64_t>::max()
       ? 0 : session->inputStartTransportFrames.load();
-    if (session->splitDevices && session->sampleRate && frames > session->sampleRate * 5ull) {
+    if (session->splitDevices && session->sampleRate && frames > session->inputSampleRate * 5ull) {
       const auto inputStart = session->inputStartTransportFrames.load();
       const auto outputEnd = session->transportFrames.load();
       if (inputStart != std::numeric_limits<std::uint64_t>::max() && outputEnd > inputStart) {
         const auto outputFrames = outputEnd - inputStart;
         correctionOutputFrames = outputFrames;
-        clockCorrectionRatio = std::clamp(frames / static_cast<double>(outputFrames), 0.98, 1.02);
+        clockCorrectionRatio = std::clamp((frames / double(session->inputSampleRate)) / (outputFrames / double(session->sampleRate)), 0.98, 1.02);
       }
     }
-    const json result{{"frames", frames}, {"sampleRate", session->sampleRate}, {"channels", session->inputChannels}, {"xruns", session->xruns.load()},
-      {"durationMs", session->sampleRate ? frames * 1000.0 / session->sampleRate : 0.0},
+    const json result{{"pluginFaults", session->plugin ? session->plugin->faultSummary() : json(nullptr)}, {"diagnostics", session->diagnostics.snapshot()}, {"frames", frames}, {"sampleRate", session->inputSampleRate}, {"outputSampleRate", session->sampleRate}, {"channels", session->inputChannels}, {"xruns", session->xruns.load()},
+      {"durationMs", session->sampleRate ? frames * 1000.0 / session->inputSampleRate : 0.0},
       {"outputFrames", session->transportFrames.load()}, {"correctionOutputFrames", correctionOutputFrames}, {"clockCorrectionRatio", clockCorrectionRatio},
       {"inputStartOutputFrames", inputStartOutputFrames}, {"outputTransportStartNs", session->outputTransportStartNs.load()},
       {"inputCaptureStartNs", session->inputCaptureStartNs.load()}, {"outputTransportEndNs", session->outputTransportEndNs.load()}};
+    session.reset(); // Release shared mappings before notifying the supervisor.
     if (emitFinished) emit({{"event", "finished"}, {"data", result}});
     return result;
   }
@@ -1297,9 +1389,15 @@ class Host {
     std::lock_guard lock(sessionMutex_);
     if(!session_) throw std::runtime_error("NO_AUDIO_SESSION");
     auto& s=*session_;
+    if (params.contains("pluginMapping")) {
+      std::unique_ptr<bb::ipc::Client> next;
+      if (!params["pluginMapping"].is_null()) next = std::make_unique<bb::ipc::Client>(pathFromUtf8(params["pluginMapping"]), s.bufferFrames);
+      s.activePlugin.store(nullptr);
+      while (s.pluginReaders.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      s.plugin = std::move(next); s.activePlugin.store(s.plugin.get());
+    }
     if(params.contains("mode")) {
       const int mode=params.at("mode");
-      if(mode && s.splitDevices) throw std::runtime_error("监听需要同一声卡输入输出");
       s.monitorMode.store(mode);
     }
     delete s.retiredEffects.exchange(nullptr);
@@ -1319,13 +1417,13 @@ class Host {
     if(!session_||!session_->testing)throw std::runtime_error("请先启动军火库监听");
     auto& s=*session_;const auto action=params.at("action").get<std::string>();
     auto drain=[&](){while(s.quickReaders.load())std::this_thread::sleep_for(std::chrono::milliseconds(1));};
-    if(action=="record"){if(s.quickWriter.load())throw std::runtime_error("快录已开始");if(s.quickLoop.load())throw std::runtime_error("请先停止 DI 循环");s.quickFrames.store(0);s.writeOverflow.store(false);s.quickWriter.store(new WaveWriter(pathFromUtf8(params.at("path").get<std::string>()),s.sampleRate,s.inputChannels));}
+    if(action=="record"){if(s.quickWriter.load())throw std::runtime_error("快录已开始");if(s.quickLoop.load())throw std::runtime_error("请先停止 DI 循环");s.quickFrames.store(0);s.writeOverflow.store(false);s.quickWriter.store(new WaveWriter(pathFromUtf8(params.at("path").get<std::string>()),s.inputSampleRate,s.inputChannels,true));}
     else if(action=="stopRecord"){auto* writer=s.quickWriter.exchange(nullptr);drain();bool healthy=true;if(writer){writer->close();healthy=writer->healthy();s.quickFrames.store(writer->framesWritten());delete writer;}if(!healthy||s.writeOverflow.load())throw std::runtime_error("快录写入中断，已保留干声文件");}
     else if(action=="loop"){if(s.quickWriter.load())throw std::runtime_error("请先停止快录");auto next=std::make_unique<WaveData>(readFloatWaveFile(pathFromUtf8(params.at("path").get<std::string>())));if(next->sampleRate!=s.sampleRate||next->samples.empty()||next->samples.size()/next->channels>s.sampleRate*60u)throw std::runtime_error("DI 循环需要相同采样率且不超过 60 秒");auto* old=s.quickLoop.exchange(nullptr);drain();delete old;s.loopCursor.store(0);s.quickLoop.store(next.release());}
     else if(action=="stopLoop"){auto* old=s.quickLoop.exchange(nullptr);drain();delete old;}
     else if(action=="tuner"){s.tunerEnabled.store(params.value("enabled",false));s.pitchHz.store(0);s.tunerCount=0;}
     else if(action!="state")throw std::runtime_error("未知快录操作");
-    return {{"recording",s.quickWriter.load()!=nullptr},{"looping",s.quickLoop.load()!=nullptr},{"frames",s.quickFrames.load()},{"sampleRate",s.sampleRate},{"channels",s.inputChannels},{"durationMs",s.quickFrames.load()*1000.0/s.sampleRate}};
+    return {{"pluginFaults",s.plugin?s.plugin->faultSummary():json(nullptr)},{"recording",s.quickWriter.load()!=nullptr},{"looping",s.quickLoop.load()!=nullptr},{"frames",s.quickFrames.load()},{"sampleRate",s.inputSampleRate},{"channels",s.inputChannels},{"durationMs",s.quickFrames.load()*1000.0/s.inputSampleRate}};
   }
 
   json feedPcm(const json& params){
@@ -1334,6 +1432,28 @@ class Host {
     if(params.value("reset",false)){bus.enabled.store(false);bus.clear.store(true);bus.converter.reset();return true;}
     const double sourceRate=params.at("sampleRate");const auto input=params.at("samples").get<std::vector<float>>();if(sourceRate<8000||sourceRate>192000||input.size()>16384||input.size()%2)throw std::runtime_error("INVALID_PCM_PACKET");for(float x:input)if(!std::isfinite(x))throw std::runtime_error("INVALID_PCM_SAMPLE");
     const auto output=bus.converter.convert(input,sourceRate,s.sampleRate);if(!bus.ring.push(output.data(),output.size()))throw std::runtime_error("PCM_OUTPUT_OVERFLOW");bus.enabled.store(true);return true;
+  }
+
+  json timeline(const json& params) {
+    std::lock_guard lock(sessionMutex_);
+    if (!session_ || !session_->testing) throw std::runtime_error("TIMELINE_SESSION_UNAVAILABLE");
+    auto& s = *session_; const auto action = params.at("action").get<std::string>();
+    if (action == "load" || action == "unload") {
+      std::unique_ptr<bb::Timeline> next;
+      if (action == "load") next = std::make_unique<bb::Timeline>(params.at("graph"), s.sampleRate);
+      s.activeTimeline.store(nullptr);
+      while (s.timelineReaders.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      s.timeline = std::move(next); s.activeTimeline.store(s.timeline.get());
+    } else {
+      if (!s.timeline) throw std::runtime_error("TIMELINE_NOT_LOADED");
+      if (action == "play") s.timeline->play(params.value("countInBeats", 0u));
+      else if (action == "pause") s.timeline->pause();
+      else if (action == "seek") s.timeline->seek(params.at("positionMs"));
+      else if (action == "update") s.timeline->update(params.at("state"));
+      else if (action == "attach") { s.timeline->attach(params.at("tracks")); s.timeline->update(params.at("state")); }
+      else if (action != "state") throw std::runtime_error("TIMELINE_COMMAND_UNKNOWN");
+    }
+    return s.timeline ? s.timeline->state() : json(nullptr);
   }
 
   json pauseSession() {
@@ -1368,6 +1488,19 @@ class Host {
           const auto remainingFrames = elapsed < countInFrames ? countInFrames - elapsed : 0;
           const auto beatFrames = static_cast<std::uint64_t>(std::max(1.0, 60.0 / session_->bpm / session_->playbackRate * session_->sampleRate));
           event = {{"event", "meter"}, {"data", {
+            {"diagnostics", session_->diagnostics.snapshot()},
+            {"timeline", session_->timeline ? session_->timeline->state() : json(nullptr)},
+            {"plugin", session_->plugin ? json{{"deadlineMisses", session_->plugin->misses.load()},
+              {"queueOverflows", session_->plugin->overflows.load()}, {"invalidSamples", session_->plugin->invalid.load()},
+              {"lastFaultPosition", session_->plugin->lastFaultPosition.load()}, {"latencyFrames", session_->plugin->latency()}} : json(nullptr)},
+            {"pcmUnderruns", session_->pcmUnderruns.load()},
+            {"clock", {{"relationship", session_->splitDevices ? "independent" : "shared"},
+              {"inputAdcSeconds", session_->inputAdcSeconds.load()}, {"outputDacSeconds", session_->outputDacSeconds.load()},
+              {"fifoFrames", session_->inputClock ? session_->inputClock->levelFrames.load() : 0},
+              {"ratio", session_->inputClock ? session_->inputClock->ratio.load() : 1},
+              {"underruns", session_->inputClock ? session_->inputClock->underruns.load() : 0},
+              {"overflows", session_->inputClock ? session_->inputClock->overflows.load() : 0},
+              {"latencyFrames", session_->inputClock ? session_->inputClock->latencyFrames() : 0}}},
             {"peak", {session_->peak[0].exchange(0), session_->peak[1].exchange(0)}},
             {"rms", {session_->rms[0].exchange(0), session_->rms[1].exchange(0)}}, {"clipped", session_->clipped.exchange(false)},
             {"sourcePositionMs", sourcePosition}, {"countInRemaining", remainingFrames ? static_cast<unsigned>((remainingFrames + beatFrames - 1) / beatFrames) : 0},
@@ -1389,7 +1522,7 @@ class Host {
           : errorType == -2 ? "BACKING_STREAM_UNDERRUN"
           : errorType == RTAUDIO_DEVICE_DISCONNECT ? "DEVICE_DISCONNECTED"
           : "AUDIO_DRIVER_ERROR"
-        }, {"capture", capture}}}});
+        }, {"evidence", {{"driverErrorCode", errorType}}}, {"capture", capture}}}});
         continue;
       }
       // stopSession atomically removes the active session, so this cannot emit
@@ -1422,7 +1555,7 @@ int runMain(int argc, char** argv) {
       WaveWriter result(pathFromUtf8(job.at("output").get<std::string>()),input.sampleRate(),2);
       std::vector<float> source(4096*input.channels()),output(4096*2);
       auto write=[&](size_t frames){const size_t discard=std::min(skip,frames);skip-=discard;if(frames>discard)while(!result.write(output.data()+discard*2,(frames-discard)*2)){if(!result.healthy())throw std::runtime_error("EXPORT_WRITE_FAILED");std::this_thread::sleep_for(std::chrono::milliseconds(1));}};
-      while(remaining){const auto n=std::min(size_t(4096),remaining);size_t filled=0;while(filled<n*input.channels()){auto read=input.read(source.data()+filled,n*input.channels()-filled);filled+=read;if(!read)std::this_thread::sleep_for(std::chrono::milliseconds(1));}effects.process(source.data(),output.data(),unsigned(n),input.channels());write(n);remaining-=n;}
+      while(remaining){const auto n=std::min(size_t(4096),remaining);size_t filled=0;while(filled<n*input.channels()){auto read=input.read(source.data()+filled,n*input.channels()-filled);filled+=read;if(!read){if(!input.healthy())throw std::runtime_error("BACKING_EARLY_EOF");std::this_thread::sleep_for(std::chrono::milliseconds(1));}}effects.process(source.data(),output.data(),unsigned(n),input.channels());write(n);remaining-=n;}
       while(zeros){const auto n=std::min(size_t(4096),zeros);effects.process(nullptr,output.data(),unsigned(n),input.channels());write(n);zeros-=n;}result.close();input.close();if(!result.healthy())throw std::runtime_error("EXPORT_WRITE_FAILED");
       return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<std::endl;return 1;}
@@ -1503,7 +1636,7 @@ int runMain(int argc, char** argv) {
       && encodedDevices["result"][2]["name"] == "USB Audio"
       && json::parse(encodeMessage({{"error", invalidName}}))["error"] == "Microphone: \xEF\xBF\xBD";
     const bool ok = countInSilent && channelMapping && xrunCounted && signalsmithPitch && deviceIdentity && deviceNameEncoding;
-    emit({{"ok", ok}, {"name", "bandbuddy-audio-host"}, {"protocolVersion", 1},
+    emit({{"ok", ok}, {"name", "bandbuddy-audio-host"}, {"protocolVersion", 2},
       {"tests", {{"countInDoesNotRecord", countInSilent}, {"channelMapping", channelMapping}, {"xrunCounted", xrunCounted},
         {"signalsmithPitch", signalsmithPitch}, {"deviceIdentity", deviceIdentity}, {"deviceNameEncoding", deviceNameEncoding}}}});
     return ok ? 0 : 1;
@@ -1528,14 +1661,21 @@ int runMain(int argc, char** argv) {
       else if (method == "effects") result = host.updateEffects(params);
       else if (method == "arsenalQuick") result = host.quickCommand(params);
       else if (method == "arsenalPcm") result = host.feedPcm(params);
+      else if (method == "timeline") result = host.timeline(params);
+      else if (method == "capabilities") result = {{"protocol", 2}, {"nativeTimeline", true}, {"pluginIpc", bb::ipc::version}, {"outputProtection", true}};
       else if (method == "pause") result = host.pauseSession();
       else if (method == "resume") result = host.resumeSession();
       else if (method == "stop" || method == "stopTest" || method == "cancel") result = host.stopSession(false);
-      else if (method == "shutdown") { result = true; emit({{"id", id}, {"ok", true}, {"result", result}}); break; }
+      else if (method == "shutdown") { host.stopSession(false); result = true; emit({{"id", id}, {"ok", true}, {"result", result}}); break; }
       else throw std::runtime_error("UNKNOWN_METHOD");
       emit({{"id", id}, {"ok", true}, {"result", result}});
     } catch (const std::exception& error) {
-      emit({{"id", request.value("id", 0)}, {"ok", false}, {"error", error.what()}});
+      const auto params = request.value("params", json::object());
+      emit({{"id", request.value("id", 0)}, {"ok", false}, {"error", error.what()}, {"evidence", {
+        {"operation", request.value("method", "unknown")}, {"message", error.what()},
+        {"backend", params.value("backend", probeBackend)}, {"sampleRate", params.value("sampleRate", 0)},
+        {"inputDeviceId", params.value("inputDeviceId", json(nullptr))}, {"outputDeviceId", params.value("outputDeviceId", json(nullptr))}
+      }}});
     }
   }
   return 0;

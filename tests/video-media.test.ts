@@ -15,6 +15,10 @@ import { runProcess } from '../src/main/process.js'
 import { removeTestAnalysisWorker, testAnalysisWorker } from './helpers/analysis-worker.js'
 import type { MediaAnalysisRequest } from '../src/main/media-analysis.js'
 
+// These tests cover source decoding and base/guitar publication. Keep the
+// automatically queued vocal model offline; its lifecycle has its own suite.
+vi.mock('../src/main/vocal-models.js', () => ({ prepareVocalModel: vi.fn().mockRejectedValue(new Error('VOCAL_MODEL_MISSING')) }))
+
 vi.mock('../src/main/media-analysis.js', async importOriginal => {
   const original = await importOriginal<typeof import('../src/main/media-analysis.js')>()
   let runner: ReturnType<typeof original.createMediaAnalysisRunner> | undefined
@@ -413,7 +417,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
     await vi.waitFor(() => expect(database.getJob(jobId!)?.status).toBe('failed'), { timeout: 5_000, interval: 25 })
     const preserved = database.getSong(songId)!
     expect(preserved.status).toBe('ready')
-    expect(preserved.phase).toBe('吉他细分未完成，基础分轨可继续')
+    expect(preserved.phase).toBe('细分未完成，基础分轨可继续')
     expect(preserved.guitarSplitStatus).toBe('failed')
     expect(preserved.stems.map((stem) => stem.type).sort()).toEqual([...LEGACY_STEM_ORDER].sort())
     expect(preserved.practice.guitarSplitEnabled).toBe(false)
@@ -493,7 +497,7 @@ describe.skipIf(!hasTools)('real local video preprocessing and library lifecycle
       expect(song.videoUrl).toBeNull()
       expect(song.practice).toMatchObject({ positionMs: 12000, playbackRate: 0.8, loopEnabled: true, loopStartMs: 5000, loopEndMs: 15000 })
       expect(song.practice.guitarSplitEnabled).toBe(false)
-      expect(song.practice.tracks).toHaveLength(9)
+      expect(song.practice.tracks).toHaveLength(11)
       expect(song.practice.tracks.find((track) => track.stemType === 'guitar')).toMatchObject({ gainDb: -5, solo: true, outputChannelPair: 3 })
       expect(song.practice.tracks.find((track) => track.stemType === 'lead_guitar')).toMatchObject({ gainDb: 0, muted: false, solo: false })
       expect(upgraded.getSettings()).toMatchObject({ debugMode: true, highQualityStems: false, desktopLyricsFontSize: 24, desktopLyricsBackgroundTransparency: 20 })

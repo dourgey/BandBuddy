@@ -9,6 +9,10 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
   GUITAR_SPLIT_STEMS,
+  VOCAL_SPLIT_STEMS,
+  normalizeSelectedStemForVocalMode,
+  type VocalModelId,
+  type VocalSplitCompleted,
   LEGACY_STEM_ORDER,
   createDefaultRecordingAudioSettings,
   createDefaultPracticeState,
@@ -90,6 +94,9 @@ interface SongRow {
 }
 
 interface StemRow {
+  num_frames: number | null
+  encoding_gain: number
+  refinement_id: string | null
   name: string | null
   id: string
   song_id: string
@@ -276,6 +283,9 @@ export interface CreateSongInput {
 }
 
 export interface StoredStemInput {
+  numFrames?: number
+  encodingGain?: number
+  refinementId?: string
   name?: string | null
   id?: string
   type: StemType
@@ -298,6 +308,19 @@ export interface GuitarSplitJobPayload {
   retry?: number
   deviceOverride?: 'cuda' | 'mps' | 'cpu'
   enableGuitarSplitOnSuccess?: boolean
+}
+
+export interface VocalSplitJobPayload {
+  sourceRelPath: string
+  baseSeparationId: string
+  inputStemId: string
+  inputSha256: string
+  modelId: VocalModelId
+  storageFormat: StemStorageFormat
+  enableVocalSplitOnSuccess?: boolean
+  retry?: number
+  deviceOverride?: 'cuda' | 'mps' | 'cpu'
+  environmentRepairs?: number
 }
 
 export const DATABASE_MIGRATIONS = [
@@ -548,7 +571,23 @@ export const DATABASE_MIGRATIONS = [
    ALTER TABLE recording_takes ADD COLUMN effects_snapshot_json TEXT;`,
   `CREATE INDEX IF NOT EXISTS songs_library_order_idx ON songs(COALESCE(last_practiced_at, updated_at) DESC, id);
    CREATE INDEX IF NOT EXISTS songs_recent_order_idx ON songs(last_practiced_at DESC, id);
-   CREATE INDEX IF NOT EXISTS jobs_song_type_created_idx ON jobs(song_id, type, created_at DESC);`
+   CREATE INDEX IF NOT EXISTS jobs_song_type_created_idx ON jobs(song_id, type, created_at DESC);`,
+  `ALTER TABLE stems ADD COLUMN num_frames INTEGER;
+   ALTER TABLE stems ADD COLUMN encoding_gain REAL NOT NULL DEFAULT 1;
+   ALTER TABLE stems ADD COLUMN refinement_id TEXT;
+   CREATE TABLE stem_refinements (
+     id TEXT PRIMARY KEY,
+     song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+     base_separation_id TEXT NOT NULL REFERENCES separation_runs(id) ON DELETE CASCADE,
+     stem_group TEXT NOT NULL,
+     input_stem_id TEXT NOT NULL,
+     input_sha256 TEXT NOT NULL,
+     model_id TEXT NOT NULL,
+     manifest_json TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   );
+   CREATE INDEX stem_refinements_base_idx ON stem_refinements(base_separation_id, stem_group);`
+
 ]
 
 function parseKeyAnalysis(value: string | null): MusicalKeyAnalysis | null {
@@ -579,7 +618,10 @@ function parseDeviceSnapshot(row: RecordingTakeRow): RecordingDeviceSnapshot {
     bufferFrames: saved.bufferFrames ?? 0,
     latencyMs: saved.latencyMs ?? 0,
     splitDevices: saved.splitDevices ?? false,
-    softwareMonitoring: saved.softwareMonitoring ?? false
+    softwareMonitoring: saved.softwareMonitoring ?? false,
+    ...(saved.pluginFaults ? { pluginFaults: saved.pluginFaults } : {}),
+    ...(saved.audioDiagnostics ? { audioDiagnostics: saved.audioDiagnostics } : {}),
+    ...(saved.originalCaptureRelPath ? { originalCaptureRelPath: saved.originalCaptureRelPath } : {})
   }
 }
 
@@ -681,9 +723,9 @@ export class BandBuddyDatabase {
     `).run(now)
     this.sqlite.prepare(`
       UPDATE songs SET status = 'ready', progress = 1,
-        phase = '吉他细分未完成，基础分轨可继续', updated_at = ?
+        phase = '细分未完成，基础分轨可继续', updated_at = ?
       WHERE active_separation_id IS NOT NULL
-        AND id IN (SELECT song_id FROM jobs WHERE status = 'interrupted' AND type = 'guitarSplit')
+        AND id IN (SELECT song_id FROM jobs WHERE status = 'interrupted' AND type IN ('guitarSplit', 'vocalSplit'))
     `).run(now)
     this.sqlite.prepare(`
       UPDATE songs SET status = 'failed', phase = '任务已中断', updated_at = ?
@@ -713,6 +755,7 @@ export class BandBuddyDatabase {
       closeToTrayWhileWorking: true,
       highQualityStems: false,
       guitarSeparationQuality: 'balanced',
+      vocalSeparationQuality: 'fast',
       network: {
         proxyMode: 'system',
         proxyUrl: '',
@@ -725,6 +768,8 @@ export class BandBuddyDatabase {
     const row = this.sqlite.prepare("SELECT value_json FROM settings WHERE key = 'app'").get() as { value_json: string } | undefined
     if (!row) return this.defaultSettings()
     const saved = JSON.parse(row.value_json) as Partial<AppSettings>
+    // The former opt-in setting no longer controls automatic vocal refinement.
+    delete (saved as Partial<AppSettings> & { autoVocalSplit?: boolean }).autoVocalSplit
     const defaults = this.defaultSettings()
     return {
       ...defaults,
@@ -763,7 +808,7 @@ export class BandBuddyDatabase {
   }
 
   findBySourceHash(hash: string): SongSummary | null {
-    const row = this.sqlite.prepare('SELECT * FROM songs WHERE source_hash = ? ORDER BY created_at LIMIT 1').get(hash) as SongRow | undefined
+    const row = this.sqlite.prepare('SELECT * FROM songs WHERE source_hash = ? ORDER BY created_at, rowid LIMIT 1').get(hash) as SongRow | undefined
     return row ? this.songRowToSummary(row) : null
   }
 
@@ -820,8 +865,10 @@ export class BandBuddyDatabase {
       }
       const records = this.sqlite.prepare(`SELECT id, (SELECT status FROM jobs WHERE song_id = songs.id AND type = 'guitarSplit' ORDER BY created_at DESC LIMIT 1) AS status FROM songs WHERE id IN (${batch.map(() => '?').join(',')})`).all(...batch.map(row => row.id)) as Array<{ id: string; status: JobStatus | null }>
       for (const record of records) if (record.status) latestJobs.set(record.id, record.status)
+      const vocalJobs = this.sqlite.prepare(`SELECT id, (SELECT status FROM jobs WHERE song_id = songs.id AND type = 'vocalSplit' AND json_extract(payload_json, '$.baseSeparationId') = songs.active_separation_id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS status FROM songs WHERE id IN (${batch.map(() => '?').join(',')})`).all(...batch.map(row => row.id)) as Array<{ id: string; status: JobStatus | null }>
+      for (const record of vocalJobs) if (record.status) latestJobs.set(`${record.id}:vocal`, record.status)
     }
-    return rows.map(row => this.songRowToSummary(row, stems.get(row.active_separation_id ?? '') ?? [], latestJobs.get(row.id) ?? null))
+    return rows.map(row => this.songRowToSummary(row, stems.get(row.active_separation_id ?? '') ?? [], latestJobs.get(row.id) ?? null, latestJobs.get(`${row.id}:vocal`) ?? null))
   }
 
   getSong(id: string): SongDetail | null {
@@ -835,7 +882,8 @@ export class BandBuddyDatabase {
     const practiceRow = this.sqlite.prepare('SELECT state_json FROM practice_states WHERE song_id = ?').get(id) as { state_json: string } | undefined
     const defaults = createDefaultPracticeState(id)
     const savedPractice = practiceRow ? JSON.parse(practiceRow.state_json) as Partial<PracticeState> : {}
-    const guitarSplitEnabled = savedPractice.guitarSplitEnabled ?? false
+    const guitarSplitEnabled = Boolean(savedPractice.guitarSplitEnabled && GUITAR_SPLIT_STEMS.every(type => stems.some(stem => stem.type === type)))
+    const vocalSplitEnabled = Boolean(savedPractice.vocalSplitEnabled && VOCAL_SPLIT_STEMS.every(type => stems.some(stem => stem.type === type)))
     const practice: PracticeState = {
       ...defaults,
       ...savedPractice,
@@ -843,9 +891,10 @@ export class BandBuddyDatabase {
       ...(row.bpm === null ? {} : { metronomeBpm: row.bpm }),
       metronomeOffsetMs: row.beat_offset_ms,
       guitarSplitEnabled,
+      vocalSplitEnabled,
       selectedStem: row.source_format === 'existing-stems'
         ? savedPractice.selectedStem ?? stems[0]?.type ?? defaults.selectedStem
-        : normalizeSelectedStemForGuitarMode(savedPractice.selectedStem ?? defaults.selectedStem, guitarSplitEnabled),
+        : normalizeSelectedStemForVocalMode(normalizeSelectedStemForGuitarMode(savedPractice.selectedStem ?? defaults.selectedStem, guitarSplitEnabled), vocalSplitEnabled),
       tracks: normalizeTrackStates(savedPractice.tracks),
       trackOrder: normalizeTrackOrder(savedPractice.trackOrder, recordingTracks.map((track) => track.id))
     }
@@ -878,7 +927,7 @@ export class BandBuddyDatabase {
     return (this.sqlite.prepare('SELECT * FROM songs WHERE id = ?').get(id) as SongRow | undefined) ?? null
   }
 
-  private songRowToSummary = (row: SongRow, suppliedStems?: Array<{ type: StemType; name: string | null }>, latestJob?: JobStatus | null): SongSummary => {
+  private songRowToSummary = (row: SongRow, suppliedStems?: Array<{ type: StemType; name: string | null }>, latestJob?: JobStatus | null, latestVocalJob?: JobStatus | null): SongSummary => {
     const stemRows = suppliedStems ?? (row.active_separation_id
       ? this.sqlite.prepare('SELECT type, name FROM stems WHERE separation_id = ?').all(row.active_separation_id) as Array<{ type: StemType; name: string | null }>
       : [])
@@ -895,10 +944,72 @@ export class BandBuddyDatabase {
       stemTypes: stemRows.map((stem) => stem.type),
       stemNames: Object.fromEntries(stemRows.filter((stem) => stem.name).map((stem) => [stem.type, stem.name!])),
       guitarSplitStatus: this.guitarSplitStatus(row.id, stemRows.map((stem) => stem.type), latestJob),
+      vocalSplitStatus: this.refinementStatus(row.id, stemRows.map(stem => stem.type), latestVocalJob),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastPracticedAt: row.last_practiced_at
     }
+  }
+
+  private refinementStatus(songId: string, types: StemType[], supplied?: JobStatus | null): GuitarSplitStatus {
+    if (VOCAL_SPLIT_STEMS.every(type => types.includes(type))) return 'ready'
+    const latest = supplied === undefined ? (this.sqlite.prepare("SELECT status FROM jobs WHERE song_id = ? AND type = 'vocalSplit' AND json_extract(payload_json, '$.baseSeparationId') = (SELECT active_separation_id FROM songs WHERE id = jobs.song_id) ORDER BY created_at DESC, rowid DESC LIMIT 1").get(songId) as { status: JobStatus } | undefined)?.status : supplied
+    if (!latest || latest === 'completed') return 'missing'
+    return ['failed', 'cancelled', 'interrupted'].includes(latest) ? 'failed' : 'pending'
+  }
+
+  queueVocalSplit(songId: string, inputSha256: string, modelId: VocalModelId, storageFormat: StemStorageFormat, enableVocalSplitOnSuccess = false): string | null {
+    const song = this.getSong(songId)
+    if (!song) throw new Error('SONG_NOT_FOUND')
+    if (song.sourceFormat === 'existing-stems') throw new Error('VOCAL_SPLIT_IMPORTED_STEMS_UNSUPPORTED')
+    const vocal = song.stems.find(stem => stem.type === 'vocals')
+    const file = this.getActiveStemFiles(songId).find(stem => stem.type === 'vocals')
+    if (!vocal || !file) throw new Error('VOCAL_SOURCE_NOT_AVAILABLE')
+    if (song.vocalSplitStatus === 'ready') return null
+    const existing = this.sqlite.prepare("SELECT id, payload_json FROM jobs WHERE song_id = ? AND type = 'vocalSplit' AND status IN ('queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling') ORDER BY created_at DESC").all(songId) as Array<{ id: string; payload_json: string }>
+    const matching = existing.find(row => { const payload = JSON.parse(row.payload_json) as VocalSplitJobPayload; return payload.inputStemId === vocal.id && payload.inputSha256 === inputSha256 })
+    if (matching) {
+      if (enableVocalSplitOnSuccess) this.updateJobPayload(matching.id, { ...JSON.parse(matching.payload_json), enableVocalSplitOnSuccess: true })
+      return matching.id
+    }
+    const payload: VocalSplitJobPayload = { sourceRelPath: file.relPath, baseSeparationId: vocal.separationId, inputStemId: vocal.id, inputSha256, modelId, storageFormat, enableVocalSplitOnSuccess }
+    return this.createJob('vocalSplit', songId, 'queued', '等待细分主唱与和声', payload)
+  }
+
+  assertVocalSplitInput(songId: string, payload: VocalSplitJobPayload): void {
+    const song = this.getSongRow(songId)
+    const input = this.sqlite.prepare("SELECT id FROM stems WHERE song_id = ? AND separation_id = ? AND type = 'vocals'").get(songId, payload.baseSeparationId) as { id: string } | undefined
+    if (!song || song.active_separation_id !== payload.baseSeparationId || input?.id !== payload.inputStemId) throw new Error('STALE_VOCAL_SPLIT')
+  }
+
+  completeVocalSplit(songId: string, jobId: string, payload: VocalSplitJobPayload, stems: StoredStemInput[], manifest: Record<string, unknown>): VocalSplitCompleted {
+    if (stems.length !== 2 || !VOCAL_SPLIT_STEMS.every(type => stems.some(stem => stem.type === type))) throw new Error('INCOMPLETE_VOCAL_STEMS')
+    const task = this.getJob(jobId)
+    if (!task || task.songId !== songId || task.type !== 'vocalSplit' || ['cancelled', 'cancelling', 'failed', 'interrupted', 'completed'].includes(task.status)) throw new Error('VOCAL_TASK_NOT_ACTIVE')
+    // A manual request may opt into an already running background task.
+    const enableVocalSplitOnSuccess = (task.payload as VocalSplitJobPayload).enableVocalSplitOnSuccess === true
+    this.assertVocalSplitInput(songId, payload)
+    const now = new Date().toISOString(), refinementId = randomUUID()
+    this.sqlite.transaction(() => {
+      this.assertVocalSplitInput(songId, payload)
+      const song = this.getSong(songId)!
+      const first = song.vocalSplitStatus !== 'ready'
+      this.sqlite.prepare(`INSERT INTO stem_refinements(id, song_id, base_separation_id, stem_group, input_stem_id, input_sha256, model_id, manifest_json, created_at) VALUES (?, ?, ?, 'vocals', ?, ?, ?, ?, ?)`).run(refinementId, songId, payload.baseSeparationId, payload.inputStemId, payload.inputSha256, payload.modelId, JSON.stringify({ ...manifest, stems }), now)
+      const insert = this.sqlite.prepare(`INSERT INTO stems(id, song_id, separation_id, type, rel_path, peaks_rel_path, duration_ms, sample_rate, channels, num_frames, encoding_gain, refinement_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(separation_id, type) DO UPDATE SET id=excluded.id, rel_path=excluded.rel_path, peaks_rel_path=excluded.peaks_rel_path, duration_ms=excluded.duration_ms, sample_rate=excluded.sample_rate, channels=excluded.channels, num_frames=excluded.num_frames, encoding_gain=excluded.encoding_gain, refinement_id=excluded.refinement_id`)
+      for (const stem of stems) insert.run(stem.id ?? randomUUID(), songId, payload.baseSeparationId, stem.type, stem.relPath, stem.peaksRelPath, stem.durationMs, stem.sampleRate, stem.channels, stem.numFrames ?? null, stem.encodingGain ?? 1, refinementId)
+      if (first || enableVocalSplitOnSuccess) {
+        const parent = song.practice.tracks.find(track => track.stemType === 'vocals')!
+        this.writePractice({
+          ...song.practice,
+          vocalSplitEnabled: enableVocalSplitOnSuccess || song.practice.vocalSplitEnabled,
+          selectedStem: enableVocalSplitOnSuccess ? normalizeSelectedStemForVocalMode(song.practice.selectedStem, true) : song.practice.selectedStem,
+          tracks: first ? song.practice.tracks.map(track => (VOCAL_SPLIT_STEMS as readonly StemType[]).includes(track.stemType) ? { ...parent, stemType: track.stemType } : track) : song.practice.tracks
+        }, false)
+      }
+      this.sqlite.prepare("UPDATE jobs SET status='completed', phase='主唱与和声细分完成', progress=1, finished_at=? WHERE id=?").run(now, jobId)
+      this.sqlite.prepare("UPDATE songs SET status='ready', progress=1, updated_at=? WHERE id=?").run(now, songId)
+    })()
+    return { songId, baseSeparationId: payload.baseSeparationId, refinementId, enableVocalSplitOnSuccess }
   }
 
   private guitarSplitStatus(songId: string, activeStemTypes: StemType[], suppliedStatus?: JobStatus | null): GuitarSplitStatus {
@@ -917,6 +1028,9 @@ export class BandBuddyDatabase {
     id: row.id,
     songId: row.song_id,
     separationId: row.separation_id,
+    numFrames: row.num_frames ?? undefined,
+    encodingGain: row.encoding_gain ?? 1,
+    refinementId: row.refinement_id,
     name: row.name,
     type: row.type,
     durationMs: row.duration_ms,
@@ -991,21 +1105,23 @@ export class BandBuddyDatabase {
   }
 
   savePractice(state: PracticeState): void {
+    this.sqlite.transaction(() => this.writePractice(state, true))()
+  }
+
+  private writePractice(state: PracticeState, touch: boolean): void {
     const now = new Date().toISOString()
     const normalized = { ...state, eq: normalizeSongEq(state.eq), updatedAt: now }
-    this.sqlite.transaction(() => {
-      this.sqlite.prepare(`
-        INSERT INTO practice_states(song_id, state_json, updated_at) VALUES (?, ?, ?)
-        ON CONFLICT(song_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at
-      `).run(state.songId, JSON.stringify(normalized), now)
-      const upsert = this.sqlite.prepare(`
-        INSERT INTO track_states(song_id, stem_type, gain_db, muted, solo) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(song_id, stem_type) DO UPDATE SET gain_db = excluded.gain_db, muted = excluded.muted, solo = excluded.solo
-      `)
-      for (const track of state.tracks) upsert.run(state.songId, track.stemType, track.gainDb, Number(track.muted), Number(track.solo))
-      this.sqlite.prepare('UPDATE songs SET beat_offset_ms = ?, last_practiced_at = ?, updated_at = ? WHERE id = ?')
-        .run(state.metronomeOffsetMs, now, now, state.songId)
-    })()
+    this.sqlite.prepare(`
+      INSERT INTO practice_states(song_id, state_json, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(song_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at
+    `).run(state.songId, JSON.stringify(normalized), now)
+    const upsert = this.sqlite.prepare(`
+      INSERT INTO track_states(song_id, stem_type, gain_db, muted, solo) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(song_id, stem_type) DO UPDATE SET gain_db = excluded.gain_db, muted = excluded.muted, solo = excluded.solo
+    `)
+    for (const track of state.tracks) upsert.run(state.songId, track.stemType, track.gainDb, Number(track.muted), Number(track.solo))
+    if (touch) this.sqlite.prepare('UPDATE songs SET beat_offset_ms = ?, last_practiced_at = ?, updated_at = ? WHERE id = ?')
+      .run(state.metronomeOffsetMs, now, now, state.songId)
   }
 
   createJob(type: JobRecord['type'], songId: string | null, status: JobStatus, phase: string, payload: unknown): string {
@@ -1032,7 +1148,7 @@ export class BandBuddyDatabase {
   }
 
   nextQueuedJob(): (JobRecord & { payload: unknown }) | null {
-    const row = this.sqlite.prepare("SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1").get() as JobRow | undefined
+    const row = this.sqlite.prepare("SELECT * FROM jobs WHERE status = 'queued' ORDER BY CASE WHEN type = 'separate' THEN 0 ELSE 1 END, created_at, rowid LIMIT 1").get() as JobRow | undefined
     return row ? { ...this.jobRowToRecord(row), payload: JSON.parse(row.payload_json) as unknown } : null
   }
 
@@ -1048,14 +1164,14 @@ export class BandBuddyDatabase {
       SELECT jobs.song_id, jobs.type, songs.active_separation_id
       FROM jobs LEFT JOIN songs ON songs.id = jobs.song_id WHERE jobs.id = ?
     `).get(id) as { song_id: string | null; type: JobRecord['type']; active_separation_id: string | null } | undefined
-    if (row?.song_id && row.type === 'guitarSplit' && row.active_separation_id) {
+    if (row?.song_id && ['guitarSplit', 'vocalSplit'].includes(row.type) && row.active_separation_id) {
       const songPhase = ['failed', 'cancelled', 'interrupted'].includes(status)
-        ? '吉他细分未完成，基础分轨可继续'
-        : '基础分轨可练习，吉他细分中'
+        ? '细分未完成，基础分轨可继续'
+        : '基础分轨可练习，细分处理中'
       this.sqlite.prepare("UPDATE songs SET status = 'ready', progress = 1, phase = ?, updated_at = ? WHERE id = ?")
         .run(songPhase, now, row.song_id)
     }
-    if (row?.song_id && row.type !== 'export' && row.type !== 'guitarSplit') {
+    if (row?.song_id && row.type !== 'export' && !['guitarSplit', 'vocalSplit'].includes(row.type)) {
       const preservedPreviousSeparation = Boolean(row.active_separation_id)
       const songStatus: SongStatus = preservedPreviousSeparation ? 'ready'
         : status === 'blockedRuntime' ? 'blockedRuntime'
@@ -1086,10 +1202,10 @@ export class BandBuddyDatabase {
       SELECT jobs.song_id, jobs.type, songs.active_separation_id
       FROM jobs LEFT JOIN songs ON songs.id = jobs.song_id WHERE jobs.id = ?
     `).get(id) as { song_id: string | null; type: JobRecord['type']; active_separation_id: string | null } | undefined
-    if (row?.song_id && row.type !== 'export' && row.type !== 'guitarSplit' && !row.active_separation_id) {
+    if (row?.song_id && row.type !== 'export' && !['guitarSplit', 'vocalSplit'].includes(row.type) && !row.active_separation_id) {
       this.sqlite.prepare("UPDATE songs SET status = 'queued', phase = '等待重试', progress = 0 WHERE id = ?").run(row.song_id)
-    } else if (row?.song_id && row.type === 'guitarSplit' && row.active_separation_id) {
-      this.sqlite.prepare("UPDATE songs SET status = 'ready', phase = '基础分轨可练习，吉他细分中', progress = 1 WHERE id = ?").run(row.song_id)
+    } else if (row?.song_id && ['guitarSplit', 'vocalSplit'].includes(row.type) && row.active_separation_id) {
+      this.sqlite.prepare("UPDATE songs SET status = 'ready', phase = '基础分轨可练习，细分处理中', progress = 1 WHERE id = ?").run(row.song_id)
     }
   }
 
@@ -1159,8 +1275,8 @@ export class BandBuddyDatabase {
     }
     const separationId = randomUUID()
     const guitarJobId = randomUUID()
-    const expectedActiveSeparationId = song.active_separation_id ?? separationId
-    const activated = !song.active_separation_id
+    const expectedActiveSeparationId = separationId
+    const activated = true
     const payload: GuitarSplitJobPayload = {
       ...guitar,
       baseSeparationId: separationId,
@@ -1171,8 +1287,8 @@ export class BandBuddyDatabase {
     this.sqlite.transaction(() => {
       this.sqlite.prepare(`
         INSERT INTO separation_runs(id, song_id, model_name, model_revision, device, status, created_at, completed_at)
-        VALUES (?, ?, 'bandbuddy-stems', ?, ?, 'partial', ?, NULL)
-      `).run(separationId, songId, modelRevision, device, now)
+        VALUES (?, ?, 'bandbuddy-stems', ?, ?, 'completed', ?, ?)
+      `).run(separationId, songId, modelRevision, device, now, now)
       const insert = this.sqlite.prepare(`
         INSERT INTO stems(id, song_id, separation_id, type, rel_path, peaks_rel_path, duration_ms, sample_rate, channels)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1192,6 +1308,8 @@ export class BandBuddyDatabase {
             phase = '原分轨可继续使用，正在生成新分轨', updated_at = ? WHERE id = ?
         `).run(now, songId)
       }
+      const previousPractice = this.getSong(songId)?.practice
+      if (previousPractice) this.writePractice({ ...previousPractice, guitarSplitEnabled: false, vocalSplitEnabled: false }, false)
       this.sqlite.prepare(`
         UPDATE jobs SET status = 'completed', phase = '基础分轨完成', progress = 1, finished_at = ? WHERE id = ?
       `).run(now, baseJobId)
@@ -1246,8 +1364,9 @@ export class BandBuddyDatabase {
         SELECT MAX(duration_ms) AS duration_ms FROM stems WHERE separation_id = ?
       `).get(payload.baseSeparationId) as { duration_ms: number }
       this.sqlite.prepare(`
-        UPDATE separation_runs SET model_revision = ?, device = ?, status = 'completed', completed_at = ? WHERE id = ?
-      `).run(modelRevision, device, now, payload.baseSeparationId)
+        UPDATE separation_runs SET status = 'completed', completed_at = ? WHERE id = ?
+      `).run(now, payload.baseSeparationId)
+      this.sqlite.prepare(`INSERT INTO stem_refinements(id, song_id, base_separation_id, stem_group, input_stem_id, input_sha256, model_id, manifest_json, created_at) VALUES (?, ?, ?, 'guitar', '', '', ?, ?, ?)`).run(randomUUID(), songId, payload.baseSeparationId, modelRevision, JSON.stringify({ device, stems }), now)
       this.sqlite.prepare(`
         UPDATE songs SET active_separation_id = ?, status = 'ready', progress = 1,
           phase = '分离完成', duration_ms = ?, sample_rate = 44100, channels = 2, updated_at = ? WHERE id = ?
@@ -1269,11 +1388,11 @@ export class BandBuddyDatabase {
     return row ? { relPath: row.rel_path, peaksRelPath: row.peaks_rel_path } : null
   }
 
-  getActiveStemFiles(songId: string): Array<{ id: string; type: StemType; relPath: string; durationMs: number }> {
+  getActiveStemFiles(songId: string): Array<{ id: string; type: StemType; relPath: string; durationMs: number; encodingGain: number; numFrames?: number }> {
     const song = this.sqlite.prepare('SELECT active_separation_id FROM songs WHERE id = ?').get(songId) as { active_separation_id: string | null } | undefined
     if (!song?.active_separation_id) return []
-    const rows = this.sqlite.prepare('SELECT id, type, rel_path, duration_ms FROM stems WHERE separation_id = ?').all(song.active_separation_id) as Array<{ id: string; type: StemType; rel_path: string; duration_ms: number }>
-    return rows.map((row) => ({ id: row.id, type: row.type, relPath: row.rel_path, durationMs: row.duration_ms }))
+    const rows = this.sqlite.prepare('SELECT id, type, rel_path, duration_ms, encoding_gain, num_frames FROM stems WHERE separation_id = ?').all(song.active_separation_id) as Array<{ id: string; type: StemType; rel_path: string; duration_ms: number; encoding_gain: number; num_frames: number | null }>
+    return rows.map((row) => ({ id: row.id, type: row.type, relPath: row.rel_path, durationMs: row.duration_ms, encodingGain: row.encoding_gain, numFrames: row.num_frames ?? undefined }))
   }
 
   getRecordingTakes(songId: string): RecordingTake[] {

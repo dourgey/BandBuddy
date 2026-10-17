@@ -1,5 +1,7 @@
 # NAM A2 导入回归
 
+与本机官方 VST3 的同音频输出对照及后续 DSP 修复，见 [2026-10-16 NAM A2 插件一致性报告](nam2-plugin-parity.md)。
+
 2026-09-22 从 [Tone3000 的 Fender Super Reverb 1965 - Edge of Breakup - A2](https://www.tone3000.com/tones/fender-super-reverb-1965-edge-of-breakup-a2-88775) 下载 `FNDR BFSR VB Edge WRM2 CAB FREE.nam` 复现。
 
 - SHA-256：`68664c8a190254e4df4cc1838f773a7694a6f3a476f83d5e8044e41107d0d44a`

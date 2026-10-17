@@ -54,7 +54,9 @@ async function smoke(executable, name) {
   await writeFile(path.join(data, 'smoke.log'), output.stdout + '\n' + output.stderr)
   const line = output.stdout.split(/\r?\n/).find(value => value.startsWith('BAND_BUDDY_SMOKE '))
   const result = line ? JSON.parse(line.slice('BAND_BUDDY_SMOKE '.length)) : JSON.parse(await readFile(path.join(data, 'appdata/smoke-result.json'), 'utf8').catch(() => 'null'))
-  if (result?.apiType !== 'object' || !result.ffmpegReady || result.songs !== 0 || result.environment?.startup !== 'ready' || !result.namespaces.includes('environment')) throw new Error(`PACKAGED_SMOKE_FAILED:${name}:${JSON.stringify(result)}`)
+  if (result?.apiType !== 'object' || !result.ffmpegReady || result.songs !== 0 || result.environment?.startup !== 'ready' || !result.namespaces.includes('environment') || result.diagnostics?.schema !== 2 || !result.diagnostics.summaryAvailable || !result.recovery?.paused || !result.recovery.recheckPreservesPause || !result.recovery.mediaVerified) throw new Error(`PACKAGED_SMOKE_FAILED:${name}:${JSON.stringify(result)}`)
+  const diagnosticText = await readFile(path.join(data, 'appdata/diagnostics-smoke.json'), 'utf8')
+  if (diagnosticText.includes(data.replaceAll('\\', '\\\\')) || /https?:\/\/[^"\s]+:[^"\s]+@/.test(diagnosticText)) throw new Error(`PACKAGED_DIAGNOSTIC_REDACTION_FAILED:${name}`)
   return { name, result }
 }
 const report = { version, at: new Date().toISOString(), verifiedBuildFiles, microsoftPrerequisite: microsoft.status, results: [] }

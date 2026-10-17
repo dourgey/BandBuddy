@@ -43,9 +43,12 @@ import { SelectMenu } from '../components/SelectMenu.js'
 import { Waveform } from '../components/Waveform.js'
 import { VolumeControl } from '../components/VolumeControl.js'
 import { clamp, hasEffectiveSolo, isImpliedMuted, isSilenced, silenceToggle } from '../utils.js'
+import '../vocal-split.css'
 
 const icons: Record<StemType, typeof Mic2> = {
   vocals: Mic2,
+  lead_vocals: Mic2,
+  backing_vocals: Mic2,
   drums: Drum,
   bass: Guitar,
   guitar: Guitar,
@@ -69,6 +72,9 @@ interface PracticeRoomProps {
   locked: boolean
   guitarSplitPending?: boolean
   guitarSplitReady?: boolean
+  vocalSplitPending?: boolean
+  vocalSplitStatus?: string
+  onVocalAction?(action: 'removeLead' | 'soloBacking'): void
   backLabel?: string
   onBack(): void
   onSeek(milliseconds: number): void
@@ -77,6 +83,7 @@ interface PracticeRoomProps {
   onCycleLoop(): void
   onPatch(patch: Partial<PracticeState>): void
   onGuitarSplit(enabled: boolean): void
+  onVocalSplit(enabled: boolean): void
   onDismissGuitarSplitReady?(): void
   onTrack(stem: StemType, patch: Partial<TrackState>): void
   onSelected(stem: StemType): void
@@ -102,8 +109,9 @@ interface PracticeRoomProps {
 export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
   const {
     song, practice, currentMs, playing, selectedStem, availableOutputChannelPairs,
-    recordingState, recordingMeter, locked, guitarSplitPending = false, guitarSplitReady = false, backLabel = '返回曲库',
-    onBack, onSeek, onPatch, onGuitarSplit, onTrack, onSelected, onExport, onAddRecordingTrack, onEdit, onMore, onRecord,
+    recordingState, recordingMeter, locked, guitarSplitPending = false, guitarSplitReady = false,
+    vocalSplitPending = song.vocalSplitStatus === 'pending', backLabel = '返回曲库',
+    onBack, onSeek, onPatch, onGuitarSplit, onVocalSplit, onTrack, onSelected, onExport, onAddRecordingTrack, onEdit, onMore, onRecord,
     onStopRecording, onCancelRecording, onSelectTake, onUpdateTake, onDeleteTake,
     onRecordingTrack, onUseTakePractice, onTogglePlayback, onRestart, onCycleLoop,
     onDismissGuitarSplitReady, outputLatencyMs = 0
@@ -113,7 +121,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
   const trackOrder = normalizeTrackOrder(practice.trackOrder, song.recordingTracks.map((track) => track.id))
   const visibleTrackOrder = trackOrder.filter((key) => {
     const stemType = getStemTypeFromTrackOrderKey(key)
-    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled))
+    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
   })
   // A soloed recording track silences the stems once its active take is loaded
   // (audio-engine.ts:222,377).
@@ -121,7 +129,8 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
     practice.tracks,
     practice.guitarSplitEnabled,
     song.recordingTracks.some((track) => track.solo && !track.muted
-      && song.recordingTakes.some((take) => take.id === track.activeTakeId))
+      && song.recordingTakes.some((take) => take.id === track.activeTakeId)),
+    practice.vocalSplitEnabled
   )
   const toggleMute = (
     track: Pick<TrackState, 'muted' | 'gainDb' | 'solo'>,
@@ -146,7 +155,7 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
     : trackOrder
   const renderedVisibleTrackOrder = previewTrackOrder.filter((key) => {
     const stemType = getStemTypeFromTrackOrderKey(key)
-    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled))
+    return stemType === null || (song.sourceFormat === 'existing-stems' ? stems.has(stemType) : isStemVisible(stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
   })
 
   const captureTrackPositions = (): void => {
@@ -287,6 +296,19 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
           <button aria-label="关闭吉他分轨完成提示" onClick={onDismissGuitarSplitReady}>×</button>
         </aside>}
       </div>
+      <div className="vocal-split-control">
+        <button
+          className={`outline-button ${practice.vocalSplitEnabled ? 'active' : ''}`}
+          disabled={locked || vocalSplitPending || song.sourceFormat === 'existing-stems'}
+          aria-pressed={practice.vocalSplitEnabled}
+          aria-describedby={vocalSplitPending ? `vocal-split-wait-${song.id}` : undefined}
+          title={practice.vocalSplitEnabled ? '恢复完整人声' : song.vocalSplitStatus === 'failed' ? '重试主唱与和声分离' : '区分主唱和和声'}
+          onClick={() => onVocalSplit(!practice.vocalSplitEnabled)}
+        ><Mic2 size={17} />人声分轨</button>
+        {vocalSplitPending && <span id={`vocal-split-wait-${song.id}`} className="vocal-split-tooltip" role="tooltip">
+          {props.vocalSplitStatus || '正在细分主唱与和声，请耐心等待'}
+        </span>}
+      </div>
       <button className="outline-button" disabled={locked} onClick={onMore}><MoreHorizontal size={18} />更多</button>
       {song.musicalKey && <div className="practice-key-badge"><Sparkles size={15} /><span><b>{practice.pitchSemitones === 0 ? song.musicalKey : `${song.musicalKey} → ${transposeMusicalKey(song.musicalKey, practice.pitchSemitones)}`}</b><small>{song.musicalKeySource === 'manual' ? '手动纠正' : song.keyAnalysis ? `识别 ${Math.round(song.keyAnalysis.confidence * 100)}%` : '歌曲调'}{song.keyAnalysis?.segments.some((segment) => segment.possibleModulation) ? ` · 可能转调 ${song.keyAnalysis.segments.filter((segment) => segment.possibleModulation).length} 处` : ''}</small></span></div>}
     </section>
@@ -312,6 +334,13 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 {...sharedDragProps}
                 type={type}
                 name={stem?.name ?? undefined}
+                vocalActions={song.sourceFormat !== 'existing-stems' && song.vocalSplitStatus === 'ready' && ['vocals', 'lead_vocals', 'backing_vocals'].includes(type) ? <details className="vocal-actions" onClick={event => { event.stopPropagation(); if (locked) event.preventDefault() }}>
+                  <summary aria-label="人声选项" title="人声选项">···</summary>
+                  <div role="menu" onClick={event => { const details = event.currentTarget.closest('details'); if (details) details.open = false }}>
+                    <button role="menuitem" disabled={locked} onClick={() => props.onVocalAction?.('removeLead')}>去主唱，保留和声</button>
+                    <button role="menuitem" disabled={locked} onClick={() => props.onVocalAction?.('soloBacking')}>仅听和声</button>
+                  </div>
+                </details> : undefined}
                 state={state}
                 exists={Boolean(stem)}
                 showWaveform={true}
@@ -440,6 +469,7 @@ function TrackGainControl({ label, value, disabled, onChange }: {
 }
 
 interface TrackRowProps extends TrackDragProps {
+  vocalActions?: React.ReactNode
   name?: string
   type: StemType
   state: TrackState
@@ -463,7 +493,7 @@ interface TrackRowProps extends TrackDragProps {
 
 function TrackRow(props: TrackRowProps): React.JSX.Element {
   const {
-    type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs,
+    type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs, vocalActions,
     peaksUrl, durationMs, currentMs, practice,
     onSeek, onRange, onPatch, onToggleMute, onSelected, onViewChange, ...dragProps
   } = props
@@ -482,7 +512,7 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
     onClick={onSelected}
   >
     <span className="track-identity" style={{ '--track': STEM_META[type].color } as React.CSSProperties}>
-      <i><Icon size={22} /></i><b>{name || STEM_META[type].shortLabel}</b>{!exists && <small>未导入</small>}
+      <i><Icon size={22} /></i><b>{name || STEM_META[type].shortLabel}</b>{!exists && <small>未导入</small>}{vocalActions}
     </span>
     <span className="ms-buttons">
       <button className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onToggleMute() }}>M</button>
