@@ -27,8 +27,8 @@ function paintAppearance(value: unknown): void {
   const root = document.documentElement
   root.dataset.theme = theme
   root.dataset.themeMode = current.theme
-  root.dataset.density = current.density
-  root.dataset.effects = current.effects
+  root.dataset.density = 'normal'
+  root.dataset.effects = 'standard'
   root.style.colorScheme = theme === 'dark' ? 'dark' : 'light'
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(current)) } catch { /* Private mode or full storage must not prevent rendering. */ }
   if (preferencesChanged || themeChanged) {

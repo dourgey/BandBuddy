@@ -1,4 +1,5 @@
 import type { ArsenalService } from './arsenal.js'
+import type { RecordingPlaybackService } from './recording-playback.js'
 import { existsSync, mkdirSync } from 'node:fs'
 import { access, mkdtemp, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -37,6 +38,7 @@ export function exportedStemPitchSemitones(request: Pick<ExportRequest, 'applyPi
 
 export class ExportService {
   arsenal?: ArsenalService
+  recordingPlayback?: RecordingPlaybackService
   constructor(
     private readonly paths: AppPaths,
     private readonly database: BandBuddyDatabase,
@@ -281,10 +283,18 @@ export class ExportService {
         inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file!.relPath))
         mixTracks.push({ inputIndex, state: { ...state, gainDb: state.gainDb + 20 * Math.log10(stemPlaybackGain(file)) } })
       })
+      if (this.recordingPlayback && audibleRecordings.length && !pitchRoot) pitchRoot = await mkdtemp(path.join(this.paths.cacheRoot, 'export-recording-'))
       const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,take}) => {
         const file=this.database.getRecordingTakeFile(take.id)
         if(!file) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
         const source=this.paths.resolveLibraryPath(settings.libraryRoot,file.sourceRelPath)
+        if (this.recordingPlayback) {
+          // Use the same placement, clock correction, pitch and effects as playback.
+          return this.recordingPlayback.renderRange(take, song.durationMs,
+            { ...song.practice, playbackRate: request.applyPlaybackRate ? request.playbackRate : 1, pitchSemitones: effectivePitch }, track.effects, 44100,
+            request.applyLoopRange ? request.loopStartMs ?? 0 : 0, request.applyLoopRange ? request.loopEndMs ?? song.durationMs : song.durationMs,
+            path.join(pitchRoot!, `recording-${take.id}.wav`), signal)
+        }
         return this.arsenal?.render(source,track.effects,signal,request.applyLoopRange?0:10,
           { tempo: song.practice.metronomeBpm * take.playbackRate, positionMs: Math.max(0, take.startPositionMs / take.playbackRate + take.alignmentOffsetMs), beatOffsetMs: song.practice.metronomeOffsetMs / take.playbackRate }) ?? source
       }))
@@ -302,7 +312,8 @@ export class ExportService {
           gainDb: track.gainDb,
           startPositionMs: take.startPositionMs,
           playbackRate: take.playbackRate,
-          alignmentOffsetMs: take.alignmentOffsetMs
+          alignmentOffsetMs: take.alignmentOffsetMs,
+          preprocessed: Boolean(this.recordingPlayback)
         })),
         masterGainDb: song.practice.masterGainDb,
         playbackRate: request.applyPlaybackRate ? request.playbackRate : null,

@@ -3,6 +3,7 @@ import { databaseNeedsPreparation, startDatabasePreparation } from './database-p
 import { normalizeAppearance, resolveTheme, themeBackground, type Appearance } from '@shared/appearance.js'
 import { ArsenalService } from './arsenal.js'
 import { NativeAudioService } from './native-audio.js'
+import { RecordingPlaybackService } from './recording-playback.js'
 import { AiService } from './ai-service.js'
 import { AiInformationReader } from './ai-information.js'
 import { AI_EVENT } from '@shared/ai.js'
@@ -413,21 +414,11 @@ else {
       emitLibrary
     )
     const arsenal = new ArsenalService(paths, database, media, audioHost, recording, state => { liveMonitor = state.active; emit(ARSENAL_MONITOR_EVENT, state); if (state.active) environmentManager?.deferForLiveAudio(); else scheduler?.kick() }, emitLibrary, () => rehearsalRecording?.isActive() ?? false)
-    const previewRenders = new Map<string, Promise<string>>()
-    media.recordingPreviewEffect = async (source, takeId) => {
-      const take = database!.getRecordingTake(takeId)
-      const effects = take ? database!.getRecordingTrack(take.recordingTrackId)?.effects : null
-      if (!effects?.enabled) return source
-      const practice = take ? database!.getSong(take.songId)?.practice : null
-      const clock = { tempo: (practice?.metronomeBpm ?? 120) * (take?.playbackRate ?? 1), beatOffsetMs: (practice?.metronomeOffsetMs ?? 0) / (take?.playbackRate ?? 1) }
-      const key = JSON.stringify([source, effects, clock])
-      let render = previewRenders.get(key)
-      if (!render) {
-        render = arsenal.render(source, effects, new AbortController().signal, 0, clock).finally(() => previewRenders.delete(key))
-        previewRenders.set(key, render)
-      }
-      return render
-    }
+    const recordingPlayback = new RecordingPlaybackService(paths, database, media, arsenal, audioHost)
+    media.arsenalOutput = request => arsenal.outputTransport.response(request)
+    media.recordingPlayback = (request, takeId, pitch) => recordingPlayback.response(request, takeId, pitch)
+    recording.playback = recordingPlayback
+    exporter.recordingPlayback = recordingPlayback
     recording.arsenal = arsenal
     exporter.arsenal = arsenal
     const rehearsals = new RehearsalService(paths, database, emitRehearsals)

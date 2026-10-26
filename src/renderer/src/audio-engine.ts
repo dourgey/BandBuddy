@@ -1,12 +1,14 @@
 import { arsenalDestination, retainArsenalSink } from './arsenal/native-output.js'
 import { clearTrackLevels, publishTrackLevel } from './track-levels.js'
+import { practiceMix, recordingPlaybackRate, recordingPreviewUrl } from '@shared/practice-mix.js'
+import { setRecordingPlayback } from './recording-playback-state.js'
+import { createMediaClock, followMediaClock, type MediaClock } from './media-clock.js'
 import {
   DEFAULT_OUTPUT_CHANNEL_PAIR,
   MAX_ROUTABLE_OUTPUT_CHANNELS,
   STEM_ORDER,
   dbToGain,
   isStemVisible,
-  stemPlaybackGain,
   normalizePitchSemitones,
   type PracticeState,
   type RecordingTake,
@@ -34,11 +36,6 @@ export interface NextMetronomeBeat {
 }
 
 export const TAKE_PREVIEW_PLAYBACK_RATE = 1
-
-export function recordingTakeMatchesPractice(take: RecordingTake, practice: PracticeState): boolean {
-  return Math.abs(take.playbackRate - practice.playbackRate) < 0.0001
-    && (take.pitchSemitones ?? 0) === (practice.pitchSemitones ?? 0)
-}
 
 export function takePreviewTimeSeconds(songPositionMs: number, recordedPlaybackRate: number): number {
   return songPositionMs / recordedPlaybackRate / 1000
@@ -71,6 +68,7 @@ interface TrackAudio {
 
 interface RecordingTrackAudio extends TrackAudio {
   take: RecordingTake
+  sourceKey: string
 }
 
 interface AudioContextSinkSelector {
@@ -163,6 +161,7 @@ export class MultiTrackAudioEngine {
   private nativeEnded = false
   private nativeError = ''
   private nativeResponse: EqResponse | null = null
+  private nativeEqSignature = ''
   private eqResponse: EqResponse | null = null
   private musicEq: SongEqBus | null = null
   private recordingEq: SongEqBus | null = null
@@ -183,7 +182,8 @@ export class MultiTrackAudioEngine {
 
   getEqVisualData(): EqVisualData | null {
     if (this.native && this.nativeResponse) {
-      this.nativeResponse.configure(this.practice?.eq ?? createDefaultSongEq())
+      const eq = this.practice?.eq ?? createDefaultSongEq(), signature = JSON.stringify(eq)
+      if (signature !== this.nativeEqSignature) { this.nativeResponse.configure(eq); this.nativeEqSignature = signature }
       return { frequencies: this.nativeResponse.frequencies, responseDb: this.nativeResponse.responseDb, spectrumDb: this.spectrumDb, sampleRate: 48000, compensationDb: this.nativeResponse.compensationDb }
     }
     if (!this.context || !this.eqResponse) return null
@@ -222,6 +222,8 @@ export class MultiTrackAudioEngine {
   private bypassDelay: DelayNode | null = null
   private bypassOutputSplitter: ChannelSplitterNode | null = null
   private auxiliaryBus: GainNode | null = null
+  private recordingBus: GainNode | null = null
+  private recordingDelay: DelayNode | null = null
   private auxiliaryDelay: DelayNode | null = null
   private auxiliaryOutputSplitter: ChannelSplitterNode | null = null
   private outputMerger: ChannelMergerNode | null = null
@@ -244,6 +246,8 @@ export class MultiTrackAudioEngine {
   }
   private tracks = new Map<StemType, TrackAudio>()
   private recordings = new Map<string, RecordingTrackAudio>()
+  private mediaClocks = new WeakMap<HTMLAudioElement, MediaClock>()
+  private resyncs = new Map<HTMLAudioElement, () => void>()
   private song: SongDetail | null = null
   private practice: PracticeState | null = null
   private frame = 0
@@ -273,6 +277,8 @@ export class MultiTrackAudioEngine {
 
   async load(song: SongDetail, outputDeviceId = '', latencyMode: AudioContextLatencyCategory = 'balanced'): Promise<void> {
     const generation = ++this.loadGeneration
+    this.latestRecordingSong = null
+    this.recordingRefresh = Promise.resolve()
     this.pause()
     this.destroyTracks()
     const previousNative = this.native
@@ -295,7 +301,7 @@ export class MultiTrackAudioEngine {
         if (state.ended && !this.nativeEnded) this.endedListener?.()
         this.nativeEnded = state.ended
       })
-      if (typeof OfflineAudioContext !== 'undefined') this.nativeResponse = new EqResponse(new OfflineAudioContext(2, 1, 48000))
+      if (typeof OfflineAudioContext !== 'undefined') { this.nativeResponse = new EqResponse(new OfflineAudioContext(2, 1, 48000)); this.nativeEqSignature = '' }
       await native.load(song.id, song.practice)
       return
     }
@@ -341,27 +347,134 @@ export class MultiTrackAudioEngine {
         this.tracks.set(type, { element, source, gain, splitter })
       }
     }
-    for (const recordingTrack of song.recordingTracks) {
-      const take = song.recordingTakes.find((candidate) => candidate.id === recordingTrack.activeTakeId)
-      if (!take) continue
-      const element = new Audio()
-      element.preload = 'auto'
-      element.crossOrigin = 'anonymous'
-      element.preservesPitch = true
-      element.src = take.previewMediaUrl
-      // The preview is already laid out in recording (wall-clock) time. A take
-      // captured at 0.5x is therefore twice as long as the song timeline and
-      // must advance at 1x while stems advance at 0.5x.
-      element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
-      element.currentTime = takePreviewTimeSeconds(song.practice.positionMs, take.playbackRate)
-      const source = this.context!.createMediaElementSource(element)
-      const gain = this.context!.createGain()
-      source.connect(gain).connect(this.recordingEq?.input ?? this.auxiliaryBus!)
-      this.addMeter(recordingTrack.id, gain)
-      this.recordings.set(recordingTrack.id, { element, source, gain, splitter: null, take })
-    }
     this.applyPractice(song.practice, true)
+    // Initial song loading and post-capture attachment use the same source
+    // lifecycle, including readiness, failure feedback and cancellation.
+    void this.updateRecordingSources(song).catch(() => undefined)
     await this.pitchTransition
+  }
+
+  private recordingRefresh: Promise<void> = Promise.resolve()
+  private latestRecordingSong: SongDetail | null = null
+  private recordingSourceVersion = 0
+  private recordingLoads = new Map<string, { key: string; abort: AbortController; promise: Promise<void> }>()
+
+  private recordingKey(song: SongDetail, id: string): string {
+    const track = song.recordingTracks.find(t => t.id === id)
+    const take = song.recordingTakes.find(t => t.id === track?.activeTakeId)
+    if (!take) return ''
+    const url = new URL(recordingPreviewUrl(take, this.practice ?? song.practice))
+    url.searchParams.delete('effects') // Names, M/S and gain also change updatedAt.
+    return JSON.stringify([take.id, url.href, track?.effects?.enabled ? track.effects.chain : null])
+  }
+
+  /** Mixer metadata is synchronous and never waits for file/effect preparation. */
+  updateRecordingMix(song: SongDetail): void {
+    if (this.song?.id !== song.id) return
+    this.song = song
+    for (const [id, recording] of this.recordings) {
+      if (song.recordingTracks.some(t => t.id === id && t.activeTakeId)) continue
+      this.disposeRecording(recording)
+      this.recordings.delete(id); this.meters.get(id)?.node.disconnect(); this.meters.delete(id)
+      setRecordingPlayback(id, null)
+    }
+    if (this.practice && !this.native) this.applyPractice(this.practice, false, true)
+  }
+
+  updateRecordingSources(song: SongDetail): Promise<void> {
+    if (this.song?.id !== song.id) return Promise.resolve()
+    this.latestRecordingSong = song
+    this.updateRecordingMix(song)
+    if (this.native) {
+      const refresh = window.bandbuddy.nativeAudio!.refresh(song.id)
+      this.recordingRefresh = refresh
+      return refresh
+    }
+    for (const [id, job] of this.recordingLoads) {
+      if (this.recordingKey(song, id) !== job.key) { job.abort.abort(); this.recordingLoads.delete(id); setRecordingPlayback(id, null) }
+    }
+    const work: Promise<void>[] = []
+    for (const track of song.recordingTracks) {
+      const key = this.recordingKey(song, track.id)
+      if (!key) continue
+      if (this.recordings.get(track.id)?.sourceKey === key) { setRecordingPlayback(track.id, { phase: 'ready' }); continue }
+      const existing = this.recordingLoads.get(track.id)
+      if (existing?.key === key) { work.push(existing.promise); continue }
+      const take = song.recordingTakes.find(t => t.id === track.activeTakeId)!
+      const abort = new AbortController()
+      setRecordingPlayback(track.id, { phase: 'loading' })
+      const job = { key, abort, promise: Promise.resolve() }
+      // Register before asynchronous work, including immediately ready media.
+      this.recordingLoads.set(track.id, job)
+      job.promise = this.prepareRecording(track.id, take, key, abort.signal).catch(error => {
+        if (abort.signal.aborted) return
+        setRecordingPlayback(track.id, { phase: 'failed', error: String(error) })
+        throw error
+      }).finally(() => { if (this.recordingLoads.get(track.id) === job) this.recordingLoads.delete(track.id) })
+      work.push(job.promise)
+    }
+    this.recordingRefresh = Promise.all(work).then(() => undefined)
+    return this.recordingRefresh
+  }
+
+  private async prepareRecording(id: string, take: RecordingTake, key: string, signal: AbortSignal): Promise<void> {
+    const context = this.context, generation = this.loadGeneration
+    if (!context) return
+    const element = new Audio()
+    element.preload = 'auto'; element.crossOrigin = 'anonymous'; element.preservesPitch = true
+    const url = new URL(recordingPreviewUrl(take, this.practice!))
+    url.searchParams.set('tone', String(++this.recordingSourceVersion))
+    element.src = url.href
+    let prepared: RecordingTrackAudio | undefined
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(() => finish(new Error('录音回放准备超时，请重试')), 120_000)
+        const ready = (): void => finish()
+        const failed = (): void => finish(new Error('录音回放加载失败，请重试'))
+        const cancelled = (): void => finish(new Error('RECORDING_PRELOAD_CANCELLED'))
+        const finish = (error?: Error): void => {
+          clearTimeout(timer); element.removeEventListener('canplay', ready); element.removeEventListener('error', failed); signal.removeEventListener('abort', cancelled)
+          error ? reject(error) : resolve()
+        }
+        if (signal.aborted) { cancelled(); return }
+        if (element.readyState >= 3) { ready(); return }
+        element.addEventListener('canplay', ready); element.addEventListener('error', failed); signal.addEventListener('abort', cancelled, { once: true }); element.load()
+      })
+      if (signal.aborted || generation !== this.loadGeneration) return
+      const anchor = this.anchor(), playbackGeneration = this.playbackGeneration
+      element.currentTime = takePreviewTimeSeconds((anchor?.currentTime ?? this.practice!.positionMs / 1000) * 1000, take.playbackRate)
+      element.playbackRate = recordingPlaybackRate(take, this.practice!)
+      const source = context.createMediaElementSource(element), gain = context.createGain()
+      gain.channelCount = 2; gain.channelCountMode = 'explicit'; gain.channelInterpretation = 'speakers'
+      gain.gain.value = 0; source.connect(gain).connect(this.recordingEq?.input ?? this.recordingBus!)
+      prepared = { element, source, gain, splitter: null, take, sourceKey: key }
+      if (anchor && !anchor.paused) await element.play()
+      if (signal.aborted || generation !== this.loadGeneration) return
+      if (playbackGeneration !== this.playbackGeneration || anchor?.paused) element.pause()
+      const old = this.recordings.get(id)
+      this.meters.get(id)?.node.disconnect(); this.addMeter(id, gain)
+      this.recordings.set(id, prepared)
+      prepared = undefined // ownership moved to the normal playback mixer
+      if (old) {
+        this.resyncs.get(old.element)?.()
+        old.gain.gain.cancelScheduledValues(context.currentTime)
+        old.gain.gain.setTargetAtTime(0, context.currentTime, .01)
+        window.setTimeout(() => this.disposeRecording(old), 50)
+      }
+      if (this.practice) this.applyPractice(this.practice, false, true)
+      setRecordingPlayback(id, { phase: 'ready' })
+    } finally {
+      if (this.recordings.get(id)?.element !== element) {
+        if (prepared) this.disposeRecording(prepared)
+        else { element.pause(); element.removeAttribute('src'); element.load() }
+      }
+    }
+  }
+
+  private disposeRecording(recording: RecordingTrackAudio): void {
+    this.resyncs.get(recording.element)?.()
+    recording.element.pause(); recording.element.removeAttribute('src'); recording.element.load()
+    recording.source.disconnect(); recording.gain.disconnect(); recording.splitter?.disconnect()
   }
 
   async updateStemSources(song: SongDetail): Promise<void> {
@@ -400,6 +513,7 @@ export class MultiTrackAudioEngine {
         element.currentTime = currentTime
         const source = this.context.createMediaElementSource(element)
         source.connect(track.gain)
+        this.resyncs.get(track.element)?.()
         track.element.pause(); track.source.disconnect()
         track.element = element; track.source = source
       }
@@ -412,9 +526,20 @@ export class MultiTrackAudioEngine {
   }
 
   async play(countInBeats: 0 | 4 | 8 = 0, onCountIn?: (remaining: number) => void): Promise<boolean> {
+    const generation = ++this.playbackGeneration
+    const loadGeneration = this.loadGeneration
+    const recordingSong = this.latestRecordingSong
+    if (this.native && recordingSong && recordingSong.id === this.song?.id) {
+      // Native preparation owns its timeline. Browser previews instead join
+      // the running backing at its current position when canplay arrives.
+      await this.recordingRefresh.catch(() => {
+        if (loadGeneration !== this.loadGeneration || generation !== this.playbackGeneration) return
+        return this.updateRecordingSources(recordingSong)
+      })
+      if (loadGeneration !== this.loadGeneration || generation !== this.playbackGeneration) return false
+    }
     if (this.native) { this.nativeEnded = false; this.countInListener = onCountIn ?? null; await window.bandbuddy.nativeAudio!.play(countInBeats); return true }
     if (!this.song || !this.practice) return false
-    const generation = ++this.playbackGeneration
     await this.ensureContext()
     await this.pitchTransition
     if (this.context!.state === 'suspended') await this.context!.resume()
@@ -441,6 +566,7 @@ export class MultiTrackAudioEngine {
     for (const recording of this.recordings.values()) {
       if (!this.takeMatchesPractice(recording.take)) continue
       recording.element.currentTime = takePreviewTimeSeconds(time * 1000, recording.take.playbackRate)
+      recording.element.playbackRate = recordingPlaybackRate(recording.take, this.practice)
       active.push(recording)
     }
     const results = await Promise.allSettled(active.map(({ element }) => element.play()))
@@ -448,24 +574,30 @@ export class MultiTrackAudioEngine {
     // must not pause elements now owned by a newer restart request.
     if (generation !== this.playbackGeneration) return false
     const failures = results.filter((result) => result.status === 'rejected')
-    if (failures.length === results.length) throw new Error('AUDIO_PLAYBACK_FAILED')
     if (failures.length > 0) {
       for (let index = 0; index < results.length; index += 1) {
         if (results[index]?.status === 'rejected') {
           active[index]?.element.pause()
           active[index]?.element.removeAttribute('src')
+          for (const [id, recording] of this.recordings) {
+            if (recording.element !== active[index]?.element) continue
+            recording.sourceKey = '' // Retry must actually prepare a new source.
+            setRecordingPlayback(id, { phase: 'failed', error: '录音回放启动失败，请重试' })
+          }
         }
       }
     }
+    if (failures.length === results.length) throw new Error('AUDIO_PLAYBACK_FAILED')
     if (this.practice.metronomeEnabled) this.startMetronome()
     this.monitor()
     return true
   }
 
   pause(): void {
-    if (this.native) { void window.bandbuddy.nativeAudio!.pause().catch(error => this.errorListener?.(error)); this.countInListener?.(0); return }
-    clearTrackLevels()
     this.playbackGeneration += 1
+    if (this.native) { void window.bandbuddy.nativeAudio!.pause().catch(error => this.errorListener?.(error)); this.countInListener?.(0); return }
+    this.resetMediaClocks()
+    clearTrackLevels()
     cancelAnimationFrame(this.frame)
     this.finishCountInWait()
     this.countInListener?.(0)
@@ -477,6 +609,7 @@ export class MultiTrackAudioEngine {
 
   seek(milliseconds: number): void {
     if (this.native) { this.nativeEnded = false; void window.bandbuddy.nativeAudio!.seek(milliseconds).catch(error => this.errorListener?.(error)); return }
+    this.resetMediaClocks()
     const seconds = Math.max(0, Math.min(milliseconds, this.song?.durationMs ?? milliseconds) / 1000)
     const mediaPlaying = Boolean(this.anchor() && !this.anchor()!.paused)
     for (const { element } of this.tracks.values()) if (element.src) element.currentTime = seconds
@@ -487,9 +620,10 @@ export class MultiTrackAudioEngine {
     this.timeListener?.(seconds * 1000)
   }
 
-  applyPractice(practice: PracticeState, immediate = false): void {
+  applyPractice(practice: PracticeState, immediate = false, forceMix = false): void {
     if (this.native) { this.practice = practice; void window.bandbuddy.nativeAudio!.update(practice).catch(error => this.errorListener?.(error)); return }
     const previousPractice = this.practice
+    const rateChanged = previousPractice?.playbackRate !== practice.playbackRate
     const guitarModeChanged = previousPractice !== null
       && (previousPractice.guitarSplitEnabled !== practice.guitarSplitEnabled || previousPractice.vocalSplitEnabled !== practice.vocalSplitEnabled)
     const pitchChanged = (this.practice?.pitchSemitones ?? 0) !== (practice.pitchSemitones ?? 0)
@@ -507,7 +641,12 @@ export class MultiTrackAudioEngine {
     })
     const mediaPlaying = Boolean(this.anchor() && !this.anchor()!.paused)
     this.practice = practice
+    if (immediate || rateChanged) this.resetMediaClocks()
     this.applyEq(immediate)
+    // Pointer edits must not re-enter media transport, reschedule mixer gains,
+    // or touch recording playback. Persisted snapshots may have new identities.
+    if (!immediate && !forceMix && previousPractice && previousPractice.eq !== practice.eq
+      && JSON.stringify({ ...previousPractice, eq: null, updatedAt: '' }) === JSON.stringify({ ...practice, eq: null, updatedAt: '' })) return
     if (guitarModeChanged && !immediate) {
       this.cancelOutputRouteTransition()
       // Keep both stem representations connected while their gains crossfade.
@@ -527,31 +666,20 @@ export class MultiTrackAudioEngine {
       this.master.gain.linearRampToValueAtTime(dbToGain(practice.masterGainDb), now + ramp)
     }
     const recordingStates = this.song?.recordingTracks ?? []
-    const hasSolo = practice.tracks.some((state) =>
-      (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled)) && state.solo && !state.muted
-    )
-      || recordingStates.some((state) => this.recordings.has(state.id) && state.solo && !state.muted)
+    const gains = this.song ? practiceMix(this.song, practice).gains : new Map<string, number>()
     for (const state of practice.tracks) {
       const track = this.tracks.get(state.stemType)
       if (!track) continue
-      const visible = (this.song?.sourceFormat === 'existing-stems' || isStemVisible(state.stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
-      const gain = visible && !state.muted && (!hasSolo || state.solo) ? dbToGain(state.gainDb) * stemPlaybackGain(this.song?.stems.find(stem => stem.type === state.stemType)) : 0
-      track.gain.gain.cancelScheduledValues(now)
-      track.gain.gain.setValueAtTime(track.gain.gain.value, now)
-      track.gain.gain.linearRampToValueAtTime(gain, now + ramp)
-      track.element.playbackRate = practice.playbackRate
-      track.element.preservesPitch = true
+      const gain = gains.get(state.stemType) ?? 0
+      if (!this.resyncs.has(track.element)) this.rampTrackGain(track, gain, ramp)
+      if (!track.element.preservesPitch) track.element.preservesPitch = true
     }
     for (const recordingState of recordingStates) {
       const recording = this.recordings.get(recordingState.id)
       if (!recording) continue
-      const matchesPractice = this.takeMatchesPractice(recording.take)
-      const audible = !recordingState.muted && (!hasSolo || recordingState.solo) && matchesPractice
-      recording.gain.gain.cancelScheduledValues(now)
-      recording.gain.gain.setValueAtTime(recording.gain.gain.value, now)
-      recording.gain.gain.linearRampToValueAtTime(audible ? dbToGain(recordingState.gainDb) : 0, now + ramp)
-      recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
-      recording.element.preservesPitch = true
+      const matchesPractice = recordingState.activeTakeId === recording.take.id
+      if (!this.resyncs.has(recording.element)) this.rampTrackGain(recording, matchesPractice ? gains.get(recordingState.id) ?? 0 : 0, ramp)
+      if (!recording.element.preservesPitch) recording.element.preservesPitch = true
       if (!matchesPractice) recording.element.pause()
       else if (mediaPlaying && recording.element.paused) {
         const anchor = this.anchor()
@@ -573,6 +701,7 @@ export class MultiTrackAudioEngine {
       if (practice.metronomeEnabled) this.startMetronome()
       else this.stopMetronome()
     }
+    if (pitchChanged && !forceMix && this.song) void this.updateRecordingSources(this.song).catch(() => undefined)
   }
 
   async setOutputDevice(deviceId: string): Promise<void> {
@@ -595,6 +724,7 @@ export class MultiTrackAudioEngine {
       if (this.dryDelay) this.setDelay(this.dryDelay, 0, now + (immediate ? 0 : 0.035))
       if (this.bypassDelay) this.setDelay(this.bypassDelay, 0, now + (immediate ? 0 : 0.035))
       if (this.auxiliaryDelay) this.setDelay(this.auxiliaryDelay, 0, now + (immediate ? 0 : 0.035))
+      if (this.recordingDelay) this.setDelay(this.recordingDelay, 0, now + (immediate ? 0 : 0.035))
       this.errorListener?.(error)
     })
   }
@@ -626,6 +756,7 @@ export class MultiTrackAudioEngine {
       this.setDelay(this.dryDelay, 0, resetAt)
       this.setDelay(this.bypassDelay, 0, resetAt)
       this.setDelay(this.auxiliaryDelay, 0, resetAt)
+      if (this.recordingDelay) this.setDelay(this.recordingDelay, 0, resetAt)
       return
     }
 
@@ -636,6 +767,7 @@ export class MultiTrackAudioEngine {
     this.setDelay(this.dryDelay, this.pitchLatencySeconds, now)
     this.setDelay(this.bypassDelay, this.pitchLatencySeconds, now)
     this.setDelay(this.auxiliaryDelay, this.pitchLatencySeconds, now)
+    if (this.recordingDelay) this.setDelay(this.recordingDelay, this.pitchLatencySeconds, now)
     await node.schedule({
       active: true,
       semitones,
@@ -744,10 +876,13 @@ export class MultiTrackAudioEngine {
     this.auxiliaryBus = this.context.createGain()
     this.auxiliaryBus.channelCount = 2
     this.auxiliaryBus.channelCountMode = 'explicit'
+    this.recordingBus = this.context.createGain()
+    this.recordingDelay = this.context.createDelay(2)
+    this.recordingBus.connect(this.recordingDelay).connect(this.master)
     if (this.options.applySongEq) {
       this.eqResponse = new EqResponse(this.context)
       this.recordingEq = new SongEqBus(this.context, 2)
-      this.recordingEq.output.connect(this.auxiliaryBus)
+      this.recordingEq.output.connect(this.recordingBus)
       this.recordingEq.setSpectrumActive(this.spectrumActive)
     }
     this.auxiliaryDelay = this.context.createDelay(2)
@@ -949,6 +1084,70 @@ export class MultiTrackAudioEngine {
     oscillator.stop(at + 0.06)
   }
 
+  private rampTrackGain(track: TrackAudio, value: number, duration: number): void {
+    const now = this.context?.currentTime ?? 0, gain = track.gain.gain
+    // Read before cancelling: cancelling an unfinished ramp can reset .value.
+    const current = gain.value
+    gain.cancelScheduledValues(now)
+    gain.setValueAtTime(current, now)
+    gain.linearRampToValueAtTime(value, now + duration)
+  }
+
+  private resetMediaClocks(): void {
+    for (const cancel of this.resyncs.values()) cancel()
+    this.mediaClocks = new WeakMap()
+    if (!this.practice) return
+    for (const { element } of this.tracks.values()) {
+      if (element.playbackRate !== this.practice.playbackRate) element.playbackRate = this.practice.playbackRate
+    }
+    for (const { element, take } of this.recordings.values()) {
+      const rate = recordingPlaybackRate(take, this.practice)
+      if (element.playbackRate !== rate) element.playbackRate = rate
+    }
+  }
+
+  private synchronizeTrack(id: string, track: TrackAudio, anchor: HTMLAudioElement, anchorTime: number, timeScale = 1): void {
+    const { element } = track, context = this.context
+    if (!context || !this.practice || this.resyncs.has(element)) return
+    const rate = this.practice.playbackRate / timeScale
+    // Seeking/buffering timestamps cannot be used for clock correction. In
+    // particular, another seek here can indefinitely restart the decoder.
+    if (anchor.seeking || element.seeking || anchor.readyState < 3 || element.readyState < 3) {
+      this.mediaClocks.delete(element)
+      if (element.playbackRate !== rate) element.playbackRate = rate
+      return
+    }
+    let clock = this.mediaClocks.get(element)
+    if (!clock) { clock = createMediaClock(context.currentTime); this.mediaClocks.set(element, clock) }
+    if (!followMediaClock(clock, (element.currentTime * timeScale - anchorTime) / this.practice.playbackRate, context.currentTime)) return
+
+    // Only a sustained large offset needs a seek. Silence this track across
+    // decoder repositioning; the anchor and the rest of the mix keep playing.
+    this.rampTrackGain(track, 0, .008)
+    let requested = false
+    const finish = (): void => {
+      clearTimeout(timer)
+      element.removeEventListener('seeked', ready)
+      element.removeEventListener('canplay', ready)
+      element.removeEventListener('error', finish)
+      this.resyncs.delete(element)
+      const active = !('take' in track) || this.takeMatchesPractice((track as RecordingTrackAudio).take)
+      const gain = active && this.song && this.practice ? practiceMix(this.song, this.practice).gains.get(id) ?? 0 : 0
+      this.rampTrackGain(track, gain, .025)
+    }
+    const ready = (): void => { if (requested && !element.seeking && element.readyState >= 3) finish() }
+    const timer = window.setTimeout(() => {
+      if (anchor.paused || element.paused) { finish(); return }
+      requested = true
+      try { element.currentTime = anchor.currentTime / timeScale; ready() }
+      catch (error) { finish(); this.errorListener?.(error) }
+    }, 15)
+    element.addEventListener('seeked', ready)
+    element.addEventListener('canplay', ready)
+    element.addEventListener('error', finish)
+    this.resyncs.set(element, finish)
+  }
+
   private monitor = (): void => {
     const anchor = this.anchor()
     if (!anchor) return
@@ -972,19 +1171,13 @@ export class MultiTrackAudioEngine {
     }
     if (anchor.paused) return
     const anchorTime = anchor.currentTime
-    for (const { element } of this.tracks.values()) {
-      if (!element.src || element === anchor || element.paused) continue
-      const drift = element.currentTime - anchorTime
-      if (Math.abs(drift) > 0.03) element.currentTime = anchorTime
-      else if (Math.abs(drift) > 0.012) element.playbackRate = (practice?.playbackRate ?? 1) * (drift > 0 ? 0.985 : 1.015)
-      else element.playbackRate = practice?.playbackRate ?? 1
+    for (const [id, track] of this.tracks) {
+      if (!track.element.src || track.element === anchor || track.element.paused) continue
+      this.synchronizeTrack(id, track, anchor, anchorTime)
     }
-    for (const recording of this.recordings.values()) {
+    for (const [id, recording] of this.recordings) {
       if (!this.takeMatchesPractice(recording.take) || recording.element.paused) continue
-      const drift = recording.element.currentTime * recording.take.playbackRate - anchorTime
-      if (Math.abs(drift) > 0.03) recording.element.currentTime = takePreviewTimeSeconds(anchorTime * 1000, recording.take.playbackRate)
-      else if (Math.abs(drift) > 0.012) recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE * (drift > 0 ? 0.985 : 1.015)
-      else recording.element.playbackRate = TAKE_PREVIEW_PLAYBACK_RATE
+      this.synchronizeTrack(id, recording, anchor, anchorTime, recording.take.playbackRate)
     }
     for (const [id, meter] of this.meters) {
       meter.node.getFloatTimeDomainData(meter.data)
@@ -996,6 +1189,9 @@ export class MultiTrackAudioEngine {
   }
 
   private destroyTracks(): void {
+    this.resetMediaClocks()
+    for (const [id, job] of this.recordingLoads) { job.abort.abort(); setRecordingPlayback(id, null) }
+    this.recordingLoads.clear()
     for (const meter of this.meters.values()) meter.node.disconnect()
     this.meters.clear(); clearTrackLevels()
     cancelAnimationFrame(this.frame)
@@ -1009,19 +1205,12 @@ export class MultiTrackAudioEngine {
       splitter?.disconnect()
     }
     this.tracks.clear()
-    for (const recording of this.recordings.values()) {
-      recording.element.pause()
-      recording.element.removeAttribute('src')
-      recording.element.load()
-      recording.source.disconnect()
-      recording.gain.disconnect()
-      recording.splitter?.disconnect()
-    }
+    for (const [id, recording] of this.recordings) { this.disposeRecording(recording); setRecordingPlayback(id, null) }
     this.recordings.clear()
   }
 
   private takeMatchesPractice(take: RecordingTake): boolean {
-    return Boolean(this.practice && recordingTakeMatchesPractice(take, this.practice))
+    return Boolean(this.song?.recordingTracks.some(track => track.activeTakeId === take.id))
   }
 
   unload(): void {
@@ -1055,6 +1244,8 @@ export class MultiTrackAudioEngine {
     this.bypassDelay = null
     this.bypassOutputSplitter = null
     this.auxiliaryBus = null
+    this.recordingBus = null
+    this.recordingDelay = null
     this.auxiliaryDelay = null
     this.auxiliaryOutputSplitter = null
     this.outputMerger = null

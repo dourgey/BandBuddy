@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { defaultEffectChain, effectChainSchema, storeEffectChain, chainModules, createEffectModule } from '@shared/arsenal.js'
+import { defaultEffectChain, effectChainSchema, storeEffectChain, chainModules, chainNodes, withChainNodes, createEffectModule, type EffectChainNode } from '@shared/arsenal.js'
 import { effectDefinition, changeModuleParameter, factoryPresets } from '@shared/effect-catalog.js'
 import { ArsenalService } from '../src/main/arsenal.js'
 vi.mock('electron',()=>({dialog:{}}))
@@ -11,6 +11,23 @@ let root:string,sqlite:DatabaseSync
 beforeEach(async()=>{root=await mkdtemp(path.join(tmpdir(),'bb-workstation-'));sqlite=new DatabaseSync(':memory:');sqlite.exec('CREATE TABLE arsenal_presets(id TEXT PRIMARY KEY,json TEXT,updated_at TEXT);CREATE TABLE tone_assets(id TEXT PRIMARY KEY,json TEXT,created_at TEXT)')})
 afterEach(async()=>{sqlite.close();await rm(root,{recursive:true,force:true})})
 function service(){return new ArsenalService({dataRoot:root} as never,{sqlite} as never,{} as never,{onEvent:vi.fn()} as never,{} as never,vi.fn(),vi.fn(),()=>false)}
+it('uses the same mixed node order in the rack, persisted presets and native plugin graph',async()=>{
+ const amp=createEffectModule('amp'),cab=createEffectModule('cab'),drive=createEffectModule('drive')
+ const plugin=(suffix:number):EffectChainNode=>{const id=`10000000-0000-4000-8000-${String(suffix).padStart(12,'0')}`;return{id,type:'plugin',plugin:{instanceId:id,format:'vst3',pluginId:'delay',name:'Delay',fingerprint:'a'.repeat(64),stateHash:null,bypass:false,beforeModuleId:null}}}
+ const one=plugin(1),two=plugin(2),tail=plugin(3),initial={...defaultEffectChain(),modules:[]}
+ const assertOrder=async(nodes:EffectChainNode[])=>{
+  const chain=withChainNodes(initial,nodes),restored=effectChainSchema.parse(storeEffectChain(chain))
+  expect(chainNodes(restored).map(n=>n.id)).toEqual(nodes.map(n=>n.id))
+  expect((await service().prepare(restored)).pluginGraph?.nodes.map(n=>n.id)).toEqual(nodes.map(n=>n.id))
+  return restored
+ }
+ await assertOrder([drive,one,two,amp,cab,tail])
+ await assertOrder([one,drive,amp,two,cab,tail])
+ // Removing a built-in next to a plugin keeps the plugin in its visible place.
+ const removed=await assertOrder([drive,one,two,cab,tail])
+ expect(removed.plugins?.slice(0,2).map(p=>p.beforeModuleId)).toEqual([cab.id,cab.id])
+ await assertOrder([drive,amp,cab,one,two,tail])
+})
 it('roundtrips old chains into compact modules without changing algorithms or audible settings',()=>{
  const old=defaultEffectChain();old.drive.enabled=true;old.drive.drive=.72;old.eq.enabled=true;old.eq.bands[3]=4
  const compact=storeEffectChain(old),restored=effectChainSchema.parse(compact)
@@ -18,15 +35,16 @@ it('roundtrips old chains into compact modules without changing algorithms or au
  expect(compact.modules[0]).not.toHaveProperty('settings');expect(chainModules(restored).map(m=>m.settings[m.type])).toEqual(chainModules(old).map(m=>m.settings[m.type]));expect(restored.inputGainDb).toBe(old.inputGainDb);expect(restored.outputGainDb).toBe(old.outputGainDb)
  expect(effectChainSchema.safeParse({...compact,modules:[{id:'x',type:'amp',revision:2,params:{engine:'bad'}}]}).success).toBe(false)
 })
-it('persists drafts, favorites and compact presets; saving factory presets creates independent copies',async()=>{
- const a=service(),factory=a.list().presets[0]!,copy=a.savePreset({...factory,name:'我的清音'})
- expect(copy.id).not.toBe(factory.id);expect(a.list().presets).toHaveLength(9)
+it('starts without factory presets and persists user drafts, favorites and compact presets',async()=>{
+ const a=service();expect(a.list().presets).toHaveLength(0);const copy=a.savePreset({name:'我的清音',chain:defaultEffectChain()})
+ expect(a.list().presets).toHaveLength(1)
  const stored=JSON.parse((sqlite.prepare('SELECT json FROM arsenal_presets').get() as {json:string}).json);expect(stored.chain.version).toBe(2)
- await a.command({action:'favorite',id:factory.id,value:true});await a.command({action:'draft',draft:{name:'未保存',chain:copy.chain,dirty:true,presetId:copy.id}})
- const b=service();expect((await b.command({action:'workspace'})).draft?.name).toBe('未保存');expect(b.list().presets.find(p=>p.id===factory.id)?.favorite).toBe(true);expect(b.monitorState().active).toBe(false)
+ await a.command({action:'favorite',id:copy.id,value:true});await a.command({action:'draft',draft:{name:'未保存',chain:copy.chain,dirty:true,presetId:copy.id}})
+ const b=service();expect((await b.command({action:'workspace'})).draft?.name).toBe('未保存');expect(b.list().presets.find(p=>p.id===copy.id)?.favorite).toBe(true);expect(b.monitorState().active).toBe(false)
  const disk=JSON.parse(await readFile(path.join(root,'arsenal/workspace.json'),'utf8'));expect(disk.draft.chain.version).toBe(2)
 })
-it('factory presets need no files and every visible parameter obeys its schema',()=>{
+it('removes every factory preset while keeping effect module editing available',()=>{
+ expect(factoryPresets()).toEqual([])
  for(const preset of factoryPresets())for(const m of chainModules(preset.chain)){
   expect(m.settings.amp.assetId).toBeNull();expect(m.settings.cab.assetId).toBeNull()
   for(const p of effectDefinition(m).parameters){expect(()=>changeModuleParameter(m,p.path,p.min)).not.toThrow();expect(()=>changeModuleParameter(m,p.path,p.max)).not.toThrow()}

@@ -1,11 +1,35 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { VolumeControl } from '../src/renderer/src/components/VolumeControl.js'
 import { WheelNumberInput } from '../src/renderer/src/components/WheelNumberInput.js'
 import { createTempoWheel } from '../src/renderer/src/components/tempo-wheel.js'
 afterEach(cleanup)
+it('shows dB during wheel and drag adjustment, hides it afterwards, and changes the icon through four levels', () => {
+  vi.useFakeTimers()
+  function Harness(): React.JSX.Element { const [v, set] = useState(-30); return <VolumeControl label="音量" value={v} onChange={set} /> }
+  const { container } = render(<Harness />)
+  expect(container.querySelector('[data-volume-bars="1"]')).toBeTruthy()
+  fireEvent.wheel(screen.getByRole('button'), { deltaY: -100 })
+  expect(screen.getByRole('status').textContent).toBe('-29.5 dB')
+  act(() => vi.advanceTimersByTime(801))
+  expect(screen.queryByRole('status')).toBeNull()
+  const slider = screen.getByRole('slider', { hidden: true })
+  fireEvent.pointerDown(slider)
+  fireEvent.change(slider, { target: { value: 50 } })
+  act(() => vi.advanceTimersByTime(1000))
+  expect(screen.getByRole('status')).toBeTruthy()
+  expect(container.querySelector('[data-volume-bars="2"]')).toBeTruthy()
+  fireEvent.pointerUp(slider)
+  act(() => vi.advanceTimersByTime(801))
+  expect(screen.queryByRole('status')).toBeNull()
+  fireEvent.change(slider, { target: { value: 200 } })
+  expect(container.querySelector('[data-volume-bars="3"]')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button'))
+  expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('true')
+  vi.useRealTimers()
+})
 it('wheel works over both button and slider, clamps and restores the last audible gain', () => {
   function Harness(): React.JSX.Element { const [v, set] = useState(-6); return <VolumeControl label="总音量" value={v} onChange={set} /> }
   render(<Harness />)

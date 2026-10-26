@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -12,7 +12,8 @@ import { spawnSafe } from './process.js'
 
 export function defaultPluginDirectories(platform = process.platform): string[] {
   return platform === 'win32'
-    ? [path.join(process.env.LOCALAPPDATA ?? homedir(), 'Programs', 'Common', 'VST3'), path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Common Files', 'VST3')]
+    ? [path.join(process.env.LOCALAPPDATA ?? path.join(homedir(), 'AppData', 'Local'), 'Programs', 'Common', 'VST3'),
+      path.join(process.env.CommonProgramW6432 ?? process.env.CommonProgramFiles ?? path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Common Files'), 'VST3')]
     : [path.join(homedir(), 'Library/Audio/Plug-Ins/VST3'), '/Library/Audio/Plug-Ins/VST3']
 }
 async function digest(file: string): Promise<string> {
@@ -29,15 +30,21 @@ async function fingerprint(file: string): Promise<string> {
 async function atomicJson(file: string, data: unknown): Promise<void> {
   const temporary = `${file}.${randomUUID()}.tmp`; await writeFile(temporary, JSON.stringify(data, null, 2)); await rename(temporary, file)
 }
-async function discover(root: string, output: string[], depth = 0): Promise<void> {
-  if (depth > 8 || output.length > 4096) return
+async function discover(root: string, output: Set<string>, visited: Set<string>, depth = 0): Promise<void> {
+  if (depth > 8 || output.size >= 4096) return
   let entries
-  try { entries = await readdir(root, { withFileTypes: true }) } catch { return }
+  try {
+    const resolved = await realpath(root)
+    if (visited.has(resolved)) return
+    visited.add(resolved)
+    entries = await readdir(resolved, { withFileTypes: true })
+  } catch { return }
   for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue
+    if (output.size >= 4096) break
     const file = path.join(root, entry.name)
-    if (entry.name.toLowerCase().endsWith('.vst3')) output.push(file)
-    else if (entry.isDirectory()) await discover(file, output, depth + 1)
+    if (entry.name.toLowerCase().endsWith('.vst3')) {
+      try { output.add(await realpath(file)) } catch { /* removed during discovery */ }
+    } else if (entry.isDirectory() || entry.isSymbolicLink()) await discover(file, output, visited, depth + 1)
   }
 }
 interface Pending { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
@@ -150,18 +157,23 @@ export class AudioPluginService {
     this.scanning = this.scanNow(retryFailed).finally(() => { this.scanning = null }); return this.scanning
   }
   private async scanNow(retryFailed: boolean): Promise<PluginCatalog> {
-    if (this.current || this.occupied()) throw new Error('请先停止录音和监听，再扫描插件')
-    if (!existsSync(this.executable)) throw new Error('PLUGIN_HOST_MISSING')
-    const old = await this.list(), candidates: string[] = [], plugins: PluginDefinition[] = [], failures: PluginCatalog['failures'] = []
-    for (const root of [...defaultPluginDirectories(), ...old.directories]) await discover(root, candidates)
+    const old = await this.list()
+    if (this.current || this.occupied()) return { ...old, scanDeferred: true }
+    if (!existsSync(this.executable)) throw new Error('本机插件组件缺失，请修复安装后重试')
+    const candidates = new Set<string>(), visited = new Set<string>(), plugins: PluginDefinition[] = [], failures: PluginCatalog['failures'] = []
+    for (const root of [...defaultPluginDirectories(), ...old.directories]) await discover(root, candidates, visited)
     const units = process.platform === 'darwin' ? await this.scanOne('', '--list-au') : []
-    for (const unit of units) candidates.push(unit.path)
+    for (const unit of units) candidates.add(unit.path)
     const candidateHash = async (candidate: string): Promise<string> => candidate.startsWith('au:')
       ? createHash('sha256').update(JSON.stringify(units.find(p => p.path === candidate))).digest('hex') : fingerprint(candidate)
     const marker = path.join(this.root, 'scanning.json')
     try { const interrupted = JSON.parse(await readFile(marker, 'utf8')); old.failures.push({ ...interrupted, reason: '上次扫描中断，已隔离', checkedAt: new Date().toISOString() }) } catch { /* no interrupted scan */ }
-    for (const candidate of [...new Set(candidates)]) {
-      if (this.current || this.occupied()) throw new Error('音频会话已开始，插件扫描已暂停；原目录已保留')
+    await rm(marker, { force: true })
+    let deferred = false
+    const processed = new Set<string>()
+    for (const candidate of candidates) {
+      if (this.current || this.occupied()) { deferred = true; break }
+      processed.add(candidate)
       let hash = ''
       try {
         hash = await candidateHash(candidate)
@@ -175,8 +187,14 @@ export class AudioPluginService {
       } catch (error) { failures.push({ path: candidate, fingerprint: hash, reason: String(error), checkedAt: new Date().toISOString() }) }
       await rm(marker, { force: true })
     }
+    // Retain unvisited definitions and quarantine records when a session starts
+    // mid-scan. Validated candidates still become available on the next refresh.
+    if (deferred) {
+      plugins.push(...old.plugins.filter(p => candidates.has(p.path) && !processed.has(p.path)))
+      failures.push(...old.failures.filter(f => candidates.has(f.path) && !processed.has(f.path)))
+    }
     const seen = new Set<string>()
-    const catalog: PluginCatalog = { ...old, failures, plugins: plugins.filter(p => { const key = `${p.format}:${p.pluginId}`; if (seen.has(key)) return false; seen.add(key); return true }) }
+    const catalog: PluginCatalog = { ...old, failures, plugins: plugins.filter(p => { const key = `${p.format}:${p.pluginId}`; if (seen.has(key)) return false; seen.add(key); return true }), scanDeferred: deferred }
     await this.persist(catalog); return catalog
   }
   private scanOne(candidate: string, operation = '--scan'): Promise<PluginDefinition[]> {

@@ -8,6 +8,53 @@
 #include <limits>
 
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+void testPlaybackEq() {
+  const auto config = [](double hz, double gain) { return nlohmann::json{{"enabled", true}, {"mode", "parametric"}, {"nodes", {{{"frequency", hz}, {"gainDb", gain}, {"q", 12}}}}}; };
+  // A control update must not replace the audible blend mid-transition.
+  bb::PlaybackEq changing, reference;
+  changing.configure(config(1000, -12), 48000); reference.configure(config(1000, -12), 48000);
+  changing.beginBlock(); reference.beginBlock();
+  for (unsigned i = 0; i < 768; ++i) {
+    float a = float(.25 * std::sin(i * 2 * 3.141592653589793 * 1000 / 48000)), b = a, c = a, d = a;
+    changing.sample(a, b); reference.sample(c, d);
+  }
+  changing.configure(config(20, 12), 48000); changing.beginBlock(); reference.beginBlock();
+  float a = .1f, b = a, c = a, d = a;
+  changing.sample(a, b); reference.sample(c, d);
+  require(std::abs(a - c) < 1e-6, "EQ update preserves in-flight crossfade");
+  // Paused audio consumes no blocks: arbitrary pointer bursts must stay bounded
+  // and the first resumed block must eventually converge to the newest target.
+  bb::PlaybackEq burst;
+  for (unsigned i = 0; i < 2000; ++i) burst.configure(config(1000, i % 2 ? -9 : 12), 48000);
+  double power = 0;
+  for (unsigned i = 0; i < 24000; ++i) {
+    if (i % 128 == 0) burst.beginBlock();
+    float left = float(.25 * std::sin(i * 2 * 3.141592653589793 * 1000 / 48000)), right = -left;
+    burst.sample(left, right);
+    require(std::isfinite(left) && std::abs(left) < .3f && left == -right, "EQ finite stereo output without clipping");
+    if (i >= 12000) power += left * left;
+  }
+  require(std::abs(std::sqrt(power / 12000) - .25 / std::sqrt(2.) * std::pow(10., -9. / 20)) < .001, "EQ burst reaches latest target");
+  for (unsigned rate : {44100u, 48000u, 96000u}) {
+    bb::PlaybackEq sweep; double peak = 0, step = 0; float last = 0;
+    for (unsigned i = 0; i < rate * 3; ++i) {
+      if (i % 128 == 0) {
+        const unsigned block = i / 128;
+        auto target = config(20 * std::pow(1000., (block % 100) / 99.), block % 2 ? 12 : -12);
+        if (block % 17 == 0) target = {{"enabled", false}};
+        else if (block % 13 == 0) target = {{"enabled", true}, {"mode", "graphic"}, {"graphicGains", std::vector<double>(10, 12)}};
+        else if (block % 11 == 0) target["nodes"] = nlohmann::json::array();
+        sweep.configure(target, rate); sweep.beginBlock();
+      }
+      float left = float(.25 * std::sin(i * 2 * 3.141592653589793 * 1000 / rate)), right = -left;
+      sweep.sample(left, right);
+      require(std::isfinite(left) && left == -right, "EQ sweep preserves finite independent channels");
+      peak = std::max(peak, std::abs(double(left))); step = std::max(step, std::abs(double(left - last))); last = left;
+    }
+    require(peak < .35 && step < .06, "EQ rapid sweep has no clipping or abrupt sample jumps");
+    std::cout << nlohmann::json{{"eqSweepRate", rate}, {"seconds", 3}, {"peak", peak}, {"maximumSampleStep", step}}.dump() << '\n';
+  }
+}
 void wave(const std::filesystem::path& path, float value, unsigned frames = 48000) {
   std::ofstream out(path, std::ios::binary); bb::writeWaveHeader(out, 48000, 2, frames * 8);
   for (unsigned i = 0; i < frames * 2; ++i) out.write(reinterpret_cast<const char*>(&value), 4);
@@ -41,6 +88,7 @@ int run(int argc, char** argv) {
   const auto root = std::filesystem::temp_directory_path() / ("bb-core-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   std::filesystem::create_directories(root);
   try {
+    testPlaybackEq();
     bb::OutputSafety safety;
     float samples[] = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN(), 2, -4, .4f, -.4f};
     safety.finish(samples, 3, 2, 48000, std::chrono::steady_clock::now());
@@ -64,6 +112,44 @@ int run(int argc, char** argv) {
     }
     auto a = root / "a.wav", b = root / "b.wav"; wave(a, .1f); wave(b, .2f);
     {
+      // Placement is virtual: seeking to a short capture at minute 25 must
+      // read only that block, with no leading-silence processing or file.
+      nlohmann::json config = {{"path", a.string()}, {"durationMs", 1800000}, {"offsetMs", 1500000}, {"clockRatio", 1.001}};
+      const auto started = std::chrono::steady_clock::now();
+      bb::RecordingSource source(config, 48000); std::array<float, 1024> out{};
+      source.read(72000000 + 12000, out.data(), 512);
+      for (float sample : out) require(std::abs(sample - .1f) < 1e-6, "compact recording virtual offset and clock correction");
+      require(std::chrono::steady_clock::now() - started < std::chrono::milliseconds(250), "long song cannot gate first recording block");
+      source.read(0, out.data(), 512);
+      for (float sample : out) require(sample == 0, "virtual silence before recording");
+      source.read(72000000 + 96000, out.data(), 512);
+      for (float sample : out) require(sample == 0, "virtual silence after recording");
+      config["rate"] = .75; config["pitch"] = 3;
+      bb::RecordingSource stretched(config, 48000);
+      stretched.read(96000000 + 16000, out.data(), 512);
+      for (float sample : out) require(std::isfinite(sample), "recording stretch remains finite at arbitrary seek");
+    }
+    {
+      const auto track = [&](const auto& file) { return nlohmann::json{{"id", "recording"}, {"gain", 1}, {"recording", {{"path", file.string()}, {"durationMs", 1000}}}}; };
+      bb::Timeline timeline({{"tracks", nlohmann::json::array({track(a)})}}, 48000);
+      timeline.play(); std::array<float, 256> out{};
+      for (unsigned i = 0; i < 20; ++i) { out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(2)); }
+      const auto generation = timeline.state().at("generation");
+      timeline.pause(); timeline.attach(nlohmann::json::array({track(b)})); timeline.update({{"tracks", {{{"id", "recording"}, {"gain", 1}}}}});
+      // A paused full prefetch queue cannot retire a worker by a wall timer.
+      require(timeline.state().at("sourceRevision") < timeline.state().at("requestedSourceRevision"), "paused source retains old worker until decoder transition");
+      timeline.play(); float previous = .1f;
+      for (unsigned i = 0; i < 110; ++i) {
+        out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        for (unsigned f = 0; f < 128; ++f) { require(std::abs(out[f * 2] - previous) < .002, "recording tone crossfade has no discontinuity"); previous = out[f * 2]; }
+      }
+      require(std::abs(previous - .2f) < 1e-6 && timeline.state().at("generation") == generation, "recording tone change preserves transport");
+      require(timeline.state().at("sourceRevision") == timeline.state().at("requestedSourceRevision"), "decoder acknowledges completed recording crossfade");
+      timeline.attach(nlohmann::json::array(), true); timeline.update({{"tracks", nlohmann::json::array()}});
+      for (unsigned i = 0; i < 100; ++i) { out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(2)); }
+      require(std::all_of(out.begin(), out.end(), [](float value) { return value == 0; }), "deleted recording no longer reads or sounds");
+    }
+    {
       bb::Timeline timeline({{"tracks", {{{"id", "a"}, {"path", a.string()}, {"gain", 1}}, {{"id", "b"}, {"path", b.string()}, {"gain", 2}}}}, {"loopStartMs", 200}, {"loopEndMs", 400}}, 48000);
       timeline.play(); std::array<float, 256> out{};
       for (unsigned i = 0; i < 180; ++i) { out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(1)); if (i > 5) require(std::abs(out[0] - .5f) < 1e-5, "synchronous multi-track mix"); }
@@ -72,6 +158,15 @@ int run(int argc, char** argv) {
       timeline.seek(250); require(std::abs(timeline.positionMs() - 250) < .001, "paused seek publishes position"); timeline.play();
       for (unsigned i = 0; i < 10; ++i) { out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(2)); }
       require(timeline.positionMs() >= 250 && timeline.positionMs() < 280, "seek discards old generation");
+      const auto eqGeneration = timeline.state().at("generation"), eqUnderruns = timeline.state().at("underruns");
+      for (unsigned i = 0; i < 200; ++i) {
+        const nlohmann::json node = {{"frequency", 100 + i * 70}, {"gainDb", i % 2 ? -12 : 12}, {"q", 12}};
+        const nlohmann::json eq = {{"enabled", true}, {"mode", "parametric"}, {"nodes", nlohmann::json::array({node})}};
+        timeline.update({{"eq", eq}});
+        out.fill(0); timeline.mix(out.data(), 128); std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        for (float sample : out) require(std::isfinite(sample) && sample > 0 && sample < .7, "EQ edits preserve continuous timeline audio");
+      }
+      require(timeline.state().at("generation") == eqGeneration && timeline.state().at("underruns") == eqUnderruns && timeline.playing(), "EQ edits never seek or starve timeline");
     }
     {
       auto lead = root / "lead.wav", harmony = root / "harmony.wav"; wave(lead, .025f); wave(harmony, .075f);
@@ -94,7 +189,7 @@ int run(int argc, char** argv) {
     }
     std::ostringstream large; bb::writeWaveHeader(large, 48000, 2, 0x100000008ull);
     require(large.str().size() == 80 && large.str().substr(0, 4) == "RF64" && large.str().substr(12, 4) == "ds64", "RF64 reserved header");
-    std::cout << nlohmann::json{{"passed", true}, {"asrc", clocks}, {"checks", {"finite-stereo-protection", "asrc-120s-three-drifts", "native-multitrack", "sample-loop", "seek-generation", "vocal-attach-crossfade", "removed-track-silence", "rf64"}}}.dump() << '\n';
+    std::cout << nlohmann::json{{"passed", true}, {"asrc", clocks}, {"checks", {"eq-uninterrupted-crossfade", "eq-2000-paused-edits", "eq-three-rate-sweep", "finite-stereo-protection", "asrc-120s-three-drifts", "native-multitrack", "sample-loop", "seek-generation", "vocal-attach-crossfade", "removed-track-silence", "rf64"}}}.dump() << '\n';
     std::filesystem::remove_all(root); return 0;
   } catch (...) { std::filesystem::remove_all(root); throw; }
 }

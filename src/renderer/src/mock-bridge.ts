@@ -21,6 +21,9 @@ export function installFixtureBridge(): void {
     runtimeRoot: 'C:\\Users\\Musician\\BandBuddy\\envs',
     modelRoot: 'C:\\Users\\Musician\\BandBuddy\\envs\\models',
     debugMode: false,
+    desktopLyricsTextColor: '#fff0a8',
+    desktopLyricsBackgroundColor: '#171410',
+    desktopLyricsBold: true,
     desktopLyricsFontSize: 24,
     desktopLyricsBackgroundTransparency: 20,
     highQualityStems: false,
@@ -62,16 +65,19 @@ export function installFixtureBridge(): void {
       onChanged: (listener) => { appearanceListeners.add(listener); return () => appearanceListeners.delete(listener) }
     },
     arsenal: {
-      feed: async () => false,
+      feed: async () => arsenalMonitor.active,
       list: async () => structuredClone(arsenalLibrary),
       command: async input => {if(input.action==='favorite'){const p=arsenalLibrary.presets.find(p=>p.id===input.id);if(p)p.favorite=input.value}if(input.action==='draft'){arsenalWorkspace.draft=input.draft;localStorage.setItem('bb.fixture.arsenal',JSON.stringify(arsenalWorkspace))}else if(input.action==='record'||input.action==='loop'||input.action==='exportTake')throw new Error('浏览器预览不连接声卡，请在桌面版使用快录与循环。');return structuredClone(arsenalWorkspace)},
       importAsset: async () => null,
       deleteAsset: async () => undefined,
       savePreset: async (input) => {const old=arsenalLibrary.presets.find(p=>p.id===input.id),preset={...input,id:old&&!old.factory?old.id:crypto.randomUUID(),revision:1,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};arsenalLibrary.presets=[preset,...arsenalLibrary.presets.filter(p=>p.id!==preset.id)];return preset},
       deletePreset: async id => {arsenalLibrary.presets=arsenalLibrary.presets.filter(p=>p.id!==id)},
-      setTrack: async () => undefined,
+      setTrack: async ({trackId,effects}) => {
+        arsenalMonitor={...arsenalMonitor,trackId,mode:effects.monitorMode,active:effects.monitorMode!=='off'}
+        arsenalListeners.forEach(fn=>fn(arsenalMonitor))
+      },
       prepare: async (chain) => ({ chain, model: null, modelRate: 48000, ir: null, irRate: 48000 }),
-      monitor: async ({mode}) => {arsenalMonitor={...arsenalMonitor,mode,active:mode!=='off'};arsenalListeners.forEach(fn=>fn(arsenalMonitor));return arsenalMonitor},
+      monitor: async ({mode,trackId}) => {if(mode==='off'&&trackId&&arsenalMonitor.trackId!==trackId)return arsenalMonitor;arsenalMonitor={...arsenalMonitor,trackId,mode,active:mode!=='off'};arsenalListeners.forEach(fn=>fn(arsenalMonitor));return arsenalMonitor},
       monitorState: async () => arsenalMonitor,
       onMonitor: callback => {arsenalListeners.add(callback);return()=>arsenalListeners.delete(callback)}
     } satisfies ArsenalApi,
@@ -107,6 +113,7 @@ export function installFixtureBridge(): void {
     settings: {
       reconcileAudio: async () => settings,
       get: async () => settings,
+      storageUsage: async () => ({ entries: [], totalBytes: 0, freeBytes: null }),
       chooseDataRoot: async () => ({ dataRoot: 'C:\\Users\\Musician\\BandBuddy', libraryRoot: settings.libraryRoot, runtimeRoot: settings.runtimeRoot, modelRoot: settings.modelRoot }),
       update: async (value) => value,
       setDebugMode: async (enabled) => ({ ...settings, debugMode: enabled }),

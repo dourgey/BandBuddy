@@ -8,6 +8,7 @@ export interface MixFilterOptions {
     startPositionMs: number
     playbackRate: number
     alignmentOffsetMs: number
+    preprocessed?: boolean
   }>
   masterGainDb: number
   playbackRate: number | null
@@ -48,7 +49,7 @@ export function buildMixFilter(options: MixFilterOptions): string {
   }
   for (const [index, take] of (options.takes ?? []).entries()) {
     const rangeStartMs = options.loopStartMs ?? 0
-    const relativeDelayMs = take.startPositionMs / take.playbackRate + take.alignmentOffsetMs - rangeStartMs / take.playbackRate
+    const relativeDelayMs = take.preprocessed ? 0 : take.startPositionMs / take.playbackRate + take.alignmentOffsetMs - rangeStartMs / take.playbackRate
     const chain = ['aresample=44100', 'aformat=sample_fmts=fltp:channel_layouts=stereo']
     if (relativeDelayMs < 0) chain.push(`atrim=start=${(-relativeDelayMs / 1000).toFixed(6)}`, 'asetpts=PTS-STARTPTS')
     else if (relativeDelayMs > 0) chain.push(`adelay=${Math.round(relativeDelayMs)}:all=1`)

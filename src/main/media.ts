@@ -62,7 +62,9 @@ export class MediaService {
   private launchVerified = false
   private downloadAttempts: DownloadAttempt[] = []
   downloadDiagnostics(): DownloadAttempt[] { return this.downloadAttempts }
-  recordingPreviewEffect: ((source: string, takeId: string) => Promise<string>) | null = null
+  recordingPreviewEffect: ((source: string, takeId: string, pitchSemitones: number) => Promise<string>) | null = null
+  recordingPlayback: ((request: Request, takeId: string, pitch: number) => Promise<Response>) | null = null
+  arsenalOutput: ((request: Request) => Promise<Response>) | null = null
   private verifiedToolRoot: string | null = null
   private verification: Promise<void> | null = null
   private verificationState: MediaCapabilities['ffmpegVerification'] = 'unchecked'
@@ -518,9 +520,17 @@ export class MediaService {
   async handleProtocolRequest(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url)
+      if (url.hostname === 'arsenal-output' && this.arsenalOutput) return await this.arsenalOutput(request)
       let assetPath = this.resolveProtocolPath(url)
+      if (assetPath && url.hostname === 'song' && url.pathname.split('/')[2] === 'recording-preview' && this.recordingPlayback) {
+        const pitch = Number(url.searchParams.get('pitch') ?? 0)
+        if (!Number.isInteger(pitch) || Math.abs(pitch) > 24) return new Response('Invalid recording pitch', { status: 400 })
+        return await this.recordingPlayback(request, decodeURIComponent(url.pathname.split('/')[3]!), pitch)
+      }
       if (assetPath && url.hostname === 'song' && url.pathname.split('/')[2] === 'recording-preview' && this.recordingPreviewEffect) {
-        assetPath = await this.recordingPreviewEffect(assetPath, decodeURIComponent(url.pathname.split('/')[3]!))
+        const pitch = Number(url.searchParams.get('pitch') ?? 0)
+        if (!Number.isInteger(pitch) || Math.abs(pitch) > 24) return new Response('Invalid recording pitch', { status: 400 })
+        assetPath = await this.recordingPreviewEffect(assetPath, decodeURIComponent(url.pathname.split('/')[3]!), pitch)
       }
       if (!assetPath) return new Response('Not found', { status: 404 })
       const info = await stat(assetPath)

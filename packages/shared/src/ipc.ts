@@ -70,6 +70,7 @@ export const updateSongSchema = z.object({
 })
 
 export const trackStateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
   stemType: stemTypeSchema,
   gainDb: z.number().min(-60).max(6),
   muted: z.boolean(),
@@ -176,6 +177,9 @@ export const networkSettingsSchema = z.object({
 export const appSettingsSchema = z.object({
   appearance: appearanceSchema.default({ schemaVersion: 1, theme: 'warm', density: 'normal', effects: 'standard' }),
   desktopLyricsBackgroundTransparency: z.number().int().min(0).max(100).default(20),
+  desktopLyricsTextColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#fff0a8'),
+  desktopLyricsBackgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#171410'),
+  desktopLyricsBold: z.boolean().default(true),
   desktopLyricsFontSize: z.number().int().min(16).max(64).default(24),
   libraryRoot: z.string().min(3).max(1000),
   runtimeRoot: z.string().min(3).max(1000),

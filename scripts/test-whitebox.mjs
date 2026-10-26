@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto'
 import createModule from '../src/renderer/src/arsenal/dsp/arsenal-dsp.js'
 
 const root = process.cwd()
+const ampCabOnly = process.argv.includes('--amp-cab-only')
+const pedalsOnly = process.argv.includes('--pedals-only')
 const platform = `${process.platform}-${process.arch}`
 const native = process.env.BB_EFFECTS_TEST || path.join(root, 'native/audio-host/build', platform, 'effects', ...(process.platform === 'win32' ? ['Release'] : []), `bandbuddy-effects-test${process.platform === 'win32' ? '.exe' : ''}`)
 const m = await createModule({ wasmBinary: await readFile(path.join(root, 'src/renderer/src/arsenal/dsp/arsenal-dsp.wasm')) })
@@ -37,13 +39,24 @@ function rmsError(a,b) {
 }
 const results=[]
 try {
-  console.log(run([]))
+  if (!ampCabOnly && !pedalsOnly) console.log(run([]))
   const input=path.join(dir,'input.f32'),manifest=path.join(dir,'chain.json'),out=path.join(dir,'output.f32')
   await writeFile(input, new Uint8Array(source.buffer))
   const hash = createHash('sha256').update(new Uint8Array(source.buffer)).digest('hex')
-  const variants = ['ts808','sd1','rat','microamp','distortion-plus','fuzzface'].flatMap(device => [2,4].map(oversampling => ({device,oversampling})))
-  for (const [index,mod] of ['phase90','optical-tremolo','chorus','flanger','wah','ota-compressor'].entries())
+  const variants = (ampCabOnly ? [] : (pedalsOnly?['centaur']:['ts808','sd1','rat','microamp','distortion-plus','fuzzface','ds1','bd2','centaur']).flatMap(device => [2,4].map(oversampling => ({device,oversampling}))))
+  if (!ampCabOnly && !pedalsOnly) for (const [index,mod] of ['phase90','optical-tremolo','chorus','flanger','wah','ota-compressor'].entries())
     variants.push({device:'ts808',oversampling:4,classic:index,mod})
+  if(!ampCabOnly){
+    const pedal=(mod,modControls={})=>variants.push({device:'centaur',oversampling:4,pedalMod:true,mod,modControls})
+    for(const bassFilter of [false,true])pedal('stereo-chorus',{bass:.3,treble:.7,bassFilter})
+    for(const sweepMode of ['sweep','step','dynamic'])for(const feedback of [-.75,.75])pedal('step-flanger',{sweepMode,feedback})
+    for(const waveform of ['sine','triangle','ramp','square','random','env-depth','env-rate','env-pitch'])pedal('aqueduct-vibrato',{waveform})
+    pedal('fixed-wah',{levelDb:3})
+  }
+  const cabinets = ['fender-deluxe','fender-twin','marshall-1960ax','marshall-1960b','vox-ac30c2','mesa-rectifier','orange-ppc412']
+  if(!pedalsOnly)for (const [index,head] of ['fender-twin','marshall-jtm45','marshall-jcm800','vox-ac30','mesa-rectifier'].entries())
+    for (const quality of [2,4]) variants.push({device:'ts808',oversampling:4,head,quality,cabinet:cabinets[index]})
+  if(!pedalsOnly)for (const cabinet of cabinets) variants.push({device:'ts808',oversampling:4,cabinet})
   for (const variant of variants) {
     const {device,oversampling}=variant
     const chain = {version:1, order:['drive','amp','eq','delay','reverb'],inputGainDb:0,outputGainDb:-6,
@@ -58,8 +71,17 @@ try {
       chain.cab={...chain.cab,engine:'physical',physical:{device:['open112','open212','sealed412'][variant.classic%3],volumeLitres:100,distanceMetres:.5,micAngle:25}}
       chain.mod={enabled:true,device:variant.mod,rateHz:1.7,depth:.8,mix:.6,feedback:.4,manual:.7}
     }
+    if (variant.cabinet) {
+      chain.order=variant.head?['amp','cab']:['cab']
+      chain.amp={...chain.amp,enabled:!!variant.head,engine:'classic',classic:{device:variant.head??'fender-twin',gain:.7,bass:.4,middle:.6,treble:.8,master:.8,inputVolts:1,presence:.7,cut:.6,sag:.4,oversampling:variant.quality??4}}
+      chain.cab={...chain.cab,engine:'physical',physical:{device:variant.cabinet,volumeLitres:170,distanceMetres:.5,micAngle:25}}
+    }
+    if(variant.pedalMod){
+      chain.order=['drive','mod','cab']
+      chain.mod={enabled:true,device:variant.mod,rateHz:1.7,depth:.8,mix:.6,feedback:.4,manual:.7,...variant.modControls}
+    }
     const prepared = {chain,model:null,modelRate:48000,ir:[[1,0,.1],[.8,0,-.1]],irRate:48000}
-    if ((device === 'rat' && oversampling === 4) || variant.classic===0) {
+    if ((device === 'rat' && oversampling === 4) || variant.classic===0 || (variant.head==='fender-twin'&&variant.quality===4) || (variant.mod==='stereo-chorus'&&variant.modControls?.bassFilter===true)) {
       const latency=variant.classic===undefined?160:192
       // Exercise an actual native WAV export, including latency compensation and a 100 ms tail.
       const header=Buffer.alloc(44)
@@ -81,10 +103,25 @@ try {
       run([manifest,padded,out,'128']);const raw=await readFile(out)
       const compensated=raw.subarray(latency*8)
       if(!data.equals(compensated))throw new Error('Offline DSP latency compensation differs from streaming')
+      if (variant.head || variant.pedalMod) {
+        const pluginHost=process.env.BB_PLUGIN_HOST || path.join(root,'native/audio-host/build',platform,'plugin-host',...(process.platform==='win32'?['Release']:[]),`bandbuddy-plugin-host${process.platform==='win32'?'.exe':''}`)
+        const graphOutput=path.join(dir,'graph.wav')
+        await writeFile(job,JSON.stringify({input:wavIn,output:graphOutput,tailSeconds:.1,graph:{version:1,inputGainDb:0,outputGainDb:0,nodes:[{id:'amp-cab',kind:'builtin',prepared}]}}))
+        const graph=spawnSync(pluginHost,['--render',job],{encoding:'utf8'})
+        if(graph.error||graph.status)throw new Error(graph.error?.message||graph.stderr)
+        const rendered=await readFile(graphOutput);let graphData
+        for(let p=12;p+8<=rendered.length;) {const size=rendered.readUInt32LE(p+4);if(rendered.toString('ascii',p,p+4)==='data')graphData=rendered.subarray(p+8,p+8+size);p+=8+size+(size%2)}
+        if(!graphData?.equals(data))throw new Error('Plugin host builtin amp/cabinet differs from audio host')
+        console.log('Plugin host builtin chain: sample-exact native WAV parity passed')
+      }
       // A nonlinear pedal after the other modules must not render the same as before them.
-      prepared.chain.order=['amp','eq','delay','reverb','drive']
-      await writeFile(manifest,JSON.stringify(prepared));run([manifest,padded,out,'128'])
-      if((await readFile(out)).equals(raw))throw new Error('Module reordering had no effect')
+      const originalOrder = prepared.chain.order
+      if(originalOrder.includes('drive')){
+        prepared.chain.order=[...originalOrder.filter(block=>block!=='drive'),'drive']
+        await writeFile(manifest,JSON.stringify(prepared));run([manifest,padded,out,'128'])
+        if((await readFile(out)).equals(raw))throw new Error('Module reordering had no effect')
+      }
+      prepared.chain.order = originalOrder
       console.log('Native WAV export: exact latency compensation, tail length and reordered chain passed')
     }
     const str=JSON.stringify(prepared);await writeFile(manifest,str)
@@ -103,7 +140,22 @@ try {
       if(error>1e-4) throw new Error(`${device}/${oversampling} native/WASM relative RMS ${error}`)
       const captured = new Uint8Array(m.HEAPF32.slice(inPtr/4,inPtr/4+source.length).buffer)
       if(createHash('sha256').update(captured).digest('hex')!==hash)throw new Error('Dry capture altered')
-      results.push({device,oversampling,classic:variant.classic,mod:variant.mod,relativeRms:error})
+      if(variant.head){
+        const changed=structuredClone(chain);changed.amp.classic.gain=.3
+        const ptr=cString(JSON.stringify(changed));const ok=m._bb_update(processor,ptr);m._free(ptr);if(!ok)throw new Error('Amp parameter update rejected')
+        changed.amp.classic.oversampling=variant.quality===4?2:4
+        const bad=cString(JSON.stringify(changed));const rejected=m._bb_update(processor,bad);m._free(bad);if(rejected)throw new Error('Amp structural change must require preparation')
+      }
+      if(variant.pedalMod){
+        const changed=structuredClone(chain);changed.mod.depth=.3
+        const ptr=cString(JSON.stringify(changed));const ok=m._bb_update(processor,ptr);m._free(ptr);if(!ok)throw new Error('Pedal knob update rejected')
+        if(variant.mod==='aqueduct-vibrato'||variant.mod==='step-flanger'){
+          if(variant.mod==='aqueduct-vibrato')changed.mod.waveform=chain.mod.waveform==='sine'?'random':'sine'
+          else changed.mod.sweepMode=chain.mod.sweepMode==='step'?'sweep':'step'
+          const ptr=cString(JSON.stringify(changed));const accepted=m._bb_update(processor,ptr);m._free(ptr);if(accepted)throw new Error('Mode switch must prepare a new processor for host crossfade')
+        }
+      }
+      results.push({device,oversampling,classic:variant.classic,mod:variant.mod,modControls:variant.modControls,head:variant.head,quality:variant.quality,cabinet:variant.cabinet,relativeRms:error})
     } finally {m._bb_destroy(processor);m._free(inPtr);m._free(outPtr)}
   }
   console.log(JSON.stringify({passed:true,rate:48000,frames,results},null,2))

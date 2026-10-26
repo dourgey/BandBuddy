@@ -609,6 +609,7 @@ function parseDeviceSnapshot(row: RecordingTakeRow): RecordingDeviceSnapshot {
     : JSON.parse(row.input_channels_json) as number[]
   return {
     backend: saved.backend ?? row.backend,
+    ...(saved.compactRecording ? { compactRecording: true, clockCorrectionRatio: saved.clockCorrectionRatio ?? 1 } : {}),
     inputDeviceId: saved.inputDeviceId ?? '',
     inputDeviceName: saved.inputDeviceName ?? row.input_device_name,
     outputDeviceId: saved.outputDeviceId ?? '',
@@ -745,6 +746,9 @@ export class BandBuddyDatabase {
       modelRoot: this.paths.modelRoot,
       debugMode: false,
       appearance: { ...DEFAULT_APPEARANCE },
+      desktopLyricsTextColor: '#fff0a8',
+      desktopLyricsBackgroundColor: '#171410',
+      desktopLyricsBold: true,
       desktopLyricsFontSize: 24,
       desktopLyricsBackgroundTransparency: 20,
       preferredDevice: 'auto',

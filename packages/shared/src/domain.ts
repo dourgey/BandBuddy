@@ -189,6 +189,7 @@ export const STEM_META: Record<StemType, StemMeta> = {
 }
 
 export interface TrackState {
+  name?: string
   stemType: StemType
   gainDb: number
   muted: boolean
@@ -216,6 +217,7 @@ export function normalizeTrackStates(
     const saved = byStem.get(stemType)
     return {
       stemType,
+      ...(saved?.name ? { name: saved.name } : {}),
       gainDb: saved?.gainDb ?? 0,
       muted: saved?.muted ?? false,
       solo: saved?.solo ?? false,
@@ -375,6 +377,9 @@ export interface LyricsDocument {
 }
 
 export interface DesktopLyricsPayload {
+  textColor?: string
+  backgroundColor?: string
+  bold?: boolean
   backgroundTransparency?: number
   wordLines?: Array<Array<{ text: string; progress: number }>>
   cueId?: string
@@ -431,6 +436,8 @@ export interface RecordingTake {
 }
 
 export interface RecordingDeviceSnapshot {
+  compactRecording?: boolean
+  clockCorrectionRatio?: number
   pluginFaults?: import('./audio-plugins.js').PluginFaults | null
   audioDiagnostics?: import('./audio-plugins.js').AudioDiagnostics
   originalCaptureRelPath?: string
@@ -592,6 +599,9 @@ export interface NetworkSettings {
 export interface AppSettings {
   appearance: Appearance
   desktopLyricsBackgroundTransparency: number
+  desktopLyricsTextColor: string
+  desktopLyricsBackgroundColor: string
+  desktopLyricsBold: boolean
   desktopLyricsFontSize: number
   libraryRoot: string
   runtimeRoot: string

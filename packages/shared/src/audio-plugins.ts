@@ -19,6 +19,7 @@ export interface PluginDefinition {
 }
 export interface PluginCatalog {
   version: 1; plugins: PluginDefinition[]; directories: string[]
+  scanDeferred?: boolean
   failures: Array<{ path: string; fingerprint: string; reason: string; checkedAt: string }>
 }
 export interface PluginParameter { id: number; name: string; unit: string; value: number; steps: number; readOnly: boolean }

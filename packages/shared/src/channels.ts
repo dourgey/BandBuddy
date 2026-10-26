@@ -38,6 +38,7 @@ export const IPC = {
   runtimeRemove: 'runtime:remove',
   runtimeClearModel: 'runtime:clear-model',
   settingsGet: 'settings:get',
+  settingsStorageUsage: 'settings:storage-usage',
   settingsChooseDataRoot: 'settings:choose-data-root',
   settingsUpdate: 'settings:update',
   settingsSetDebugMode: 'settings:set-debug-mode',

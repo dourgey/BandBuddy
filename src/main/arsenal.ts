@@ -1,9 +1,10 @@
+import { linkedAmpLoad } from '@shared/arsenal.js'
 import { recoverFloatCapture } from './wave-recovery.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile, rename, rm, stat, copyFile } from 'node:fs/promises'
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { dialog } from 'electron'
+import { dialog, shell } from 'electron'
 import { z } from 'zod'
 import { createEffectModule, moduleChain, storeEffectChain, effectChainSchema, effectStructureKey, trackEffectsSchema, type ArsenalCommand, type ArsenalWorkspace, type ArsenalTake, type ArsenalMonitorState, type ArsenalPreset, type ArsenalState, type EffectChainSnapshot, type MonitorMode, type PreparedEffects, type ToneAsset, type TrackEffects } from '@shared/arsenal.js'
 import { factoryPresets } from '@shared/effect-catalog.js'
@@ -13,30 +14,42 @@ import type { MediaService } from './media.js'
 import type { AudioHostClient } from './audio-host.js'
 import type { RecordingService } from './recording.js'
 import { runProcess } from './process.js'
+import { runSignalsmithPitchShift } from './pitch-shift.js'
 import { decodeNam, namNormalizationGain } from './nam.js'
-import { chainModules } from '@shared/arsenal.js'
+import { chainModules, chainNodes } from '@shared/arsenal.js'
+import { ArsenalOutputTransport } from './arsenal-output.js'
+import { loadBundledIrs, personalizeBundledIr } from './bundled-irs.js'
 
 const hash = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex')
 async function hashFile(file:string):Promise<string>{const h=createHash('sha256');for await(const chunk of createReadStream(file))h.update(chunk as Buffer);return h.digest('hex')}
-export function decodeIr(bytes: Buffer): { channels: number[][]; sampleRate: number } {
+export function decodeIr(bytes: Buffer): { channels: number[][]; sampleRate: number; bitDepth: number; encoding: 'pcm' | 'float' } {
   if (bytes.length < 44 || bytes.toString('ascii',0,4)!=='RIFF' || bytes.toString('ascii',8,12)!=='WAVE') throw new Error('请选择有效的 WAV 箱体 IR')
-  let format=0, channels=0, rate=0, bits=0, data: Buffer | null=null
-  for(let p=12;p+8<=bytes.length;) {
+  const riffEnd=bytes.readUInt32LE(4)+8
+  if(riffEnd>bytes.length||riffEnd<44)throw new Error('IR 文件不完整')
+  let format=0, channels=0, rate=0, bits=0, blockAlign=0, byteRate=0, data: Buffer | null=null
+  for(let p=12;p+8<=riffEnd;) {
     const key=bytes.toString('ascii',p,p+4),size=bytes.readUInt32LE(p+4),start=p+8
-    if(start+size>bytes.length) throw new Error('IR 文件不完整')
-    if(key==='fmt ' && size>=16) {format=bytes.readUInt16LE(start);channels=bytes.readUInt16LE(start+2);rate=bytes.readUInt32LE(start+4);bits=bytes.readUInt16LE(start+14);if(format===65534 && size>=40) format=bytes.readUInt16LE(start+24)}
+    if(start+size>riffEnd) throw new Error('IR 文件不完整')
+    if(key==='fmt ' && size>=16) {format=bytes.readUInt16LE(start);channels=bytes.readUInt16LE(start+2);rate=bytes.readUInt32LE(start+4);bits=bytes.readUInt16LE(start+14);blockAlign=bytes.readUInt16LE(start+12);byteRate=bytes.readUInt32LE(start+8);if(format===65534){if(size<40||bytes.readUInt16LE(start+16)<22||!bytes.subarray(start+26,start+40).equals(Buffer.from('000000001000800000aa00389b71','hex')))throw new Error('不支持的 WAV 扩展格式');format=bytes.readUInt16LE(start+24)}}
     if(key==='data') data=bytes.subarray(start,start+size)
-    p=start+size+(size%2)
+    const end=start+size
+    // Some original Cubase/BWF exports omit the padding before their iXML chunk.
+    // Preserve the WAV bytes; only accept this recognizable legacy boundary.
+    p=end+(size%2 && bytes.toString('ascii',end,end+4)!=='iXML'?1:0)
   }
   if(!data || ![1,2].includes(channels) || rate<8000 || rate>192000 || !((format===1 && [16,24,32].includes(bits)) || (format===3 && bits===32))) throw new Error('IR 需要单声道或立体声 PCM/Float WAV，8–192 kHz')
+  if(blockAlign!==bits/8*channels||byteRate!==rate*blockAlign)throw new Error('IR WAV 帧格式无效')
   const frames=data.length/(bits/8*channels)
   if(!Number.isInteger(frames) || frames<1 || frames>rate*2) throw new Error('箱体 IR 长度必须大于 0 且不超过 2 秒')
   const result=Array.from({length:channels},()=>new Array<number>(frames))
   for(let i=0;i<frames;++i) for(let c=0;c<channels;++c) {const p=(i*channels+c)*bits/8;const v=format===3?data.readFloatLE(p):bits===16?data.readInt16LE(p)/32768:bits===24?data.readIntLE(p,3)/8388608:data.readInt32LE(p)/2147483648;if(!Number.isFinite(v)) throw new Error('IR 包含无效采样');result[c]![i]=v}
-  return {channels:result,sampleRate:rate}
+  if(!result.some(channel=>channel.some(v=>v!==0)))throw new Error('IR 为静音文件')
+  return {channels:result,sampleRate:rate,bitDepth:bits,encoding:format===3?'float':'pcm'}
 }
 export class ArsenalService {
+  readonly outputTransport = new ArsenalOutputTransport(packet => this.feed(packet))
   private readonly root: string
+  private readonly bundledIrs: ReturnType<typeof loadBundledIrs>
   private state: ArsenalMonitorState={active:false,mode:'off',sampleRate:0,bufferFrames:0,latencyMs:0,peak:[],outputPeak:0,xruns:0,error:null}
   private structure=''
   private busy: Promise<unknown> = Promise.resolve()
@@ -46,6 +59,7 @@ export class ArsenalService {
   private currentTake: ArsenalTake | null = null
   constructor(private paths:AppPaths,private db:BandBuddyDatabase,private media:MediaService,private host:AudioHostClient,private recording:RecordingService,private emit:(s:ArsenalMonitorState)=>void,private changed:()=>void,private occupied:()=>boolean) {
     this.root=path.join(paths.dataRoot,'arsenal')
+    this.bundledIrs=loadBundledIrs(paths.cabinetIrRoot?.())
     try {const saved=JSON.parse(readFileSync(path.join(this.root,'workspace.json'),'utf8'));this.workspace.favorites=saved.favorites??[];this.workspace.draft=saved.draft?{...saved.draft,chain:effectChainSchema.parse(saved.draft.chain)}:null;this.workspace.takes=(saved.takes??[]).map((t:ArsenalTake)=>({...t,chain:effectChainSchema.parse(t.chain)}));if(saved.pending){const t=saved.pending as ArsenalTake;const file=path.join(this.root,`${t.id}.dry.wav`);if(existsSync(file)){this.workspace.takes.unshift(this.recoverTake(t));}}}catch { /* A first launch has no workspace. Existing audio files remain untouched. */ }
     host.onEvent(e=>{if(!this.state.active)return;if(e.event==='meter'){this.state={...this.state,peak:e.data.peak,outputPeak:e.data.diagnostics?.finalPeak??e.data.outputPeak??0,xruns:e.data.xruns,tunerActive:e.data.tunerActive,tunerHz:e.data.tunerHz,dspLoad:e.data.dspLoad,dspLatencyMs:e.data.dspLatencyMs,diagnostics:e.data.diagnostics,clock:e.data.clock,plugin:e.data.plugin,pcmUnderruns:e.data.pcmUnderruns};this.emit(this.state)}else if(e.event==='error'||e.event==='crashed'){this.state={...this.state,active:false,mode:'off',error:e.data.error};this.workspace.quick={recording:false,looping:false,durationMs:0};if(this.currentTake){const pending=this.currentTake;this.currentTake=null;const recovery=this.busy.catch(()=>undefined).then(async()=>{this.workspace.takes.unshift(this.recoverTake(pending));await this.persistWorkspace()});this.busy=recovery;void recovery.catch(()=>undefined)}this.emit(this.state)}})
   }
@@ -53,15 +67,25 @@ export class ArsenalService {
     const assets = this.db.sqlite.prepare('SELECT json FROM tone_assets ORDER BY created_at DESC').all() as { json: string }[]
     const presets = this.db.sqlite.prepare('SELECT json FROM arsenal_presets ORDER BY updated_at DESC').all() as { json: string }[]
     return {
-      assets: assets.map(row => JSON.parse(row.json)),
+      assets: this.libraryAssets(assets.map(row => JSON.parse(row.json))),
       presets: [...presets.map(row => {
         const preset = JSON.parse(row.json) as ArsenalPreset
         return { ...preset, chain: effectChainSchema.parse(preset.chain) }
-      }), ...factoryPresets()].map(p=>({...p,favorite:this.workspace.favorites?.includes(p.id)??p.favorite}))
+      }), ...factoryPresets()].filter(p=>!p.factory).map(p=>({...p,favorite:this.workspace.favorites?.includes(p.id)??p.favorite}))
     }
   }
-  private asset(id:string):ToneAsset {const row=this.db.sqlite.prepare('SELECT json FROM tone_assets WHERE id=?').get(id) as {json:string}|undefined;if(!row)throw new Error(`音色资源缺失：${id}`);return JSON.parse(row.json)}
-  private file(a:ToneAsset):string {return path.join(this.root,`${a.id}.${a.kind==='nam'?'nam':'wav'}`)}
+  private libraryAssets(saved:ToneAsset[]):ToneAsset[] {
+    const byId=new Map(saved.map(a=>[a.id,a]))
+    return [...saved.filter(a=>!this.bundledIrs.has(a.id)),...Array.from(this.bundledIrs.values(),({asset})=>personalizeBundledIr(asset,byId.get(asset.id)))]
+  }
+  private asset(id:string):ToneAsset {
+    const row=this.db.sqlite.prepare('SELECT json FROM tone_assets WHERE id=?').get(id) as {json:string}|undefined
+    const saved:ToneAsset|undefined=row?JSON.parse(row.json):undefined,bundled=this.bundledIrs.get(id)
+    if(bundled)return personalizeBundledIr(bundled.asset,saved)
+    if(!saved)throw new Error(`音色资源缺失：${id}`)
+    return saved
+  }
+  private file(a:ToneAsset):string {return this.bundledIrs.get(a.id)?.file??path.join(this.root,`${a.id}.${a.kind==='nam'?'nam':'wav'}`)}
   async importAsset(kind:'nam'|'ir',sampleRate?:number):Promise<ToneAsset|null> {
     const result=await dialog.showOpenDialog({title:kind==='nam'?'导入 NAM 音色':'导入箱体 IR',properties:['openFile','multiSelections'],filters:[{name:kind==='nam'?'NAM':'WAV',extensions:kind==='nam'?['nam','nam2']:['wav']}]})
     if(result.canceled || !result.filePaths[0])return null
@@ -74,7 +98,7 @@ export class ArsenalService {
     if(kind==='nam') {
       Object.assign(item,decodeNam(bytes,sampleRate))
       const m=createEffectModule('amp');m.settings.amp.engine='nam';const chain=moduleChain(m),manifest=path.join(this.root,`${randomUUID()}.validate.json`);await mkdir(this.root,{recursive:true});try{await writeFile(manifest,JSON.stringify({sampleRate:item.sampleRate,prepared:{chain,model:bytes.toString('utf8'),modelRate:item.sampleRate,ir:null,irRate:48000}}));const check=await runProcess(this.paths.audioHostExecutable(),['--validate-effects',manifest]);if(check.code)throw new Error(`当前引擎无法加载此模型：${check.stderr}`)}finally{await rm(manifest,{force:true})}
-    }else {const ir=decodeIr(bytes);item.sampleRate=ir.sampleRate;item.channels=ir.channels.length;item.durationMs=ir.channels[0]!.length/ir.sampleRate*1000}
+    }else {const ir=decodeIr(bytes);item.sampleRate=ir.sampleRate;item.channels=ir.channels.length;item.durationMs=ir.channels[0]!.length/ir.sampleRate*1000;item.metadata={sha256:id,originalFileName:path.basename(file),bitDepth:ir.bitDepth,encoding:ir.encoding,processing:'original',leadingSilenceFrames:ir.channels[0]!.findIndex((_,i)=>ir.channels.some(channel=>channel[i]!==0))}}
     await mkdir(this.root,{recursive:true});const destination=this.file(item);await writeFile(`${destination}.part`,bytes);await rename(`${destination}.part`,destination)
     this.db.sqlite.prepare('INSERT INTO tone_assets(id,json,created_at) VALUES(?,?,?)').run(id,JSON.stringify(item),item.createdAt)
     return item
@@ -88,6 +112,7 @@ export class ArsenalService {
   }
   deletePreset(id:string):void {this.db.sqlite.prepare('DELETE FROM arsenal_presets WHERE id=?').run(id)}
   async deleteAsset(id:string):Promise<void> {
+    if(this.bundledIrs.has(id))throw new Error('内置 IR 随软件提供，不能删除')
     const asset=this.asset(id)
     const refs=[...this.list().presets.map(p=>JSON.stringify(p.chain)),...this.db.sqlite.prepare('SELECT effects_json AS json FROM recording_tracks WHERE effects_json IS NOT NULL UNION ALL SELECT effects_snapshot_json AS json FROM recording_takes WHERE effects_snapshot_json IS NOT NULL').all().map((r:any)=>r.json)]
     refs.push(JSON.stringify(this.workspace),JSON.stringify(this.currentTake))
@@ -97,7 +122,9 @@ export class ArsenalService {
   private validateReferences(chain:EffectChainSnapshot):void {if(chain.modules){for(const module of chain.modules)this.validateReferences(moduleChain(module));return;}for(const [type,id] of [['nam',chain.amp.assetId],['ir',chain.cab.assetId],['ir',chain.cab.secondaryAssetId]] as const)if(id&&this.asset(id).kind!==type)throw new Error('音色资源类型不匹配');if(chain.amp.enabled&&chain.amp.engine==='nam'&&!chain.amp.assetId)throw new Error('请先选择 NAM 模型');if(chain.cab.enabled&&chain.cab.engine==='ir'&&!chain.cab.assetId)throw new Error('请先选择箱体 IR')}
   private async decoded(asset:ToneAsset):Promise<{model?:string;ir?:number[][]}>{
     const old=this.decodedAssets.get(asset.id);if(old)return old
-    const bytes=await readFile(this.file(asset)),value=asset.kind==='nam'?{model:bytes.toString('utf8')}:{ir:decodeIr(bytes).channels}
+    const bytes=await readFile(this.file(asset))
+    if(this.bundledIrs.has(asset.id)&&hash(bytes)!==asset.id)throw new Error(`内置 IR 文件校验失败：${asset.name}`)
+    const value=asset.kind==='nam'?{model:bytes.toString('utf8')}:{ir:decodeIr(bytes).channels}
     const cost=(v:{model?:string;ir?:number[][]}):number=>(v.model?.length??0)*2+(v.ir?.reduce((sum,c)=>sum+c.length*8,0)??0),limit=64*1024*1024
     if(cost(value)>limit)return value
     while(this.decodedAssets.size&&(this.decodedAssets.size>=12||[...this.decodedAssets.values()].reduce((sum,v)=>sum+cost(v),cost(value))>limit))this.decodedAssets.delete(this.decodedAssets.keys().next().value!)
@@ -106,17 +133,15 @@ export class ArsenalService {
   async prepare(input:EffectChainSnapshot):Promise<PreparedEffects> {
     const chain=effectChainSchema.parse(input);this.validateReferences(chain)
     if (chain.plugins?.length) {
-      const modules = chainModules(chain)
       const nodes: NonNullable<PreparedEffects['pluginGraph']>['nodes'] = []
-      for (const module of modules) {
-        for (const plugin of chain.plugins.filter(p => p.beforeModuleId === module.id)) nodes.push({ ...plugin, kind: 'plugin', id: plugin.instanceId })
-        nodes.push({ kind: 'builtin', id: module.id, prepared: await this.prepare(moduleChain(module)) })
+      for (const node of chainNodes(chain)) {
+        if (node.type === 'plugin') nodes.push({ ...node.plugin, kind: 'plugin', id: node.id })
+        else nodes.push({ kind: 'builtin', id: node.id, prepared: { ...await this.prepare(moduleChain(node)), ...(node.type === 'amp' ? { ampLoad: linkedAmpLoad(chain, node.id) } : {}) } })
       }
-      for (const plugin of chain.plugins.filter(p => !modules.some(m => m.id === p.beforeModuleId))) nodes.push({ ...plugin, kind: 'plugin', id: plugin.instanceId })
       const base = await this.prepare({ ...chain, plugins: undefined })
       return { ...base, pluginGraph: { version: 1, inputGainDb: chain.inputGainDb, outputGainDb: chain.outputGainDb, nodes } }
     }
-    if (chain.modules) return { chain, modules: await Promise.all(chain.modules.map(m => this.prepare(moduleChain(m)))), model: null, modelRate: 48000, ir: null, irRate: 48000 }
+    if (chain.modules) return { chain, modules: await Promise.all(chain.modules.map(async m => ({ ...await this.prepare(moduleChain(m)), ...(m.type === 'amp' ? { ampLoad: linkedAmpLoad(chain, m.id) } : {}) }))), model: null, modelRate: 48000, ir: null, irRate: 48000 }
     const model=chain.order.includes('amp')&&chain.amp.engine==='nam'&&chain.amp.assetId?this.asset(chain.amp.assetId):null,ir=(chain.order.includes('cab')||chain.order.includes('amp'))&&chain.cab.engine==='ir'&&chain.cab.assetId?this.asset(chain.cab.assetId):null
     const secondary=chain.order.includes('cab')&&chain.cab.engine==='ir'&&chain.cab.secondaryAssetId?this.asset(chain.cab.secondaryAssetId):null
     let namInputGain=1,namOutputGain=1
@@ -131,6 +156,9 @@ export class ArsenalService {
     if(this.recording.getState().recordingTrackId===trackId && this.recording.isActive()) {
       const structure=effectStructureKey(effects.chain)
       await this.host.setEffects({mode:effects.monitorMode==='off'?0:effects.monitorMode==='dry'||!effects.enabled?1:2,...(this.trackStructure.get(trackId)===structure?{chain:effects.chain}:{prepared:await this.prepare(effects.chain)})});this.trackStructure.set(trackId,structure)
+    }
+    if (!this.recording.isActive() && (effects.monitorMode !== 'off' || this.state.trackId === trackId)) {
+      await this.monitor(effects.monitorMode, effects.chain, trackId)
     }
     this.db.sqlite.prepare('UPDATE recording_tracks SET effects_json=?,updated_at=? WHERE id=?').run(JSON.stringify({...effects,chain:storeEffectChain(effects.chain)}),new Date().toISOString(),trackId);this.changed()
   }
@@ -216,9 +244,15 @@ export class ArsenalService {
           }
           this.savePreset(data);break
         }
+        case 'assetLink':{
+          const link=z.enum(['source','license']).parse(input.link)
+          const attribution=this.bundledIrs.get(z.string().regex(/^[a-f0-9]{64}$/).parse(input.id))?.asset.attribution
+          if(!attribution)throw new Error('内置 IR 来源不存在')
+          await shell.openExternal(link==='source'?attribution.sourceUrl:attribution.licenseUrl);break
+        }
         case 'asset':{
           const old=this.asset(input.id);const edit=z.object({name:z.string().trim().min(1).max(100),tags:z.array(z.string().max(30)).max(20),role:z.enum(['amp','pedal','rig','unknown']),favorite:z.boolean(),notes:z.string().max(2000)}).parse(input)
-          this.db.sqlite.prepare('UPDATE tone_assets SET json=? WHERE id=?').run(JSON.stringify({...old,...edit}),old.id);break
+          this.db.sqlite.prepare('INSERT INTO tone_assets(id,json,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(old.id,JSON.stringify({...old,...edit}),old.createdAt);break
         }
       }
       return structuredClone(this.workspace)
@@ -233,30 +267,43 @@ export class ArsenalService {
     this.state={...this.state,active:false,mode:'off',peak:[],outputPeak:0,tunerActive:false,error:failure?String(failure):null};this.emit(this.state)
     if(failure)throw failure
   }
-  monitor(mode:MonitorMode,chain:EffectChainSnapshot):Promise<ArsenalMonitorState> {
+  monitor(mode:MonitorMode,chain:EffectChainSnapshot,trackId?:string):Promise<ArsenalMonitorState> {
     const next=this.busy.catch(()=>undefined).then(async()=>{
-      if(mode==='off'){await this.stopMonitorNow();return this.state}
+      if(mode==='off'){if(!trackId || this.state.trackId===trackId)await this.stopMonitorNow();return this.state}
+      if(trackId && !this.db.getRecordingTrack(trackId))throw new Error('录音轨不存在')
       if(this.recording.isActive()||this.occupied())throw new Error('录音或设备测试进行中，请使用录音轨监听控制')
       chain=effectChainSchema.parse(chain);this.validateReferences(chain)
       const structure=effectStructureKey(chain)
       if(this.state.active) {await this.updateLive({mode:mode==='dry'?1:2,...(structure===this.structure?{chain}:{prepared:await this.prepare(chain)})});this.state={...this.state,mode}}
       else {const config=await this.recording.arsenalDeviceConfiguration();const result=await this.host.startTest({...config,monitorMode:mode==='dry'?1:2,monitorGainDb:0,effects:await this.prepare(chain)});this.state={...this.state,...result,active:true,mode,error:null}}
-      this.structure=structure;this.emit(this.state);return this.state
+      this.state={...this.state,trackId:trackId??null};this.structure=structure;this.emit(this.state);return this.state
     });this.busy=next;return next
   }
-  async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0,clock: { tempo: number; positionMs?: number; beatOffsetMs?: number } = { tempo: 120 }):Promise<string> {
-    if(!effects?.enabled)return source
-    const prepared=await this.prepare(effects.chain),sourceHash=await hashFile(source),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,clock,'bb-dsp-5-native']))
+  async render(source:string,effects:TrackEffects|undefined|null,signal:AbortSignal,tailSeconds=0,clock: { tempo: number; positionMs?: number; beatOffsetMs?: number; pitchSemitones?: number } = { tempo: 120 }):Promise<string> {
+    if(!effects?.enabled && !clock.pitchSemitones)return source
+    const prepared=effects?.enabled ? await this.prepare(effects.chain) : null,sourceHash=await hashFile(source),key=hash(JSON.stringify([sourceHash,prepared,tailSeconds,clock,'bb-dsp-8-pedals']))
     const root=path.join(this.paths.cacheRoot,'arsenal');await mkdir(root,{recursive:true});const target=path.join(root,`${key}.wav`)
     try{await stat(target);return target}catch{}
-    const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`
+    const unique=path.join(root,`${key}-${randomUUID()}`),input=`${unique}.input.wav`,pitchStep=`${unique}.pitch-step.wav`,pitched=`${unique}.pitch.wav`,output=`${unique}.output.wav`,manifest=`${unique}.json`
     try {
       const ffmpeg=await this.media.tool('ffmpeg');if(!ffmpeg)throw new Error('FFMPEG_MISSING')
       const decode=await runProcess(ffmpeg,['-y','-v','error','-i',source,'-ar','48000','-ac','2','-c:a','pcm_f32le',input],{signal});if(decode.code)throw new Error(decode.stderr)
+      if (clock.pitchSemitones) {
+        // Two valid practice keys can differ by up to 24 semitones. Each
+        // native pitch pass accepts one octave; preserve the full difference.
+        const pitch = clock.pitchSemitones
+        if (!Number.isInteger(pitch) || Math.abs(pitch) > 24) throw new Error('PITCH_SEMITONES_OUT_OF_RANGE')
+        if (Math.abs(pitch) > 12) {
+          await runSignalsmithPitchShift(this.paths, input, pitchStep, Math.sign(pitch) * 12, signal)
+          await runSignalsmithPitchShift(this.paths, pitchStep, pitched, pitch - Math.sign(pitch) * 12, signal)
+        } else await runSignalsmithPitchShift(this.paths, input, pitched, pitch, signal)
+      }
+      const renderedInput = clock.pitchSemitones ? pitched : input
+      if (!prepared) { await rename(renderedInput,target); return target }
       const graph = prepared.pluginGraph ? await this.host.plugins.resolveGraph(prepared) : undefined
-      await writeFile(manifest,JSON.stringify({input,output,prepared,graph,tailSeconds,tailLimitSeconds:30,...clock}))
+      await writeFile(manifest,JSON.stringify({input:renderedInput,output,prepared,graph,tailSeconds,tailLimitSeconds:30,...clock}))
       const result=await runProcess(graph ? this.host.plugins.executablePath() : this.paths.audioHostExecutable(),[graph ? '--render' : '--render-effects',manifest],{signal,timeoutMs:30*60*1000});if(result.code)throw new Error(`湿声渲染失败：${result.stderr}`)
       if(signal.aborted)throw new Error('EXPORT_CANCELLED');await rename(output,target);return target
-    } finally {await Promise.all([input,output,manifest].map(p=>rm(p,{force:true})))}
+    } finally {await Promise.all([input,pitchStep,pitched,output,manifest].map(p=>rm(p,{force:true})))}
   }
 }

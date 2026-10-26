@@ -33,7 +33,11 @@ void* openEditorWindow(void* pointer, const std::string& title) {
   if (!window) return nullptr;
   if (view->attached(window, kPlatformTypeHWND) != kResultTrue) { DestroyWindow(window); return nullptr; }
   ViewRect rect{}; if (view->getSize(&rect) == kResultTrue) resizeEditorWindow(window, rect.getWidth(), rect.getHeight());
-  ShowWindow(window, SW_SHOW); return window;
+  // spawnSafe starts workers with windowsHide:true. Windows applies that
+  // STARTUPINFO visibility to the first ShowWindow call, ignoring SW_SHOW.
+  // Explicitly restore after consuming it so the editor is visible on its
+  // first request, and give it the same foreground handling as a reopen.
+  ShowWindow(window, SW_SHOW); showEditorWindow(window); return window;
 }
 void showEditorWindow(void* window) { ShowWindow(static_cast<HWND>(window), SW_RESTORE); SetForegroundWindow(static_cast<HWND>(window)); }
 void closeEditorWindow(void* window) { DestroyWindow(static_cast<HWND>(window)); }

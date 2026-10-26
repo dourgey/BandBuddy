@@ -43,6 +43,12 @@ install(FILES ${sdkroot}/LICENSE.txt DESTINATION licenses RENAME VST3-SDK-LICENS
 # The SDK's small delay effect provides a real VST3 lifecycle/state fixture.
 option(BANDBUDDY_PLUGIN_TEST_FIXTURE "Build SDK delay effect for host tests" OFF)
 if(BANDBUDDY_PLUGIN_TEST_FIXTURE)
+  if(WIN32)
+    add_executable(bandbuddy-plugin-editor-tests tests/editor-window-test.cpp editor-win.cpp)
+    target_include_directories(bandbuddy-plugin-editor-tests PRIVATE . ${sdkroot} ../audio-ipc)
+    target_link_libraries(bandbuddy-plugin-editor-tests PRIVATE sdk_hosting nlohmann_json::nlohmann_json ole32 user32)
+    target_compile_definitions(bandbuddy-plugin-editor-tests PRIVATE NOMINMAX)
+  endif()
   set(SDK_ROOT ${sdkroot})
   set(public_sdk_SOURCE_DIR ${sdkroot}/public.sdk)
   set(delayroot ${sdkroot}/public.sdk/samples/vst/adelay/source)

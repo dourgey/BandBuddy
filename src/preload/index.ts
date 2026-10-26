@@ -109,6 +109,7 @@ const api: BandBuddyApi = {
   },
   arsenal: {
     feed: (input) => ipcRenderer.invoke(`${ARSENAL_CHANNEL}:pcm`, input),
+    outputTransport: bus => ipcRenderer.invoke(`${ARSENAL_CHANNEL}:output`, bus),
     command: (input) => invoke(ARSENAL_CHANNEL, { op: 'command', input }),
     list: () => invoke(ARSENAL_CHANNEL, { op: 'list' }),
     importAsset: (kind, sampleRate) => invoke(ARSENAL_CHANNEL, { op: 'import', kind, sampleRate }),
@@ -188,6 +189,7 @@ const api: BandBuddyApi = {
   settings: {
     reconcileAudio: (input) => invoke(IPC.settingsReconcileAudio, input),
     get: () => invoke(IPC.settingsGet),
+    storageUsage: () => invoke(IPC.settingsStorageUsage),
     chooseDataRoot: (currentLibraryRoot) => invoke(IPC.settingsChooseDataRoot, currentLibraryRoot),
     update: (settings) => invoke(IPC.settingsUpdate, settings),
     setDebugMode: (enabled) => invoke(IPC.settingsSetDebugMode, enabled),

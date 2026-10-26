@@ -1,3 +1,4 @@
+import { createTunerModeGate, hasStrongPolyEvidence } from './tuner-mode.js'
 import { allowAudioAction, useRecordingSession } from '../recording-session.js'
 import { useEffect, useRef, useState } from 'react'
 import { Guitar, Mic, MicOff, Settings } from 'lucide-react'
@@ -45,7 +46,6 @@ export function Tuner({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [mode, setMode] = useState<'mono' | 'poly'>('mono')
   const [polyReadings, setPolyReadings] = useState<Array<StringPitch | null>>([])
-  const [modeToast, setModeToast] = useState('')
   const [channelCount, setChannelCount] = useState(0)
   const [selectedChannel, setSelectedChannel] = useState(0)
   const stream = useRef<MediaStream | null>(null),
@@ -141,7 +141,7 @@ export function Tuner({
       let lastMidi = -999,
         stable = 0
       let viewMode: 'mono' | 'poly' = 'mono'
-      let polyFrames = 0, monoFrames = 0, polyEntered = 0, lastPolyReading = 0
+      const modeGate = createTunerModeGate()
       const stringLastSeen = Array<number>(6).fill(0)
       const snapshot: Array<StringPitch | null> = Array<StringPitch | null>(6).fill(null)
       setActive(true)
@@ -180,6 +180,7 @@ export function Tuner({
         const pitch = detectPitch(samples, ctx.sampleRate)
         setLevel(Math.min(1, pitch.rms * 5))
         if (pitch.peak >= 0.995) {
+          modeGate.update(null, performance.now())
           setStatus('输入过载，请降低声卡增益。')
           setReading(null)
           return
@@ -188,24 +189,18 @@ export function Tuner({
           setStatus(pitch.rms < 0.0001 ? '没有输入，请检查设备与通道。' : '信号过弱，请靠近麦克风或提高输入增益。')
           setReading(null)
           stable = 0
-          if (viewMode === 'poly' && performance.now() - lastPolyReading > 2000) {
-            viewMode = 'mono'
-            setMode('mono')
-            setPolyReadings([])
-          }
+          const nextMode = modeGate.update('mono', performance.now())
+          if (nextMode !== viewMode) { viewMode = nextMode; setMode(nextMode); setPolyReadings([]) }
           return
         }
         const now = current.current
         if (now.target === null && now.tuning.instrument === 'guitar' && now.tuning.notes.length === 6) {
           const strings = detectPolyStrings(samples, ctx.sampleRate, now.tuning.notes.map((midi) => midi + now.capo), now.a4)
           const count = strings.filter(Boolean).length
-          polyFrames = count >= 2 ? polyFrames + 1 : 0
-          if (viewMode === 'mono' && polyFrames >= 2) {
-            viewMode = 'poly'
-            polyEntered = performance.now()
-            setMode('poly')
-            setModeToast('检测到多弦输入 · 已切换至快速调弦')
-            setTimeout(() => setModeToast(''), 1900)
+          const nextMode = modeGate.update(hasStrongPolyEvidence(strings, pitch.confidence) ? 'poly' : (pitch.confidence >= 0.96 || count <= 1 && pitch.confidence >= 0.85) ? 'mono' : null, performance.now())
+          if (nextMode !== viewMode) {
+            viewMode = nextMode; setMode(nextMode)
+            if (nextMode === 'mono') setPolyReadings([])
           }
           if (viewMode === 'poly') {
             if (count >= 2) {
@@ -216,18 +211,8 @@ export function Tuner({
                 else if (instant - stringLastSeen[index]! > 1500) snapshot[index] = null
               })
               setPolyReadings([...snapshot])
-              lastPolyReading = instant
-              monoFrames = 0
-            } else if (count === 1 && performance.now() - polyEntered >= 700) {
-              monoFrames++
-              if (monoFrames >= 6) {
-                viewMode = 'mono'
-                setMode('mono')
-                setPolyReadings([])
-                setModeToast('已切换至精确调弦')
-                setTimeout(() => setModeToast(''), 1900)
-              }
-            } else monoFrames = 0
+
+            }
             if (viewMode === 'poly') return
           }
         }
@@ -294,7 +279,6 @@ export function Tuner({
         <label>A4 标准音<input type="number" min={430} max={450} value={a4} onChange={(e) => onA4(Math.max(430, Math.min(450, Math.round(Number(e.target.value)) || 440)))} /></label>
         <p>仅分析输入，不将麦克风声音送到扬声器。变调夹目标已计入当前音名。</p>
       </div>}
-      {modeToast && <div className="ws-tuner-mode-toast" role="status">{modeToast}</div>}
       <div className="ws-tuner-gauge-stage">
         {mode === 'mono' ? <AnalogTunerGauge reading={reading} /> : <PolyTunerGauge notes={tuning.notes} capo={capo} readings={polyReadings} />}
       </div>

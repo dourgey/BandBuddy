@@ -12,7 +12,7 @@ import {
   type SongSummary
 } from '@shared/domain.js'
 import { usePlayerStore } from '../player-store.js'
-import { VolumeControl } from './VolumeControl.js'
+import { VolumeControl, InlineGainControl } from './VolumeControl.js'
 import { VideoWindowButton } from './VideoWindowButton.js'
 import { Vinyl } from './Vinyl.js'
 import { LoopButton } from './LoopButton.js'
@@ -33,6 +33,7 @@ export function PlayerBar({
   practiceMode,
   countInRemaining,
   locked,
+  preparing = false,
   onToggle,
   onSeek,
   onRestart,
@@ -52,6 +53,7 @@ export function PlayerBar({
   practiceMode: boolean
   countInRemaining: number
   locked: boolean
+  preparing?: boolean
   onToggle(): void
   onSeek(milliseconds: number): void
   onRestart(): void
@@ -95,7 +97,7 @@ export function PlayerBar({
       <div className="transport">
         <button className="restart-playback" disabled={locked} aria-label={activeLoopRange(practice) ? '跳回 A 点并播放' : '跳回开头并播放'} title={activeLoopRange(practice) ? '跳回 A 点并播放（Home）' : '跳回开头并播放（Home）'} onClick={onRestart}><SkipBack size={20} /></button>
         <button aria-label="后退 5 秒" onClick={() => onSeek(usePlayerStore.getState().currentMs - 5000)}><RotateCcw size={22} /><i>5</i></button>
-        <button className="main-play" aria-label={playbackActive ? '暂停' : '播放'} onClick={onToggle}>{playbackActive ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}</button>
+        <button className="main-play" disabled={locked} aria-label={preparing ? '取消播放准备' : playbackActive ? '暂停' : '播放'} aria-busy={preparing} title={preparing ? '正在准备音频，点击取消' : undefined} onClick={onToggle}>{preparing ? <LoaderCircle className="spin" size={24} /> : playbackActive ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}</button>
         <button aria-label="前进 5 秒" onClick={() => onSeek(usePlayerStore.getState().currentMs + 5000)}><RotateCw size={22} /><i>5</i></button>
       </div>
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
@@ -364,22 +366,7 @@ function PracticeFooterControls({
         <div className="metronome-volume-row">
           <span><b>音量</b><small>独立音量 · 不受主音量及静音影响</small></span>
         </div>
-        <input
-          className="metronome-volume-slider"
-          aria-label="节拍器音量滑块"
-          type="range"
-          min={-METRONOME_GAIN_LIMIT_DB}
-          max={METRONOME_GAIN_LIMIT_DB}
-          step="0.5"
-          value={practice.metronomeGainDb}
-          // The fill starts at unity (the middle of the symmetric range) so 0 dB is the visible origin.
-          style={{
-            '--fill-from': `${Math.min(50, ((practice.metronomeGainDb + METRONOME_GAIN_LIMIT_DB) / (METRONOME_GAIN_LIMIT_DB * 2)) * 100)}%`,
-            '--fill-to': `${Math.max(50, ((practice.metronomeGainDb + METRONOME_GAIN_LIMIT_DB) / (METRONOME_GAIN_LIMIT_DB * 2)) * 100)}%`
-          } as CSSProperties}
-          onDoubleClick={() => patchPractice({ metronomeGainDb: 0 })}
-          onChange={(event) => patchPractice({ metronomeGainDb: Number(event.target.value) })}
-        />
+        <InlineGainControl label="节拍器音量滑块" min={-METRONOME_GAIN_LIMIT_DB} max={METRONOME_GAIN_LIMIT_DB} value={practice.metronomeGainDb} onChange={metronomeGainDb => patchPractice({ metronomeGainDb })} />
         <div className="metronome-bpm-row"><span>BPM</span><MetronomeBpmInput value={practice.metronomeBpm} onChange={saveBpm} /></div>
         <button className="detect-bpm-button" disabled={detectingBpm} onClick={() => void detectBpm()}>{detectingBpm ? <LoaderCircle className="spin" size={15} /> : <MetronomeIcon />}<span><b>{detectingBpm ? '正在检测…' : '检测当前歌曲 BPM'}</b><small>优先分析鼓轨，结果自动保存</small></span></button>
         {bpmMessage && <p className={bpmMessage.includes('失败') || bpmMessage.includes('未检测') || bpmMessage.includes('不可用') ? 'error' : ''}>{bpmMessage}</p>}

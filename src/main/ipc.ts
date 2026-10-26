@@ -1,3 +1,4 @@
+import { readStorageUsage } from './storage-usage.js'
 import { normalizeAppearance } from '@shared/appearance.js'
 import { isDeepStrictEqual } from 'node:util'
 import { appearanceSchema } from '@shared/appearance-schema.js'
@@ -152,6 +153,10 @@ export function registerIpc(services: IpcServices): void {
   }
 
   // High-rate PCM uses a dedicated trusted channel; never put audio packets in diagnostics.
+  ipcMain.handle(`${ARSENAL_CHANNEL}:output`, (event, bus) => {
+    assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
+    return services.arsenal.outputTransport.open(z.number().int().min(0).max(7).parse(bus))
+  })
   ipcMain.handle(`${ARSENAL_CHANNEL}:pcm`, async (event,input) => {
     assertTrustedSender(event,services.getWindow(),services.isTrustedUrl)
     return services.arsenal.feed(z.object({bus:z.number().int().min(0).max(7),sampleRate:z.number().min(8000).max(192000),samples:z.array(z.number().finite()).max(16384),reset:z.boolean().optional()}).parse(input))
@@ -196,7 +201,7 @@ export function registerIpc(services: IpcServices): void {
       case 'deleteAsset': return arsenal.deleteAsset(z.string().regex(/^[a-f0-9]{64}$/).parse(i.id))
       case 'prepare': return arsenal.prepare(effectChainSchema.parse(i.chain))
       case 'track': return arsenal.setTrack(uuidSchema.parse(i.trackId),trackEffectsSchema.parse(i.effects))
-      case 'monitor': return arsenal.monitor(z.enum(['off','dry','wet']).parse(i.mode),effectChainSchema.parse(i.chain))
+      case 'monitor': return arsenal.monitor(z.enum(['off','dry','wet']).parse(i.mode),effectChainSchema.parse(i.chain),z.string().uuid().optional().parse(i.trackId))
       default: throw new Error('UNKNOWN_ARSENAL_OPERATION')
     }
   })
@@ -319,6 +324,7 @@ export function registerIpc(services: IpcServices): void {
   })
 
   handle(IPC.settingsGet, () => services.database.getSettings())
+  handle(IPC.settingsStorageUsage, () => readStorageUsage(services.database.getSettings()))
   handle(IPC.settingsChooseDataRoot, async (_event, input) => {
     const currentLibraryRoot = z.string().max(1000).optional().parse(input)
     const defaultPath = currentLibraryRoot && path.basename(currentLibraryRoot).toLowerCase() === 'music'
@@ -372,6 +378,7 @@ export function registerIpc(services: IpcServices): void {
       })
     } finally { if (rootsChanged) migrating = false }
     if (!isDeepStrictEqual(previous.appearance, saved.appearance)) services.emitAppearance(saved.appearance)
+    services.desktopLyrics.setStyle(saved.desktopLyricsTextColor, saved.desktopLyricsBackgroundColor, saved.desktopLyricsBold)
     services.desktopLyrics.setFontSize(saved.desktopLyricsFontSize)
     services.desktopLyrics.setBackgroundTransparency(saved.desktopLyricsBackgroundTransparency)
     services.logger.setDebugMode(saved.debugMode)
@@ -480,6 +487,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.desktopLyricsSetVisible, (_event, input) => {
     const visible = z.boolean().parse(input)
     const settings = services.database.getSettings()
+    services.desktopLyrics.setStyle(settings.desktopLyricsTextColor, settings.desktopLyricsBackgroundColor, settings.desktopLyricsBold)
     services.desktopLyrics.setFontSize(settings.desktopLyricsFontSize)
     services.desktopLyrics.setBackgroundTransparency(settings.desktopLyricsBackgroundTransparency)
     return services.desktopLyrics.setVisible(visible)

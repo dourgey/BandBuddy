@@ -1,7 +1,7 @@
 import { WheelNumberInput } from '../components/WheelNumberInput.js'
 import { createTempoWheel } from '../components/tempo-wheel.js'
-import { useEffect, useId, useRef, useState } from 'react'
-import { AudioLines, ChevronDown, Minus, Play, Plus, Settings, Square, Timer, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react'
+import { ChevronDown, Minus, Play, Plus, Settings, Square, Timer, X } from 'lucide-react'
 import { clampBpm, MetronomeEngine, readMetronome, type MetronomeSettings, type MetronomePulse } from './metronome-engine.js'
 import './metronome.css'
 
@@ -13,12 +13,25 @@ const marks = Array.from({ length: 33 }, (_, i) => {
 const tempoName = (bpm: number): string => bpm < 60 ? 'LARGO' : bpm < 76 ? 'ADAGIO' : bpm < 108 ? 'ANDANTE' : bpm < 121 ? 'MODERATO' : bpm < 168 ? 'ALLEGRO' : bpm < 200 ? 'VIVACE' : 'PRESTO'
 
 export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string; onError: (message: string) => void }): React.JSX.Element {
-  const [config, setConfig] = useState(readMetronome)
+  const [config, setConfig] = useState(() => ({ ...readMetronome(), volume: 1 }))
   const [playing, setPlaying] = useState(false), [busy, setBusy] = useState(false)
   const [panel, setPanel] = useState<'settings' | 'meter' | null>(null)
   const [pulse, setPulse] = useState<MetronomePulse | null>(null)
   const [error, setError] = useState('')
-  const [tapCount, setTapCount] = useState(0)
+  const [, setTapCount] = useState(0)
+  const shell = useRef<HTMLDivElement>(null), body = useRef<HTMLElement>(null)
+  const [scale, setScale] = useState(1)
+  useLayoutEffect(() => {
+    const fit = (): void => {
+      if (!shell.current || !body.current) return
+      setScale(Math.min(1, shell.current.clientWidth / 1000, shell.current.clientHeight / body.current.offsetHeight))
+    }
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(fit)
+    if (shell.current) observer.observe(shell.current)
+    if (body.current) observer.observe(body.current)
+    fit(); return () => observer.disconnect()
+  }, [])
   const engine = useRef<MetronomeEngine | null>(null), rod = useRef<SVGGElement>(null)
   const knob = useRef<HTMLDivElement>(null), taps = useRef<number[]>([])
   const readout = useRef<SVGGElement>(null)
@@ -128,10 +141,10 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
     hold.current = setTimeout(repeat, 400)
   }
   const bpm = pulse?.bpm ?? config.bpm
-  return <section className="ws-metronome" aria-label="机械节拍器">
+  return <div ref={shell} className="metro-fit"><section ref={body} style={{ transform: `translate(-50%, -50%) scale(${scale})` }} className="ws-metronome" aria-label="机械节拍器">
     <div className="metro-fasteners" aria-hidden="true"><i /><i /><i /><i /></div>
     <header className="metro-header">
-      <div><small>LISTEN &amp; KEEP TIME</small><h2>节拍器</h2></div>
+      <div><h2>节拍器</h2></div>
       <button className="metro-preset metro-button" aria-label="拍号" aria-expanded={panel === 'meter'} onClick={() => setPanel(panel === 'meter' ? null : 'meter')}><Timer /><span>{config.beats}/{config.denominator} · {bpm} BPM</span><ChevronDown size={18} /></button>
       <button className="metro-settings-button metro-button" aria-label="节拍器设置" aria-expanded={panel === 'settings'} onClick={() => setPanel(panel === 'settings' ? null : 'settings')}><Settings /></button>
     </header>
@@ -151,7 +164,7 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
           <label>静音训练<select value={config.silentBars} onChange={e => patch({ silentBars: Number(e.target.value) })}>{[0, 1, 2, 4, 8].map(n => <option key={n} value={n}>{n ? `响 1 小节 / 静音 ${n} 小节` : '关闭'}</option>)}</select></label>
         </div>
         <label className="metro-accent"><input type="checkbox" checked={config.accent} onChange={e => patch({ accent: e.target.checked })} />第一拍重音</label>
-        <label className="metro-volume">音量 <input aria-label="节拍器输出音量" type="range" min="0" max="1" step="0.01" value={config.volume} onChange={e => patch({ volume: Number(e.target.value) })} /><span>{Math.round(config.volume * 100)}%</span></label>
+
         <p>旋钮拖动 / 悬停滚轮调速，快滚加速 · 空格启停 · T 打拍</p>
       </>}
     </div>}
@@ -198,6 +211,6 @@ export function Metronome({ outputDeviceId, onError }: { outputDeviceId: string;
       </div>
       <button className={`metro-button metro-start ${playing ? 'running' : ''}`} onClick={() => void toggle()} disabled={busy}>{playing ? <Square fill="currentColor" /> : <Play fill="currentColor" />} {busy ? '启动中' : playing ? '停止' : '开始'}</button>
     </div>
-    <footer className="metro-footer"><div><i className={playing && !pulse?.silent && config.volume > 0 ? 'active' : ''} /><span>{error || (playing ? pulse?.countIn ? '预备拍' : pulse?.silent ? '静音训练中' : config.volume === 0 ? '音量已静音' : '节拍输出中' : '节拍器已就绪')}</span><div className="metro-level" aria-hidden="true"><span style={{ width: `${config.volume * 100}%` }} /></div><AudioLines /></div><p>{tapCount ? tapCount === 1 ? '继续点击 TAP，设定速度' : `已采集 ${tapCount} 次打拍 · ${config.bpm} BPM` : playing ? `${config.beats}/${config.denominator} · 点击停止，或按空格键` : '点击开始，或使用 TAP 设定速度'}</p></footer>
-  </section>
+    {error && <p className="metro-error" role="alert">{error}</p>}
+  </section></div>
 }

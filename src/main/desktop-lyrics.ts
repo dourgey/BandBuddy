@@ -16,6 +16,13 @@ export class DesktopLyricsWindow {
   private loadPromise: Promise<void> | null = null
   private latestPayload: DesktopLyricsPayload | null = null
   private shouldBeVisible = false
+  private textColor = '#fff0a8'
+  private backgroundColor = '#171410'
+  private bold = true
+  setStyle(textColor: string, backgroundColor: string, bold: boolean): void {
+    this.textColor = textColor; this.backgroundColor = backgroundColor; this.bold = bold
+    if (this.latestPayload) this.update(this.latestPayload)
+  }
   private fontSize = 24
   private backgroundTransparency = 20
 
@@ -52,7 +59,7 @@ export class DesktopLyricsWindow {
   update(payload: DesktopLyricsPayload): void {
     const layoutChanged = this.latestPayload?.fontSize !== this.fontSize
       || this.latestPayload?.currentLines.length !== payload.currentLines.length
-    payload = { ...payload, fontSize: this.fontSize, backgroundTransparency: this.backgroundTransparency }
+    payload = { ...payload, textColor: this.textColor, backgroundColor: this.backgroundColor, bold: this.bold, fontSize: this.fontSize, backgroundTransparency: this.backgroundTransparency }
     this.latestPayload = payload
     const window = this.window
     if (!window || window.isDestroyed() || window.webContents.isLoading()) return

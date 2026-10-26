@@ -15,6 +15,8 @@ import type { Logger } from './logger.js'
 import { parseByteRange } from './media-range.js'
 import { runProcess } from './process.js'
 import { runSignalsmithPitchShift } from './pitch-shift.js'
+import { WebSocketServer } from 'ws'
+import { LanStreamSession } from './lan-stream.js'
 
 export const LAN_PORT = 60232
 export const LAN_PROTOCOL = 'bandbuddy-lan'
@@ -47,6 +49,8 @@ export class LanService {
   private hashes = new Map<string, Promise<string>>()
   private renderQueue: Promise<unknown> = Promise.resolve()
   private transition: Promise<unknown> = Promise.resolve()
+  private sockets: WebSocketServer | null = null
+  private streams = new Set<LanStreamSession>()
 
   constructor(
     private readonly database: BandBuddyDatabase,
@@ -89,6 +93,23 @@ export class LanService {
         })
         server.requestTimeout = 120_000
         server.headersTimeout = 15_000
+        const sockets = this.sockets = new WebSocketServer({ noServer: true, maxPayload: 16_384, perMessageDeflate: false })
+        server.on('upgrade', (request, socket, head) => {
+          const prefix = `/s/${this.token}/`
+          const url = new URL(request.url ?? '/', 'http://localhost')
+          const cookie = request.headers.cookie?.split(';').some(value => value.trim() === `bandbuddy-lan=${this.token}`)
+          const sessionPath = url.pathname.startsWith(prefix)
+          const host = request.headers.host?.split(':')[0]
+          if (!this.token || !isLocalAddress(request.socket.remoteAddress ?? '')
+            || !host || !['127.0.0.1', 'localhost', ...lanAddresses()].includes(host)
+            || request.headers.origin && request.headers.origin !== `http://${request.headers.host}`
+            || !sessionPath && !cookie || url.pathname.slice(sessionPath ? prefix.length : 1) !== 'api/v1/pcm'
+            || this.streams.size >= 4) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return }
+          sockets.handleUpgrade(request, socket, head, ws => {
+            const stream = new LanStreamSession(ws, id => this.database.getSong(id), this.media, this.paths, () => this.streams.delete(stream))
+            this.streams.add(stream)
+          })
+        })
         this.server = server
         for (const candidate of [...Array.from({ length: 101 }, (_, index) => LAN_PORT + index), 0]) {
           try {
@@ -118,6 +139,8 @@ export class LanService {
 
   async stop(): Promise<void> {
     this.controller.abort()
+    for (const stream of this.streams) stream.dispose()
+    this.streams.clear(); this.sockets?.close(); this.sockets = null
     for (const client of this.appearanceClients) client.end()
     this.appearanceClients.clear()
     const server = this.server
@@ -136,7 +159,7 @@ export class LanService {
 
   private discovery(): object {
     return { service: LAN_PROTOCOL, version: 1, name: 'BandBuddy', port: this.port,
-      handshake: '/api/v1/handshake', capabilities: ['stems', 'lyrics', 'video', 'range', 'sha256', 'stem-groups-v2'] }
+      handshake: '/api/v1/handshake', capabilities: ['stems', 'lyrics', 'video', 'range', 'sha256', 'stem-groups-v2', 'pcm-stream-v1'] }
   }
 
   private startDiscovery(): void {
@@ -208,11 +231,11 @@ export class LanService {
         manifest: `api/v${version}/songs/${song.id}/manifest`
       })) })
     }
-    const manifest = /^api\/v[12]\/songs\/([0-9a-f-]{36})\/manifest$/.exec(route)
+    const manifest = /^api\/v[12]\/songs\/([0-9a-f-]{36})\/(manifest|playback)$/.exec(route)
     if (manifest) {
       const song = this.database.getSong(manifest[1]!)
       if (!song || song.status !== 'ready') return this.json(response, 404, { error: 'SONG_NOT_READY' })
-      return this.json(response, 200, await this.manifest(song, route.includes('/v2/') ? 2 : 1))
+      return this.json(response, 200, await this.manifest(song, route.includes('/v2/') ? 2 : 1, manifest[2] === 'playback'))
     }
     const asset = /^media\/([0-9a-f-]{36})\/(stem|peaks|video|artwork)(?:\/([0-9a-f-]{36}))?$/.exec(route)
     if (asset) {
@@ -232,7 +255,7 @@ export class LanService {
       if (!sessionPath) response.setHeader('Set-Cookie', `bandbuddy-lan=${this.token}; Path=/; HttpOnly; SameSite=Strict`)
       const { theme, density, effects } = publicAppearance(this.database.getSettings().appearance)
       const html = (await readFile(path.join(this.rendererRoot, 'lan.html'), 'utf8')).replace(/<html(?=[\s>])/i, `<html data-theme-mode="${theme}" data-density="${density}" data-effects="${effects}"`)
-      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'", 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' })
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://${request.headers.host}; frame-ancestors 'none'`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' })
       response.end(request.method === 'HEAD' ? undefined : html)
       return
     }
@@ -242,11 +265,13 @@ export class LanService {
     this.json(response, 404, { error: 'NOT_FOUND' })
   }
 
-  private async assetInfo(songId: string, kind: string, id?: string): Promise<object | null> {
+  private async assetInfo(songId: string, kind: string, id?: string, playback = false): Promise<object | null> {
     const relative = `media/${songId}/${kind}${id ? `/${id}` : ''}`
     const file = this.media.resolveProtocolPath(new URL(`bandbuddy-media://song/${songId}/${kind}${id ? `/${id}` : ''}`))
     if (!file) return null
     const info = await stat(file)
+    // Playback metadata does not need to read/hash every full stem before sound.
+    if (playback) return { url: relative, bytes: info.size, sha256: '', mimeType: MIME[path.extname(file)] ?? 'application/octet-stream' }
     const key = `${file}:${info.size}:${info.mtimeMs}`
     let digest = this.hashes.get(key)
     if (!digest) {
@@ -261,7 +286,7 @@ export class LanService {
     return { url: relative, bytes: info.size, sha256: await digest, mimeType: MIME[path.extname(file)] ?? 'application/octet-stream' }
   }
 
-  private async manifest(song: SongDetail, version: 1 | 2): Promise<object> {
+  private async manifest(song: SongDetail, version: 1 | 2, playback = false): Promise<object> {
     return {
       version, id: song.id, title: song.title, artist: song.artist, durationMs: song.durationMs,
       ...(version === 2 ? { stemGroups: STEM_GROUPS.map(group => ({ parent: group.parent, children: group.children, splitEnabled: song.practice[group.mode], available: group.children.every(type => song.stems.some(stem => stem.type === type)) })) } : {}),
@@ -271,11 +296,11 @@ export class LanService {
         durationMs: stem.durationMs, sampleRate: stem.sampleRate, channels: stem.channels,
         ...(version === 2 ? { encodingGain: stem.encodingGain ?? 1, numFrames: stem.numFrames } : {}),
         defaultVisible: song.sourceFormat === 'existing-stems' || isStemVisible(stem.type, song.practice.guitarSplitEnabled, version === 2 && song.practice.vocalSplitEnabled),
-        audio: await this.assetInfo(song.id, 'stem', stem.id),
-        peaks: stem.peaksUrl ? await this.assetInfo(song.id, 'peaks', stem.id) : null
+        audio: await this.assetInfo(song.id, 'stem', stem.id, playback),
+        peaks: !playback && stem.peaksUrl ? await this.assetInfo(song.id, 'peaks', stem.id) : null
       }))),
-      artwork: song.artworkUrl ? await this.assetInfo(song.id, 'artwork') : null,
-      video: song.videoUrl ? await this.assetInfo(song.id, 'video') : null
+      artwork: song.artworkUrl ? await this.assetInfo(song.id, 'artwork', undefined, playback) : null,
+      video: song.videoUrl ? await this.assetInfo(song.id, 'video', undefined, playback) : null
     }
   }
 
@@ -336,7 +361,7 @@ export class LanService {
       'Content-Length': range ? range.end - range.start + 1 : info.size,
       'Accept-Ranges': 'bytes', 'Cache-Control': 'private, no-cache', ETag: etag,
       'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://${request.headers.host}; frame-ancestors 'none'`,
       ...(range ? { 'Content-Range': `bytes ${range.start}-${range.end}/${info.size}` } : {})
     })
     if (request.method === 'HEAD') { response.end(); return }

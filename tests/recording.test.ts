@@ -1,10 +1,10 @@
 import { DatabaseSync } from 'node:sqlite'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createDefaultPracticeState } from '@shared/domain.js'
 import { recordingAudioSettingsSchema } from '@shared/ipc.js'
 import { DATABASE_MIGRATIONS } from '../src/main/database.js'
 import { buildMixFilter } from '../src/main/export-filter.js'
-import { buildClockCorrectionFilters, calculateTakeAlignmentOffset, resolveRecordingRange } from '../src/main/recording.js'
+import { RecordingService, buildClockCorrectionFilters, calculateTakeAlignmentOffset, resolveRecordingRange } from '../src/main/recording.js'
 
 describe('recording range and device configuration', () => {
   it('records once from A to B, otherwise from the current position to the song end', () => {
@@ -166,4 +166,15 @@ describe('recording take export placement', () => {
     expect(filter).toContain('atrim=start=1.000000')
     expect(filter).toContain('atrim=end=3.000000')
   })
+})
+
+it('releases the recording lock when stop has no capture result and preserves recovery metadata', async () => {
+  const service = Object.create(RecordingService.prototype) as RecordingService
+  const session = { id: 'session', finalizing: null, sessionRoot: 'preserved-recovery-directory' }
+  const emitState = vi.fn()
+  Object.assign(service, { state: { phase: 'recording' }, active: session, host: { stop: vi.fn(async () => null) }, emitState, logger: { error: vi.fn() } })
+  await expect(service.stop()).rejects.toThrow('原始录音已保留')
+  expect(service.isActive()).toBe(false)
+  expect(emitState).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'failed' }))
+  expect(session.sessionRoot).toBe('preserved-recovery-directory')
 })

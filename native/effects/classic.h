@@ -5,10 +5,11 @@
 
 namespace bb::classic {
 // Circuit studies, not calibrated replicas. See docs/arsenal-classic-models.md.
-enum class AmpKind { AB763, Lead2203, Orange, Mesa, Vox };
+enum class AmpKind { AB763, Lead2203, Orange, Mesa, Vox, Twin, JTM45, JCM800, AC30, Rectifier };
 struct AmpControls {
   bool enabled=false; AmpKind kind=AmpKind::AB763;
   double gain=.35, bass=.5, middle=.5, treble=.5, master=.5, inputVolts=1;
+  double presence=.5, cut=.5, sag=.35; bool resistiveLoad=false; unsigned oversampling=4;
 };
 // Koren 12AX7 plate-current model, published nominal parameters.
 double triodeCurrent(double plateCathode, double gridCathode);
@@ -45,7 +46,7 @@ class Amp {
   unsigned upPos=0, downPos=0, dryPos=0, controlClock=0;
   double circuit(double input);
 };
-enum class CabinetKind { Open112, Open212, Sealed412 };
+enum class CabinetKind { Open112, Open212, Sealed412, Deluxe, Twin, Green412, T75412, AC30212, Recto412, PPC412 };
 struct CabinetControls {
   bool enabled=false; CabinetKind kind=CabinetKind::Open112;
   double volumeLitres=80, distanceMetres=1, micAngle=0;
@@ -68,14 +69,16 @@ class Cabinet {
   unsigned clock=0;
   void coefficients();
 };
-enum class ModKind { Phase90, OpticalTremolo, Chorus, Flanger, Wah, Compressor, Vibrato };
+enum class ModKind { Phase90, OpticalTremolo, Chorus, Flanger, Wah, Compressor, Vibrato, StereoChorus, StepFlanger, AqueductVibrato, FixedWah };
 struct ModControls {
   bool enabled=false; ModKind kind=ModKind::Phase90;
   double rateHz=.7, depth=.6, mix=.5, feedback=.3, manual=.5;
+  double bass=.5,treble=.5,levelDb=0;bool bassFilter=false;unsigned waveform=0,sweepMode=0;
 };
 class Modulation {
  public:
-  Modulation(unsigned sr, const ModControls& controls);
+  Modulation(unsigned sr, const ModControls& controls, unsigned channel=0);
+  ~Modulation();
   void update(const ModControls& controls);
   float tick(float input);
  private:
@@ -84,5 +87,6 @@ class Modulation {
   whitebox::Lowpass inputCoupling, outputCoupling, allpass[4], antiAlias[2], reconstruction[2];
   std::vector<double> delay;
   unsigned position=0;
+  std::unique_ptr<pedals::Modulator> extended;
 };
 }

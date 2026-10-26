@@ -15,8 +15,8 @@ const plugin = path.join(build, 'VST3', 'Release', 'bandbuddy-test-delay.vst3')
 const root = await mkdtemp(path.join(tmpdir(), 'BandBuddy 插件 🎸-'))
 const children = new Set()
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-function launch(exe, args) {
-  const child = spawn(exe, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }); children.add(child)
+function launch(exe, args, windowsHide = true) {
+  const child = spawn(exe, args, { windowsHide, stdio: ['pipe', 'pipe', 'pipe'] }); children.add(child)
   let stdout = '', stderr = ''; child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8')
   child.stdout.on('data', data => { stdout += data }); child.stderr.on('data', data => { stderr += data })
   const completed = new Promise((resolve, reject) => {
@@ -58,6 +58,12 @@ function waveSamples(bytes) {
   throw new Error('WAV data chunk missing')
 }
 try {
+  const editorWindows = []
+  if (win) for (const windowsHide of [false, true]) {
+    const result = JSON.parse(await launch(path.join(build, 'plugin-host', 'Release', 'bandbuddy-plugin-editor-tests.exe'), [], windowsHide).completed)
+    assert.ok(result.passed && result.firstOpenVisible && result.closeHides && result.reopenVisible && result.destroyed, 'native editor visibility/lifecycle')
+    editorWindows.push({ windowsHide, ...result })
+  }
   const scanned = JSON.parse((await launch(workerExe, ['--scan', plugin]).completed).trim())
   const definition = scanned.find(p => p.validation === 'available'); assert.ok(definition, 'real SDK VST3 scan')
   const first = await worker('live', definition)
@@ -106,7 +112,7 @@ try {
   assert.ok(core.events.some(e => e.event === 'meter' && e.data.plugin?.deadlineMisses > 0), 'missed wet blocks are diagnosed')
   const samples = waveSamples(await readFile(dry)); assert.ok(samples.some(v => Math.abs(v) > .1)); assert.ok(samples.every(v => Number.isFinite(v) && Math.abs(v) < .251))
   await core.rpc('stopTest'); await core.rpc('shutdown'); await core.completed
-  console.log(JSON.stringify({ passed: true, plugin: definition.name, workerRealtimePriority: workerStatus.realtimePriority, bridge, variableBlocks, rendered, realtimeOfflineMatch: compared / nonzero, dryFramesBeforeCrash: before.frames, dryFramesAfterCrash: after.frames }))
+  console.log(JSON.stringify({ passed: true, editorWindows, plugin: definition.name, workerRealtimePriority: workerStatus.realtimePriority, bridge, variableBlocks, rendered, realtimeOfflineMatch: compared / nonzero, dryFramesBeforeCrash: before.frames, dryFramesAfterCrash: after.frames }))
 } finally {
   for (const child of children) child.kill()
   await sleep(150); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })

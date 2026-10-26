@@ -274,9 +274,6 @@ export default function WoodshedPage({
             </button>
           ))}
         </nav>
-        <div className="ws-local">
-          <span /> 本地可用 · 自由练习
-        </div>
       </aside>
       <section className="ws-main">
         <header className="ws-topbar">
@@ -287,7 +284,7 @@ export default function WoodshedPage({
           </nav>
         </header>
         <div
-          className={`ws-scroll ${p.section === 'tools' && tool ? 'ws-scroll-tool' : ''} ${tool === 'tuner' && p.section === 'tools' ? 'ws-scroll-tuner' : ''}`}
+          className={`ws-scroll ${p.section === 'tools' && tool ? 'ws-scroll-tool' : ''} ${tool === 'tuner' && p.section === 'tools' ? 'ws-scroll-tuner' : ''} ${tool === 'metronome' && p.section === 'tools' ? 'ws-scroll-metronome' : ''}`}
           ref={scroll}
           onScroll={(e) => {
             scrollPositions.current[p.section] = e.currentTarget.scrollTop
@@ -295,10 +292,6 @@ export default function WoodshedPage({
             scrollTimer.current = setTimeout(persistScroll, 200)
           }}
         >
-          {p.section === 'tools' && !tool && <div className="ws-hero">
-            <div><span className="ws-eyebrow">READY WHEN YOU ARE.</span><h2>小工具，随手就好。</h2><p>调准音、稳住拍点，让注意力回到演奏本身。</p></div>
-            <div className="ws-hero-stat"><b>{String(TOOLS.length).padStart(2, '0')}</b><span>常用工具</span></div>
-          </div>}
           {p.section === 'learn' && <Learning location={learning} onNavigate={navigateLearning} onPractice={navigatePractice} />}
           {p.section === 'lab' && <FretboardLab initialTuning={tuning} audio={audio} a4={p.a4} onBack={() => navigate('learn')} onError={error} />}
           {p.section === 'practice' && <Practice location={practice} onNavigate={navigatePractice} outputDeviceId={outputDeviceId} onError={error} onKnowledge={navigateLearning} />}

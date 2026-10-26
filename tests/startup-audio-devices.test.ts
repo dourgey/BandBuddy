@@ -20,7 +20,7 @@ function appSettings(): AppSettings {
     runtimeRoot: 'runtime',
     modelRoot: 'models',
     debugMode: false,
-    desktopLyricsFontSize: 24,
+    desktopLyricsTextColor: '#fff0a8', desktopLyricsBackgroundColor: '#171410', desktopLyricsBold: true, desktopLyricsFontSize: 24,
     desktopLyricsBackgroundTransparency: 20,
     highQualityStems: false, vocalSeparationQuality: 'fast',
     guitarSeparationQuality: 'balanced',

@@ -3,8 +3,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defaultEffectChain } from '@shared/arsenal.js'
-import { ArsenalService } from '../src/main/arsenal.js'
+import { createEffectModule, defaultEffectChain, storeEffectChain, effectChainSchema, effectStructureKey } from '@shared/arsenal.js'
+import { ArsenalService, decodeIr } from '../src/main/arsenal.js'
 
 const { openDialog } = vi.hoisted(() => ({ openDialog: vi.fn() }))
 vi.mock('electron', () => ({ dialog: { showOpenDialog: openDialog } }))
@@ -88,6 +88,42 @@ describe('NAM asset import', () => {
     await expect(service.importAsset('nam')).rejects.toThrow('NAM 模型结构无效')
     expect(service.list().assets).toEqual([])
     expect(await readdir(root)).toEqual(['capture.nam'])
+  })
+
+  function wave(channels=2, rate=44100):Buffer {
+    const frames=300, bytes=Buffer.alloc(44+frames*channels*4)
+    bytes.write('RIFF',0);bytes.writeUInt32LE(bytes.length-8,4);bytes.write('WAVEfmt ',8);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(3,20);bytes.writeUInt16LE(channels,22);bytes.writeUInt32LE(rate,24);bytes.writeUInt32LE(rate*channels*4,28);bytes.writeUInt16LE(channels*4,32);bytes.writeUInt16LE(32,34);bytes.write('data',36);bytes.writeUInt32LE(frames*channels*4,40)
+    for(let c=0;c<channels;c++)bytes.writeFloatLE(c===0?.5:-.25,44+(100*channels+c)*4)
+    return bytes
+  }
+  it('preserves original stereo IR bytes, phase, delay and metadata through import, prepare and preset restore', async()=>{
+    const file=path.join(root,'speaker.wav'),bytes=wave();await writeFile(file,bytes);openDialog.mockResolvedValue({canceled:false,filePaths:[file]})
+    const asset=(await service.importAsset('ir'))!;expect(asset).toMatchObject({sampleRate:44100,channels:2,metadata:{bitDepth:32,encoding:'float',processing:'original',leadingSilenceFrames:100}})
+    expect(await readFile(path.join(root,'arsenal',`${asset.id}.wav`))).toEqual(bytes)
+    const amp=createEffectModule('amp'),cab=createEffectModule('cab');cab.settings.cab.engine='ir';cab.settings.cab.assetId=asset.id
+    const chain={...defaultEffectChain(),modules:[amp,cab]};const restored=effectChainSchema.parse(storeEffectChain(chain));expect(restored.modules?.[1]?.settings.cab.assetId).toBe(asset.id)
+    const prepared=await service.prepare(restored);expect(prepared.modules?.[1]?.ir?.map(c=>c[100])).toEqual([.5,-.25]);expect(prepared.modules?.[1]?.irRate).toBe(44100)
+    expect(await service.importAsset('ir')).toEqual(asset);expect(service.list().assets).toHaveLength(1)
+  })
+  it('rejects corrupt, nonfinite and silent IR without writing assets',async()=>{
+    const silent=wave();silent.fill(0,44)
+    const nonfinite=wave();nonfinite.writeFloatLE(NaN,44)
+    const truncated=wave().subarray(0,100),badAlign=wave();badAlign.writeUInt16LE(1,32)
+    for(const bytes of [silent,nonfinite,truncated,badAlign])expect(()=>decodeIr(bytes)).toThrow()
+    const good=path.join(root,'good.wav'),bad=path.join(root,'bad.wav');await writeFile(good,wave());await writeFile(bad,nonfinite)
+    openDialog.mockResolvedValue({canceled:false,filePaths:[bad,good]});await expect(service.importAsset('ir')).rejects.toThrow('已导入 1 个，1 个未导入');expect(service.list().assets).toHaveLength(1)
+  })
+  it('prepares matching amp load and rebuilds when the adjacent cabinet changes, while knob edits stay cheap',async()=>{
+    const amp=createEffectModule('amp'),cab=createEffectModule('cab');cab.settings.cab.physical.device='marshall-1960ax';cab.settings.cab.physical.volumeLitres=170
+    const chain={...defaultEffectChain(),modules:[amp,cab]};const key=effectStructureKey(chain)
+    expect((await service.prepare(chain)).modules?.[0]?.ampLoad).toEqual({device:'marshall-1960ax',volumeLitres:170})
+    amp.settings.amp.classic.gain=.9;expect(effectStructureKey(chain)).toBe(key)
+    cab.settings.cab.enabled=false;expect(effectStructureKey(chain)).not.toBe(key);expect((await service.prepare(chain)).modules?.[0]?.ampLoad).toBeUndefined()
+    cab.settings.cab.enabled=true;const eq=createEffectModule('eq');chain.modules=[amp,eq,cab];expect((await service.prepare(chain)).modules?.[0]?.ampLoad).toBeUndefined()
+    const legacy=defaultEffectChain();legacy.order=['amp','cab'];legacy.amp.engine='classic';legacy.amp.classic.device='fender-twin';legacy.cab.engine='physical';legacy.cab.enabled=true
+    const legacyKey=effectStructureKey(legacy);legacy.cab.physical.distanceMetres=.5;expect(effectStructureKey(legacy)).toBe(legacyKey)
+    legacy.cab.physical.volumeLitres=120;expect(effectStructureKey(legacy)).not.toBe(legacyKey)
+    const resized=effectStructureKey(legacy);legacy.cab.enabled=false;expect(effectStructureKey(legacy)).not.toBe(resized)
   })
 
   it.skipIf(!process.env.BB_NAM_TEST_MODEL)('imports the externally downloaded Tone3000 capture end to end', async () => {

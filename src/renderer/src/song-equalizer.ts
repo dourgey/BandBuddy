@@ -81,27 +81,23 @@ export class EqResponse {
   destroy(): void { for (const filter of this.filters) filter.disconnect() }
 }
 
-function ramp(parameter: AudioParam, value: number, now: number, seconds: number, exponential = false): void {
-  if (typeof parameter.cancelAndHoldAtTime === 'function') parameter.cancelAndHoldAtTime(now)
-  else { parameter.cancelScheduledValues(now); parameter.setValueAtTime(parameter.value, now) }
-  if (exponential) parameter.exponentialRampToValueAtTime(value, now + seconds)
-  else parameter.linearRampToValueAtTime(value, now + seconds)
-}
-
 /** Discrete channels are filtered independently; no speaker-layout downmix enters the output. */
 export class SongEqBus {
   readonly input: GainNode
   readonly output: GainNode
   private readonly dry: GainNode
-  private readonly graphic: BiquadFilterNode[]
-  private readonly parametric: BiquadFilterNode[]
-  private readonly graphicGain: GainNode
-  private readonly parametricGain: GainNode
-  private readonly graphicHeadroom: GainNode
-  private readonly parametricHeadroom: GainNode
+  private readonly firstBank: BiquadFilterNode[]
+  private readonly secondBank: BiquadFilterNode[]
+  private readonly firstGain: GainNode
+  private readonly secondGain: GainNode
+  private readonly firstHeadroom: GainNode
+  private readonly secondHeadroom: GainNode
   private splitter: ChannelSplitterNode | null = null
   private analysers: Array<{ node: AnalyserNode; data: Float32Array<ArrayBuffer> }> = []
-  private previousMode: string | null = null
+  private activeBank = -1
+  private transitionEnd = 0
+  private pending: EqConfiguration | null = null
+  private timer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly context: BaseAudioContext, private readonly channels: number) {
     const configure = <T extends AudioNode>(node: T): T => {
@@ -109,41 +105,76 @@ export class SongEqBus {
     }
     const gain = (): GainNode => configure(context.createGain())
     this.input = gain(); this.output = gain(); this.dry = gain()
-    this.graphicGain = gain(); this.parametricGain = gain()
-    this.graphicGain.gain.value = 0; this.parametricGain.gain.value = 0
-    this.graphicHeadroom = gain(); this.parametricHeadroom = gain()
+    this.firstGain = gain(); this.secondGain = gain()
+    this.firstGain.gain.value = 0; this.secondGain.gain.value = 0
+    this.firstHeadroom = gain(); this.secondHeadroom = gain()
     this.input.connect(this.dry).connect(this.output)
     const bank = (count: number, headroom: GainNode, wet: GainNode): BiquadFilterNode[] => {
       const filters = Array.from({ length: count }, () => { const node = configure(context.createBiquadFilter()); node.type = 'peaking'; return node })
-      let tail: AudioNode = this.input
+      this.input.connect(headroom)
+      let tail: AudioNode = headroom
       for (const filter of filters) { tail.connect(filter); tail = filter }
-      tail.connect(headroom).connect(wet).connect(this.output)
+      tail.connect(wet).connect(this.output)
       return filters
     }
-    this.graphic = bank(10, this.graphicHeadroom, this.graphicGain)
-    this.parametric = bank(EQ_MAX_NODES, this.parametricHeadroom, this.parametricGain)
+    this.firstBank = bank(10, this.firstHeadroom, this.firstGain)
+    this.secondBank = bank(10, this.secondHeadroom, this.secondGain)
   }
 
   apply(configuration: EqConfiguration, immediate = false): void {
-    const { state, graphic, parametric } = configuration
-    const now = this.context.currentTime, parameterRamp = immediate ? 0 : 0.03
-    const mode = state.enabled ? state.mode : 'off'
-    const transition = immediate ? 0 : this.previousMode !== mode ? 0.05 : 0.03
-    const applyBands = (filters: BiquadFilterNode[], bands: Band[]): void => filters.forEach((filter, index) => {
-      const band = bands[index]!
-      ramp(filter.frequency, band.frequency, now, parameterRamp)
-      ramp(filter.gain, band.gainDb, now, parameterRamp)
-      ramp(filter.Q, band.q, now, parameterRamp)
+    this.pending = configuration
+    if (immediate) this.transitionEnd = 0
+    this.flush(immediate)
+  }
+
+  private flush(immediate = false): void {
+    if (this.timer !== null) { clearTimeout(this.timer); this.timer = null }
+    if (!this.pending) return
+    const now = this.context.currentTime
+    if (!immediate && now < this.transitionEnd) {
+      this.timer = setTimeout(() => this.flush(), Math.max(1, Math.ceil((this.transitionEnd - now) * 1000)))
+      return
+    }
+    const configuration = this.pending; this.pending = null
+    const { state } = configuration
+    const next = this.activeBank === 0 ? 1 : 0
+    const filters = next === 0 ? this.firstBank : this.secondBank
+    const headroom = next === 0 ? this.firstHeadroom : this.secondHeadroom
+    const wet = next === 0 ? this.firstGain : this.secondGain
+    const previous = this.activeBank < 0 ? this.dry : this.activeBank === 0 ? this.firstGain : this.secondGain
+    const bands = state.enabled ? state.mode === 'graphic' ? configuration.graphic : configuration.parametric : []
+    // Only replace the silent bank. Web Audio exposes no biquad-state reset;
+    // reusing a filter's delay state with new coefficients can cause a burst.
+    // The audible bank remains connected throughout the change.
+    headroom.disconnect(filters[0]!)
+    for (const filter of filters) filter.disconnect()
+    filters.splice(0, filters.length, ...Array.from({ length: 10 }, () => {
+      const filter = this.context.createBiquadFilter()
+      filter.type = 'peaking'; filter.channelCount = this.channels
+      filter.channelCountMode = 'explicit'; filter.channelInterpretation = 'discrete'
+      return filter
+    }))
+    let tail: AudioNode = headroom
+    for (const filter of filters) { tail.connect(filter); tail = filter }
+    tail.connect(wet)
+    filters.forEach((filter, index) => {
+      const band = bands[index]
+      filter.frequency.value = band?.frequency ?? 1000
+      filter.gain.value = band?.gainDb ?? 0
+      filter.Q.value = band?.q ?? 1
     })
-    applyBands(this.graphic, graphic); applyBands(this.parametric, parametric)
-    // Gain compensation moves in dB with the filter gains, avoiding a transient
-    // level boost caused by a linear amplitude ramp during a boost adjustment.
-    ramp(this.graphicHeadroom.gain, 10 ** (configuration.graphicCompensation / 20), now, parameterRamp, true)
-    ramp(this.parametricHeadroom.gain, 10 ** (configuration.parametricCompensation / 20), now, parameterRamp, true)
-    ramp(this.dry.gain, mode === 'off' ? 1 : 0, now, transition)
-    ramp(this.graphicGain.gain, mode === 'graphic' ? 1 : 0, now, transition)
-    ramp(this.parametricGain.gain, mode === 'parametric' ? 1 : 0, now, transition)
-    this.previousMode = mode
+    headroom.gain.value = state.enabled ? 10 ** ((state.mode === 'graphic' ? configuration.graphicCompensation : configuration.parametricCompensation) / 20) : 1
+    const start = now + (immediate ? 0 : .01), end = start + (immediate ? 0 : .03)
+    wet.gain.cancelScheduledValues(now); wet.gain.setValueAtTime(0, now); wet.gain.setValueAtTime(0, start); wet.gain.linearRampToValueAtTime(1, end)
+    previous.gain.cancelScheduledValues(now); previous.gain.setValueAtTime(1, now); previous.gain.setValueAtTime(1, start); previous.gain.linearRampToValueAtTime(0, end)
+    if (immediate) {
+      this.dry.gain.cancelScheduledValues(now); this.dry.gain.setValueAtTime(0, now)
+      const other = next === 0 ? this.secondGain : this.firstGain
+      other.gain.cancelScheduledValues(now); other.gain.setValueAtTime(0, now)
+    }
+    // Let the zero-gain endpoint render before recycling that bank. Cancelling
+    // its ramp exactly at the endpoint can expose one quantum of stale audio.
+    this.activeBank = next; this.transitionEnd = end + (immediate ? 0 : 256 / this.context.sampleRate)
   }
 
   setSpectrumActive(active: boolean): void {
@@ -174,7 +205,9 @@ export class SongEqBus {
   }
 
   destroy(): void {
+    if (this.timer !== null) clearTimeout(this.timer)
+    this.timer = null; this.pending = null
     this.setSpectrumActive(false)
-    for (const node of [this.input, this.output, this.dry, ...this.graphic, ...this.parametric, this.graphicGain, this.parametricGain, this.graphicHeadroom, this.parametricHeadroom]) node.disconnect()
+    for (const node of [this.input, this.output, this.dry, ...this.firstBank, ...this.secondBank, this.firstGain, this.secondGain, this.firstHeadroom, this.secondHeadroom]) node.disconnect()
   }
 }

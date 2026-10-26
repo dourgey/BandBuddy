@@ -13,6 +13,7 @@ describe('audio upgrade persistence', () => {
     const service = new AudioPluginService({ dataRoot: root, audioHostExecutable: () => path.resolve(process.env.BANDBUDDY_TEST_AUDIO_HOST ?? 'resources/audio-host/win32-x64/bandbuddy-audio-host.exe') } as never)
     // Never scan the user's installed plugins in this integration test.
     vi.stubEnv('LOCALAPPDATA', root); vi.stubEnv('ProgramFiles', root)
+    vi.stubEnv('CommonProgramFiles', path.join(root, 'Common Files')); vi.stubEnv('CommonProgramW6432', path.join(root, 'Common Files'))
     try {
       await service.addDirectory(path.resolve('native/audio-host/build/win32-x64/VST3/Release'))
       const catalog = await service.scan()

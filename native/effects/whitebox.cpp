@@ -1,4 +1,5 @@
 #include "whitebox.h"
+#include "centaur.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -51,7 +52,9 @@ Drive::Drive(unsigned sr, const Controls& c)
   }
   for (auto& k : kernel) k /= sum;
   if(c.device==Device::FuzzFace)fuzz.init(rate,c.drive);
+  if(c.device==Device::Centaur)centaur=std::make_unique<pedals::Centaur>(rate,c.drive,c.tone);
 }
+Drive::~Drive()=default;
 
 void Drive::update(const Controls& c) {
   if (c.device != target.device || c.oversampling != factor)
@@ -84,6 +87,7 @@ double Drive::toneNetwork(double input) {
 }
 
 double Drive::circuit(double input) {
+  if(centaur)return centaur->tick(input,drive,tone,level);
   if(target.device==Device::DS1 || target.device==Device::BD2) {
     const bool ds=target.device==Device::DS1;
     double x=input-inputCoupling.tick(input,1/(2*rate*(ds?470000*47e-9:1e6*10e-9)));

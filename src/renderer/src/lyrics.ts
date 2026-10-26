@@ -10,6 +10,9 @@ let lastCue = ''
 let wordNodes: HTMLElement[][] = []
 
 window.desktopLyrics.onUpdate((payload) => {
+  card.style.setProperty('--lyric-text-color', payload.textColor ?? '#fff0a8')
+  card.style.setProperty('--lyric-background-color', payload.backgroundColor ?? '#171410')
+  card.style.setProperty('--lyric-font-weight', payload.bold === false ? '400' : '750')
   card.style.setProperty('--lyric-font-size', `${payload.fontSize ?? 24}px`)
   card.style.setProperty('--lyric-background-opacity', `${1 - Math.max(0, Math.min(100, payload.backgroundTransparency ?? 20)) / 100}`)
   const artist = payload.artist.trim()

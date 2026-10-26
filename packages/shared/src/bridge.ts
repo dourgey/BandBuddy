@@ -100,6 +100,7 @@ export interface BandBuddyApi {
   }
   settings: {
     reconcileAudio(input: ReconcileAudioRequest): Promise<AppSettings>
+    storageUsage(): Promise<import('./storage.js').StorageUsage>
     get(): Promise<AppSettings>
     chooseDataRoot(currentLibraryRoot?: string): Promise<StoragePaths | null>
     update(settings: AppSettings): Promise<AppSettings>

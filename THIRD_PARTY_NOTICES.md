@@ -7,7 +7,7 @@ BandBuddy bundles or installs the following third-party software. The applicatio
 - react-markdown 10.1.0 and remark-gfm 4.0.1 — MIT License — https://github.com/remarkjs/react-markdown and https://github.com/remarkjs/remark-gfm
 - Signalsmith Stretch 1.3.2 — MIT License — https://github.com/Signalsmith-Audio/signalsmith-stretch
 - Signalsmith Linear 0.3.1 — MIT License — https://github.com/Signalsmith-Audio/linear
-- NeuralAmpModelerCore v0.5.4 — MIT License — https://github.com/sdatkinson/NeuralAmpModelerCore. BandBuddy uses its A2-capable DSP core for local NAM model inference; user-imported `.nam` and IR files are not bundled.
+- NeuralAmpModelerCore v0.5.4 — MIT License — https://github.com/sdatkinson/NeuralAmpModelerCore. BandBuddy uses its A2-capable DSP core for local NAM model inference; NAM models remain user-imported. The separately licensed bundled cabinet IR library is described below.
 - AudioDSPTools — MIT, with the retained iPlug2/WDL notices and Lanczos resampler MIT/BSD exception — https://github.com/sdatkinson/AudioDSPTools. NAM sample-rate conversion uses the upstream Lanczos filter; full notices are installed in `audio-host/<platform>/licenses/AudioDSPTools-NOTICES.txt`.
 - better-sqlite3 / SQLite — MIT / Public Domain — https://github.com/WiseLibs/better-sqlite3
 - FFmpeg n8.1.2 Windows x64 LGPL shared build — LGPL 2.1 or later — https://ffmpeg.org and https://github.com/BtbN/FFmpeg-Builds. The full build license is installed as `resources/bin/FFmpeg-LICENSE.txt`; the build deliberately uses shared libraries.
@@ -22,6 +22,14 @@ BandBuddy bundles or installs the following third-party software. The applicatio
 - The fixed weight bundle contains the six-stem HTDemucs checkpoint, MVSep Mega 53-stem acoustic/electric guitar checkpoints, and the `listra92` Lead/Rhythm checkpoint. Provenance, original repository revisions, checksums and redistribution declarations are retained in the ModelScope repository's `README.md`, `manifest.json`, and `THIRD_PARTY_NOTICES.md`.
 
 The generated dependency lockfile is the authoritative list of JavaScript packages. Redistribution must retain the applicable license texts and attributions.
+
+## Bundled cabinet impulse responses
+
+BandBuddy includes 72 WAV responses under their individual CC0-1.0 or CC-BY-4.0 licenses. These asset licenses are independent of the application license. Jester Dyne Productions (jesterdyne) authored the Emerald, Brutal, ENGL, H&K, Jensen and Korg AX1500g responses; the Korg files are digital cabinet-simulator responses, not measurements of named physical cabinets.
+
+Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0). Source: https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664 . Jester Dyne sources: https://www.jester-dyne-productions.com/emerald-ir-pack/ , https://www.jester-dyne-productions.com/brutal-ir-pack/ and https://freesound.org/people/jesterdyne/packs/6385/ .
+
+Changes by BandBuddy: files renamed by SHA-256; audio bytes otherwise unchanged. For the Freesound set, the unchanged Rustortion mirror version is used; historical differences from the original download have not been verified. Full per-file credits, source links, mirror revision, archive checksums, original manuals and license texts are distributed in cabinet-irs/README.md, cabinet-irs/manifest.json, cabinet-irs/sources.json and cabinet-irs/licenses/ (under resources/cabinet-irs/ in the source tree). Official licenses: https://creativecommons.org/publicdomain/zero/1.0/ and https://creativecommons.org/licenses/by/4.0/ . No additional restrictions are imposed on these IR assets. Use of cabinet, speaker and microphone names describes the publisher's capture; it does not imply endorsement.
 
 ## Signalsmith Stretch MIT License
 

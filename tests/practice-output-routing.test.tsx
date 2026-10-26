@@ -11,7 +11,7 @@ import { patchTrackStates, usePlayerStore } from '../src/renderer/src/player-sto
 vi.mock('../src/renderer/src/components/Waveform.js', () => ({
   Waveform: () => <div className="waveform" />
 }))
-vi.mock('../src/renderer/src/arsenal/RecordingEffects.js', () => ({ RecordingEffects: () => null }))
+vi.mock('../src/renderer/src/arsenal/RecordingEffects.js', () => ({ RecordingEffects: ({ controls }: { controls: React.ReactNode }) => <span className="ms-buttons">{controls}</span> }))
 
 afterEach(() => { cleanup(); usePlayerStore.getState().unload() })
 
@@ -56,6 +56,23 @@ function practiceRoomProps(song = fixtureDetail(fixtureSongs[0]!)): ComponentPro
 }
 
 describe('PracticeRoom output routing', () => {
+  it('automatically commits stem and recording names on Enter or blur and cancels with Escape', () => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    song.recordingTracks = [{ ...createDefaultRecordingTrackState(song.id, 'recording-name'), name: '录音轨' }]
+    const onTrack = vi.fn(), onRecordingTrack = vi.fn()
+    render(<PracticeRoom {...practiceRoomProps(song)} onTrack={onTrack} onRecordingTrack={onRecordingTrack} />)
+    fireEvent.doubleClick(document.querySelector('[data-track-order-key="stem:vocals"] .track-identity b')!)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '自定义人声' } }); fireEvent.blur(input)
+    expect(onTrack).toHaveBeenCalledWith('vocals', { name: '自定义人声' })
+    fireEvent.doubleClick(screen.getByText('录音轨', { exact: true }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '我的吉他' } })
+    fireEvent.blur(screen.getByRole('textbox'))
+    expect(onRecordingTrack).toHaveBeenCalledWith('recording-name', { name: '我的吉他' })
+    fireEvent.doubleClick(screen.getByText('录音轨', { exact: true }))
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
+    expect(onRecordingTrack).toHaveBeenCalledTimes(1)
+  })
   it('toggles full vocals and the lead/backing pair with one button while retaining both mixes', () => {
     const song = fixtureDetail(fixtureSongs[0]!)
     const full = song.practice.tracks.find(track => track.stemType === 'vocals')!
@@ -117,16 +134,14 @@ describe('PracticeRoom output routing', () => {
     fireEvent.click(imported)
     expect(toggle).toHaveBeenCalledOnce()
   })
-  it('keeps quick listening actions in the vocal menu and locks them during recording', () => {
-    const song = fixtureDetail(fixtureSongs[0]!), action = vi.fn()
-    song.vocalSplitStatus = 'ready'
-    const { rerender } = render(<PracticeRoom {...practiceRoomProps(song)} onVocalAction={action} />)
-    fireEvent.click(screen.getByLabelText('人声选项'))
-    fireEvent.click(screen.getByRole('menuitem', { name: '去主唱，保留和声' }))
-    expect(action).toHaveBeenCalledWith('removeLead')
-    rerender(<PracticeRoom {...practiceRoomProps(song)} locked onVocalAction={action} />)
-    expect((screen.getByRole('menuitem', { name: '仅听和声', hidden: true }) as HTMLButtonElement).disabled).toBe(true)
+  it('removes the vocal actions menu from all vocal tracks', () => {
+    const song = fixtureDetail(fixtureSongs[0]!)
+    song.vocalSplitStatus = 'ready'; song.practice.vocalSplitEnabled = true
+    render(<PracticeRoom {...practiceRoomProps(song)} />)
+    expect(screen.queryByLabelText('人声选项')).toBeNull()
+    expect(document.querySelector('.vocal-actions')).toBeNull()
   })
+
   it('offers every detected stereo pair and persists a per-track selection', () => {
     const song = fixtureDetail(fixtureSongs[0]!)
     const onTrack = vi.fn()
@@ -168,7 +183,7 @@ describe('PracticeRoom output routing', () => {
   it('shows the muted style on tracks silenced by another track solo without writing mix state', () => {
     const song = fixtureDetail(fixtureSongs[0]!)
     const { rerender } = render(<PracticeRoom {...practiceRoomProps(song)} />)
-    const mButtons = (): HTMLElement[] => screen.getAllByRole('button', { name: 'M' })
+    const mButtons = (): HTMLElement[] => screen.getAllByTitle('静音 (M)')
     const styled = (className: string): HTMLElement[] =>
       mButtons().filter((button) => button.classList.contains(className))
 

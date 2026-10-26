@@ -67,12 +67,13 @@ describe('track mix rules', () => {
 
   it('upgrades old saved tracks to the default output pair without losing mix state', () => {
     const tracks = normalizeTrackStates([
-      { stemType: 'vocals', gainDb: -4, muted: true, solo: false },
+      { stemType: 'vocals', name: '我的人声', gainDb: -4, muted: true, solo: false },
       { stemType: 'drums', gainDb: 1, muted: false, solo: true, outputChannelPair: 5 }
     ])
 
     expect(tracks).toHaveLength(11)
     expect(tracks.find((track) => track.stemType === 'vocals')).toMatchObject({
+      name: '我的人声',
       gainDb: -4,
       muted: true,
       outputChannelPair: 1

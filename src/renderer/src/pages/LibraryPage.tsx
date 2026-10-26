@@ -110,7 +110,7 @@ export function LibraryPage({
   return <main ref={page} className="page library-page">
     <div className="library-decoration" aria-hidden><div className="record-lines" /><span>♩</span></div>
     <section className="library-hero">
-      <div><h1>曲库</h1><p>管理你的歌曲，随时开启高效练习</p></div>
+      <div><h1>曲库</h1></div>
       <div className="library-tools">
         <label className="search-box"><Search size={20} /><input aria-label="搜索歌曲或艺术家" value={search} onChange={(event) => setSearch(event.target.value)} onCompositionStart={() => setComposing(true)} onCompositionEnd={(event) => { setSearch(event.currentTarget.value); setComposing(false) }} placeholder="搜索歌曲、艺术家…" /></label>
         <button className="primary-button" onClick={onImport}><Plus size={20} />导入歌曲</button>
@@ -161,7 +161,7 @@ function SongCard({ song, onOpen, onPlay, onMenu }: { song: SongSummary; onOpen(
         <span><i style={{ width: `${song.progress * 100}%` }} /></span>
         <small className="card-scroll-text" title={phase} onMouseEnter={prepareCardTextScroll}><span>{phase}</span></small>
       </div> : <>
-        <div className="stem-pills">{song.stemTypes.slice(0, 4).map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</div>
+        <div className="stem-pills">{song.stemTypes.slice(0, 4).map((stem) => <i key={stem} title={song.stemNames?.[stem] || STEM_META[stem].label} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</div>
         <button className="continue-button" onClick={onPlay}><Play size={15} fill="currentColor" />继续练习</button>
       </>}
     </div>
@@ -205,9 +205,9 @@ function SongTable({ songs, rowOffset, rowCount, layoutRevision, onOpen, onPlay,
     <div className="song-table-head" role="row" aria-rowindex={1}><span role="columnheader">歌曲</span><span role="columnheader">艺术家</span><span role="columnheader">时长</span><span role="columnheader">分轨</span><span role="columnheader">状态</span><span role="columnheader">最近练习</span><span role="columnheader" aria-label="操作" /></div>
     {start > 0 && <div className="song-window-spacer" aria-hidden="true" style={{ height: start * windowed.rowHeight }} />}
     {songs.slice(start, end).map((song, index) => <div className="song-row" role="row" aria-rowindex={rowOffset + start + index + 2} key={song.id} onDoubleClick={() => onOpen(song)}>
-      <span role="cell" className="song-cell"><button aria-pressed={song.favorite} className={`heart ${song.favorite ? 'active' : ''}`} onClick={() => onFavorite(song)} aria-label="收藏"><Heart size={13} fill={song.favorite ? 'currentColor' : 'none'} /></button><Vinyl size="tiny" artworkUrl={song.artworkUrl} showFallbackText={false} /><b>{song.title}</b></span>
-      <span role="cell">{song.artist || '—'}</span><span role="cell"><Clock3 size={14} />{formatTime(song.durationMs)}</span>
-      <span role="cell" className="stem-pills compact">{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</span>
+      <span role="cell" className="song-cell"><button aria-pressed={song.favorite} className={`heart ${song.favorite ? 'active' : ''}`} onClick={() => onFavorite(song)} aria-label="收藏"><Heart size={13} fill={song.favorite ? 'currentColor' : 'none'} /></button><Vinyl size="tiny" artworkUrl={song.artworkUrl} showFallbackText={false} /><b title={song.title}>{song.title}</b></span>
+      <span role="cell" title={song.artist || '—'}>{song.artist || '—'}</span><span role="cell"><Clock3 size={14} />{formatTime(song.durationMs)}</span>
+      <span role="cell" className="stem-pills compact" title={song.stemTypes.map(stem => song.stemNames?.[stem] || STEM_META[stem].label).join('、')}>{song.stemTypes.length ? song.stemTypes.map((stem) => <i key={stem} title={song.stemNames?.[stem] || STEM_META[stem].label} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>) : STEM_ORDER.slice(0, 4).map((stem) => <i key={stem}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</span>
       <span role="cell" className={`status-cell ${song.status}`}><CheckCircle2 size={16} />{statusLabel(song.status)}{song.status === 'processing' && ` ${Math.round(song.progress * 100)}%`}</span>
       <span role="cell">{formatDate(song.lastPracticedAt)}</span>
       <span role="cell" className="row-actions"><button aria-label={`播放 ${song.title}`} onClick={() => onPlay(song)}><Play size={15} fill="currentColor" /></button><button aria-label="歌曲菜单" onClick={() => onMenu(song)}><MoreHorizontal size={19} /></button></span>

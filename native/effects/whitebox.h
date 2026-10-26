@@ -1,10 +1,12 @@
 #pragma once
 #include <array>
 #include "fuzz.h"
+#include <memory>
+namespace bb::pedals { class Centaur; class Modulator; }
 
 namespace bb::whitebox {
 // Revision 1: documented reduced circuits, not measured replicas of a serial-numbered unit.
-enum class Device { TS808, SD1, RAT, MicroAmp, DistortionPlus, FuzzFace, DS1, BD2 };
+enum class Device { TS808, SD1, RAT, MicroAmp, DistortionPlus, FuzzFace, DS1, BD2, Centaur };
 struct Controls {
   bool enabled = false;
   Device device = Device::TS808;
@@ -35,6 +37,7 @@ class Drive {
  public:
   static constexpr unsigned latencyFrames = 32;
   Drive(unsigned sampleRate, const Controls& controls);
+  ~Drive();
   void update(const Controls& controls); // numerical controls only, structural changes require a new instance
   float tick(float input);
  private:
@@ -49,6 +52,7 @@ class Drive {
   Lowpass toneC1, toneC2, sdPost, finalCoupling;
   DiodePort feedback, shunt;
   FuzzCircuit fuzz;
+  std::unique_ptr<pedals::Centaur> centaur;
   double feedbackHistory = 0, slew = 0, shuntHistory = 0;
   double circuit(double input);
   double toneNetwork(double input);

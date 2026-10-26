@@ -93,6 +93,7 @@ export class AudioHostClient {
   private sessionRate = 48000
   private timelineGraph: Record<string, unknown> | null = null
   private timelineState: NativeAudioState | null = null
+  private timelineLoaded = false
   private child: ChildProcessWithoutNullStreams | null = null
   private nativeCapabilities: Promise<void> | null = null
   private sequence = 0
@@ -188,7 +189,12 @@ export class AudioHostClient {
 
   async stop(): Promise<AudioHostStopResult | null> {
     try { return await this.request<AudioHostStopResult | null>('stop', {}, 15_000) }
-    finally { this.liveSession = false; await this.plugins.stop() }
+    finally {
+      this.liveSession = false
+      // The stop ACK has already released the capture and its shared mapping.
+      // A plugin's shutdown must not delay publishing the finished take.
+      void this.plugins.stop().catch(error => this.logger.warn('recording plugin cleanup failed', error))
+    }
   }
 
   async stopTest(): Promise<AudioHostStopResult | null> {
@@ -200,10 +206,12 @@ export class AudioHostClient {
     if ((params.effects as PreparedEffects | undefined)?.pluginGraph) await this.requireNativeCapabilities()
     const worker = await this.plugins.prepare(params.effects as PreparedEffects | undefined, Number(params.sampleRate) || 48000)
     try {
+      this.timelineLoaded = false
       const result = await this.request<AudioHostStartResult>(method, { ...params, ...(worker ? { pluginMapping: worker.mapping } : {}) }, 30_000)
       this.liveSession = true; this.testSession = method === 'startTest'; this.outputOnly = params.outputOnly === true; this.sessionRate = result.sampleRate; await this.plugins.commit(worker)
       if (method === 'startTest' && !this.outputOnly && this.timelineGraph && this.timelineGraph.sampleRate === result.sampleRate) {
         await this.request('timeline', { action: 'load', graph: { ...this.timelineGraph, positionMs: this.timelineState?.positionMs ?? this.timelineGraph.positionMs } })
+        this.timelineLoaded = true
         if (this.timelineState?.playing) await this.request('timeline', { action: 'play' })
       }
       return result
@@ -221,17 +229,19 @@ export class AudioHostClient {
   activeSampleRate(): number | null { return this.liveSession ? this.sessionRate : null }
   isPlaybackOnly(): boolean { return this.liveSession && this.outputOnly }
   isTestSession(): boolean { return this.liveSession && this.testSession }
-  clearTimeline(): void { this.timelineGraph = null; this.timelineState = null }
+  hasActiveTimeline(): boolean { return this.isTestSession() && this.timelineLoaded }
+  clearTimeline(): void { this.timelineGraph = null; this.timelineState = null; this.timelineLoaded = false }
   async timeline(params: Record<string, unknown>): Promise<NativeAudioState | null> {
     await this.requireNativeCapabilities()
     const result = await this.request<NativeAudioState | null>('timeline', params, 30000)
-    if (params.action === 'load') this.timelineGraph = params.graph as Record<string, unknown>
-    else if (params.action === 'unload') { this.timelineGraph = null; this.timelineState = null }
-    else if (params.action === 'update' && this.timelineGraph) {
+    if (params.action === 'load') { this.timelineGraph = params.graph as Record<string, unknown>; this.timelineLoaded = true }
+    else if (params.action === 'unload') this.clearTimeline()
+    else if ((params.action === 'update' || params.action === 'attach') && this.timelineGraph) {
       const state = params.state as Record<string, unknown>
-      const tracks = this.timelineGraph.tracks as Array<Record<string, unknown>>
-      const gains = state.tracks as Array<Record<string, unknown>>
-      this.timelineGraph = { ...this.timelineGraph, ...state, tracks: tracks.map(t => ({ ...t, ...gains.find(g => g.id === t.id) })) }
+      const tracks = new Map((params.replace ? [] : this.timelineGraph.tracks as Array<Record<string, unknown>>).map(t => [t.id, t]))
+      for (const track of (params.tracks as Array<Record<string, unknown>> | undefined) ?? []) tracks.set(track.id, track)
+      const gains = (state.tracks as Array<Record<string, unknown>> | undefined) ?? []
+      this.timelineGraph = { ...this.timelineGraph, ...state, tracks: [...tracks.values()].map(t => ({ ...t, ...(state.tracks ? { gain: 0 } : {}), ...gains.find(g => g.id === t.id) })) }
     }
     this.timelineState = result; return result
   }

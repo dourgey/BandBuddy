@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "acquiredOn": "2026-10-26",
+  "sources": [
+    {
+      "file": "Emerald-Pack-1.0.zip",
+      "url": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+      "sha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70"
+    },
+    {
+      "file": "Brutal-complete.zip",
+      "url": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+      "sha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea"
+    },
+    {
+      "file": "DarkDays-Mesa2x12-V30.zip",
+      "url": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+      "sha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74"
+    },
+    {
+      "repository": "https://github.com/OpenSauce/rustortion",
+      "revision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+      "licenseManifestSha256": "de252379036ffe63bde6d1bb513abd54e1053421e995e293da29593650321c15",
+      "note": "The mirror contains 8 ENGL, 12 H&K, 8 Jensen and 10 Korg WAVs; the upstream license list includes files absent from this snapshot."
+    }
+  ]
+}

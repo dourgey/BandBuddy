@@ -117,13 +117,52 @@ Content-Type: application/json
 
 只提供 ID 对应的受管资源，不接受任意磁盘路径，不提供上传、修改曲库、删除歌曲或远程控制桌面的接口。
 
-## 网页兼容播放资源
+## 网页 PCM 连续播放
 
-对音轨资源 URL 加 `?web=1&pitch=0`，获得 44.1 kHz 双声道 192 kbps MP3。`pitch` 支持 -12 至 +12 的整数半音，使用桌面原生 Signalsmith 保持时长进行处理。网页的每轨音量与 M/S 在浏览器本地处理；改变升降调时暂停并重新加载音轨，加载后用户点击继续播放。
+发现能力新增 `pcm-stream-v1`。网页选择歌曲时请求 `GET <basePath>api/v2/songs/<songId>/playback`，返回与 manifest 相同的歌曲结构，但省略 peaks，资源 `sha256` 为空字符串。该接口只读取文件元数据，不扫描整首音频计算校验和。正式下载校验仍必须使用原有 `/manifest`。
 
-对视频资源 URL 加 `?web=1`，获得无声 H.264 MP4，音频始终来自分轨。首次转换可能较慢，网页显示加载状态。转换串行执行、相同资源/调性请求去重，在当前 LAN 会话内缓存。缓存最多 128 个转换资源，超过后重新开关 LAN 模式清理；缓存不包括用户曲库文件。网页使用流式播放，避免将长歌曲的所有解码音轨同时放入移动设备内存。
+网页使用 `new URL('api/v1/pcm', baseUrl)` 构造连接地址，再将 `http:` 替换为 `ws:`（`https:` 对应 `wss:`）。稳定根地址也支持 `/api/v1/pcm`，使用访问首页时签发的 HttpOnly 会话 Cookie。升级连接沿用局域网地址、Host、同源 Origin 和会话验证；最多四个独立连接，关闭 LAN 会立即关闭所有连接及其处理进程。
 
-原始 manifest 的长度、类型、校验和**不适用于**这些动态转换资源。移动端正式同步优先使用原始下载。
+电脑使用一个 FFmpeg 解码进程按需读取已有分轨，原生 `bandbuddy-audio-host --lan-pcm` 使用持续的 Signalsmith 处理器变速、变调和混音。输出为 **48 kHz、双声道、交错 little-endian Float32 PCM**，无 WAV 文件头，无 MP3/AAC 编码。音频负载固定约 384000 字节/秒（3.072 Mbps），与歌曲包含多少分轨无关。原速原调绕过伸缩算法；鼓轨参与变速但不升降调。整个乐器混音总线不使用仅适合人声的共振峰锁定。
+
+客户端控制为 JSON 文本帧，单条最多 16 KiB：
+
+```json
+{
+  "type":"configure", "generation":1,
+  "songId":"11111111-1111-4111-8111-111111111111",
+  "position":0, "rate":1, "pitch":0, "playing":true,
+  "mix":[{"gain":1,"muted":false,"solo":false,"visible":true}],
+  "loop":null
+}
+```
+
+`mix` 顺序必须与 playback 元数据的全部 stems 一致。`generation` 是递增的正 uint32；`position` 和循环起止以**原歌曲秒数**表示；`rate` 范围 0.5–2，`pitch` 为 -12 至 +12 的整数。`loop` 可设为 `{"start":10,"end":20}`。完整轨与细分替代轨不能同时可见；手动导入的已有分轨按独立轨道处理。会话不改变电脑的播放位置、混音或音频设备。
+
+电脑返回 `{"type":"ready","generation":1}` 后，客户端以 `{"type":"pull","generation":1,"count":20}` 申请音频。每次 count 范围 1–24，电脑待发送额度最多 24；没有额度便停止推进解码/处理，管道和 WebSocket 队列均有上限。每包最多 960 帧，即 20 ms。普通网页以约 400 ms 为目标预读窗口，先收到约 160 ms 再安排播放；不足时冻结歌曲时钟并缓冲，避免静默走进度。
+
+PCM 使用二进制帧，40 字节头之后紧跟 `frames * 2` 个 Float32 样本。头字段均为 little-endian：
+
+| 偏移 | 类型 | 内容 |
+| --- | --- | --- |
+| 0 | uint32 | `0x314d4350`，即 PCM1 |
+| 4 | uint32 | generation |
+| 8 | uint32 | 本 generation 从 0 递增的包序号 |
+| 12 | uint32 | frames，最大 960 |
+| 16 | float64 | 本包第一帧对应的原歌曲秒数 |
+| 24 | float64 | 本包播放倍速 |
+| 32 | uint32 | sampleRate，固定 48000 |
+| 36 | uint32 | flags，bit 0 表示歌曲最后一包 |
+
+循环时原歌曲时间回到 A，输出音频时钟连续；播放器使用包内时间同步歌词和视频。结束时还会返回 `{"type":"ended","generation":1}`。出错返回 `{"type":"error","generation":1,"message":"…"}`，随后客户端停止旧音频并显示重试入口。
+
+分轨音量、静音、Solo、完整轨/细分轨切换使用 `{"type":"mix","generation":1,"mix":[...]}`，更新同一连续处理器的增益，不重新加载歌曲。调节倍速、调性或跳转时发送新 generation；旧 generation 音频不再接收。倍速/调性切换保留已缓冲音频，并在相同歌曲位置以短交叉淡化切换；跳转立即清理旧队列。循环边界也有短淡化。普通 HTTP 页面直接安排短 AudioBuffer 播放，不依赖 AudioWorklet 或浏览器端音频算法。
+
+## 兼容资源
+
+旧版音轨 URL 的 `?web=1&pitch=0` 仍返回 44.1 kHz 双声道 192 kbps MP3，`pitch` 支持 -12 至 +12。当前网页音频不再使用这个整轨转换接口。
+
+视频 URL 的 `?web=1` 仍返回无声 H.264 MP4；首次视频转换可能等待，独立于 PCM 音频。旧版兼容资源转换串行执行，相同资源/调性请求去重，最多缓存 128 个资源，缓存只在当前 LAN 会话内有效。原始 manifest 的长度、类型、校验和不适用于动态转换资源或 PCM 音频。
 
 ## 错误与生命周期
 
@@ -131,6 +170,6 @@ JSON 错误形如 `{"error":"NOT_FOUND"}`。主要状态：400 请求/协议版�
 
 ## 开发与验证
 
-`pnpm build` 生成 `out/renderer/lan.html` 与其资源；桌面服务从构建后的 renderer 目录提供页面。开发模式开启 LAN 前也需要构建一次页面。接口测试：`pnpm exec vitest run tests/lan.test.ts tests/stem-import.test.ts`。
+`pnpm native:audio` 构建原生 PCM 接口；`pnpm build` 生成 `out/renderer/lan.html` 与其资源。桌面服务从构建后的 renderer 目录提供页面；开发模式开启 LAN 前也需要构建一次页面。针对性测试：`pnpm exec vitest run tests/lan.test.ts tests/lan-pitch.test.ts tests/lan-pcm.test.ts tests/lan-player.test.ts`。PCM 集成测试使用真实 FFmpeg、原生处理器和 WebSocket，覆盖立体声逐采样混音、变速/变调频谱、起点/末帧、额度、快速切换、独立会话、实时混音、循环与关闭。
 
 已有分轨导入沿用 App 的九个轨道槽位，一次支持 2–9 条音轨；每条可以选择预设名称或输入自定义名称。文件标准化到统一时长但不移动起点，时长差超过 500 ms 时显示补静音确认。曲库迁移新增可空的轨道名称字段，旧曲目继续显示原预设名称。

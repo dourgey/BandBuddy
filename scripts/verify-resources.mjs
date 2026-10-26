@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verifyBundledIrs } from './verify-bundled-irs.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const manifest = JSON.parse(readFileSync(path.join(root, 'resources', 'tool-manifest.json'), 'utf8'))
@@ -11,6 +12,7 @@ const targetKey = `${targetPlatform}-${targetArch}`
 const target = manifest.targets[targetKey]
 const bin = path.join(root, 'resources', 'bin')
 const failures = []
+verifyBundledIrs()
 
 if (!target) {
   console.error(`Unsupported desktop tool target: ${targetKey}`)

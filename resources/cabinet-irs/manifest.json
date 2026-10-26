@@ -1,0 +1,4278 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "c1d0a337732ae6407b30055305e3ae579a9231b0a515b27795fb206946ef19fb",
+      "file": "jester-emerald/c1d0a337732ae6407b30055305e3ae579a9231b0a515b27795fb206946ef19fb.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Nacho Guacamole",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 198.79166666666669,
+      "metadata": {
+        "sha256": "c1d0a337732ae6407b30055305e3ae579a9231b0a515b27795fb206946ef19fb",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 198.79166666666669,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 9542,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Up Left",
+        "originalFileName": "1_Nacho_Guacamole_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/1_Nacho_Guacamole_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "SM57",
+        "Nacho Guacamole",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Nacho Guacamole",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Nacho Guacamole by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "d16f282086b8f076a4b9e5dbefe0417b276b17eb52c5c6e5c394039554e07d89",
+      "file": "jester-emerald/d16f282086b8f076a4b9e5dbefe0417b276b17eb52c5c6e5c394039554e07d89.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Pickle Punisher",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 182.9375,
+      "metadata": {
+        "sha256": "d16f282086b8f076a4b9e5dbefe0417b276b17eb52c5c6e5c394039554e07d89",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 182.9375,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 8781,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Up Left",
+        "originalFileName": "2_Pickle_Punisher_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/2_Pickle_Punisher_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "SM57",
+        "Pickle Punisher",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Pickle Punisher",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Pickle Punisher by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "26724625ecfd357991daa5deec96a965a8f75678757315f0f63b2e329a40971e",
+      "file": "jester-emerald/26724625ecfd357991daa5deec96a965a8f75678757315f0f63b2e329a40971e.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Wasabi Warrior",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 188.08333333333331,
+      "metadata": {
+        "sha256": "26724625ecfd357991daa5deec96a965a8f75678757315f0f63b2e329a40971e",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 188.08333333333331,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 9028,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Up Left",
+        "originalFileName": "3_Wasabi_Warrior_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/3_Wasabi_Warrior_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "SM57",
+        "Wasabi Warrior",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Wasabi Warrior",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Wasabi Warrior by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "e94f11ed97831f440fc5d6b867b424c9c33daabf89fd93a0ccd00b0aa6b1e465",
+      "file": "jester-emerald/e94f11ed97831f440fc5d6b867b424c9c33daabf89fd93a0ccd00b0aa6b1e465.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Pesto Paladin",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 190.8125,
+      "metadata": {
+        "sha256": "e94f11ed97831f440fc5d6b867b424c9c33daabf89fd93a0ccd00b0aa6b1e465",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 190.8125,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 9159,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "e606"
+        ],
+        "position": "Up Left",
+        "originalFileName": "4_Pesto_Paladin_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/4_Pesto_Paladin_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "e606",
+        "Pesto Paladin",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Pesto Paladin",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Pesto Paladin by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "adfd528a923df9825a1294bd17437aaf99a3d7f1f5e5ef1ed2b5dd43a2c74cd0",
+      "file": "jester-emerald/adfd528a923df9825a1294bd17437aaf99a3d7f1f5e5ef1ed2b5dd43a2c74cd0.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Don Spinacio",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 186.91666666666669,
+      "metadata": {
+        "sha256": "adfd528a923df9825a1294bd17437aaf99a3d7f1f5e5ef1ed2b5dd43a2c74cd0",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 186.91666666666669,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 8972,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Down Left",
+        "originalFileName": "5_Don_Spinacio_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/5_Don_Spinacio_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "SM57",
+        "Don Spinacio",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Don Spinacio",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Don Spinacio by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "b21acae52a66b04ded8592672345d184120d0d669e12fc8f89559803e6b391b7",
+      "file": "jester-emerald/b21acae52a66b04ded8592672345d184120d0d669e12fc8f89559803e6b391b7.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Marshall 1960AX · Kill Dill",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 185.5625,
+      "metadata": {
+        "sha256": "b21acae52a66b04ded8592672345d184120d0d669e12fc8f89559803e6b391b7",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 185.5625,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 8907,
+        "leadingSilenceFrames": 0,
+        "pack": "Emerald 1.0",
+        "cabinet": "Marshall 1960AX 4×12 (1998)",
+        "speakers": [
+          "Celestion Greenback G12M 25W"
+        ],
+        "microphones": [
+          "e606"
+        ],
+        "position": "Down Left",
+        "originalFileName": "6_Kill_Dill_48.wav",
+        "originalPath": "Emerald Pack 1.0/Impulses/48kHz/6_Kill_Dill_48.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/Emerald-Pack-1.0.zip",
+        "sourceArchiveSha256": "a5b3eeea4816bf94d85182341877b42876dfa0cd6c2c570cf6761933b0c79d70",
+        "licenseEvidence": [
+          "licenses/Jesters-Emerald-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Emerald",
+        "Marshall",
+        "1960AX",
+        "Greenback",
+        "G12M",
+        "e606",
+        "Kill Dill",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Marshall 1960AX · Kill Dill",
+        "sourceUrl": "https://www.jester-dyne-productions.com/emerald-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Marshall 1960AX · Kill Dill by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/emerald-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "48b4e8dc8bde8595f8b8153128e99debd981c30b2b7a427e8bf8f3db0a84f49f",
+      "file": "jester-brutal/48b4e8dc8bde8595f8b8153128e99debd981c30b2b7a427e8bf8f3db0a84f49f.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Cookie Monster",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1196.25,
+      "metadata": {
+        "sha256": "48b4e8dc8bde8595f8b8153128e99debd981c30b2b7a427e8bf8f3db0a84f49f",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1196.25,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 57420,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "1_Cookie_Monster.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/1_Cookie_Monster.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Cookie Monster",
+        "SM57",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Cookie Monster",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Cookie Monster by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "92e702fa7cf3d9f5f8bddb9e27c5f7cbdf770c60334b1db9681dfdb1af27bdc9",
+      "file": "jester-brutal/92e702fa7cf3d9f5f8bddb9e27c5f7cbdf770c60334b1db9681dfdb1af27bdc9.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Darth Genocider",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1111.8541666666665,
+      "metadata": {
+        "sha256": "92e702fa7cf3d9f5f8bddb9e27c5f7cbdf770c60334b1db9681dfdb1af27bdc9",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1111.8541666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 53369,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "DV-77"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "2_Darth_Genocider.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/2_Darth_Genocider.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Darth Genocider",
+        "SM57",
+        "DV-77",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Darth Genocider",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Darth Genocider by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "267d5e2e0b3fce34e00f31ddf48e7b2002462a1af2336d46dfe764976fc18070",
+      "file": "jester-brutal/267d5e2e0b3fce34e00f31ddf48e7b2002462a1af2336d46dfe764976fc18070.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Kitten Slayer",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.75,
+      "metadata": {
+        "sha256": "267d5e2e0b3fce34e00f31ddf48e7b2002462a1af2336d46dfe764976fc18070",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.75,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61236,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Rockdriver Junior"
+        ],
+        "microphones": [
+          "e606"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "3_Kitten_Slayer.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/3_Kitten_Slayer.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Kitten Slayer",
+        "e606",
+        "Rockdriver Junior",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Kitten Slayer",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Kitten Slayer by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "aaf1052a508280ffe624d1760a84dbac80792b802d30d2402530d1d8344ad168",
+      "file": "jester-brutal/aaf1052a508280ffe624d1760a84dbac80792b802d30d2402530d1d8344ad168.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Kaiju Tamer",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "aaf1052a508280ffe624d1760a84dbac80792b802d30d2402530d1d8344ad168",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Rockdriver Junior",
+          "DV-77"
+        ],
+        "microphones": [
+          "e606",
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "4_Kaiju_Tamer.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/4_Kaiju_Tamer.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Kaiju Tamer",
+        "e606",
+        "SM57",
+        "Rockdriver Junior",
+        "DV-77",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Kaiju Tamer",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Kaiju Tamer by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "c2ad1bc7eba3d56f1b60c0e03b11fdb9cbcf4266804cb5f23a15b4a6ceb13db0",
+      "file": "jester-brutal/c2ad1bc7eba3d56f1b60c0e03b11fdb9cbcf4266804cb5f23a15b4a6ceb13db0.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Iceburn Suicide",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "c2ad1bc7eba3d56f1b60c0e03b11fdb9cbcf4266804cb5f23a15b4a6ceb13db0",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Rockdriver Junior",
+          "Vintage 30"
+        ],
+        "microphones": [
+          "e606",
+          "PDMIC75"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "5_Iceburn_Suicide.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/5_Iceburn_Suicide.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Iceburn Suicide",
+        "e606",
+        "PDMIC75",
+        "Rockdriver Junior",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Iceburn Suicide",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Iceburn Suicide by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "e6ee5508852cc8eecccf86802b1b9057f892a5aba8b97faf2e168dd76b2d2b1d",
+      "file": "jester-brutal/e6ee5508852cc8eecccf86802b1b9057f892a5aba8b97faf2e168dd76b2d2b1d.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Vertical Lip Stabber",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "e6ee5508852cc8eecccf86802b1b9057f892a5aba8b97faf2e168dd76b2d2b1d",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "DV-77",
+          "Vintage 30"
+        ],
+        "microphones": [
+          "SM57",
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "6_Vertical_Lip_Stabber.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/6_Vertical_Lip_Stabber.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Vertical Lip Stabber",
+        "SM57",
+        "SM57",
+        "DV-77",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Vertical Lip Stabber",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Vertical Lip Stabber by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "280e0528e37de8ca0c256926e20d7af8b627b4c01dc2739a9c8c4a2d348941de",
+      "file": "jester-brutal/280e0528e37de8ca0c256926e20d7af8b627b4c01dc2739a9c8c4a2d348941de.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Manslaughter Joe",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "280e0528e37de8ca0c256926e20d7af8b627b4c01dc2739a9c8c4a2d348941de",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Vintage 30",
+          "DV-77"
+        ],
+        "microphones": [
+          "PDMIC75",
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "7_Manslaughter_Joe.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/7_Manslaughter_Joe.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Manslaughter Joe",
+        "PDMIC75",
+        "SM57",
+        "Vintage 30",
+        "DV-77",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Manslaughter Joe",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Manslaughter Joe by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "c345b2e58ae6b003fe25a4fe46bd2593568c33fd97e844cd1087eae111f33e59",
+      "file": "jester-brutal/c345b2e58ae6b003fe25a4fe46bd2593568c33fd97e844cd1087eae111f33e59.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Big Bubba",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "c345b2e58ae6b003fe25a4fe46bd2593568c33fd97e844cd1087eae111f33e59",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Rockdriver Junior",
+          "Vintage 30"
+        ],
+        "microphones": [
+          "e606",
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "8_Big_Bubba.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/8_Big_Bubba.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Big Bubba",
+        "e606",
+        "SM57",
+        "Rockdriver Junior",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Big Bubba",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Big Bubba by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "e15d16bbc727a0a3a5033f1498a23f796ec712cd163ebc70f86bfc0960fe1146",
+      "file": "jester-brutal/e15d16bbc727a0a3a5033f1498a23f796ec712cd163ebc70f86bfc0960fe1146.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Devils Cunnilingus",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1196.25,
+      "metadata": {
+        "sha256": "e15d16bbc727a0a3a5033f1498a23f796ec712cd163ebc70f86bfc0960fe1146",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1196.25,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 57420,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Vintage 30"
+        ],
+        "microphones": [
+          "PDMIC75"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "9_Devils_Cunnilingus.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/9_Devils_Cunnilingus.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Devils Cunnilingus",
+        "PDMIC75",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Devils Cunnilingus",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Devils Cunnilingus by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "30ccff673ce5601d75048d89f3f5233d544edc41b2a0f2848f63ceb00cbb2044",
+      "file": "jester-brutal/30ccff673ce5601d75048d89f3f5233d544edc41b2a0f2848f63ceb00cbb2044.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · October 32th",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "30ccff673ce5601d75048d89f3f5233d544edc41b2a0f2848f63ceb00cbb2044",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "DV-77"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "10_October_32th.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/10_October_32th.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "October 32th",
+        "SM57",
+        "DV-77",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · October 32th",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · October 32th by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "a4cf39c9e7ab6d3ce10d01726419f7d410410970301034983a7c8cd0a2717860",
+      "file": "jester-brutal/a4cf39c9e7ab6d3ce10d01726419f7d410410970301034983a7c8cd0a2717860.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Wumbo",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7708333333333,
+      "metadata": {
+        "sha256": "a4cf39c9e7ab6d3ce10d01726419f7d410410970301034983a7c8cd0a2717860",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7708333333333,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61237,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Rockdriver Junior"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "11_Wumbo.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/11_Wumbo.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Wumbo",
+        "SM57",
+        "Rockdriver Junior",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Wumbo",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Wumbo by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "6b05c813831d967c983be2632021ddeca38209625b4083c4709c3636c627008e",
+      "file": "jester-brutal/6b05c813831d967c983be2632021ddeca38209625b4083c4709c3636c627008e.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · World Collider",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1196.25,
+      "metadata": {
+        "sha256": "6b05c813831d967c983be2632021ddeca38209625b4083c4709c3636c627008e",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1196.25,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 57420,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "12_World_Collider.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/12_World_Collider.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "World Collider",
+        "SM57",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · World Collider",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · World Collider by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "db4e2f6493ee231922e5910848f4c76565fe88d8d305392516b83231152da77f",
+      "file": "jester-brutal/db4e2f6493ee231922e5910848f4c76565fe88d8d305392516b83231152da77f.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Cannibal Choir",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7291666666665,
+      "metadata": {
+        "sha256": "db4e2f6493ee231922e5910848f4c76565fe88d8d305392516b83231152da77f",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7291666666665,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61235,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "DV-77"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "13_Cannibal_Choir.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/13_Cannibal_Choir.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Cannibal Choir",
+        "SM57",
+        "DV-77",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Cannibal Choir",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Cannibal Choir by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "420280d44a6cb969d0599aa88f7bc733e13d39cdd051acf8b0eda1d82286ba5f",
+      "file": "jester-brutal/420280d44a6cb969d0599aa88f7bc733e13d39cdd051acf8b0eda1d82286ba5f.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Cathode Ray Fleshburn",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1196.25,
+      "metadata": {
+        "sha256": "420280d44a6cb969d0599aa88f7bc733e13d39cdd051acf8b0eda1d82286ba5f",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1196.25,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 57420,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "14_Cathode_Ray_Fleshburn.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/14_Cathode_Ray_Fleshburn.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Cathode Ray Fleshburn",
+        "SM57",
+        "Vintage 30",
+        "V30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Cathode Ray Fleshburn",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Cathode Ray Fleshburn by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "3418d5b627803b56b118bb7c86b1827f74a13547437cac21beddff5820d69ae7",
+      "file": "jester-brutal/3418d5b627803b56b118bb7c86b1827f74a13547437cac21beddff5820d69ae7.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "BG412S · Impaler Jim",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 1275.7083333333335,
+      "metadata": {
+        "sha256": "3418d5b627803b56b118bb7c86b1827f74a13547437cac21beddff5820d69ae7",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 1275.7083333333335,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 61234,
+        "leadingSilenceFrames": 0,
+        "pack": "Brutal 1.0",
+        "cabinet": "Modified Behringer BG412S 4×12",
+        "speakers": [
+          "DV-77"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "Upper speakers",
+        "originalFileName": "15_Impaler_Jim.wav",
+        "originalPath": "Jesters_Brutal_Pack_1.0/Impulses/48kHz/15_Impaler_Jim.wav",
+        "sourceDownloadUrl": "https://www.jester-dyne-productions.com/content/files/2023/04/JestersBrutalPack_1.0.zip",
+        "sourceArchiveSha256": "299dc053f01ebd1e980459adc48f9c6b8a8c7af91917b4f946512eefdbb311ea",
+        "licenseEvidence": [
+          "licenses/Jesters-Brutal-IR-Pack-Handbook.pdf"
+        ],
+        "licensePage": 3,
+        "captureNotes": "保留完整响应与少量房间声。手册 patch 表标 PDMIC75，设备页标 PDMIC78，具体型号存在不一致。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Brutal",
+        "Behringer",
+        "BG412S",
+        "Impaler Jim",
+        "SM57",
+        "DV-77",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "BG412S · Impaler Jim",
+        "sourceUrl": "https://www.jester-dyne-productions.com/brutal-ir-pack/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "BG412S · Impaler Jim by Jester Dyne Productions (jesterdyne) — https://www.jester-dyne-productions.com/brutal-ir-pack/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "9c4e40a07464d9e8a9d5690f03b385709c78c1be132faca7fec91551defd980f",
+      "file": "dark-days-mesa/9c4e40a07464d9e8a9d5690f03b385709c78c1be132faca7fec91551defd980f.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cap 1in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "9c4e40a07464d9e8a9d5690f03b385709c78c1be132faca7fec91551defd980f",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cap 1in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cap_1in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cap_1in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cap 1in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cap 1in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "a95bca9718e52f466a7b5ca4a4a660b665efa7f56ef1019a880fefae58d3c980",
+      "file": "dark-days-mesa/a95bca9718e52f466a7b5ca4a4a660b665efa7f56ef1019a880fefae58d3c980.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cap 2in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "a95bca9718e52f466a7b5ca4a4a660b665efa7f56ef1019a880fefae58d3c980",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cap 2in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cap_2in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cap_2in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cap 2in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cap 2in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "0a1aebac4ff3577a4d5923ea2d74fa1d849721b59aabb651c329e3294038412f",
+      "file": "dark-days-mesa/0a1aebac4ff3577a4d5923ea2d74fa1d849721b59aabb651c329e3294038412f.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cap grille",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "0a1aebac4ff3577a4d5923ea2d74fa1d849721b59aabb651c329e3294038412f",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cap grille",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cap_grille.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cap_grille.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cap grille",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cap grille",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "078c6d65c964b05e8abcc06502185426f61efeddd7da0ed7c633ed6e41b28821",
+      "file": "dark-days-mesa/078c6d65c964b05e8abcc06502185426f61efeddd7da0ed7c633ed6e41b28821.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cone 1in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "078c6d65c964b05e8abcc06502185426f61efeddd7da0ed7c633ed6e41b28821",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cone 1in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cone_1in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cone_1in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cone 1in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cone 1in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "54b322df3c6f4723b46ceed808feb6c16b5684e76daa718a15110de73adce792",
+      "file": "dark-days-mesa/54b322df3c6f4723b46ceed808feb6c16b5684e76daa718a15110de73adce792.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cone 2in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "54b322df3c6f4723b46ceed808feb6c16b5684e76daa718a15110de73adce792",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cone 2in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cone_2in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cone_2in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cone 2in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cone 2in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "a37706692af02cfea0740b30fd8fc8997c3154283b512711e8b2a412e743bbaf",
+      "file": "dark-days-mesa/a37706692af02cfea0740b30fd8fc8997c3154283b512711e8b2a412e743bbaf.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · cone grille",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "a37706692af02cfea0740b30fd8fc8997c3154283b512711e8b2a412e743bbaf",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "cone grille",
+        "originalFileName": "DarkDays-Mesa2x12-V30_cone_grille.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_cone_grille.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "cone grille",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · cone grille",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "8036ea1ecc5a3d9ccebfff6b62af7794d2d6ff0b5da6e9eb532be432ad37760b",
+      "file": "dark-days-mesa/8036ea1ecc5a3d9ccebfff6b62af7794d2d6ff0b5da6e9eb532be432ad37760b.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · edge 1in offax30",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "8036ea1ecc5a3d9ccebfff6b62af7794d2d6ff0b5da6e9eb532be432ad37760b",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "edge 1in offax30",
+        "originalFileName": "DarkDays-Mesa2x12-V30_edge_1in_offax30.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_edge_1in_offax30.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "edge 1in offax30",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · edge 1in offax30",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "84d0fb0617f4ecd0ed5364de0f2ecc377516e9ee08fda8fbbe10a9dc4b896172",
+      "file": "dark-days-mesa/84d0fb0617f4ecd0ed5364de0f2ecc377516e9ee08fda8fbbe10a9dc4b896172.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · edge 1in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "84d0fb0617f4ecd0ed5364de0f2ecc377516e9ee08fda8fbbe10a9dc4b896172",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "edge 1in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_edge_1in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_edge_1in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "edge 1in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · edge 1in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "8c46b5c19f4a295c138518d77e155a6ef65ae6b91140e97286c215d04cc17bc1",
+      "file": "dark-days-mesa/8c46b5c19f4a295c138518d77e155a6ef65ae6b91140e97286c215d04cc17bc1.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · edge 2in",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "8c46b5c19f4a295c138518d77e155a6ef65ae6b91140e97286c215d04cc17bc1",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "edge 2in",
+        "originalFileName": "DarkDays-Mesa2x12-V30_edge_2in.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_edge_2in.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "edge 2in",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · edge 2in",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "3d22911a9b0360f6f2176fed2953fada8fca5ee7d04fd74b9136ef49cec8bebb",
+      "file": "dark-days-mesa/3d22911a9b0360f6f2176fed2953fada8fca5ee7d04fd74b9136ef49cec8bebb.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · edge grille",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "3d22911a9b0360f6f2176fed2953fada8fca5ee7d04fd74b9136ef49cec8bebb",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "edge grille",
+        "originalFileName": "DarkDays-Mesa2x12-V30_edge_grille.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_edge_grille.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "edge grille",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · edge grille",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "b1356d3507c05f1ba5d6c179d2e00491d269c1869a82dc680cebb3007b6fd9f6",
+      "file": "dark-days-mesa/b1356d3507c05f1ba5d6c179d2e00491d269c1869a82dc680cebb3007b6fd9f6.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · MIX Balanced",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "b1356d3507c05f1ba5d6c179d2e00491d269c1869a82dc680cebb3007b6fd9f6",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "MIX Balanced",
+        "originalFileName": "DarkDays-Mesa2x12-V30_MIX_Balanced.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_MIX_Balanced.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "MIX Balanced",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · MIX Balanced",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "89cd9b266e78db8ea1ab38c38534c9a3364dd37c45095af1427c165f7be1c283",
+      "file": "dark-days-mesa/89cd9b266e78db8ea1ab38c38534c9a3364dd37c45095af1427c165f7be1c283.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · MIX Deep",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "89cd9b266e78db8ea1ab38c38534c9a3364dd37c45095af1427c165f7be1c283",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "MIX Deep",
+        "originalFileName": "DarkDays-Mesa2x12-V30_MIX_Deep.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_MIX_Deep.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "MIX Deep",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · MIX Deep",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "ae0ec07a5a922e098dd506512665c04719791fe49b4b410a33e59bd63068d4ff",
+      "file": "dark-days-mesa/ae0ec07a5a922e098dd506512665c04719791fe49b4b410a33e59bd63068d4ff.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "MESA 2×12 V30 · MIX Tight",
+      "sampleRate": 48000,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "ae0ec07a5a922e098dd506512665c04719791fe49b4b410a33e59bd63068d4ff",
+        "processing": "original",
+        "sampleRate": 48000,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 24000,
+        "leadingSilenceFrames": 0,
+        "pack": "Dark Days MESA 2×12 V30",
+        "cabinet": "MESA/Boogie closed-back 2×12",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "Sennheiser MD421"
+        ],
+        "position": "MIX Tight",
+        "originalFileName": "DarkDays-Mesa2x12-V30_MIX_Tight.wav",
+        "originalPath": "DarkDays-Mesa2x12-V30-IRs/DarkDays-Mesa2x12-V30_MIX_Tight.wav",
+        "sourceDownloadUrl": "https://darkdays.net/amp/DarkDays-Mesa2x12-V30-IRs_CC-BY-4.0_attribution-required_darkdays.net.zip",
+        "sourceArchiveSha256": "4d4fd54253a824982be71bd61601c3280c4df1a1afc949995eac7e072d444d74",
+        "licenseEvidence": [
+          "licenses/Dark-Days-Mesa-LICENSE.txt",
+          "licenses/Dark-Days-Mesa-README.md"
+        ]
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "MESA",
+        "Mesa Boogie",
+        "2x12",
+        "V30",
+        "Vintage 30",
+        "MD421",
+        "Dark Days",
+        "MIX Tight",
+        "箱体",
+        "IR",
+        "Dark Days"
+      ],
+      "attribution": {
+        "author": "Dark Days",
+        "title": "MESA 2×12 V30 · MIX Tight",
+        "sourceUrl": "https://www.tone3000.com/tones/messa-boogie-2x12-vintage-30-dark-days-82664",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "音频未修改，仅重命名文件。",
+        "credit": "Mesa 2x12 V30 impulse responses by Dark Days — https://darkdays.net (CC BY 4.0)"
+      }
+    },
+    {
+      "id": "e70a0cfc4b43662f8d77b66285adeee382d03fa8a7d73a6c8b8af263f0ada02e",
+      "file": "jester-engl/e70a0cfc4b43662f8d77b66285adeee382d03fa8a7d73a6c8b8af263f0ada02e.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · e606 center 02",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "e70a0cfc4b43662f8d77b66285adeee382d03fa8a7d73a6c8b8af263f0ada02e",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "E606"
+        ],
+        "position": "center 02",
+        "originalFileName": "e606-center-02.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116738/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/e606-center-02.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "e606 center 02",
+        "E606",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · e606 center 02",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116738/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · e606 center 02 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116738/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "3e678d51cc1a8299f8f6e37dd4974039cb3a8e7039a33ebb816014576b9c5f35",
+      "file": "jester-engl/3e678d51cc1a8299f8f6e37dd4974039cb3a8e7039a33ebb816014576b9c5f35.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · e606 left 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.5170068027211,
+      "metadata": {
+        "sha256": "3e678d51cc1a8299f8f6e37dd4974039cb3a8e7039a33ebb816014576b9c5f35",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.5170068027211,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13782,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "E606"
+        ],
+        "position": "left 01",
+        "originalFileName": "e606-left-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116731/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/e606-left-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "e606 left 01",
+        "E606",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · e606 left 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116731/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · e606 left 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116731/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "f47934cc772867cd536d1b2120b553c5cbaedffba3326c58d53c8adf902f47b7",
+      "file": "jester-engl/f47934cc772867cd536d1b2120b553c5cbaedffba3326c58d53c8adf902f47b7.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sc450 center 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "f47934cc772867cd536d1b2120b553c5cbaedffba3326c58d53c8adf902f47b7",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SC450"
+        ],
+        "position": "center 01",
+        "originalFileName": "sc450-center-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116732/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sc450-center-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sc450 center 01",
+        "SC450",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sc450 center 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116732/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sc450 center 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116732/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "3bbf35514bfa671409be3cc75ce96a0dbc1fd41a149614fb93d7021eef13459c",
+      "file": "jester-engl/3bbf35514bfa671409be3cc75ce96a0dbc1fd41a149614fb93d7021eef13459c.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sc450 left 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "3bbf35514bfa671409be3cc75ce96a0dbc1fd41a149614fb93d7021eef13459c",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SC450"
+        ],
+        "position": "left 01",
+        "originalFileName": "sc450-left-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116733/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sc450-left-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sc450 left 01",
+        "SC450",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sc450 left 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116733/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sc450 left 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116733/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "89b0b0aa77705dbef0f90a9845a688e09f77119f6be6d2297d7b9d5b261da372",
+      "file": "jester-engl/89b0b0aa77705dbef0f90a9845a688e09f77119f6be6d2297d7b9d5b261da372.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sc450 right 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "89b0b0aa77705dbef0f90a9845a688e09f77119f6be6d2297d7b9d5b261da372",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SC450"
+        ],
+        "position": "right 01",
+        "originalFileName": "sc450-right-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116734/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sc450-right-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sc450 right 01",
+        "SC450",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sc450 right 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116734/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sc450 right 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116734/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "ef8d258eee57b2f0fa1e678b4bdf9c8f535f03039172b0831dcc87b0e7d99bd2",
+      "file": "jester-engl/ef8d258eee57b2f0fa1e678b4bdf9c8f535f03039172b0831dcc87b0e7d99bd2.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sm57 center 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "ef8d258eee57b2f0fa1e678b4bdf9c8f535f03039172b0831dcc87b0e7d99bd2",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "center 01",
+        "originalFileName": "sm57-center-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116735/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sm57-center-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sm57 center 01",
+        "SM57",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sm57 center 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116735/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sm57 center 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116735/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "5c24775a1eaecec16e5e76aa1e8a16203c3b5ec6f4937c13a11980fba1c164b2",
+      "file": "jester-engl/5c24775a1eaecec16e5e76aa1e8a16203c3b5ec6f4937c13a11980fba1c164b2.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sm57 left 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "5c24775a1eaecec16e5e76aa1e8a16203c3b5ec6f4937c13a11980fba1c164b2",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "left 01",
+        "originalFileName": "sm57-left-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116736/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sm57-left-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sm57 left 01",
+        "SM57",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sm57 left 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116736/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sm57 left 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116736/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "4dcdd040d15b2258354ee601c152fe580c973bfa4758382b41165b1417b2eafc",
+      "file": "jester-engl/4dcdd040d15b2258354ee601c152fe580c973bfa4758382b41165b1417b2eafc.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "ENGL V30 · sm57 right 01",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 312.49433106575964,
+      "metadata": {
+        "sha256": "4dcdd040d15b2258354ee601c152fe580c973bfa4758382b41165b1417b2eafc",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 312.49433106575964,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 13781,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "ENGL V30",
+        "speakers": [
+          "Celestion Vintage 30"
+        ],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "right 01",
+        "originalFileName": "sm57-right-01.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116737/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Engl/sm57-right-01.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "原始标题标记 ENGL/V30，正文部分复用 H&K 描述；精确箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "ENGL V30",
+        "Engl",
+        "sm57 right 01",
+        "SM57",
+        "V30",
+        "Vintage 30",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "ENGL V30 · sm57 right 01",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116737/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "ENGL V30 · sm57 right 01 by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116737/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "ad90ea4c7bb7c1ced26210a8940bd96eec457aee7458f48f00aa25329dd74069",
+      "file": "jester-hk/ad90ea4c7bb7c1ced26210a8940bd96eec457aee7458f48f00aa25329dd74069.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · 606 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "ad90ea4c7bb7c1ced26210a8940bd96eec457aee7458f48f00aa25329dd74069",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "center",
+        "originalFileName": "606-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99933/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/606-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "606 center",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · 606 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99933/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · 606 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99933/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "c85efedda6fff0b2048b7732c8c6cdf185d152ebeae690fc1dbde97bdd333e3c",
+      "file": "jester-hk/c85efedda6fff0b2048b7732c8c6cdf185d152ebeae690fc1dbde97bdd333e3c.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · 606 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "c85efedda6fff0b2048b7732c8c6cdf185d152ebeae690fc1dbde97bdd333e3c",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "left",
+        "originalFileName": "606-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99934/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/606-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "606 left",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · 606 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99934/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · 606 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99934/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "e209a7ed6307c488d41daf4c800c0f0cabf03b8e5f905946987f59b7cb562b9e",
+      "file": "jester-hk/e209a7ed6307c488d41daf4c800c0f0cabf03b8e5f905946987f59b7cb562b9e.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · 606 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "e209a7ed6307c488d41daf4c800c0f0cabf03b8e5f905946987f59b7cb562b9e",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "right",
+        "originalFileName": "606-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99936/",
+          "https://freesound.org/people/jesterdyne/sounds/99935/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/606-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "606 right",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · 606 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/packs/6385/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · 606 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/packs/6385/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "fbf48c1cb3a029a4badcfba3ebedb8a4c132ab9c6ec187a6b853bef3fd73fdb1",
+      "file": "jester-hk/fbf48c1cb3a029a4badcfba3ebedb8a4c132ab9c6ec187a6b853bef3fd73fdb1.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · bd300 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "fbf48c1cb3a029a4badcfba3ebedb8a4c132ab9c6ec187a6b853bef3fd73fdb1",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "BD300"
+        ],
+        "position": "center",
+        "originalFileName": "bd300-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99937/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/bd300-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "bd300 center",
+        "BD300",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · bd300 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99937/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · bd300 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99937/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "10b38367298d7c96393965f646cafe241fe632ce75f340ffb1ec64f05d9564a8",
+      "file": "jester-hk/10b38367298d7c96393965f646cafe241fe632ce75f340ffb1ec64f05d9564a8.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · bd300 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "10b38367298d7c96393965f646cafe241fe632ce75f340ffb1ec64f05d9564a8",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "BD300"
+        ],
+        "position": "left",
+        "originalFileName": "bd300-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99938/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/bd300-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "bd300 left",
+        "BD300",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · bd300 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99938/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · bd300 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99938/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "f13ea4eff7732a3b7b527396e49b771f9491fc23819f53e1963de3de96552c84",
+      "file": "jester-hk/f13ea4eff7732a3b7b527396e49b771f9491fc23819f53e1963de3de96552c84.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · bd300 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "f13ea4eff7732a3b7b527396e49b771f9491fc23819f53e1963de3de96552c84",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "BD300"
+        ],
+        "position": "right",
+        "originalFileName": "bd300-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99940/",
+          "https://freesound.org/people/jesterdyne/sounds/99939/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/bd300-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "bd300 right",
+        "BD300",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · bd300 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/packs/6385/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · bd300 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/packs/6385/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "a734540f6d274fbd3cd02278e06c319e13b14fd17bc1fb4269387a868ad9b7c1",
+      "file": "jester-hk/a734540f6d274fbd3cd02278e06c319e13b14fd17bc1fb4269387a868ad9b7c1.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · c414 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "a734540f6d274fbd3cd02278e06c319e13b14fd17bc1fb4269387a868ad9b7c1",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "C414"
+        ],
+        "position": "center",
+        "originalFileName": "c414-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99941/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/c414-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "c414 center",
+        "C414",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · c414 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99941/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · c414 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99941/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "2737fc35390edb5796701cb799599eabb78800466219551bc36145a1dd895000",
+      "file": "jester-hk/2737fc35390edb5796701cb799599eabb78800466219551bc36145a1dd895000.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · c414 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "2737fc35390edb5796701cb799599eabb78800466219551bc36145a1dd895000",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "C414"
+        ],
+        "position": "left",
+        "originalFileName": "c414-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99942/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/c414-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "c414 left",
+        "C414",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · c414 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99942/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · c414 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99942/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "53c21c2b2590e9fd5b1f0f830e6e1fef143cce69ea3c9ef90d13a26bd3075210",
+      "file": "jester-hk/53c21c2b2590e9fd5b1f0f830e6e1fef143cce69ea3c9ef90d13a26bd3075210.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · c414 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "53c21c2b2590e9fd5b1f0f830e6e1fef143cce69ea3c9ef90d13a26bd3075210",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "C414"
+        ],
+        "position": "right",
+        "originalFileName": "c414-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99944/",
+          "https://freesound.org/people/jesterdyne/sounds/99943/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/c414-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "c414 right",
+        "C414",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · c414 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/packs/6385/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · c414 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/packs/6385/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "5e8c4f97b9142172c7e95522fa17fb49f9d9d5ec887748a43f66c0446e09526e",
+      "file": "jester-hk/5e8c4f97b9142172c7e95522fa17fb49f9d9d5ec887748a43f66c0446e09526e.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · sm57 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "5e8c4f97b9142172c7e95522fa17fb49f9d9d5ec887748a43f66c0446e09526e",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "center",
+        "originalFileName": "sm57-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99945/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/sm57-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "sm57 center",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · sm57 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99945/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · sm57 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99945/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "96ec69bb5bc654da5ef640e444d8e2c57910a9805f42cf0bb96be1477e5b2563",
+      "file": "jester-hk/96ec69bb5bc654da5ef640e444d8e2c57910a9805f42cf0bb96be1477e5b2563.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · sm57 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "96ec69bb5bc654da5ef640e444d8e2c57910a9805f42cf0bb96be1477e5b2563",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "left",
+        "originalFileName": "sm57-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99946/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/sm57-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "sm57 left",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · sm57 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/99946/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · sm57 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/99946/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "b090c4016659fa21a569d5e2e2564255ac2d47af1adc09e1d984718e73a40fe9",
+      "file": "jester-hk/b090c4016659fa21a569d5e2e2564255ac2d47af1adc09e1d984718e73a40fe9.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "H&K Celestion · sm57 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 500,
+      "metadata": {
+        "sha256": "b090c4016659fa21a569d5e2e2564255ac2d47af1adc09e1d984718e73a40fe9",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 500,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 22050,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "H&K Celestion",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "right",
+        "originalFileName": "sm57-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/99948/",
+          "https://freesound.org/people/jesterdyne/sounds/99947/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Hughes%20%26%20Kettner/sm57-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 H&K/Celestion 标记；具体箱体和单元型号未确认。镜像右侧文件有重名，保留全部候选原始条目链接。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "H&K Celestion",
+        "Hughes & Kettner",
+        "sm57 right",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "H&K Celestion · sm57 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/packs/6385/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "H&K Celestion · sm57 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/packs/6385/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "e9b62c84a57b9e625f10873e30ffb8135e8b12569cf631feec1e6c4a678c8a96",
+      "file": "jester-jensen/e9b62c84a57b9e625f10873e30ffb8135e8b12569cf631feec1e6c4a678c8a96.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · e606 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "e9b62c84a57b9e625f10873e30ffb8135e8b12569cf631feec1e6c4a678c8a96",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "center",
+        "originalFileName": "e606-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116746/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/e606-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "e606 center",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · e606 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116746/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · e606 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116746/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "7a011de7dcd49756d48ee8481d3c4d851bd306d48ef4582f55274926f931db5d",
+      "file": "jester-jensen/7a011de7dcd49756d48ee8481d3c4d851bd306d48ef4582f55274926f931db5d.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · e606 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "7a011de7dcd49756d48ee8481d3c4d851bd306d48ef4582f55274926f931db5d",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "left",
+        "originalFileName": "e606-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116747/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/e606-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "e606 left",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · e606 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116747/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · e606 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116747/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "335df4df6c4708e283d29b935a0f02ac855b0c6110216cdb7d7998a3f4064f21",
+      "file": "jester-jensen/335df4df6c4708e283d29b935a0f02ac855b0c6110216cdb7d7998a3f4064f21.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · e606 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "335df4df6c4708e283d29b935a0f02ac855b0c6110216cdb7d7998a3f4064f21",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "E606"
+        ],
+        "position": "right",
+        "originalFileName": "e606-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116748/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/e606-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "e606 right",
+        "E606",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · e606 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116748/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · e606 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116748/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "5094cdfad68e8aace2b9a3ed8934ea1c65bb7577efe42f5d35850c58be01a491",
+      "file": "jester-jensen/5094cdfad68e8aace2b9a3ed8934ea1c65bb7577efe42f5d35850c58be01a491.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · sc450 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "5094cdfad68e8aace2b9a3ed8934ea1c65bb7577efe42f5d35850c58be01a491",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "SC450"
+        ],
+        "position": "center",
+        "originalFileName": "sc450-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116740/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/sc450-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "sc450 center",
+        "SC450",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · sc450 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116740/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · sc450 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116740/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "40aabd18011c03680f4610cc600f21de334bbc90416b8baba8283e71560b21a6",
+      "file": "jester-jensen/40aabd18011c03680f4610cc600f21de334bbc90416b8baba8283e71560b21a6.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · sc450 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "40aabd18011c03680f4610cc600f21de334bbc90416b8baba8283e71560b21a6",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "SC450"
+        ],
+        "position": "left",
+        "originalFileName": "sc450-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116741/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/sc450-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "sc450 left",
+        "SC450",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · sc450 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116741/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · sc450 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116741/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "894805dc8b60bd7e2b49dac582bc27a39c8d1f191fc110eb4d4145c0b63937bb",
+      "file": "jester-jensen/894805dc8b60bd7e2b49dac582bc27a39c8d1f191fc110eb4d4145c0b63937bb.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · sm57 center",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "894805dc8b60bd7e2b49dac582bc27a39c8d1f191fc110eb4d4145c0b63937bb",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "center",
+        "originalFileName": "sm57-center.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116743/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/sm57-center.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "sm57 center",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · sm57 center",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116743/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · sm57 center by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116743/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "730e36e23ce207bfd0d39afe0f5f36537345ab1535662ada1235145b8bd089f7",
+      "file": "jester-jensen/730e36e23ce207bfd0d39afe0f5f36537345ab1535662ada1235145b8bd089f7.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · sm57 left",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "730e36e23ce207bfd0d39afe0f5f36537345ab1535662ada1235145b8bd089f7",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "left",
+        "originalFileName": "sm57-left.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116744/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/sm57-left.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "sm57 left",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · sm57 left",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116744/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · sm57 left by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116744/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "749d98895eda6ea9ff6eef07afa2e8b6c503c99b4551fd648cc405d26f94703b",
+      "file": "jester-jensen/749d98895eda6ea9ff6eef07afa2e8b6c503c99b4551fd648cc405d26f94703b.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Jensen · sm57 right",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 274.08163265306126,
+      "metadata": {
+        "sha256": "749d98895eda6ea9ff6eef07afa2e8b6c503c99b4551fd648cc405d26f94703b",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 274.08163265306126,
+        "bitDepth": 24,
+        "encoding": "pcm",
+        "frames": 12087,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Jensen",
+        "speakers": [],
+        "microphones": [
+          "SM57"
+        ],
+        "position": "right",
+        "originalFileName": "sm57-right.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/116745/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/Jensen/sm57-right.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "沿用作者 Jensen 标记；具体单元与箱体型号未确认。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Jensen",
+        "Jensen",
+        "sm57 right",
+        "SM57",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Jensen · sm57 right",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/116745/",
+        "license": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Jensen · sm57 right by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/116745/ (CC-BY-4.0)"
+      }
+    },
+    {
+      "id": "faffc37ecad8a6af6e8adb5b9820214a92e10a458445bd251ac932f06aa64a58",
+      "file": "jester-korg/faffc37ecad8a6af6e8adb5b9820214a92e10a458445bd251ac932f06aa64a58.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 1×12 ac15（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "faffc37ecad8a6af6e8adb5b9820214a92e10a458445bd251ac932f06aa64a58",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "1x12-ac15.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129392/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/1x12-ac15.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "1×12 ac15",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 1×12 ac15（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129392/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 1×12 ac15（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129392/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "0aaf669376686cabdccfd2ac15ff3024f231a150d11240829add70997b75e8ad",
+      "file": "jester-korg/0aaf669376686cabdccfd2ac15ff3024f231a150d11240829add70997b75e8ad.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 1×12 black panel（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "0aaf669376686cabdccfd2ac15ff3024f231a150d11240829add70997b75e8ad",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "1x12-black-panel.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129391/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/1x12-black-panel.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "1×12 black panel",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 1×12 black panel（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129391/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 1×12 black panel（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129391/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "a52df26c256adaa8e30226b298eb5342e10ab35d089857f0f1a9bc4be4e4a6fc",
+      "file": "jester-korg/a52df26c256adaa8e30226b298eb5342e10ab35d089857f0f1a9bc4be4e4a6fc.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 1×12 tweet（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "a52df26c256adaa8e30226b298eb5342e10ab35d089857f0f1a9bc4be4e4a6fc",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "1x12-tweet.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129390/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/1x12-tweet.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "1×12 tweet",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 1×12 tweet（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129390/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 1×12 tweet（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129390/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "6bb7be5b9692041d6cb62c962a94c747c415f54a143337ef889361ec88b5ff60",
+      "file": "jester-korg/6bb7be5b9692041d6cb62c962a94c747c415f54a143337ef889361ec88b5ff60.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 1×8 tweet（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "6bb7be5b9692041d6cb62c962a94c747c415f54a143337ef889361ec88b5ff60",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "1x8-tweet.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129389/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/1x8-tweet.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "1×8 tweet",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 1×8 tweet（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129389/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 1×8 tweet（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129389/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "eaf7d819ad69355403e551580b89c1739190e5a0886cfccb4413a4aa2cbcbf50",
+      "file": "jester-korg/eaf7d819ad69355403e551580b89c1739190e5a0886cfccb4413a4aa2cbcbf50.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 2×12 ac130（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "eaf7d819ad69355403e551580b89c1739190e5a0886cfccb4413a4aa2cbcbf50",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "2x12-ac130.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129396/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/2x12-ac130.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "2×12 ac130",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 2×12 ac130（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129396/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 2×12 ac130（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129396/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "8e1672da4afb34e0ae58446eb089cb95feedd03ecc1f4351ab9d74fa43143736",
+      "file": "jester-korg/8e1672da4afb34e0ae58446eb089cb95feedd03ecc1f4351ab9d74fa43143736.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 2×12 black panel（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "8e1672da4afb34e0ae58446eb089cb95feedd03ecc1f4351ab9d74fa43143736",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "2x12-black-panel.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129395/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/2x12-black-panel.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "2×12 black panel",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 2×12 black panel（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129395/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 2×12 black panel（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129395/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "046d6a88a3a61fe97622d1db85e607b1b5b0f02d58858b94e4e7deb0757b8a29",
+      "file": "jester-korg/046d6a88a3a61fe97622d1db85e607b1b5b0f02d58858b94e4e7deb0757b8a29.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 2×12 class a（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "046d6a88a3a61fe97622d1db85e607b1b5b0f02d58858b94e4e7deb0757b8a29",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "2x12-class-a.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129394/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/2x12-class-a.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "2×12 class a",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 2×12 class a（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129394/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 2×12 class a（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129394/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "ea81c2bf83869fbf0aa19d8cba53ef0f269fa179cc781145d0799427f63ee72d",
+      "file": "jester-korg/ea81c2bf83869fbf0aa19d8cba53ef0f269fa179cc781145d0799427f63ee72d.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 4×10 tweet（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "ea81c2bf83869fbf0aa19d8cba53ef0f269fa179cc781145d0799427f63ee72d",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "4x10-tweet.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129393/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/4x10-tweet.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "4×10 tweet",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 4×10 tweet（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129393/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 4×10 tweet（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129393/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "d92c1677757ed45ec6ee76fd24f866b699a922dc2780d66ae4184c6e30b61f87",
+      "file": "jester-korg/d92c1677757ed45ec6ee76fd24f866b699a922dc2780d66ae4184c6e30b61f87.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 4×12 classic（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "d92c1677757ed45ec6ee76fd24f866b699a922dc2780d66ae4184c6e30b61f87",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "4x12-classic.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129398/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/4x12-classic.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "4×12 classic",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 4×12 classic（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129398/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 4×12 classic（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129398/ (CC0-1.0)"
+      }
+    },
+    {
+      "id": "71a13beff8fb52567f66dc238fa6497a22124e503cc99745641977abe0481fa8",
+      "file": "jester-korg/71a13beff8fb52567f66dc238fa6497a22124e503cc99745641977abe0481fa8.wav",
+      "kind": "ir",
+      "bundled": true,
+      "name": "Korg AX1500g · 4×12 vintage（模拟器）",
+      "sampleRate": 44100,
+      "channels": 1,
+      "durationMs": 5.532879818594104,
+      "metadata": {
+        "sha256": "71a13beff8fb52567f66dc238fa6497a22124e503cc99745641977abe0481fa8",
+        "processing": "original",
+        "sampleRate": 44100,
+        "channels": 1,
+        "durationMs": 5.532879818594104,
+        "bitDepth": 16,
+        "encoding": "pcm",
+        "frames": 244,
+        "leadingSilenceFrames": 0,
+        "pack": "Jester Dyne Speaker Impulse Responses",
+        "cabinet": "Korg AX1500g cabinet simulation",
+        "speakers": [],
+        "microphones": [],
+        "position": "",
+        "originalFileName": "4x12-vintage.wav",
+        "originalSourceCandidates": [
+          "https://freesound.org/people/jesterdyne/sounds/129399/"
+        ],
+        "sourceDownloadUrl": "https://raw.githubusercontent.com/OpenSauce/rustortion/e6b7b0c3b50361acc8f25467398693ecdf60e8d2/impulse_responses/Jesterdyne/AX1500g/4x12-vintage.wav",
+        "mirrorRevision": "e6b7b0c3b50361acc8f25467398693ecdf60e8d2",
+        "licenseEvidence": [
+          "licenses/Jester-Freesound-per-file.txt"
+        ],
+        "captureNotes": "Korg AX1500g 数字箱体模拟响应，并非具名实体音箱的实测。"
+      },
+      "createdAt": "2026-10-26T15:00:00.000Z",
+      "tags": [
+        "Korg AX1500g",
+        "AX1500g",
+        "4×12 vintage",
+        "数字箱体",
+        "模拟器",
+        "箱体",
+        "IR",
+        "Jester Dyne"
+      ],
+      "attribution": {
+        "author": "Jester Dyne Productions (jesterdyne)",
+        "title": "Korg AX1500g · 4×12 vintage（模拟器）",
+        "sourceUrl": "https://freesound.org/people/jesterdyne/sounds/129399/",
+        "license": "CC0-1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "changes": "镜像 WAV 原样收录，仅重命名；未与原站下载逐字节比对。",
+        "credit": "Korg AX1500g · 4×12 vintage（模拟器） by Jester Dyne Productions (jesterdyne) — https://freesound.org/people/jesterdyne/sounds/129399/ (CC0-1.0)"
+      }
+    }
+  ]
+}

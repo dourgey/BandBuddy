@@ -1,6 +1,7 @@
 #pragma once
 #include "../../audio-ipc/wave-file.h"
 #include "playback-eq.h"
+#include "recording-source.h"
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -9,6 +10,26 @@
 #include <nlohmann/json.hpp>
 
 namespace bb {
+class TimelineSource {
+ public:
+  TimelineSource(const nlohmann::json& track, unsigned rate) {
+    key_ = track.contains("recording") ? track.at("recording").dump() : track.contains("path") ? track.at("path").dump() : "silence";
+    if (track.contains("recording")) recording_ = std::make_unique<RecordingSource>(track.at("recording"), rate);
+    else if (track.contains("path")) wave_ = std::make_unique<WaveReader>(std::filesystem::u8path(track.at("path").get<std::string>()));
+    silentRate_ = rate;
+  }
+  unsigned rate() const { return recording_ ? recording_->rate() : wave_ ? wave_->rate() : silentRate_; }
+  const std::string& key() const { return key_; }
+  unsigned channels() const { return wave_ ? wave_->channels() : 2; }
+  std::uint64_t frames() const { return recording_ ? recording_->frames() : wave_ ? wave_->frames() : 0; }
+  unsigned read(std::uint64_t position, float* output, unsigned count) {
+    if (recording_) return recording_->read(position, output, count);
+    if (wave_) return wave_->read(position, output, count);
+    std::fill_n(output, count * 2, 0.f); return count;
+  }
+ private:
+  unsigned silentRate_ = 0; std::string key_; std::unique_ptr<WaveReader> wave_; std::unique_ptr<RecordingSource> recording_;
+};
 // Decoder/pre-read thread owns files; the device callback owns transport and
 // consumes all tracks from the same tagged block. UI timing never seeks audio.
 class Timeline {
@@ -19,14 +40,14 @@ class Timeline {
     if (!std::isfinite(playbackRate_) || playbackRate_ < .25 || playbackRate_ > 4) throw std::runtime_error("TIMELINE_RATE_INVALID");
     for (const auto& track : graph.at("tracks")) {
       if (tracks_.size() >= trackLimit) throw std::runtime_error("TIMELINE_RESOURCE_LIMIT");
-      auto source = std::make_unique<WaveReader>(std::filesystem::u8path(track.at("path").get<std::string>()));
+      auto source = std::make_shared<TimelineSource>(track, rate);
       if (source->rate() != rate) throw std::runtime_error("TIMELINE_RATE_MISMATCH");
       duration_ = std::max(duration_, source->frames());
       const auto index = tracks_.size(); ids_.push_back(track.at("id"));
       gains_[index].store(track.value("gain", 1.f)); currentGains_[index] = gains_[index].load();
       tracks_.push_back(std::move(source));
     }
-    sources_ = std::make_shared<Sources>(); sources_->tracks = tracks_;
+    sources_ = std::make_shared<Sources>(); sources_->tracks = std::move(tracks_);
     position_.store(frameOf(graph.value("positionMs", 0.))); requestedPosition_.store(position_.load());
     update(graph);
     for (unsigned t = 0; t < trackLimit; ++t) gainStarts_[t] = gainTargets_[t] = currentGains_[t] = gains_[t].load();
@@ -39,18 +60,24 @@ class Timeline {
   ~Timeline() { stop_.store(true); if (worker_.joinable()) worker_.join(); }
   // File opening and ownership changes happen on the control thread. The
   // prefetch thread adopts this immutable snapshot without touching transport.
-  void attach(const json& tracks) {
+  void attach(const json& tracks, bool replace = false) {
     auto next = std::make_shared<Sources>(*std::atomic_load(&sources_));
     for (const auto& track : tracks) {
       const auto id = track.at("id").get<std::string>();
       auto found = std::find(ids_.begin(), ids_.end(), id);
       const auto index = unsigned(found - ids_.begin());
       if (index >= trackLimit) throw std::runtime_error("TIMELINE_RESOURCE_LIMIT");
-      auto source = std::make_shared<WaveReader>(std::filesystem::u8path(track.at("path").get<std::string>()));
+      const auto key = track.contains("recording") ? track.at("recording").dump() : track.at("path").dump();
+      if (found != ids_.end() && next->tracks[index]->key() == key) continue;
+      auto source = std::make_shared<TimelineSource>(track, rate_);
       if (source->rate() != rate_) throw std::runtime_error("TIMELINE_RATE_MISMATCH");
       if (found == ids_.end()) { ids_.push_back(id); next->tracks.push_back(source); }
       else next->tracks[index] = source;
     }
+    // Slots stay stable for queued PCM, but removed tracks must stop reading
+    // their file/plugin once the new snapshot has crossed over.
+    for (unsigned t = 0; replace && t < ids_.size(); ++t) if (std::none_of(tracks.begin(), tracks.end(), [&](const auto& track) { return track.at("id") == ids_[t]; }))
+      next->tracks[t] = std::make_shared<TimelineSource>(json::object(), rate_);
     ++next->revision; std::atomic_store(&sources_, next);
   }
   void update(const json& value) {
@@ -127,9 +154,10 @@ class Timeline {
     }
   }
   json state() const { return {{"positionMs", positionMs()}, {"playing", playing_.load()}, {"ended", ended_.load()}, {"generation", generation_.load()},
-    {"countInRemaining", unsigned(std::ceil(countIn_.load() / (rate_ * 60. / bpm_.load() / playbackRate_)))}, {"underruns", underruns_.load()}, {"error", failed_.load() ? "TIMELINE_READ_FAILED" : ""}}; }
+    {"countInRemaining", unsigned(std::ceil(countIn_.load() / (rate_ * 60. / bpm_.load() / playbackRate_)))}, {"underruns", underruns_.load()},
+    {"sourceRevision", preparedSourceRevision_.load()}, {"requestedSourceRevision", std::atomic_load(&sources_)->revision}, {"error", failed_.load() ? "TIMELINE_READ_FAILED" : ""}}; }
  private:
-  struct Sources { std::vector<std::shared_ptr<WaveReader>> tracks; unsigned revision = 0; };
+  struct Sources { std::vector<std::shared_ptr<TimelineSource>> tracks; unsigned revision = 0; };
   struct Block { std::uint64_t generation = 0, position = 0; unsigned frames = 0, trackCount = 0, sourceRevision = 0; std::array<std::array<float, quantum * 2>, trackLimit> samples{}; };
   std::uint64_t frameOf(double ms) const { return std::uint64_t(std::max(0., ms) / 1000 * rate_ / playbackRate_); }
   void addClick(float* output, double position, double beatFrames) const noexcept {
@@ -138,7 +166,12 @@ class Timeline {
     if (phase < clickFrames) { const auto beat = std::uint64_t(position / beatFrames); const float click = float(std::sin(2 * 3.141592653589793 * (beat % 4 ? 1080 : 1560) * phase / rate_) * (1 - phase / clickFrames) * .18); output[0] += click; output[1] += click; }
   }
   void prefetch() noexcept {
+    AudioThreadPriority priority;
     std::uint64_t generation = 0, position = 0; bool eof = false; std::array<float, quantum * 2> scratch{};
+    std::shared_ptr<Sources> previous;
+    std::array<std::shared_ptr<TimelineSource>, trackLimit> fading{};
+    std::array<unsigned, trackLimit> fadeFrames{};
+    std::array<float, quantum * 2> oldAudio{};
     try { while (!stop_.load()) {
       const auto desired = generation_.load(std::memory_order_acquire);
       if (generation != desired) { generation = desired; position = requestedPosition_.load(); eof = false; }
@@ -149,22 +182,43 @@ class Timeline {
       const auto end = loopEnd ? std::min(loopEnd, duration_) : duration_;
       block.frames = unsigned(std::min<std::uint64_t>(quantum, position < end ? end - position : 0));
       const auto sources = std::atomic_load(&sources_);
+      if (previous != sources) {
+        for (unsigned t = 0; t < sources->tracks.size(); ++t) {
+          if (previous && t < previous->tracks.size() && previous->tracks[t] != sources->tracks[t]) {
+            fading[t] = previous->tracks[t]; fadeFrames[t] = 0;
+          }
+        }
+        previous = sources;
+      }
       block.trackCount = unsigned(sources->tracks.size()); block.sourceRevision = sources->revision;
       for (unsigned t = 0; t < block.trackCount; ++t) {
         sources->tracks[t]->read(position, scratch.data(), block.frames);
         for (unsigned f = 0; f < block.frames; ++f) for (unsigned c = 0; c < 2; ++c) block.samples[t][f * 2 + c] = scratch[f * sources->tracks[t]->channels() + std::min(c, sources->tracks[t]->channels() - 1)];
+        if (fading[t]) {
+          fading[t]->read(position, oldAudio.data(), block.frames);
+          for (unsigned f = 0; f < block.frames; ++f) {
+            const float blend = std::min(1.f, ++fadeFrames[t] / (rate_ * .035f));
+            for (unsigned c = 0; c < 2; ++c) {
+              const float old = oldAudio[f * fading[t]->channels() + std::min(c, fading[t]->channels() - 1)];
+              block.samples[t][f * 2 + c] = old + (block.samples[t][f * 2 + c] - old) * blend;
+            }
+          }
+          if (fadeFrames[t] >= rate_ * .035f) fading[t].reset();
+        }
       }
+      if (std::none_of(fading.begin(), fading.end(), [](const auto& source) { return bool(source); })) preparedSourceRevision_.store(sources->revision);
       position += block.frames; eof = !block.frames; write_.store(w + 1, std::memory_order_release);
     } } catch (...) { failed_.store(true); playing_.store(false); }
   }
   unsigned rate_; double playbackRate_; std::uint64_t duration_ = 0;
   PlaybackEq eq_;
-  std::vector<std::shared_ptr<WaveReader>> tracks_; std::vector<std::string> ids_;
+  std::vector<std::shared_ptr<TimelineSource>> tracks_; std::vector<std::string> ids_;
   std::shared_ptr<Sources> sources_;
   std::unique_ptr<Block[]> blocks_; std::thread worker_;
   std::array<std::atomic<float>, trackLimit> gains_{}; std::array<float, trackLimit> currentGains_{};
   std::array<float, trackLimit> gainStarts_{}, gainTargets_{};
   std::atomic<unsigned> gainRevision_{0}, gainSourceRevision_{0}; unsigned lastGainRevision_ = 0; float gainFade_ = 1;
+  std::atomic<unsigned> preparedSourceRevision_{0};
   std::atomic<std::uint64_t> read_{0}, write_{0}, position_{0}, requestedPosition_{0}, generation_{1}, loopStart_{0}, loopEnd_{0}, countIn_{0}, underruns_{0};
   std::atomic<bool> stop_{false}, playing_{false}, ended_{false}, failed_{false}, metronome_{false};
   std::atomic<float> master_{1}; std::atomic<double> bpm_{120}, beatOffset_{0};

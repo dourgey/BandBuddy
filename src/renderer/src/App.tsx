@@ -118,6 +118,8 @@ export default function App(): React.JSX.Element {
   const [guitarSplitReadySongId, setGuitarSplitReadySongId] = useState<string | null>(null)
   const [fixtureGuitarReadyDismissed, setFixtureGuitarReadyDismissed] = useState(false)
   const [countInRemaining, setCountInRemaining] = useState(0)
+  const [playbackStarting, setPlaybackStarting] = useState(false)
+  const playbackRequestGeneration = useRef(0)
   const [availableOutputChannelPairs, setAvailableOutputChannelPairs] = useState(fixtureMode ? 6 : 1)
   const [recordingState, setRecordingState] = useState<RecordingState>({
     target: 'song',
@@ -126,6 +128,10 @@ export default function App(): React.JSX.Element {
   })
   const setRecordingMeter = useRecordingMeterStore.getState().setMeter
   const recordingWasActive = useRef(false)
+  const recordingCompletion = useRef<{ trackId: string; previousTakeId: string | null } | null>(null)
+  const auditionedTake = useRef<string | null>(null)
+  const songRefreshRevision = useRef(0)
+  const recordingWrites = useRef(new Map<string, Promise<unknown>>())
   const viewRef = useRef(view)
 
   const song = usePlayerStore((state) => state.song)
@@ -219,7 +225,12 @@ export default function App(): React.JSX.Element {
     const onRecordingBlocked = (event: Event): void => setToast((event as CustomEvent<string>).detail)
     window.addEventListener('bandbuddy:recording-blocked', onRecordingBlocked)
     const unsubscribe = [
-      window.bandbuddy.library.onChanged(() => { void client.invalidateQueries({ queryKey: ['songs'] }); void client.invalidateQueries({ queryKey: ['practice-songs'] }) }),
+      window.bandbuddy.library.onChanged(() => {
+        void client.invalidateQueries({ queryKey: ['songs'] }); void client.invalidateQueries({ queryKey: ['practice-songs'] })
+        // Peak generation is asynchronous; refreshing metadata does not replace
+        // an unchanged audio source or restart its transport.
+        if (!isRecordingLocked()) void refreshCurrentSong().catch(() => undefined)
+      }),
       window.bandbuddy.library.onUpdated((update) => {
         if (update.kind !== 'updated' || !update.song) { void client.invalidateQueries({ queryKey: ['songs'] }); return }
         void client.invalidateQueries({ queryKey: ['practice-songs'] })
@@ -354,9 +365,16 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     engine.current.onTime(setCurrentMs)
     engine.current.onEnded(() => { releaseAudioSession('practice'); setPlaying(false); setCountInRemaining(0); setCurrentMs(0) })
-    engine.current.onError(() => {
-      patchPractice({ pitchSemitones: 0 })
-      setToast('实时升降调初始化失败，已恢复原调；请重试或检查音频组件')
+    engine.current.onError((error) => {
+      if (/SIGNALSMITH|PITCH/i.test(String(error))) {
+        patchPractice({ pitchSemitones: 0 })
+        setToast('实时升降调初始化失败，已恢复原调；请重试或检查音频组件')
+      } else {
+        playbackRequestGeneration.current++
+        setPlaybackStarting(false)
+        engine.current.pause(); releaseAudioSession('practice'); setPlaying(false); setCountInRemaining(0)
+        setToast(toUserErrorMessage(error, '音频播放失败，请重试'))
+      }
     })
     return () => { engine.current.destroy(); releaseAudioSession('practice') }
   }, [patchPractice, setCurrentMs, setPlaying])
@@ -365,17 +383,29 @@ export default function App(): React.JSX.Element {
     if (practice) engine.current.applyPractice(practice)
   }, [practice])
 
-  const pausePractice = (): void => { engine.current.pause(); releaseAudioSession('practice') }
+  const pausePractice = (): void => {
+    playbackRequestGeneration.current++
+    setPlaybackStarting(false)
+    engine.current.pause(); releaseAudioSession('practice')
+  }
   const playPractice = async (countIn: 0 | 4 | 8 = 0): Promise<boolean> => {
     if (!allowAudioAction()) return false
+    const request = ++playbackRequestGeneration.current
+    setPlaybackStarting(true)
     const session = claimAudioSession('practice', usePlayerStore.getState().song?.title ?? '歌曲练习', () => {
       pausePractice(); setPlaying(false); setCountInRemaining(0); releaseAudioSession('practice')
     })
     try {
       const started = await engine.current.play(countIn, setCountInRemaining)
+      if (request !== playbackRequestGeneration.current) return false
       if (!started) releaseAudioSession('practice', session)
       return isAudioSessionCurrent(session) ? started : usePlayerStore.getState().playing
-    } catch (error) { releaseAudioSession('practice', session); throw error }
+    } catch (error) {
+      releaseAudioSession('practice', session)
+      if (request !== playbackRequestGeneration.current) return false
+      throw error
+    }
+    finally { if (request === playbackRequestGeneration.current) setPlaybackStarting(false) }
   }
 
   const saveNow = async (): Promise<void> => {
@@ -447,14 +477,20 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const active = !['idle', 'failed'].includes(recordingState.phase)
-    if (active) recordingWasActive.current = true
-    else if (recordingState.phase === 'idle' && recordingWasActive.current) {
+    if (active) {
+      if (!recordingWasActive.current) recordingCompletion.current = null
+      recordingWasActive.current = true
+      if (!recordingCompletion.current && recordingState.recordingTrackId) {
+        const trackId = recordingState.recordingTrackId
+        recordingCompletion.current = { trackId, previousTakeId: usePlayerStore.getState().song?.recordingTracks.find(t => t.id === trackId)?.activeTakeId ?? null }
+      }
+    }
+    else if (recordingWasActive.current) {
       recordingWasActive.current = false
+      const completed = recordingCompletion.current
       const current = usePlayerStore.getState().song
       if (current && !fixtureMode) {
-        void window.bandbuddy.library.get(current.id).then((updated) => {
-          if (updated) void replaceCurrentSong(updated)
-        })
+        void refreshCurrentSong(completed).catch(error => setToast(toUserErrorMessage(error, '录音轨加载失败，请重试')))
       }
     }
   }, [recordingState.phase])
@@ -498,8 +534,8 @@ export default function App(): React.JSX.Element {
 
   const togglePlayback = async (): Promise<void> => {
     if (!allowAudioAction()) return
-    if (!song || !['idle', 'failed'].includes(recordingState.phase)) return
-    if (playing || countInRemaining > 0) {
+    if (!song) return
+    if (playing || countInRemaining > 0 || playbackStarting) {
       pausePractice()
       setCountInRemaining(0)
       setPlaying(false)
@@ -510,8 +546,10 @@ export default function App(): React.JSX.Element {
       try {
         const countIn = practice?.countInBeats ?? 0
         if (countIn > 0) setCountInRemaining(countIn)
-        const started = await playPractice(countIn)
-        setPlaying(started)
+        const pending = playPractice(countIn)
+        const request = playbackRequestGeneration.current
+        const started = await pending
+        if (request === playbackRequestGeneration.current) setPlaying(started)
       } catch {
         setCountInRemaining(0)
         setPlaying(false)
@@ -590,11 +628,34 @@ export default function App(): React.JSX.Element {
     if (wasPlaying) { const started = await playPractice(); if (generation === songLoadGeneration.current) setPlaying(started) }
   }
 
-  const refreshCurrentSong = async (): Promise<void> => {
+  const rewindRecording = (take: { id: string; songId: string; startPositionMs: number }): void => {
+    if (auditionedTake.current === take.id || usePlayerStore.getState().song?.id !== take.songId || isRecordingLocked()) return
+    auditionedTake.current = take.id
+    engine.current.seek(take.startPositionMs)
+    setCurrentMs(take.startPositionMs)
+    patchPractice({ positionMs: take.startPositionMs })
+  }
+
+  const refreshCurrentSong = async (completed: { trackId: string; previousTakeId: string | null } | null = recordingCompletion.current): Promise<void> => {
     const current = usePlayerStore.getState().song
     if (!current || fixtureMode) return
+    const revision = ++songRefreshRevision.current
     const updated = await window.bandbuddy.library.get(current.id)
-    if (updated) await replaceCurrentSong(updated)
+    // A snapshot can contain only some of a burst of mixer edits. The final
+    // outstanding write will refresh once all optimistic edits are committed.
+    if (recordingWrites.current.size) return
+    if (updated && revision === songRefreshRevision.current && usePlayerStore.getState().song?.id === updated.id && !isRecordingLocked()) {
+      // The take is already committed. Waveforms/selection must not depend on
+      // device reopening or an optional wet-preview render succeeding.
+      updateSongDetails(updated)
+      const finishedTakeId = completed ? updated.recordingTracks.find(t => t.id === completed.trackId)?.activeTakeId : null
+      const finishedTake = finishedTakeId && finishedTakeId !== completed?.previousTakeId ? updated.recordingTakes.find(t => t.id === finishedTakeId) : null
+      if (finishedTake) rewindRecording(finishedTake)
+      if (recordingCompletion.current === completed) recordingCompletion.current = null
+      const currentState = usePlayerStore.getState()
+      if (currentState.practice) engine.current.applyPractice({ ...currentState.practice, positionMs: currentState.currentMs })
+      await engine.current.updateRecordingSources(updated)
+    }
   }
 
   const startRecording = async (recordingTrackId: string): Promise<void> => {
@@ -607,6 +668,7 @@ export default function App(): React.JSX.Element {
     nativeRecordingRequested.current = false
     recordingCancelRequested.current = false
     publishRecordingState('practice', { phase: 'starting', message: '正在准备录音…' })
+    setRecordingState(previous => ({ ...previous, phase: 'preparing', songId: state.song!.id, recordingTrackId, sourcePositionMs: state.currentMs, message: '正在准备录音…', error: null }))
     pauseAudioSession()
     pausePractice()
     setPlaying(false)
@@ -614,6 +676,9 @@ export default function App(): React.JSX.Element {
     setRecordingMeter({ peak: [0, 0], rms: [0, 0], clipped: false, sourcePositionMs: state.currentMs, recording: false })
     try {
       await saveNow()
+      if (generation !== recordingStartGeneration.current) return
+      // Finish the native pause/device release before the recording host opens it.
+      if (window.bandbuddy.nativeAudio && await window.bandbuddy.nativeAudio.enabled()) await window.bandbuddy.nativeAudio.pause()
       if (generation !== recordingStartGeneration.current) return
       nativeRecordingRequested.current = true
       await window.bandbuddy.recording.start({
@@ -624,7 +689,10 @@ export default function App(): React.JSX.Element {
       })
       if (generation !== recordingStartGeneration.current) await window.bandbuddy.recording.cancel()
     } catch (error) {
-      if (generation === recordingStartGeneration.current) publishRecordingState('practice', { phase: 'failed' })
+      if (generation === recordingStartGeneration.current) {
+        publishRecordingState('practice', { phase: 'failed' })
+        setRecordingState(previous => ({ ...previous, phase: 'failed' }))
+      }
       if (generation === recordingStartGeneration.current && !isCancellationError(error)) setToast(toUserErrorMessage(error, '录音失败，请检查声卡后重试'))
     } finally {
       if (recordingOperation.current !== generation) return
@@ -643,11 +711,25 @@ export default function App(): React.JSX.Element {
     if (fixtureMode || getRecordingSession()?.owner !== 'practice') return
     recordingStateRevision.current++
     recordingStartGeneration.current++
+    let completed: { id: string; songId: string; startPositionMs: number } | null = null
     try {
-      await window.bandbuddy.recording.stop()
-      await refreshCurrentSong()
+      completed = await window.bandbuddy.recording.stop()
     } catch (error) {
       setToast(toUserErrorMessage(error, '停止录音失败，请重试'))
+    } finally {
+      // The RPC result is also a completion boundary. A missed idle event must
+      // not leave the local phase and global recording guard stuck forever.
+      const revision = recordingStateRevision.current
+      const latest = await window.bandbuddy.recording.state().catch(() => null)
+      if (latest && revision === recordingStateRevision.current) {
+        authoritativeRecordingState.current = latest
+        publishRecordingState('practice', latest)
+        setRecordingState(latest)
+      }
+    }
+    if (completed) {
+      // The next play starts at this take, not in the silence after its end.
+      rewindRecording(completed)
     }
   }
 
@@ -659,7 +741,9 @@ export default function App(): React.JSX.Element {
     if (recordingStartPending.current && !nativeRecordingRequested.current) {
       recordingOperation.current = null
       recordingStartPending.current = false
-      publishRecordingState('practice', authoritativeRecordingState.current ?? { phase: 'idle' })
+      const latest = authoritativeRecordingState.current ?? { ...recordingState, phase: 'idle' as const }
+      publishRecordingState('practice', latest)
+      setRecordingState(latest)
       return
     }
     await window.bandbuddy.recording.cancel()
@@ -710,8 +794,26 @@ export default function App(): React.JSX.Element {
     patch: Partial<Pick<RecordingTrackState, 'name' | 'gainDb' | 'muted' | 'solo'>>
   ): Promise<void> => {
     if (!allowAudioAction() || fixtureMode) return
-    await window.bandbuddy.recording.updateTrack({ recordingTrackId, patch })
-    await refreshCurrentSong()
+    const current = usePlayerStore.getState().song
+    if (!current) return
+    ++songRefreshRevision.current
+    const updated = { ...current, recordingTracks: current.recordingTracks.map(track => track.id === recordingTrackId ? { ...track, ...patch } : track) }
+    updateSongDetails(updated)
+    engine.current.updateRecordingMix(updated)
+    // Persist ordered edits without making gain/M/S wait behind a wet render.
+    const write = (recordingWrites.current.get(recordingTrackId) ?? Promise.resolve()).catch(() => undefined)
+      .then(() => window.bandbuddy.recording.updateTrack({ recordingTrackId, patch }))
+    recordingWrites.current.set(recordingTrackId, write)
+    try {
+      await write
+    } catch (error) {
+      setToast(toUserErrorMessage(error, '录音轨设置保存失败，请重试'))
+    } finally {
+      if (recordingWrites.current.get(recordingTrackId) === write) {
+        recordingWrites.current.delete(recordingTrackId)
+        if (!recordingWrites.current.size) void refreshCurrentSong().catch(error => setToast(toUserErrorMessage(error, '录音回放准备失败，请重试')))
+      }
+    }
   }
 
   const importLyrics = async (): Promise<void> => {
@@ -943,7 +1045,7 @@ export default function App(): React.JSX.Element {
         try { await window.bandbuddy.recording.deleteTrack(trackId); await refreshCurrentSong() }
         catch (error) { setToast(toUserErrorMessage(error, '删除录音轨失败')) }
       }}
-      onEffectsChanged={() => void refreshCurrentSong()}
+      onEffectsChanged={() => void refreshCurrentSong().catch(error => setToast(toUserErrorMessage(error, '录音音色加载失败，请重试')))}
       onDeleteTake={(takeId) => void deleteTake(takeId)} onRecordingTrack={(recordingTrackId, patch) => void updateRecordingTrack(recordingTrackId, patch)}
       onUseTakePractice={(rate, pitchSemitones) => patchPractice({ playbackRate: rate, pitchSemitones })}
     /> : <NoSongPractice onLibrary={() => setView('library')} onImport={() => setImportOpen(true)} />) : null}
@@ -961,7 +1063,7 @@ export default function App(): React.JSX.Element {
       onToast={setToast}
     /></div>}
     </Suspense>
-    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar eqOpen={eqOpen} onOpenEq={() => setEqOpen(true)} outputLatencyMs={engine.current.outputLatencySeconds * 1000} recordingActive={recordingState.phase === 'recording'} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={globallyRecording} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
+    {view !== 'rehearsal' && view !== 'arsenal' && view !== 'woodshed' && <PlayerBar preparing={playbackStarting} eqOpen={eqOpen} onOpenEq={() => setEqOpen(true)} outputLatencyMs={engine.current.outputLatencySeconds * 1000} recordingActive={recordingState.phase === 'recording'} songs={practiceSongsQuery.data ?? []} onSelectSong={(songId) => void openSong(songId)} practiceMode={view === 'practice'} countInRemaining={countInRemaining} locked={globallyRecording} onToggle={() => void togglePlayback()} onSeek={seek} onRestart={restartPlayback} onCycleLoop={cycleLoop} onPractice={() => {
       if (!song) return
       setRehearsalReturn(null)
       setView('practice')
@@ -976,9 +1078,9 @@ export default function App(): React.JSX.Element {
     <BackgroundTransport view={view} onReturn={owner => void changeView(owner)} />
     <Suspense fallback={null}>
     {importOpen && <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={(songId) => { setTasksOpen(true); void client.invalidateQueries({ queryKey: ['songs'] }); setToast(`歌曲已加入曲库 · ${songId.slice(0, 8)}`) }} onOpenDuplicate={(songId) => void openSong(songId)} onNeedsRuntime={() => { if (runtime?.status !== 'ready') setTasksOpen(true) }} />}
-    {tasksOpen && <TasksDrawer open={tasksOpen} onOpenChange={setTasksOpen} jobs={tasks} runtime={runtime} onRefresh={() => void tasksQuery.refetch()} />}
+    {tasksOpen && <TasksDrawer open={tasksOpen} onOpenChange={setTasksOpen} jobs={tasks} onRefresh={() => void tasksQuery.refetch()} />}
     {appearanceOpen && <AppearanceDialog open={appearanceOpen} onOpenChange={setAppearanceOpen} />}
-    {settingsOpen && runtime && settings && <SettingsDrawer initialCategory={environmentSettingsCategory} recordingBusy={globallyRecording || rehearsalRecordingLocked} open={settingsOpen} onOpenChange={open => { setSettingsOpen(open); if (!open) setEnvironmentSettingsCategory(undefined) }} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
+    {settingsOpen && runtime && settings && <SettingsDrawer initialCategory={environmentSettingsCategory === 'storage' ? 'general' : environmentSettingsCategory} recordingBusy={globallyRecording || rehearsalRecordingLocked} open={settingsOpen} onOpenChange={open => { setSettingsOpen(open); if (!open) setEnvironmentSettingsCategory(undefined) }} runtime={runtime} settings={settings} onSaved={(saved: AppSettings) => {
       client.setQueryData(['settings'], saved)
       if (client.getQueryData(['audio-settings'])) client.setQueryData(['audio-settings'], saved)
       void engine.current.setOutputDevice(saved.audioOutputDeviceId)

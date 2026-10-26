@@ -4,6 +4,7 @@ export const NATIVE_AUDIO_EVENT = 'native-audio:state'
 export interface NativeAudioState {
   positionMs: number; playing: boolean; ended: boolean; generation: number; countInRemaining: number
   underruns: number; error: string; sampleRate?: number
+  sourceRevision?: number; requestedSourceRevision?: number
 }
 export interface NativeAudioApi {
   enabled(): Promise<boolean>

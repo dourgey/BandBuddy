@@ -289,7 +289,7 @@ describe('library dialogs', () => {
       onRefresh={() => undefined}
     />)
 
-    fireEvent.click(screen.getByRole('button', { name: '存储与诊断' }))
+    fireEvent.click(screen.getByRole('button', { name: '实验室功能' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Debug 模式' }))
     await waitFor(() => expect(setDebugMode).toHaveBeenCalledWith(true))
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ debugMode: true }))

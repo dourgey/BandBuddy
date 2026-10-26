@@ -1,6 +1,5 @@
-import { RuntimePreparation } from './RuntimePreparation.js'
+import { StorageUsageView } from './StorageUsageView.js'
 import { EnvironmentStatus, ENVIRONMENT_SETTINGS_EVENT } from './EnvironmentStatus.js'
-import { DiagnosticDetails } from './DiagnosticDetails.js'
 import { SystemInformationButton } from './SystemInformation.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
 import { getAppearance } from '../appearance.js'
@@ -59,7 +58,7 @@ import {
 } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
 import { applyRuntimeSourcePreset, matchRuntimeSourcePreset, type RuntimeSourcePreset } from '@shared/runtime-sources.js'
-import { formatDate, formatTime, isCancellationError, statusLabel, toUserErrorMessage } from '../utils.js'
+import { formatTime, isCancellationError, statusLabel, toUserErrorMessage } from '../utils.js'
 
 const GUITAR_QUALITY_VALUES: readonly GuitarSeparationQuality[] = ['fast', 'balanced', 'high']
 const VOCAL_QUALITY_VALUES: readonly VocalSeparationQuality[] = ['fast', 'high']
@@ -198,24 +197,23 @@ export function ImportDialog({
   </Dialog.Root>
 }
 
-export function TasksDrawer({ open, onOpenChange, jobs, runtime, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; runtime?: RuntimeInfo; onRefresh(): void }): React.JSX.Element {
+export function TasksDrawer({ open, onOpenChange, jobs, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; onRefresh(): void }): React.JSX.Element {
   const active = jobs.filter((job) => ['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(job.status))
-  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer" data-dialog-open="true" aria-describedby={undefined}>
-    <Dialog.Title>任务</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">分离任务单线程运行，导出与标准化会依次进入队列。</p>
-    <div className="drawer-summary"><Gauge /><span><b>{active.length ? `${active.length} 个进行中任务` : '当前没有活动任务'}</b><small>{jobs.length} 条任务记录</small></span></div>
-    {runtime && <RuntimePreparation runtime={runtime} />}
-    <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>任务列表是空的</b><span>导入歌曲后，分离进度会显示在这里。</span></div> : jobs.map((job) => <article key={job.id}>
-      <header><span className={`task-dot ${job.status}`} /> <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'vocalSplit' ? '主唱／和声' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b><em>{statusLabel(job.status)}</em></header>
-      <p>{job.phase}</p><div className="progress-line"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><small>{Math.round(job.progress * 100)}% · {formatDate(job.createdAt)}</small>
-      {job.errorMessage && job.status !== 'cancelled' && <pre>{toUserErrorMessage(`${job.errorCode ?? ''} ${job.errorMessage}`, '任务执行失败，请重试')}</pre>}
-      {['failed', 'interrupted', 'blockedRuntime'].includes(job.status) && <DiagnosticDetails scope={{ jobId: job.id }} />}
-      <footer>{['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing'].includes(job.status) && <button onClick={() => void window.bandbuddy.tasks.cancel(job.id).then(onRefresh)}>取消</button>}{['failed', 'cancelled', 'interrupted'].includes(job.status) && <><button onClick={() => void window.bandbuddy.tasks.retry(job.id).then(onRefresh)}>重试</button>{['ACCELERATOR_OOM', 'CUDA_OOM'].includes(job.errorCode ?? '') && <button onClick={() => void window.bandbuddy.tasks.retry(job.id, true).then(onRefresh)}>使用 CPU 重试</button>}</>}</footer>
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer tasks-drawer" data-dialog-open="true" aria-describedby={undefined}>
+    <Dialog.Title>任务</Dialog.Title><Dialog.Close className="dialog-close" aria-label="关闭任务"><X /></Dialog.Close>
+    <div className="task-summary"><span>{active.length ? `${active.length} 个进行中` : '暂无进行中任务'}</span><span>共 {jobs.length} 条</span></div>
+    <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>暂无任务</b></div> : jobs.map((job) => <article key={job.id}>
+      <span className={`task-dot ${job.status}`} aria-hidden="true" />
+      <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'vocalSplit' ? '主唱／和声' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b>
+      <span className={`task-status ${job.status}`} title={job.errorMessage && job.status !== 'cancelled' ? toUserErrorMessage(`${job.errorCode ?? ''} ${job.errorMessage}`, '任务执行失败，请重试') : job.phase}>{statusLabel(job.status)}</span>
+      <span className="task-progress" role="progressbar" aria-label="任务进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(job.progress * 100)}>{Math.round(job.progress * 100)}%</span>
+      <footer>{['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing'].includes(job.status) && <button onClick={() => void window.bandbuddy.tasks.cancel(job.id).then(onRefresh)}>取消</button>}{['failed', 'cancelled', 'interrupted'].includes(job.status) && <><button onClick={() => void window.bandbuddy.tasks.retry(job.id).then(onRefresh)}>重试</button>{['ACCELERATOR_OOM', 'CUDA_OOM'].includes(job.errorCode ?? '') && <button aria-label="使用 CPU 重试" onClick={() => void window.bandbuddy.tasks.retry(job.id, true).then(onRefresh)}>CPU 重试</button>}</>}</footer>
     </article>)}</div>
     <footer className="drawer-footer"><button className="outline-button" onClick={() => void window.bandbuddy.tasks.clearFinished().then(onRefresh)}><Trash2 size={16} />清除已完成</button><button className="outline-button" onClick={onRefresh}><RefreshCw size={16} />刷新</button></footer>
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }
 
-type SettingsCategory = 'separation' | 'audio' | 'general' | 'network' | 'storage' | 'ai'
+type SettingsCategory = 'separation' | 'audio' | 'general' | 'network' | 'ai'
 
 function SettingsGroup({ title, description, summary, icon, open, onOpenChange, saving, disabled, error, children }: {
   title: string
@@ -282,7 +280,8 @@ export function SettingsDrawer({
   useEffect(() => {
     const navigate = (event: Event): void => {
       const category = (event as CustomEvent).detail
-      if (['network', 'storage', 'audio'].includes(category)) setActiveCategory(category)
+      if (category === 'storage') setActiveCategory('general')
+      else if (['network', 'audio'].includes(category)) setActiveCategory(category)
     }
     window.addEventListener(ENVIRONMENT_SETTINGS_EVENT, navigate)
     return () => window.removeEventListener(ENVIRONMENT_SETTINGS_EVENT, navigate)
@@ -456,11 +455,19 @@ export function SettingsDrawer({
     if (activeCategory) { event.preventDefault(); setActiveCategory(null) }
   }}>
     <Dialog.Close className="dialog-close" aria-label="关闭设置"><X /></Dialog.Close><div className="settings-scroll">
-    <Dialog.Title>设置</Dialog.Title><p className="dialog-lead">按用途整理偏好，让练习保持顺手。</p>
+    <Dialog.Title>设置</Dialog.Title>
     <SystemInformationButton />
     {recordingBusy && <p className="source-note">录音进行中，可浏览设置分类和调整外观；其他设置请在录音结束后修改。</p>}
     <div className="settings-categories">
-    <LaboratoryDialog trigger open={open && activeCategory === 'ai'} onOpenChange={next => setActiveCategory(next ? 'ai' : null)} />
+    <LaboratoryDialog trigger open={open && activeCategory === 'ai'} onOpenChange={next => setActiveCategory(next ? 'ai' : null)} debugControls={<>    <section className="settings-section"><h3><Bug />调试与诊断</h3>
+      <div className="debug-settings-row">
+        <label className="settings-toggle"><input type="checkbox" aria-label="Debug 模式" checked={draft.debugMode} disabled={debugModeSaving} onChange={(event) => void toggleDebugMode(event.target.checked)} /><span><b>Debug 模式</b><small>{debugModeSaving ? '正在保存…' : '切换后立即生效，记录主进程、IPC 调用和界面控制台日志'}</small></span></label>
+        <button className="outline-button" type="button" onClick={() => void revealDebugLog()}><FolderOpen size={15} />打开日志位置</button>
+      </div>
+      <p className="security-note">仅在 Debug 模式开启期间追加详细日志；代理凭据、令牌和密码会自动脱敏。</p>
+      {debugLogError && <p className="device-error">{debugLogError}</p>}
+    </section>
+</>} />
     <SettingsGroup title="分轨与运行环境" description="分轨音质、计算设备与本地环境" summary={`${guitarQuality.label} · ${draft.highQualityStems ? 'FLAC' : 'MP3'} · ${statusLabel(runtime.status)}`} icon={<Zap />} {...groupProps('separation')}>
     <section className="settings-section"><h3><HardDrive />分轨音质</h3>
       <div className="guitar-quality-setting">
@@ -534,10 +541,11 @@ export function SettingsDrawer({
       {recordingDeviceError && <p className="device-error">{recordingDeviceError}</p>}
     </section>
     </SettingsGroup>
-    <SettingsGroup title="通用与显示" description="主题、界面密度与桌面歌词样式" summary={`歌词 ${draft.desktopLyricsFontSize} px · ${draft.closeToTrayWhileWorking ? '任务进行时留在托盘' : '关闭即退出'}`} icon={<FileText />} {...groupProps('general')}>
+    <SettingsGroup title="通用与显示" description="主题、桌面歌词与存储位置" summary={`歌词 ${draft.desktopLyricsFontSize} px · ${draft.closeToTrayWhileWorking ? '任务进行时留在托盘' : '关闭即退出'}`} icon={<FileText />} {...groupProps('general')}>
     <AppearanceSettings onSaved={appearance => { setDraft(current => ({ ...current, appearance })) }} />
     <fieldset disabled={recordingBusy} style={{ border: 0, padding: 0, margin: 0 }}>
     <section className="settings-section"><h3><SlidersHorizontal />窗口行为</h3><label>关闭窗口时<Select value={draft.closeToTrayWhileWorking ? 'tray' : 'quit'} onChange={(event) => setDraft({ ...draft, closeToTrayWhileWorking: event.target.value === 'tray' })}><option value="tray">有任务时留在托盘</option><option value="quit">直接退出</option></Select></label></section>
+    <section className="settings-section"><h3><FolderOpen />存储位置</h3><StorageUsageView /><label className="path-field">数据目录<div className="path-picker"><input readOnly value={dataRoot} title={dataRoot} /><button className="outline-button" type="button" onClick={() => void chooseDataRoot()}><FolderOpen size={15} />浏览</button></div></label><p className="security-note">歌曲、运行环境和分轨资源将分别保存在 music、envs 和 envs/models 子目录中。</p></section>
     <section className="settings-section"><h3><FileText />桌面歌词</h3>
       <label>桌面歌词文字大小 · {draft.desktopLyricsFontSize} px
         <input type="range" min={16} max={64} step={1} value={draft.desktopLyricsFontSize} onChange={(event) => setDraft({ ...draft, desktopLyricsFontSize: Number(event.target.value) })} />
@@ -545,7 +553,12 @@ export function SettingsDrawer({
       <label>桌面歌词背景透明度 · {draft.desktopLyricsBackgroundTransparency}%
         <input type="range" min={0} max={100} step={1} value={draft.desktopLyricsBackgroundTransparency} onChange={(event) => setDraft({ ...draft, desktopLyricsBackgroundTransparency: Number(event.target.value) })} />
       </label>
-      <p style={{ fontSize: draft.desktopLyricsFontSize, overflowWrap: 'anywhere', padding: '12px 20px', borderRadius: 16, color: '#fff0a8', background: `linear-gradient(145deg, rgba(39,35,30,${1 - draft.desktopLyricsBackgroundTransparency / 100}), rgba(10,9,8,${1 - draft.desktopLyricsBackgroundTransparency / 100}))` }}>桌面歌词预览</p>
+      <div className="settings-grid">
+        <label>桌面歌词文字颜色<input aria-label="桌面歌词文字颜色" type="color" value={draft.desktopLyricsTextColor} onChange={event => setDraft({ ...draft, desktopLyricsTextColor: event.target.value })} /></label>
+        <label>桌面歌词背景颜色<input aria-label="桌面歌词背景颜色" type="color" value={draft.desktopLyricsBackgroundColor} onChange={event => setDraft({ ...draft, desktopLyricsBackgroundColor: event.target.value })} /></label>
+      </div>
+      <label className="settings-toggle"><input aria-label="桌面歌词字体加粗" type="checkbox" checked={draft.desktopLyricsBold} onChange={event => setDraft({ ...draft, desktopLyricsBold: event.target.checked })} />字体加粗</label>
+      <p style={{ fontSize: draft.desktopLyricsFontSize, fontWeight: draft.desktopLyricsBold ? 750 : 400, overflowWrap: 'anywhere', padding: '12px 20px', borderRadius: 16, color: draft.desktopLyricsTextColor, background: `color-mix(in srgb, ${draft.desktopLyricsBackgroundColor} ${100 - draft.desktopLyricsBackgroundTransparency}%, transparent)` }}>桌面歌词预览</p>
       <p className="source-note">字号 16–64 px；透明度 0% 为不透明，100% 为完全透明。即时生效，练习室与排练室共用。</p>
     </section>
     </fieldset>
@@ -567,17 +580,7 @@ export function SettingsDrawer({
       </details><p className="security-note"><ShieldCheck size={13} />新版环境使用经过校验的固定组件清单，按所选来源优先级自动换源。代理设置用于全部组件下载。</p>
     </section>
     </SettingsGroup>
-    <SettingsGroup title="存储与诊断" description="数据目录、调试日志与故障排查" summary={`Debug ${draft.debugMode ? '已开启' : '已关闭'}`} icon={<FolderOpen />} {...groupProps('storage')}>
-    <section className="settings-section"><h3><FolderOpen />存储位置</h3><label className="path-field">数据目录<div className="path-picker"><input readOnly value={dataRoot} title={dataRoot} /><button className="outline-button" type="button" onClick={() => void chooseDataRoot()}><FolderOpen size={15} />浏览</button></div></label><p className="security-note">歌曲、运行环境和分轨资源将分别保存在 music、envs 和 envs/models 子目录中。</p></section>
-    <section className="settings-section"><h3><Bug />调试与诊断</h3>
-      <div className="debug-settings-row">
-        <label className="settings-toggle"><input type="checkbox" aria-label="Debug 模式" checked={draft.debugMode} disabled={debugModeSaving} onChange={(event) => void toggleDebugMode(event.target.checked)} /><span><b>Debug 模式</b><small>{debugModeSaving ? '正在保存…' : '切换后立即生效，记录主进程、IPC 调用和界面控制台日志'}</small></span></label>
-        <button className="outline-button" type="button" onClick={() => void revealDebugLog()}><FolderOpen size={15} />打开日志位置</button>
-      </div>
-      <p className="security-note">仅在 Debug 模式开启期间追加详细日志；代理凭据、令牌和密码会自动脱敏。</p>
-      {debugLogError && <p className="device-error">{debugLogError}</p>}
-    </section>
-    </SettingsGroup>
+
     </div>
     <p className="settings-overview-note">常规选项自动保存；AI 接口配置请在详情中点击保存。</p>
     {saveError && <p className="form-error" role="alert">{saveError}</p>}

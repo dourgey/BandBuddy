@@ -32,6 +32,18 @@ vi.mock('electron', async () => {
 beforeEach(() => { mocks.windows.length = 0 })
 
 describe('desktop lyrics loading and layout', () => {
+  it('sends saved colors and weight on first display and when the style changes', async () => {
+    const lyrics = new DesktopLyricsWindow({ preloadPath: 'preload', rendererUrl: 'file:///lyrics.html', logger: { capture: vi.fn() } as never })
+    lyrics.setStyle('#33cc99', '#223344', false)
+    lyrics.update({ title: '测试', artist: '', currentLines: ['歌词'], nextLines: [], progress: 0, playing: false })
+    const showing = lyrics.setVisible(true)
+    const window = mocks.windows[0]!
+    window.finishLoad(); await showing
+    expect(window.webContents.send).toHaveBeenLastCalledWith(IPC.eventDesktopLyricsUpdate, expect.objectContaining({ textColor: '#33cc99', backgroundColor: '#223344', bold: false }))
+    lyrics.setStyle('#ffffff', '#000000', true)
+    expect(window.webContents.send).toHaveBeenLastCalledWith(IPC.eventDesktopLyricsUpdate, expect.objectContaining({ textColor: '#ffffff', backgroundColor: '#000000', bold: true }))
+    lyrics.destroy()
+  })
   it('replays the latest authoritative appearance after load, reload, and before showing', async () => {
     let appearance = normalizeAppearance({ theme: 'warm' })
     const lyrics = new DesktopLyricsWindow({ preloadPath: 'preload', rendererUrl: 'file:///lyrics.html', logger: { capture: vi.fn() } as never, appearance: () => appearance })

@@ -90,7 +90,7 @@ if(BANDBUDDY_AUDIO_CORE_TESTS)
   add_executable(bandbuddy-audio-core-tests tests/audio-core.cpp)
   target_compile_features(bandbuddy-audio-core-tests PRIVATE cxx_std_20)
   target_compile_definitions(bandbuddy-audio-core-tests PRIVATE NOMINMAX)
-  target_link_libraries(bandbuddy-audio-core-tests PRIVATE nlohmann_json::nlohmann_json)
+  target_link_libraries(bandbuddy-audio-core-tests PRIVATE bandbuddy_effects nlohmann_json::nlohmann_json signalsmith-stretch)
   if(WIN32)
     target_link_libraries(bandbuddy-audio-core-tests PRIVATE avrt)
   endif()
@@ -101,7 +101,7 @@ target_link_libraries(bandbuddy-audio-host PRIVATE rtaudio nlohmann_json::nlohma
 target_compile_definitions(bandbuddy-audio-host PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)
 
 if(WIN32)
-  target_link_libraries(bandbuddy-audio-host PRIVATE portaudio_static)
+  target_link_libraries(bandbuddy-audio-host PRIVATE portaudio_static avrt)
   target_compile_definitions(bandbuddy-audio-host PRIVATE BANDBUDDY_PORTAUDIO_WASAPI PA_WASAPI_MAX_CONST_DEVICE_COUNT=64)
 endif()
 

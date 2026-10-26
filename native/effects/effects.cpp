@@ -1,6 +1,8 @@
 #include "effects.h"
 #include "whitebox.h"
 #include "classic.h"
+#include "cabinet-ir.h"
+#include "amp-cab.h"
 #include "modern.h"
 #include "nam-dsp.h"
 #include <NAM/get_dsp.h>
@@ -13,45 +15,10 @@
 #include <vector>
 namespace bb {
 namespace {
-constexpr int B=128, F=256;
+constexpr int B=128;
 constexpr double pi=3.14159265358979323846;
-using C=std::complex<float>;
 float gain(double db) { return std::pow(10., db/20.); }
-void fft(std::array<C,F>& a, bool inverse) {
-  for(int i=1,j=0;i<F;++i) { int bit=F>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j) std::swap(a[i],a[j]); }
-  for(int len=2;len<=F;len<<=1) { C wlen=std::polar(1.f, float((inverse?2:-2)*pi/len)); for(int i=0;i<F;i+=len) { C w=1; for(int j=0;j<len/2;++j) { C u=a[i+j],v=a[i+j+len/2]*w; a[i+j]=u+v; a[i+j+len/2]=u-v; w*=wlen; } } }
-  if(inverse) for(auto& v:a) v/=F;
-}
-struct Convolver {
-  std::vector<std::array<C,F>> kernels, history;
-  std::array<float,B> overlap{};
-  size_t cursor=0;
-  void init(const std::vector<float>& ir) {
-    size_t count=(ir.size()+B-1)/B; kernels.resize(count); history.resize(count);
-    for(size_t p=0;p<count;++p) { for(int i=0;i<B;++i) if(p*B+i<ir.size()) kernels[p][i]=ir[p*B+i]; fft(kernels[p],false); }
-  }
-  void process(float* data) {
-    if(kernels.empty()) return;
-    auto& h=history[cursor]; h.fill(0); for(int i=0;i<B;++i) h[i]=data[i]; fft(h,false);
-    std::array<C,F> sum{};
-    for(size_t p=0;p<kernels.size();++p) { auto& x=history[(cursor+history.size()-p)%history.size()]; for(int i=0;i<F;++i) sum[i]+=x[i]*kernels[p][i]; }
-    fft(sum,true); for(int i=0;i<B;++i) { data[i]=sum[i].real()+overlap[i]; overlap[i]=sum[B+i].real(); }
-    cursor=(cursor+1)%history.size();
-  }
-};
-// Windowed-sinc streaming converter, fixed storage, 16-sample lookahead.
-struct Resampler {
-  std::array<float,4096> ring{}; long long total=0; double next=0, step=1, cutoff=1;
-  void init(double in,double out) { step=in/out; cutoff=std::min(1.,out/in)*.94; }
-  int push(const float* in,int n,float* out) {
-    int count=0;
-    for(int i=0;i<n;++i) { ring[total++%4096]=in[i]; while(next+16<total) { long long center=std::floor(next); double sum=0, norm=0;
-      for(int k=-15;k<=16;++k) { double d=next-(center+k), x=d*cutoff; double w=(std::abs(x)<1e-8?1:std::sin(pi*x)/(pi*x))*cutoff*.5*(1+std::cos(pi*d/16)); long long index=center+k; norm+=w; if(index>=0 && index<total) sum+=ring[index%4096]*w; }
-      out[count++]=float(sum/norm); next+=step;
-    } }
-    return count;
-  }
-};
+using Convolver = cabinet::Convolver;
 struct Biquad {
   double b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
   void set(double hz,double db,double rate,int kind=0,double q=1.414) {
@@ -87,9 +54,9 @@ AllParams parse(const nlohmann::json& j) {
   p.eqCount=j.at("eq").value("bandCount",7);auto delayStyle=j.at("delay").value("style",std::string("digital")),reverbStyle=j.at("reverb").value("style",std::string("hall"));p.delayStyle=delayStyle=="pingpong"?4:delayStyle=="reverse"?3:delayStyle=="tape"?2:delayStyle=="analog"?1:0;p.reverbStyle=reverbStyle=="room"?1:reverbStyle=="plate"?2:reverbStyle=="spring"?3:0;
   if(j.contains("drive")) {
     const auto& d=j.at("drive"); const auto device=d.at("device").get<std::string>();
-    if(device!="ts808" && device!="sd1" && device!="rat" && device!="microamp" && device!="distortion-plus" && device!="fuzzface" && device!="ds1" && device!="bd2") throw std::runtime_error("WHITEBOX_UNKNOWN_DEVICE");
+    if(device!="ts808" && device!="sd1" && device!="rat" && device!="microamp" && device!="distortion-plus" && device!="fuzzface" && device!="ds1" && device!="bd2" && device!="centaur") throw std::runtime_error("WHITEBOX_UNKNOWN_DEVICE");
     if(d.at("revision").get<int>()!=1) throw std::runtime_error("WHITEBOX_UNSUPPORTED_REVISION");
-    p.drive.device=device=="ds1"?whitebox::Device::DS1:device=="bd2"?whitebox::Device::BD2:device=="ts808"?whitebox::Device::TS808:device=="sd1"?whitebox::Device::SD1:device=="rat"?whitebox::Device::RAT:device=="microamp"?whitebox::Device::MicroAmp:device=="fuzzface"?whitebox::Device::FuzzFace:whitebox::Device::DistortionPlus;
+    p.drive.device=device=="centaur"?whitebox::Device::Centaur:device=="ds1"?whitebox::Device::DS1:device=="bd2"?whitebox::Device::BD2:device=="ts808"?whitebox::Device::TS808:device=="sd1"?whitebox::Device::SD1:device=="rat"?whitebox::Device::RAT:device=="microamp"?whitebox::Device::MicroAmp:device=="fuzzface"?whitebox::Device::FuzzFace:whitebox::Device::DistortionPlus;
     p.drive.enabled=d.at("enabled");p.drive.drive=d.at("drive");p.drive.tone=d.at("tone");p.drive.level=d.at("level");p.drive.inputVolts=d.at("inputVolts");p.drive.oversampling=d.at("oversampling");
     for(double value:{p.drive.drive,p.drive.tone,p.drive.level}) if(!std::isfinite(value)||value<0||value>1) throw std::runtime_error("WHITEBOX_INVALID_CONTROL");
     if(!std::isfinite(p.drive.inputVolts)||p.drive.inputVolts<.1||p.drive.inputVolts>10||(p.drive.oversampling!=2&&p.drive.oversampling!=4)) throw std::runtime_error("WHITEBOX_INVALID_CALIBRATION_OR_QUALITY");
@@ -104,22 +71,26 @@ AllParams parse(const nlohmann::json& j) {
   p.classicAmp.enabled=j.at("amp").at("enabled");p.physicalCab.enabled=j.at("cab").at("enabled");
   if(j.at("amp").contains("classic")) {
     const auto& a=j.at("amp").at("classic");const auto name=a.at("device").get<std::string>();
-    if(name!="ab763-pre"&&name!="2203-pre"&&name!="orange"&&name!="mesa"&&name!="vox")throw std::runtime_error("UNKNOWN_CLASSIC_AMP");
-    p.classicAmp.kind=name=="orange"?classic::AmpKind::Orange:name=="mesa"?classic::AmpKind::Mesa:name=="vox"?classic::AmpKind::Vox:name=="ab763-pre"?classic::AmpKind::AB763:classic::AmpKind::Lead2203;
+    p.classicAmp.kind=ampcab::ampKind(name);
+    p.classicAmp.oversampling=a.value("oversampling",4u);if(p.classicAmp.oversampling!=2&&p.classicAmp.oversampling!=4)throw std::runtime_error("INVALID_AMP_QUALITY");
+    p.classicAmp.presence=unit(a.value("presence",.5));p.classicAmp.cut=unit(a.value("cut",.5));p.classicAmp.sag=unit(a.value("sag",.35));
+    const auto load=a.value("load",std::string("auto"));if(load!="auto"&&load!="resistive")throw std::runtime_error("INVALID_AMP_LOAD");p.classicAmp.resistiveLoad=load=="resistive";
     p.classicAmp.gain=unit(a.at("gain"));p.classicAmp.bass=unit(a.at("bass"));p.classicAmp.middle=unit(a.at("middle"));p.classicAmp.treble=unit(a.at("treble"));p.classicAmp.master=unit(a.at("master"));p.classicAmp.inputVolts=bounded(a.at("inputVolts"),.1,10);
   }
   if(j.at("cab").contains("physical")) {
     const auto& c=j.at("cab").at("physical");const auto name=c.at("device").get<std::string>();
-    if(name!="open112"&&name!="open212"&&name!="sealed412")throw std::runtime_error("UNKNOWN_PHYSICAL_CAB");
-    p.physicalCab.kind=name=="open112"?classic::CabinetKind::Open112:name=="open212"?classic::CabinetKind::Open212:classic::CabinetKind::Sealed412;
+    p.physicalCab.kind=ampcab::cabKind(name);
     p.physicalCab.volumeLitres=bounded(c.at("volumeLitres"),10,300);p.physicalCab.distanceMetres=bounded(c.at("distanceMetres"),.25,3);p.physicalCab.micAngle=bounded(c.at("micAngle"),0,75);
   }
   if(j.contains("mod")) {
     const auto& m=j.at("mod");const auto name=m.at("device").get<std::string>();
-    const std::array<std::string,7> names={"phase90","optical-tremolo","chorus","flanger","wah","ota-compressor","vibrato"};
+    const std::array<std::string,11> names={"phase90","optical-tremolo","chorus","flanger","wah","ota-compressor","vibrato","stereo-chorus","step-flanger","aqueduct-vibrato","fixed-wah"};
     const auto found=std::find(names.begin(),names.end(),name);if(found==names.end())throw std::runtime_error("UNKNOWN_CLASSIC_MODULATION");
     p.mod.kind=static_cast<classic::ModKind>(std::distance(names.begin(),found));p.mod.enabled=m.at("enabled");
-    p.mod.rateHz=bounded(m.at("rateHz"),.05,10);p.mod.depth=unit(m.at("depth"));p.mod.mix=unit(m.at("mix"));p.mod.feedback=bounded(m.at("feedback"),0,.85);p.mod.manual=unit(m.at("manual"));
+    p.mod.rateHz=bounded(m.at("rateHz"),0,10);p.mod.depth=unit(m.at("depth"));p.mod.mix=unit(m.at("mix"));p.mod.feedback=bounded(m.at("feedback"),-.85,.85);p.mod.manual=unit(m.at("manual"));
+    p.mod.bass=unit(m.value("bass",.5));p.mod.treble=unit(m.value("treble",.5));p.mod.levelDb=bounded(m.value("levelDb",0.),-24,20);p.mod.bassFilter=m.value("bassFilter",false);
+    const std::array<std::string,8> waves={"sine","triangle","ramp","square","random","env-depth","env-rate","env-pitch"};const auto wave=m.value("waveform",std::string("sine"));auto wi=std::find(waves.begin(),waves.end(),wave);if(wi==waves.end())throw std::runtime_error("UNKNOWN_VIBRATO_MODE");p.mod.waveform=unsigned(wi-waves.begin());
+    const std::array<std::string,3> sweeps={"sweep","step","dynamic"};const auto sweep=m.value("sweepMode",std::string("sweep"));auto si=std::find(sweeps.begin(),sweeps.end(),sweep);if(si==sweeps.end())throw std::runtime_error("UNKNOWN_FLANGER_MODE");p.mod.sweepMode=unsigned(si-sweeps.begin());
   }
   p.in=gain(j.at("inputGainDb"));p.out=gain(j.at("outputGainDb"));p.amp=j["amp"]["enabled"];p.cab=j["cab"]["enabled"];p.cabGain=gain(j["cab"]["gainDb"]);p.low=j["cab"]["lowCut"];p.high=j["cab"]["highCut"];p.eq=j["eq"]["enabled"];p.eqGain=gain(j["eq"]["gainDb"]);p.bands=j["eq"]["bands"].get<std::array<float,7>>();auto d=j["delay"];p.delay=d["enabled"];p.delayMs=d["timeMs"];if(d["sync"].get<bool>()) {std::string div=d["division"];p.delayMs=float(std::clamp(60000.0/d["bpm"].get<double>()*(div=="1/4"?1.0:div=="1/8d"?.75:div=="1/8"?.5:.25),1.0,2000.0));}p.feedback=d["feedback"];p.mix=d["mix"];p.tone=d["tone"];auto r=j["reverb"];p.reverb=r["enabled"];p.decay=r["decay"];p.pre=r["preDelayMs"];p.damping=r["damping"];p.revMix=r["mix"];return p;
 }
@@ -129,6 +100,7 @@ struct Effects::Impl {
   bool gateOpen[2]{}; unsigned gateHold[2]{}; Biquad parametricEq[2][4],eqCut[2][2];RoomNetwork roomNetwork;
   Convolver secondaryCab[2];DelayLine secondaryAlignment[2];bool dualCab=false;std::array<float,B> secondaryBuffer[2]{};float namInputGain=1,namOutputGain=1;
   std::unique_ptr<whitebox::Drive> drives[2];
+  std::unique_ptr<ampcab::Head> heads[2];std::unique_ptr<ampcab::Cabinet> cabinets[2];
   std::unique_ptr<classic::Amp> classicAmps[2];std::unique_ptr<classic::Cabinet> physicalCabs[2];std::unique_ptr<classic::Modulation> modulation[2];
   std::unique_ptr<nam::DSP> models[2]; bool convert=false;
   std::unique_ptr<NamBoundary> namBoundary;
@@ -141,7 +113,7 @@ struct Effects::Impl {
   Convolver cab[2]; Biquad eq[2][7],cut[2][2]; DelayLine delay[2],pre[2],comb[2][8],diffuser[2][4]; float dispersion[2][32]{}; float damp[2][8]{},delayTone[2]{};
   std::array<float,B> input[2]{},output[2]{}; unsigned index=0; float fade=0;
   float bypassBlend=1;std::array<float,B> bypassDry[2]{};
-  bool* bypassFlag(){if(target.modern.revision<2||order.size()!=1)return nullptr;switch(order[0]){case 0:return &target.amp;case 1:return &target.eq;case 6:return &target.cab;case 7:return &target.dynamic;default:return nullptr;}}
+  bool* bypassFlag(){if(target.modern.revision<2||order.size()!=1||(order[0]==0&&target.useClassic))return nullptr;switch(order[0]){case 0:return &target.amp;case 1:return &target.eq;case 6:return &target.cab;case 7:return &target.dynamic;default:return nullptr;}}
   bool namEnabled() const {
     if(modular)return std::any_of(modules.begin(),modules.end(),[](const auto& child){return child->namEnabled();});
     return hasNam&&target.amp;
@@ -158,9 +130,18 @@ struct Effects::Impl {
     if(auto* enabled=bypassFlag())bypassBlend=*enabled?1.f:0.f;
     if(has(4))for(auto& drive:drives) drive=std::make_unique<whitebox::Drive>(sr,target.drive);
     for(int c=0;c<2;++c) {
-      if(has(0)&&target.useClassic)classicAmps[c]=std::make_unique<classic::Amp>(sr,target.classicAmp);
-      if(has(6)&&target.usePhysical)physicalCabs[c]=std::make_unique<classic::Cabinet>(sr,target.physicalCab);
-      if(has(5))modulation[c]=std::make_unique<classic::Modulation>(sr,target.mod);
+      if(has(0)&&target.useClassic){
+        if(ampcab::modeled(target.classicAmp.kind)){
+          using A=classic::AmpKind;using C=classic::CabinetKind;
+          C load=target.classicAmp.kind==A::Twin?C::Twin:target.classicAmp.kind==A::AC30?C::AC30212:target.classicAmp.kind==A::Rectifier?C::Recto412:C::Green412;
+          double litres=0;
+          if(prepared.contains("ampLoad")&&!prepared["ampLoad"].is_null()){load=ampcab::cabKind(prepared["ampLoad"].at("device").get<std::string>());litres=prepared["ampLoad"].at("volumeLitres");if(!std::isfinite(litres)||litres<10||litres>300)throw std::runtime_error("INVALID_AMP_LOAD_VOLUME");}
+          else if(target.usePhysical&&target.cab){auto at=std::find(order.begin(),order.end(),0);if(at!=order.end()&&at+1!=order.end()&&*(at+1)==6){load=target.physicalCab.kind;litres=target.physicalCab.volumeLitres;}}
+          heads[c]=std::make_unique<ampcab::Head>(sr,target.classicAmp,load,litres);
+        }else classicAmps[c]=std::make_unique<classic::Amp>(sr,target.classicAmp);
+      }
+      if(has(6)&&target.usePhysical){if(ampcab::modeled(target.physicalCab.kind))cabinets[c]=std::make_unique<ampcab::Cabinet>(sr,target.physicalCab);else physicalCabs[c]=std::make_unique<classic::Cabinet>(sr,target.physicalCab);}
+      if(has(5))modulation[c]=std::make_unique<classic::Modulation>(sr,target.mod,c);
     }
     double modelRate=prepared.value("modelRate",double(sr));if(modelRate<=0) modelRate=sr;
     convert=!target.useClassic && !prepared["model"].is_null() && modelRate!=sr;
@@ -177,7 +158,7 @@ struct Effects::Impl {
       if(has(2))delay[c].init(sr*4+4);
       if(has(3)){pre[c].init(sr/5+4);for(int k=0;k<4;++k)diffuser[c][k].init(size_t(sr*(.0017+.0011*k+.00013*c))+3);
       for(int k=0;k<8;++k) comb[c][k].init(size_t(sr*(.0297+.0041*k+.00071*c))+3);}
-      auto loadIr=[&](const char* key,const char* rateKey,Convolver& destination){if(!has(6)||target.usePhysical||!prepared.contains(key)||prepared[key].is_null())return false;auto ir=prepared[key][std::min(c,int(prepared[key].size())-1)].get<std::vector<float>>();double irRate=prepared[rateKey];if(irRate!=sr){Resampler r;r.init(irRate,sr);std::vector<float> res;res.reserve(size_t(ir.size()*sr/irRate)+64);std::array<float,4096> temp{};for(size_t p=0;p<ir.size();p+=B){int n=r.push(ir.data()+p,std::min(size_t(B),ir.size()-p),temp.data());res.insert(res.end(),temp.begin(),temp.begin()+n);}std::array<float,32> zeros{};int n=r.push(zeros.data(),32,temp.data());res.insert(res.end(),temp.begin(),temp.begin()+n);ir=std::move(res);}destination.init(ir);return true;};
+      auto loadIr=[&](const char* key,const char* rateKey,Convolver& destination){if(!has(6)||target.usePhysical||!prepared.contains(key)||prepared[key].is_null())return false;const auto& channels=prepared.at(key);if(!channels.is_array()||channels.empty()||channels.size()>2)throw std::runtime_error("INVALID_CABINET_IR_CHANNELS");auto ir=channels[std::min(c,int(channels.size())-1)].get<std::vector<float>>();ir=cabinet::resampleIr(ir,prepared.at(rateKey).get<double>(),sr);destination.init(ir);return true;};
       loadIr("ir","irRate",cab[c]);
       if(loadIr("secondaryIr","secondaryIrRate",secondaryCab[c])){dualCab=true;secondaryAlignment[c].init(sr/50+4);}
     }
@@ -189,7 +170,7 @@ struct Effects::Impl {
     auto& cm=current.modern;auto& tm=target.modern;
     smooth(cm.ampTrim,tm.ampTrim);smooth(cm.ampLevel,tm.ampLevel);smooth(cm.blend,tm.blend);smooth(cm.secondaryGain,tm.secondaryGain);smooth(cm.secondaryDelay,tm.secondaryDelay);smooth(cm.pan,tm.pan);smooth(cm.secondaryPan,tm.secondaryPan);
     for(int k=0;k<4;++k){smooth(cm.frequency[k],tm.frequency[k]);smooth(cm.eqGain[k],tm.eqGain[k]);smooth(cm.q[k],tm.q[k]);}
-    smooth(cm.eqLow,tm.eqLow);smooth(cm.eqHigh,tm.eqHigh);smooth(current.eqGain,target.eqGain);smooth(current.cabGain,target.cabGain);
+    smooth(cm.eqLow,tm.eqLow);smooth(cm.eqHigh,tm.eqHigh);smooth(current.eqGain,target.eqGain);smooth(current.cabGain,target.cabGain);smooth(current.low,target.low);smooth(current.high,target.high);
     for(int c=0;c<2;++c) for(int i=0;i<B;++i) output[c][i]=input[c][i]*current.in;
     auto* enabled=bypassFlag();const bool audible=enabled?*enabled:true;
     const bool ampEnabled=target.classicAmp.enabled,cabEnabled=target.physicalCab.enabled;
@@ -203,15 +184,15 @@ struct Effects::Impl {
       } else if(effect==5) {
         for(int c=0;c<2;++c) {modulation[c]->update(target.mod);for(auto& x:output[c])x=modulation[c]->tick(x);}
       } else if(effect==0) {
-        if(target.useClassic)for(int c=0;c<2;++c){classicAmps[c]->update(target.classicAmp);for(auto& x:output[c])x=classicAmps[c]->tick(x);}
+        if(target.useClassic)for(int c=0;c<2;++c){if(heads[c]){heads[c]->update(target.classicAmp);for(auto& x:output[c])x=heads[c]->tick(x);}else{classicAmps[c]->update(target.classicAmp);for(auto& x:output[c])x=classicAmps[c]->tick(x);}}
         if(!target.useClassic && target.amp && hasNam) {
           float* data[]={output[0].data(),output[1].data()};
           if(convert)namBoundary->ProcessBlock(data,data,B,namProcess);
           else {float* out[]={modelOut[0].data(),modelOut[1].data()};namProcess(data,out,B);for(int c=0;c<2;++c)std::copy_n(out[c],B,output[c].data());}
         }
       } else if(effect==6) {
-        if(target.usePhysical)for(int c=0;c<2;++c){physicalCabs[c]->update(target.physicalCab);for(auto& x:output[c])x=physicalCabs[c]->tick(x);}
-        if(target.cab) for(int c=0;c<2;++c) {if(!target.usePhysical){if(dualCab){secondaryBuffer[c]=output[c];secondaryCab[c].process(secondaryBuffer[c].data());}cab[c].process(output[c].data());if(dualCab)for(int i=0;i<B;++i){auto& p=current.modern;float b=secondaryBuffer[c][i],delayed=p.secondaryDelay>0?secondaryAlignment[c].read(p.secondaryDelay*rate/1000):b;secondaryAlignment[c].push(b);float aPan=c==0?std::min(1.f,1-p.pan):std::min(1.f,1+p.pan),bPan=c==0?std::min(1.f,1-p.secondaryPan):std::min(1.f,1+p.secondaryPan);output[c][i]=output[c][i]*(1-p.blend)*aPan+delayed*p.blend*p.secondaryGain*bPan;}}cut[c][0].set(target.low,0,rate,1);cut[c][1].set(target.high,0,rate,2);for(auto& x:output[c]) x=cut[c][1].tick(cut[c][0].tick(x))*target.cabGain;}
+        if(target.usePhysical)for(int c=0;c<2;++c){if(cabinets[c]){cabinets[c]->update(target.physicalCab);for(auto& x:output[c])x=cabinets[c]->tick(x);}else{physicalCabs[c]->update(target.physicalCab);for(auto& x:output[c])x=physicalCabs[c]->tick(x);}}
+        if(target.cab) for(int c=0;c<2;++c) {if(!target.usePhysical){if(dualCab){secondaryBuffer[c]=output[c];secondaryCab[c].process(secondaryBuffer[c].data());}cab[c].process(output[c].data());if(dualCab)for(int i=0;i<B;++i){auto& p=current.modern;float b=secondaryBuffer[c][i],delayed=p.secondaryDelay>0?secondaryAlignment[c].read(p.secondaryDelay*rate/1000):b;secondaryAlignment[c].push(b);float aPan=c==0?std::min(1.f,1-p.pan):std::min(1.f,1+p.pan),bPan=c==0?std::min(1.f,1-p.secondaryPan):std::min(1.f,1+p.secondaryPan);output[c][i]=output[c][i]*(1-p.blend)*aPan+delayed*p.blend*p.secondaryGain*bPan;}}cut[c][0].set(current.low,0,rate,1);cut[c][1].set(current.high,0,rate,2);for(auto& x:output[c]) x=cut[c][1].tick(cut[c][0].tick(x))*current.cabGain;}
       } else if(effect==1 && target.eq) {
         if(target.modern.parametric){for(int c=0;c<2;++c){for(int k=0;k<4;++k)parametricEq[c][k].set(cm.frequency[k],cm.eqGain[k],rate,0,cm.q[k]);eqCut[c][0].set(cm.eqLow,0,rate,1);eqCut[c][1].set(cm.eqHigh,0,rate,2);for(auto& x:output[c]){for(auto& filter:parametricEq[c])x=filter.tick(x);x=eqCut[c][1].tick(eqCut[c][0].tick(x))*target.eqGain;}}continue;}
         for(int k=0;k<7;++k) {current.bands[k]+=(target.bands[k]-current.bands[k])*.2f;for(int c=0;c<2;++c) eq[c][k].set((target.eqCount==5 ? std::array<double,7>{80,240,750,2200,6600,100,200}[k] : 100*(1<<k)),(target.eqCount==5 && k>=5 ? 0 : current.bands[k]),rate);}
@@ -258,8 +239,29 @@ struct Effects::Impl {
 Effects::Effects(const nlohmann::json& p,unsigned r):impl(std::make_unique<Impl>(p,r)) {}
 Effects::~Effects()=default;
 void Effects::update(const nlohmann::json& j) {
-  if(impl->modular){if(!j.contains("modules")||j.at("modules").size()!=impl->modules.size())throw std::runtime_error("EFFECT_REBUILD_REQUIRED");for(size_t i=0;i<impl->modules.size();++i){const auto& m=j.at("modules").at(i);auto settings=m.at("settings");const auto type=m.at("type").get<std::string>();settings["inputGainDb"]=0;settings["outputGainDb"]=0;for(const auto& key:{"dynamic","drive","amp","cab","eq","mod","delay","reverb"})if(type!=key&&settings.contains(key))settings[key]["enabled"]=false;auto& child=impl->modules[i];auto w=child->updateWrite.load();if(w-child->updateRead.load(std::memory_order_acquire)<64){child->updates[w%64]=parse(settings);child->updateWrite.store(w+1,std::memory_order_release);}}}
-  auto p=parse(j);if(p.drive.device!=impl->current.drive.device||p.drive.oversampling!=impl->current.drive.oversampling||p.useClassic!=impl->current.useClassic||p.usePhysical!=impl->current.usePhysical||p.classicAmp.kind!=impl->current.classicAmp.kind||p.physicalCab.kind!=impl->current.physicalCab.kind||p.mod.kind!=impl->current.mod.kind) throw std::runtime_error("WHITEBOX_REBUILD_REQUIRED");auto w=impl->updateWrite.load();if(w-impl->updateRead.load(std::memory_order_acquire)>=64) throw std::runtime_error("EFFECT_PARAMETER_QUEUE_FULL");impl->updates[w%64]=p;impl->updateWrite.store(w+1,std::memory_order_release);}
+  auto validate=[](const Impl& node,const AllParams& p){
+    const auto& old=node.current;
+    if(p.drive.device!=old.drive.device||p.drive.oversampling!=old.drive.oversampling||p.useClassic!=old.useClassic||p.usePhysical!=old.usePhysical||p.classicAmp.kind!=old.classicAmp.kind||p.classicAmp.oversampling!=old.classicAmp.oversampling||p.classicAmp.resistiveLoad!=old.classicAmp.resistiveLoad||p.physicalCab.kind!=old.physicalCab.kind||(ampcab::modeled(p.physicalCab.kind)&&p.physicalCab.volumeLitres!=old.physicalCab.volumeLitres)||p.mod.kind!=old.mod.kind||(p.mod.kind==classic::ModKind::AqueductVibrato&&p.mod.waveform!=old.mod.waveform)||(p.mod.kind==classic::ModKind::StepFlanger&&p.mod.sweepMode!=old.mod.sweepMode))
+      throw std::runtime_error("EFFECT_REBUILD_REQUIRED");
+    if(node.updateWrite.load()-node.updateRead.load(std::memory_order_acquire)>=64)throw std::runtime_error("EFFECT_PARAMETER_QUEUE_FULL");
+  };
+  // Parse and validate every child before publishing anything. In particular a
+  // topology mismatch must never escape as an exception from the audio callback.
+  auto root=parse(j);validate(*impl,root);std::vector<AllParams> pending;
+  if(impl->modular){
+    if(!j.contains("modules")||j.at("modules").size()!=impl->modules.size())throw std::runtime_error("EFFECT_REBUILD_REQUIRED");
+    for(size_t i=0;i<impl->modules.size();++i){
+      const auto& m=j.at("modules").at(i);auto settings=m.at("settings");const auto type=m.at("type").get<std::string>();
+      const int block=type=="amp"?0:type=="eq"?1:type=="delay"?2:type=="reverb"?3:type=="drive"?4:type=="mod"?5:type=="cab"?6:type=="dynamic"?7:-1;
+      if(impl->modules[i]->order!=std::vector<int>{block})throw std::runtime_error("EFFECT_REBUILD_REQUIRED");
+      settings["inputGainDb"]=0;settings["outputGainDb"]=0;
+      for(const auto& key:{"dynamic","drive","amp","cab","eq","mod","delay","reverb"})if(type!=key&&settings.contains(key))settings[key]["enabled"]=false;
+      auto p=parse(settings);validate(*impl->modules[i],p);pending.push_back(p);
+    }
+  }
+  auto publish=[](Impl& node,const AllParams& p){auto w=node.updateWrite.load();node.updates[w%64]=p;node.updateWrite.store(w+1,std::memory_order_release);};
+  for(size_t i=0;i<pending.size();++i)publish(*impl->modules[i],pending[i]);publish(*impl,root);
+}
 unsigned Effects::latency() const {unsigned result=B;auto add=[&](const Impl& i){if(std::find(i.order.begin(),i.order.end(),4)!=i.order.end())result+=whitebox::Drive::latencyFrames;if(std::find(i.order.begin(),i.order.end(),0)!=i.order.end()){if(i.current.useClassic)result+=classic::Amp::latencyFrames;if(i.convert)result+=i.namLatency;}};if(impl->modular)for(const auto& child:impl->modules)add(*child);else add(*impl);return result;}
 void Effects::process(const float* in,float* out,unsigned frames,unsigned channels) {
   for(unsigned i=0;i<frames;++i) {for(int c=0;c<2;++c) {impl->input[c][impl->index]=in?in[i*channels+std::min(unsigned(c),channels-1)]:0;out[i*2+c]=impl->output[c][impl->index];} if(++impl->index==B) {impl->block();impl->index=0;} }

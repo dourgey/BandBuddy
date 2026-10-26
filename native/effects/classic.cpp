@@ -1,4 +1,5 @@
 #include "classic.h"
+#include "pedal-modulation.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -167,9 +168,11 @@ float Cabinet::tick(float input) {
   return float(x*(1-wet)+pressure*wet);
 }
 
-Modulation::Modulation(unsigned sr,const ModControls& c):rate(sr),smooth(1-std::exp(-1/(.01*sr))),wet(c.enabled?1:0),target(c),current(c),delay(sr/10+4,0) {}
-void Modulation::update(const ModControls& c) {if(c.kind!=target.kind)throw std::runtime_error("CLASSIC_REBUILD_REQUIRED");target=c;}
+Modulation::Modulation(unsigned sr,const ModControls& c,unsigned channel):rate(sr),smooth(1-std::exp(-1/(.01*sr))),wet(c.enabled?1:0),target(c),current(c),delay(c.kind>=ModKind::StereoChorus?0:sr/10+4,0) {if(c.kind>=ModKind::StereoChorus)extended=std::make_unique<pedals::Modulator>(sr,c,channel);}
+Modulation::~Modulation()=default;
+void Modulation::update(const ModControls& c) {if(c.kind!=target.kind)throw std::runtime_error("CLASSIC_REBUILD_REQUIRED");target=c;if(extended)extended->update(c);}
 float Modulation::tick(float input) {
+  if(extended)return extended->tick(input);
   const double dry=std::isfinite(input)?input:0;
   auto approach=[&](double& v,double t){v+=(t-v)*smooth;};
   approach(current.rateHz,target.rateHz);approach(current.depth,target.depth);approach(current.mix,target.kind==ModKind::Vibrato?1:target.mix);approach(current.feedback,target.feedback);approach(current.manual,target.manual);approach(wet,target.enabled?1:0);

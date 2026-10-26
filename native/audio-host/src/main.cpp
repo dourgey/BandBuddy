@@ -37,6 +37,7 @@
 #include "input-clock.h"
 #include "../../audio-ipc/shared-audio.h"
 #include "timeline.h"
+#include "lan-pcm.h"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -1450,7 +1451,7 @@ class Host {
       else if (action == "pause") s.timeline->pause();
       else if (action == "seek") s.timeline->seek(params.at("positionMs"));
       else if (action == "update") s.timeline->update(params.at("state"));
-      else if (action == "attach") { s.timeline->attach(params.at("tracks")); s.timeline->update(params.at("state")); }
+      else if (action == "attach") { s.timeline->attach(params.at("tracks"), params.value("replace", false)); s.timeline->update(params.at("state")); }
       else if (action != "state") throw std::runtime_error("TIMELINE_COMMAND_UNKNOWN");
     }
     return s.timeline ? s.timeline->state() : json(nullptr);
@@ -1542,6 +1543,8 @@ class Host {
 } // namespace
 
 int runMain(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--recording-stream") return bb::runRecordingStream();
+  if (argc == 2 && std::string(argv[1]) == "--lan-pcm") return bb::runLanPcm();
   if(argc==3&&std::string(argv[1])=="--validate-effects"){
     try{std::ifstream manifest(pathFromUtf8(argv[2]));json job;manifest>>job;bb::Effects effects(job.at("prepared"),job.value("sampleRate",48000u));std::array<float,2048> input{},output{};effects.process(input.data(),output.data(),1024,2);for(auto x:output)if(!std::isfinite(x))throw std::runtime_error("NONFINITE_MODEL_OUTPUT");std::cout<<"{\"ok\":true}";return 0;}catch(const std::exception& e){std::cerr<<e.what();return 1;}
   }

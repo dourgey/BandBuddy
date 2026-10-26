@@ -119,7 +119,7 @@ describe('track level input', () => {
     const onTrack = vi.fn()
     render(<PracticeRoom {...practiceRoomProps()} locked onTrack={onTrack} />)
     expect(slider().disabled).toBe(true)
-    expect([slider().min, slider().max, slider().step]).toEqual(['0', '150', ''])
+    expect([slider().min, slider().max, slider().step]).toEqual(['0', '200', ''])
     fireEvent.wheel(screen.getByRole('button', { name: /人声音量：/ }), { deltaY: -100 })
     expect(onTrack).not.toHaveBeenCalled()
     expect(screen.queryByRole('status')).toBeNull()

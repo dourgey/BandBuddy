@@ -72,3 +72,12 @@
   .ws-metronome { padding: 25px 18px 22px; border-width: 8px; border-radius: 28px; }.ws-metronome::before { inset: -5px; border-radius: 23px; }.metro-fasteners { inset: 9px; }.metro-fasteners i { width: 14px; height: 14px; }.metro-controls { gap: 7px; }.metro-start,.metro-tap { font-size: 13px; padding: 8px; }.metro-encoder { gap: 3px; grid-template-columns: 16px 1fr 16px; }.metro-knob { width: 56px; }.metro-start svg { width: 14px; }.metro-knob-label { font-size: 11px; }.metro-level { width: 25%; }.metro-footer svg { width: 23px; }.metro-settings { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .metro-button { transition: none; } }
+
+.ws-scroll.ws-scroll-metronome { display: flex; flex: 1 1 0; flex-direction: column; overflow: hidden; padding-bottom: 12px; }
+.ws-scroll-metronome > .ws-tool-back { flex: 0 0 auto; margin-bottom: 6px; }
+.metro-fit { position: relative; flex: 1 1 0; min-height: 0; width: 100%; }
+.metro-fit > .ws-metronome { position: absolute; top: 50%; left: 50%; width: 1000px; max-width: none; padding: 25px 60px 18px; margin: 0; transform-origin: center; }
+.metro-fit .metro-controls { padding-bottom: 0; }
+.metro-fit .metro-knob-label { padding-bottom: 0; }
+.metro-fit .metro-settings { max-height: calc(100% - 110px); overflow-y: auto; }
+.metro-error { position: absolute; bottom: 4px; left: 20%; right: 20%; text-align: center; color: var(--danger); }

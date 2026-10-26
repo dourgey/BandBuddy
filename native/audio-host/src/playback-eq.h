@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -7,10 +8,11 @@
 namespace bb {
 class PlaybackEq {
   struct Filter { double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0; };
-  struct Config { std::array<Filter, 10> bands{}; unsigned count = 0; double gain = 1; };
+  struct Config { std::array<Filter, 10> bands{}; unsigned count = 0, warmFrames = 480, fadeFrames = 1440; double gain = 1; };
  public:
   void configure(const nlohmann::json& eq, unsigned rate) {
     Config config; std::array<double, 10> centers{};
+    config.warmFrames = std::max(1u, rate / 100); config.fadeFrames = std::max(1u, rate * 3 / 100);
     if (eq.value("enabled", false)) {
       const auto add = [&](double hz, double gain, double q) {
         if (config.count >= 10) return;
@@ -33,20 +35,32 @@ class PlaybackEq {
       }
       config.gain = 1 / maximum;
     }
-    const auto w = write_.load(); if (w - read_.load(std::memory_order_acquire) >= queue_.size()) throw std::runtime_error("EQ_UPDATE_BUSY");
-    queue_[w % queue_.size()] = config; write_.store(w + 1, std::memory_order_release);
+    // Single control producer / single audio consumer. Each owns a slot; the
+    // third is exchanged atomically. New edits replace only the pending value,
+    // including while paused, without blocking or growing a command queue.
+    slots_[producer_] = config;
+    producer_ = mailbox_.exchange(producer_ | dirty, std::memory_order_acq_rel) & ~dirty;
   }
   void beginBlock() noexcept {
-    const auto w = write_.load(std::memory_order_acquire), r = read_.load();
-    if (r != w) { previous_ = current_; previousMemory_ = memory_; current_ = queue_[(w - 1) % queue_.size()]; read_.store(w, std::memory_order_release); fade_ = 0; }
+    // Finish the audible transition before adopting the newest target. Resetting
+    // a partial fade to zero jumps to a different signal on every pointer move.
+    if (transition_ || !(mailbox_.load(std::memory_order_acquire) & dirty)) return;
+    consumer_ = mailbox_.exchange(consumer_, std::memory_order_acq_rel) & ~dirty;
+    previous_ = current_; previousMemory_ = memory_;
+    current_ = slots_[consumer_]; memory_ = {};
+    // Old transposed biquad delay values do not belong to new coefficients.
+    // Prime the new bank from live input, silently, before mixing it in.
+    warm_ = current_.warmFrames; fade_ = 0; transition_ = true;
   }
   void sample(float& left, float& right) noexcept {
     const float input[]{left, right}; float output[2]{};
     for (unsigned c = 0; c < 2; ++c) {
       const auto filtered = run(input[c], current_, memory_[c]);
-      output[c] = float(fade_ < 1 ? filtered * fade_ + run(input[c], previous_, previousMemory_[c]) * (1 - fade_) : filtered);
+      output[c] = float(transition_ ? filtered * fade_ + run(input[c], previous_, previousMemory_[c]) * (1 - fade_) : filtered);
     }
-    fade_ = std::min(1., fade_ + 1. / 1024); left = output[0]; right = output[1];
+    if (warm_) --warm_;
+    else if (transition_) { fade_ = std::min(1., fade_ + 1. / current_.fadeFrames); if (fade_ >= 1) transition_ = false; }
+    left = output[0]; right = output[1];
   }
  private:
   using Memory = std::array<std::array<double, 2>, 10>;
@@ -56,6 +70,9 @@ class PlaybackEq {
   }
   static constexpr double pi = 3.14159265358979323846;
   Config current_, previous_; std::array<Memory, 2> memory_{}, previousMemory_{}; double fade_ = 1;
-  std::array<Config, 32> queue_; std::atomic<unsigned> read_{0}, write_{0};
+  unsigned warm_ = 0; bool transition_ = false;
+  static constexpr unsigned dirty = 4;
+  std::array<Config, 3> slots_{}; unsigned producer_ = 0, consumer_ = 1;
+  std::atomic<unsigned> mailbox_{2};
 };
 }

@@ -1,12 +1,11 @@
 import { recoverFloatCapture } from './wave-recovery.js'
 import type { ArsenalService } from './arsenal.js'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync } from 'node:fs'
-import { copyFile, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
   dbToGain,
-  isStemVisible,
   stemPlaybackGain,
   type AudioBackend,
   type RecordingAudioSettings,
@@ -18,6 +17,7 @@ import {
   type RecordingTrackState,
   type TrackState
 } from '@shared/domain.js'
+import { practiceMix, recordingPitch, recordingPlaybackRate } from '@shared/practice-mix.js'
 import type { AudioHostClient, AudioHostEvent, AudioHostStartResult, AudioHostStopResult } from './audio-host.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { Logger } from './logger.js'
@@ -25,6 +25,7 @@ import type { MediaService } from './media.js'
 import type { AppPaths } from './paths.js'
 import { renderPitchedStemBus } from './pitch-shift.js'
 import { runProcess } from './process.js'
+import type { RecordingPlaybackService } from './recording-playback.js'
 
 interface ResolvedDeviceConfiguration {
   settings: RecordingAudioSettings
@@ -56,6 +57,7 @@ interface SessionMetadata {
 }
 
 interface ActiveSession extends SessionMetadata {
+  publishedTakeId?: string
   recordingTrackId: string
   sessionRoot: string
   finalizing: Promise<RecordingTake | null> | null
@@ -114,6 +116,7 @@ export function calculateTakeAlignmentOffset(
 
 export class RecordingService {
   arsenal?: ArsenalService
+  playback?: RecordingPlaybackService
   async arsenalDeviceConfiguration(): Promise<Record<string, unknown>> {
     await this.ensureInputPermission()
     const device=await this.resolveDeviceConfiguration()
@@ -126,6 +129,41 @@ export class RecordingService {
   private preparationAbort: AbortController | null = null
   private readonly cancelledPreparations = new Set<string>()
   private startingTest = false
+  private waveformJobs = new Map<string, { abort: AbortController; done: Promise<void> }>()
+
+  private queueWaveform(take: RecordingTake, source: string, songDurationMs: number): void {
+    this.waveformJobs.get(take.id)?.abort.abort()
+    const abort = new AbortController(), job = { abort, done: Promise.resolve() }
+    this.waveformJobs.set(take.id, job)
+    job.done = (async () => {
+      const partial = path.join(path.dirname(source), `peaks-${randomUUID()}.json`)
+      try {
+        // Analyze only captured samples. Place the small peak array on the song
+        // timeline in memory instead of decoding minutes of padded silence.
+        await this.media.generatePeaks(source, partial, take.durationMs * (take.deviceSnapshot.clockCorrectionRatio ?? 1), 1800, abort.signal)
+        const raw = JSON.parse(await readFile(partial, 'utf8')) as { version: number; sampleRate: number; min: number[]; max: number[] }
+        const bins = 1800, min = Array<number>(bins).fill(0), max = Array<number>(bins).fill(0)
+        const start = take.startPositionMs + take.alignmentOffsetMs * take.playbackRate
+        for (let i = 0; i < raw.max.length; i++) {
+          const left = Math.floor((start + i / raw.max.length * take.durationMs * take.playbackRate) / songDurationMs * bins)
+          const right = Math.ceil((start + (i + 1) / raw.max.length * take.durationMs * take.playbackRate) / songDurationMs * bins)
+          for (let b = Math.max(0, left); b < Math.min(bins, Math.max(left + 1, right)); b++) {
+            min[b] = Math.min(min[b]!, raw.min[i] ?? 0); max[b] = Math.max(max[b]!, raw.max[i] ?? 0)
+          }
+        }
+        abort.signal.throwIfAborted()
+        const current = this.database.getRecordingTake(take.id)
+        if (!current || current.alignmentOffsetMs !== take.alignmentOffsetMs) return
+        await writeFile(partial, JSON.stringify({ ...raw, min, max }))
+        const output = path.join(path.dirname(source), `preview-${take.alignmentOffsetMs}.peaks.json`)
+        await rename(partial, output)
+        if (abort.signal.aborted || this.waveformJobs.get(take.id) !== job) return
+        this.database.updateRecordingTake(take.id, { peaksRelPath: this.paths.toLibraryRelative(this.database.getSettings().libraryRoot, output) })
+        this.changed()
+      } catch (error) { if (!abort.signal.aborted) this.logger.warn('recording waveform generation failed; audio remains playable', error) }
+      finally { await rm(partial, { force: true }).catch(() => undefined); if (this.waveformJobs.get(take.id) === job) this.waveformJobs.delete(take.id) }
+    })()
+  }
 
   constructor(
     private readonly paths: AppPaths,
@@ -149,6 +187,12 @@ export class RecordingService {
     try {
       const settings = this.database.getSettings()
       for (const song of this.database.listSongs('', 'all')) {
+        for (const take of this.database.getSong(song.id)?.recordingTakes ?? []) {
+          if (take.deviceSnapshot.compactRecording && !take.peaksUrl) {
+            const file = this.database.getRecordingTakeFile(take.id)
+            if (file) this.queueWaveform(take, this.paths.resolveLibraryPath(settings.libraryRoot, file.sourceRelPath), song.durationMs)
+          }
+        }
         const root = path.join(this.paths.songDirectory(settings.libraryRoot, song.id), '.recording-sessions')
         let entries: string[] = []
         try { entries = await readdir(root) } catch { continue }
@@ -156,6 +200,15 @@ export class RecordingService {
           const sessionRoot = path.join(root, entry)
           try {
             const metadata = JSON.parse(await readFile(path.join(sessionRoot, 'session.json'), 'utf8')) as SessionMetadata
+            let publication: { takeId: string; result: AudioHostStopResult } | null = null
+            try { publication = JSON.parse(await readFile(path.join(sessionRoot, 'publish.json'), 'utf8')) } catch { /* Capture remains recoverable before publication. */ }
+            if (publication && /^[0-9a-f-]{36}$/i.test(publication.takeId)) {
+              if (this.database.getRecordingTake(publication.takeId)) {
+                await rm(sessionRoot, { recursive: true, force: true }); continue
+              }
+              const published = path.join(this.paths.songDirectory(settings.libraryRoot, song.id), 'recordings', publication.takeId, 'source.wav')
+              if (existsSync(published)) metadata.capturePath = published
+            } else publication = null
             if (![1, 2, 3].includes(metadata.version) || metadata.songId !== song.id || !existsSync(metadata.capturePath)) continue
             const recordingTrack = (metadata.recordingTrackId ? this.database.getRecordingTrack(metadata.recordingTrackId) : null)
               ?? this.database.getRecordingTracks(song.id)[0]
@@ -169,10 +222,12 @@ export class RecordingService {
               recordingTrackId: recordingTrack.id,
               sessionRoot,
               finalizing: null,
-              cancelled: false
+              cancelled: false,
+              ...(publication ? { publishedTakeId: publication.takeId } : {})
             }
             const recovered = await this.finalizeSession(session, {
-              frames: Math.round(probe.durationMs * metadata.device.sampleRate / 1000),
+              ...publication?.result,
+              frames: Math.round(probe.durationMs * (probe.sampleRate ?? metadata.device.sampleRate) / 1000),
               sampleRate: probe.sampleRate ?? metadata.device.sampleRate,
               channels: probe.channels ?? metadata.device.settings.inputChannels.length,
               xruns: 0,
@@ -249,7 +304,6 @@ export class RecordingService {
     const settings = this.database.getSettings()
     const songRoot = this.paths.songDirectory(settings.libraryRoot, song.id)
     const sessionRoot = path.join(songRoot, '.recording-sessions', id)
-    mkdirSync(sessionRoot, { recursive: true })
     const capturePath = path.join(sessionRoot, 'capture.part.wav')
     const backingPath = path.join(sessionRoot, 'backing.wav')
     this.patchState({
@@ -258,6 +312,7 @@ export class RecordingService {
     })
 
     try {
+      await mkdir(sessionRoot, { recursive: true })
       await this.ensureInputPermission()
       const device = await this.resolveDeviceConfiguration()
       await this.renderBacking(request, startPositionMs, endPositionMs, device.sampleRate, backingPath, this.preparationAbort.signal)
@@ -338,10 +393,16 @@ export class RecordingService {
       return null
     }
     if (session.finalizing) return await session.finalizing
-    this.patchState({ phase: 'stopping', message: '正在保留最后的尾音' })
-    await wait(250)
-    const result = await this.host.stop()
-    if (!result) return null
+    this.patchState({ phase: 'stopping', message: '正在结束录音' })
+    let result: AudioHostStopResult | null
+    try {
+      result = await this.host.stop()
+      if (!result) throw new Error('录音设备未返回保存结果，原始录音已保留，可重启应用恢复')
+    } catch (error) {
+      if (this.active?.id === session.id) this.active = null
+      this.fail(error)
+      throw error
+    }
     if (result.frames <= 0) {
       if (this.active?.id === session.id) this.active = null
       await rm(session.sessionRoot, { recursive: true, force: true }).catch(() => undefined)
@@ -379,7 +440,7 @@ export class RecordingService {
     const take = this.database.getRecordingTake(input.takeId)
     if (!take) throw new Error('RECORDING_TAKE_NOT_FOUND')
     let regenerated: Awaited<ReturnType<RecordingService['regeneratePreview']>> | null = null
-    if (input.alignmentOffsetMs !== undefined && input.alignmentOffsetMs !== take.alignmentOffsetMs) {
+    if (!take.deviceSnapshot.compactRecording && input.alignmentOffsetMs !== undefined && input.alignmentOffsetMs !== take.alignmentOffsetMs) {
       regenerated = await this.regeneratePreview({ ...take, alignmentOffsetMs: input.alignmentOffsetMs })
     }
     let updated: RecordingTake
@@ -394,6 +455,10 @@ export class RecordingService {
       throw error
     }
     if (regenerated) await Promise.all(regenerated.oldFiles.map((file) => rm(file, { force: true }).catch(() => undefined)))
+    if (take.deviceSnapshot.compactRecording && input.alignmentOffsetMs !== undefined) {
+      const file = this.database.getRecordingTakeFile(take.id), song = this.database.getSong(take.songId)
+      if (file && song) this.queueWaveform(updated, this.paths.resolveLibraryPath(this.database.getSettings().libraryRoot, file.sourceRelPath), song.durationMs)
+    }
     this.changed()
     return updated
   }
@@ -409,6 +474,7 @@ export class RecordingService {
   }
 
   async deleteTake(takeId: string): Promise<void> {
+    const pending = this.waveformJobs.get(takeId); pending?.abort.abort(); await pending?.done
     const file = this.database.getRecordingTakeFile(takeId)
     if (!file) return
     const settings = this.database.getSettings()
@@ -451,6 +517,8 @@ export class RecordingService {
       if (save) await this.stop().catch((error) => this.logger.error('recording finalization during shutdown failed', error))
       else await this.cancel()
     }
+    for (const job of this.waveformJobs.values()) job.abort.abort()
+    await Promise.allSettled([...this.waveformJobs.values()].map(job => job.done))
     await this.host.shutdown()
   }
 
@@ -544,21 +612,14 @@ export class RecordingService {
       const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
       return take ? [{ track, take }] : []
     })
-    const hasSolo = request.practice.tracks.some((track) =>
-      (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled, request.practice.vocalSplitEnabled)) && track.solo && !track.muted
-    )
-      || activeRecordings.some(({ track }) => track.solo && !track.muted)
+    const gains = practiceMix({ ...song, recordingTracks }, request.practice).gains
     const audibleStems = request.practice.tracks
-      .filter((track) => (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, request.practice.guitarSplitEnabled, request.practice.vocalSplitEnabled)) && !track.muted && (!hasSolo || track.solo))
+      .filter(track => (gains.get(track.stemType) ?? 0) > 0)
       .map((state) => ({ state, file: files.find((file) => file.type === state.stemType) }))
       .filter((entry): entry is { state: TrackState; file: NonNullable<typeof entry.file> } => Boolean(entry.file))
     const settings = this.database.getSettings()
     const audibleRecordings = activeRecordings
-      .filter(({ track, take }) => track.id !== request.recordingTrackId
-        && !track.muted
-        && (!hasSolo || track.solo)
-        && Math.abs(take.playbackRate - request.practice.playbackRate) <= 0.0001
-        && (take.pitchSemitones ?? 0) === (request.practice.pitchSemitones ?? 0))
+      .filter(({ track }) => track.id !== request.recordingTrackId && (gains.get(track.id) ?? 0) > 0)
       .flatMap(({ track, take }) => {
         const file = this.database.getRecordingTakeFile(take.id)
         return file ? [{ track, take, file }] : []
@@ -606,21 +667,26 @@ export class RecordingService {
       }
       finalStems.forEach(({ state, file }, index) => {
         const label = `back${index}`
-        inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath))
-        filters.push(`[${inputIndex}:a]atrim=start=${(startPositionMs / 1000).toFixed(6)}:end=${(endPositionMs / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${(dbToGain(state.gainDb) * stemPlaybackGain(file)).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`)
+        inputs.push('-ss', (startPositionMs / 1000).toFixed(6), '-i', this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath))
+        filters.push(`[${inputIndex}:a]atrim=duration=${((endPositionMs - startPositionMs) / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${(dbToGain(state.gainDb) * stemPlaybackGain(file)).toFixed(8)}${tempo ? `,${tempo}` : ''}[${label}]`)
         labels.push(`[${label}]`)
         inputIndex += 1
       })
-      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,file}) => this.arsenal?.render(this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath),track.effects,signal,0,
-        { tempo: request.practice.metronomeBpm * request.practice.playbackRate, beatOffsetMs: request.practice.metronomeOffsetMs / request.practice.playbackRate }) ?? this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath)))
-      audibleRecordings.forEach(({ track, file }, recordingIndex) => {
+      const wetRecordings = await Promise.all(audibleRecordings.map(async ({track,take,file}) => this.playback
+        ? this.playback.renderRange(take, song.durationMs, request.practice, track.effects, sampleRate, startPositionMs, endPositionMs,
+          path.join(path.dirname(output), `backing-recording-${take.id}.wav`), signal)
+        : this.arsenal?.render(this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath),track.effects,signal,0,
+          { tempo: request.practice.metronomeBpm * take.playbackRate, beatOffsetMs: request.practice.metronomeOffsetMs / take.playbackRate, pitchSemitones: recordingPitch(take, request.practice) }) ?? this.paths.resolveLibraryPath(settings.libraryRoot,file.previewRelPath)))
+      audibleRecordings.forEach(({ track, take }, recordingIndex) => {
         const label = `recorded${recordingIndex}`
+        const relativeTempo = this.playback ? '' : atempoFilters(recordingPlaybackRate(take, request.practice))
         inputs.push('-i', wetRecordings[recordingIndex]!)
-        filters.push(`[${inputIndex}:a]atrim=start=${(startPositionMs / request.practice.playbackRate / 1000).toFixed(6)}:end=${(endPositionMs / request.practice.playbackRate / 1000).toFixed(6)},asetpts=PTS-STARTPTS,aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${dbToGain(track.gainDb).toFixed(8)}[${label}]`)
+        const trim = this.playback ? '' : `atrim=start=${(startPositionMs / take.playbackRate / 1000).toFixed(6)}:end=${(endPositionMs / take.playbackRate / 1000).toFixed(6)},asetpts=PTS-STARTPTS,`
+        filters.push(`[${inputIndex}:a]${trim}aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${dbToGain(track.gainDb).toFixed(8)}${relativeTempo ? `,${relativeTempo}` : ''}[${label}]`)
         labels.push(`[${label}]`)
         inputIndex += 1
       })
-      filters.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:normalize=0,volume=${dbToGain(request.practice.masterGainDb).toFixed(8)},alimiter=limit=0.98:level=disabled[out]`)
+      filters.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:normalize=0,apad=whole_dur=${durationSeconds.toFixed(6)},volume=${dbToGain(request.practice.masterGainDb).toFixed(8)},alimiter=limit=0.98:level=disabled[out]`)
       args = [...inputs, '-filter_complex', filters.join(';'), '-map', '[out]', '-t', durationSeconds.toFixed(6)]
     }
     const result = await runProcess(ffmpeg, [
@@ -694,32 +760,25 @@ export class RecordingService {
 
   private async finalizeSession(session: ActiveSession, result: AudioHostStopResult, interrupted: boolean): Promise<RecordingTake | null> {
     if (session.cancelled) return null
-    if (this.active?.id === session.id) this.patchState({ phase: 'finalizing', message: '正在生成 FLAC、对齐预览和波形' })
+    if (this.active?.id === session.id) this.patchState({ phase: 'finalizing', message: '正在保存录音' })
     try {
       if (!existsSync(session.capturePath) || result.frames <= 0) throw new Error('RECORDING_CAPTURE_EMPTY')
-      const ffmpeg = await this.media.tool('ffmpeg')
-      if (!ffmpeg) throw new Error('FFMPEG_MISSING')
       const settings = this.database.getSettings()
       const song = this.database.getSong(session.songId)
       if (!song) throw new Error('SONG_NOT_FOUND')
-      const takeId = randomUUID()
+      const takeId = session.publishedTakeId ?? randomUUID()
       const songRoot = this.paths.songDirectory(settings.libraryRoot, song.id)
-      const preparedRoot = path.join(songRoot, '.recording-finalize', takeId)
       const finalRoot = path.join(songRoot, 'recordings', takeId)
-      mkdirSync(preparedRoot, { recursive: true })
-      const sourcePart = path.join(preparedRoot, 'source.part.flac')
-      const source = path.join(preparedRoot, 'source.flac')
-      await copyFile(session.capturePath, path.join(preparedRoot, 'dry-original.wav'))
-      const correctionRatio = result.clockCorrectionRatio ?? 1
-      const sourceFilter = buildClockCorrectionFilters(result.sampleRate, session.device.splitDevices, correctionRatio)
-      const sourceResult = await runProcess(ffmpeg, [
-        '-y', '-v', 'error', '-i', session.capturePath,
-        ...(sourceFilter.length ? ['-af', sourceFilter.join(',')] : []),
-        '-map_metadata', '-1', '-vn', '-c:a', 'flac', '-sample_fmt', 's32', '-bits_per_raw_sample', '24', sourcePart
-      ])
-      if (sourceResult.code !== 0) throw new Error(`RECORDING_SOURCE_ENCODE_FAILED:${sourceResult.stderr.slice(-800)}`)
-      await rename(sourcePart, source)
-      const probe = await this.media.probe(source)
+      await mkdir(finalRoot, { recursive: true })
+      const source = path.join(finalRoot, 'source.wav')
+      // Capture already is a finalized, lossless float WAV on the same volume.
+      // Publishing it is a rename and database transaction, never a whole-file
+      // encode, silence pad, effect render or waveform pass.
+      // Recover either side of the rename/SQLite boundary after a crash, and
+      // recognize an already committed take before removing its old session.
+      await writeFile(path.join(session.sessionRoot, 'publish.json'), JSON.stringify({ takeId, result }))
+      if (session.capturePath !== source) await rename(session.capturePath, source)
+      const correctionRatio = session.device.splitDevices ? result.clockCorrectionRatio ?? 1 : 1
       const alignmentOffsetMs = calculateTakeAlignmentOffset(
         session.device.deviceAlignmentOffsetMs,
         session.host?.latencyMs ?? 0,
@@ -727,31 +786,26 @@ export class RecordingService {
         result.inputStartOutputFrames ?? 0,
         result.outputSampleRate ?? result.sampleRate
       )
-      const durationMs = probe.durationMs || result.durationMs
+      const durationMs = result.frames / result.sampleRate * 1000 / correctionRatio
       const endPositionMs = session.plannedEnd
         ? session.endPositionMs
         : Math.min(song.durationMs, session.startPositionMs + durationMs * session.playbackRate)
-      const preview = path.join(preparedRoot, 'preview.flac')
-      const peaks = path.join(preparedRoot, 'preview.peaks.json')
-      await this.renderPreviewFile(source, preview, song.durationMs, session.startPositionMs, session.playbackRate, alignmentOffsetMs)
-      await this.media.generatePeaks(preview, peaks, song.durationMs / session.playbackRate)
-      mkdirSync(path.dirname(finalRoot), { recursive: true })
-      await rename(preparedRoot, finalRoot)
-      const take = this.database.createRecordingTake({
+      let take: RecordingTake
+      try { take = this.database.createRecordingTake({
         id: takeId,
         songId: song.id,
         recordingTrackId: session.recordingTrackId,
         name: this.database.nextRecordingTakeName(session.recordingTrackId),
-        sourceRelPath: this.paths.toLibraryRelative(settings.libraryRoot, path.join(finalRoot, 'source.flac')),
-        previewRelPath: this.paths.toLibraryRelative(settings.libraryRoot, path.join(finalRoot, 'preview.flac')),
-        peaksRelPath: this.paths.toLibraryRelative(settings.libraryRoot, path.join(finalRoot, 'preview.peaks.json')),
+        sourceRelPath: this.paths.toLibraryRelative(settings.libraryRoot, source),
+        previewRelPath: this.paths.toLibraryRelative(settings.libraryRoot, source),
+        peaksRelPath: null,
         durationMs,
         startPositionMs: session.startPositionMs,
         endPositionMs,
         playbackRate: session.playbackRate,
         pitchSemitones: session.pitchSemitones ?? 0,
-        sampleRate: probe.sampleRate ?? result.sampleRate,
-        channels: probe.channels ?? result.channels,
+        sampleRate: result.sampleRate,
+        channels: result.channels,
         alignmentOffsetMs,
         backend: session.device.backend,
         inputDeviceName: session.device.input.name,
@@ -763,20 +817,22 @@ export class RecordingService {
           outputDeviceId: session.device.output.id,
           outputDeviceName: session.device.output.name,
           inputChannels: session.device.settings.inputChannels,
-          sampleRate: probe.sampleRate ?? result.sampleRate,
+          sampleRate: result.sampleRate,
           bufferFrames: session.host?.bufferFrames ?? session.device.bufferFrames,
           latencyMs: session.host?.latencyMs ?? 0,
           splitDevices: session.device.splitDevices,
           softwareMonitoring: false,
           pluginFaults: result.pluginFaults, audioDiagnostics: result.diagnostics,
-          originalCaptureRelPath: path.relative(settings.libraryRoot, path.join(finalRoot, 'dry-original.wav')).replaceAll('\\','/')
+          compactRecording: true, clockCorrectionRatio: correctionRatio,
+          originalCaptureRelPath: this.paths.toLibraryRelative(settings.libraryRoot, source)
         },
         interrupted
-      })
-      await rm(session.sessionRoot, { recursive: true, force: true })
+      }) } catch (error) { if (session.capturePath !== source) await rename(source, session.capturePath); throw error }
       if (this.active?.id === session.id) this.active = null
       this.setState(idleState())
       this.changed()
+      void rm(session.sessionRoot, { recursive: true, force: true }).catch(error => this.logger.warn('recording session cleanup failed', error))
+      this.queueWaveform(take, source, song.durationMs)
       return take
     } catch (error) {
       if (this.active?.id === session.id) this.active = null

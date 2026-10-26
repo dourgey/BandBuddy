@@ -93,6 +93,10 @@ export class AppPaths {
     return path.join(process.resourcesPath, ...segments)
   }
 
+  cabinetIrRoot(): string {
+    return app.isPackaged ? this.packagedResource('cabinet-irs') : path.join(process.cwd(), 'resources', 'cabinet-irs')
+  }
+
   audioHostExecutable(): string {
     if (process.env.BANDBUDDY_AUDIO_HOST) return path.resolve(process.env.BANDBUDDY_AUDIO_HOST)
     const target = `${process.platform}-${process.arch}`
