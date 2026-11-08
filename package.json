@@ -1,6 +1,6 @@
 {
   "name": "bandbuddy",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "A local-first stem practice player for musicians",
   "main": "./out/main/index.js",
@@ -54,6 +54,7 @@
     "tools:fetch": "node scripts/fetch-tools.mjs",
     "tools:fetch:cn": "node scripts/fetch-tools.mjs --china",
     "verify:resources": "node scripts/verify-resources.mjs",
+    "prepare:drums": "node scripts/prepare-drum-samples.mjs",
     "verify:drums": "node scripts/verify-drum-samples.mjs",
     "package:dir": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win dir --x64",
     "package:unsigned": "pnpm native:audio && pnpm build && electron-builder --config electron-builder.unsigned.yml --win nsis portable --x64",

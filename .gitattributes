@@ -1,3 +1,4 @@
 # Model configuration hashes are byte-exact; preserve LF on Windows checkouts.
 python/guitar_separator_hq/configs/*.yaml text eol=lf
-python/vocal_separator/configs/*.yaml text eol=lf
+# Vocal catalog hashes refer to the upstream CRLF bytes.
+python/vocal_separator/configs/*.yaml -text whitespace=cr-at-eol

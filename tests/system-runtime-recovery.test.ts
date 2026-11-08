@@ -9,9 +9,10 @@ vi.mock('../src/main/windows-prerequisites.js', async load => ({ ...await load<t
 vi.mock('../src/main/process.js', async load => ({ ...await load<typeof import('../src/main/process.js')>(), runProcess: mocks.process }))
 vi.mock('node:fs', async load => ({ ...await load<typeof import('node:fs')>(), existsSync: () => true }))
 const roots: string[] = []
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
+afterEach(async () => { vi.restoreAllMocks(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
   mocks.detect.mockResolvedValue({ installed: false, supported: false, version: null })
   mocks.process.mockResolvedValue({ code: 0, stdout: '{"ok":true}', stderr: '' })
 })

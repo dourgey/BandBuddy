@@ -6,7 +6,12 @@ import { spawnSync } from 'node:child_process'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { createEffectModule, defaultEffectChain, moduleChain, type EffectModule, type PreparedEffects } from '../packages/shared/src/arsenal.js'
 
-const executable = path.resolve('native/audio-host/build/win32-x64/effects/Release/bandbuddy-effects-test.exe')
+const buildDirectory = path.resolve('native/audio-host/build', `${process.platform}-${process.arch}`, 'effects')
+const executableName = `bandbuddy-effects-test${process.platform === 'win32' ? '.exe' : ''}`
+const executable = process.env.BB_EFFECTS_TEST ?? [
+  path.join(buildDirectory, 'Release', executableName),
+  path.join(buildDirectory, executableName)
+].find(candidate => existsSync(candidate)) ?? path.join(buildDirectory, executableName)
 let directory: string
 const frames = 24000
 const source = new Float32Array(frames * 2)
@@ -30,6 +35,15 @@ async function render(modules: EffectModule[], chunk = 127, extra:Partial<Prepar
   return output
 }
 const native = it.skipIf(!existsSync(executable))
+native('keeps the shipped WASM effects consistent with native renders and exports', () => {
+  const result = spawnSync(process.execPath, ['scripts/test-whitebox.mjs'], {
+    encoding: 'utf8',
+    env: { ...process.env, BB_EFFECTS_TEST: executable },
+    timeout: 60_000
+  })
+  expect(result.error).toBeUndefined()
+  expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
+}, 70_000)
 native('preserves dry bytes and is independent of callback block boundaries', async () => {
   const modules = ['dynamic', 'drive', 'amp', 'cab', 'eq', 'mod', 'delay', 'reverb'].map(type => createEffectModule(type as EffectModule['type']))
   const a = await render(modules, 127), b = await render(modules, 512)

@@ -214,7 +214,7 @@ describe('practice transport interaction', () => {
     await openPractice()
     expect(document.querySelectorAll('video')).toHaveLength(0)
     await waitFor(() => expect(document.querySelectorAll('.waveform')).toHaveLength(6))
-    expect(screen.getAllByRole('button', { name: 'M', exact: true })).toHaveLength(6)
+    expect(screen.getAllByRole('button', { name: /静音$/ }).filter(button => button.textContent === 'M')).toHaveLength(6)
     const child = { closed: false, close: vi.fn(), focus: vi.fn(), postMessage: vi.fn() }
     const popup = vi.spyOn(window, 'open').mockReturnValue(child as unknown as Window)
     fireEvent.click(screen.getByRole('button', { name: '打开视频窗口' }))

@@ -14,7 +14,7 @@
 
 BandBuddy 的核心不是“把人声去掉”，而是让一首歌真正变得**可练**：听清目标声部、放慢困难小节、循环到肌肉记住、跟着准确节拍进入，再在下一次打开时从原来的位置继续。
 
-> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载已发布版本](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 当前源码版本 `3.0.0` · Windows x64 / macOS Apple Silicon
+> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载最新正式版](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 源码版本 `3.0.1` · Windows x64 / macOS Apple Silicon
 
 本文对应当前源码；GitHub Release 的版本与安装文件以发布页为准。主要入口包括曲库与练习室、排练、练功房和军火库。
 
@@ -180,6 +180,7 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 - **无需上传音乐**：分轨、波形、BPM 与歌曲调检测、混音和导出全部在本机完成。
 - **独立运行环境**：应用安装私有 CPython、PyTorch 和 Demucs，不读取系统 Python、PATH 或注册表 Python。
 - **按设备自动回退**：Windows 优先使用可用的 NVIDIA CUDA，macOS 优先使用 Apple MPS；不可用、设备失效或显存不足时可回退 CPU。
+- **加速异常保护**：CoreML / CUDA 的 ONNX 模型即使成功加载，运行失败时也会用同一模型在 CPU 重试当前片段。Apple Silicon 的分轨进程默认限制 MPS 内存占用，避免大模型耗尽共享内存后长时间等待；超限后由任务队列使用相同质量参数在 CPU 重试。显式设置的 PyTorch MPS 内存环境变量仍会保留。
 - **可验证的依赖**：uv、FFmpeg 和模型按固定版本下载并校验 SHA-256；代理凭据会从日志中脱敏。
 - **可恢复的数据操作**：SQLite 使用 WAL 和迁移备份；重新分轨成功前保留旧版本，删除音乐时先移动到回收站。
 
@@ -221,7 +222,7 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 - `BandBuddy-<版本>-macos-arm64.dmg` / `.zip`：Apple Silicon Mac。
 
-签名、公证状态与校验文件以具体 Release 说明为准。应用基础功能的最低版本声明为 macOS 13；当前 Apple Silicon 本地分轨依赖清单要求 **macOS 14+**。
+签名、公证状态与校验文件以具体 Release 说明为准。应用基础功能的最低版本声明为 macOS 13；Apple Silicon 本地分轨依赖清单采用 ONNX Runtime 1.23.2，完整本地分轨依赖最低版本为 **macOS 13.4+**（仍需最低系统真机验收）。
 
 ## 从源码运行
 
@@ -232,11 +233,19 @@ git clone https://github.com/dourgey/BandBuddy.git
 cd BandBuddy
 pnpm install
 pnpm tools:fetch
+pnpm prepare:drums
+pnpm native:audio
 pnpm test
 pnpm dev
 ```
 
-`pnpm tools:fetch` 会下载并逐文件校验固定版本的 uv 与 FFmpeg。`pnpm dev` 会先构建原生音频宿主；Windows 下还会构建系统辅助程序并准备经过签名验证的微软运行库安装器，因此首次构建需要联网。只查看界面时可运行 `pnpm dev:renderer`，然后打开 `http://localhost:5173/?fixtures=1`；fixture 模式只在开发环境启用，不会进入正式构建。
+`pnpm dev` 会先构建原生音频宿主；Windows 下还会构建系统辅助程序并准备经过签名验证的微软运行库安装器，因此首次构建需要联网。
+
+`pnpm tools:fetch` 会下载并逐文件校验固定版本的 uv 与 FFmpeg。鼓机的 34 个 FLAC 音色不存入 Git：先将原始 `MODO-DRUM-STUDIO-One-Shots` 音源包解压至下载目录，再运行 `pnpm prepare:drums`；其他位置可用 `pnpm prepare:drums /path/to/MODO-DRUM-STUDIO-One-Shots` 指定。准备过程逐项验证源文件 SHA-256 和无损压缩前后的 PCM，并更新本机 FLAC 清单。`pnpm verify:drums` 可独立检查结果，缺少音源包时构建会明确停止。
+
+`pnpm native:audio` 编译并测试当前平台的原生音频宿主，也让 `pnpm test` 能运行原生效果器测试。修改 `native/effects` 后，还需在已激活 Emscripten 的终端运行 `pnpm build:effects:wasm` 更新仓库中的 WASM 工件；`pnpm test:whitebox` 比较原生与 WASM 输出及离线导出的一致性。
+
+只查看界面时可运行 `pnpm dev:renderer`，然后打开 `http://localhost:5173/?fixtures=1`；fixture 模式只在开发环境启用，不会进入正式构建。
 
 中国大陆可使用下面的流程；镜像配置只对当前命令生效，不会改写用户的全局 `.npmrc`：
 
@@ -250,6 +259,8 @@ npm install --global pnpm@11.9.0 --registry=https://registry.npmmirror.com
 
 pnpm install:cn
 pnpm tools:fetch:cn
+pnpm prepare:drums
+pnpm native:audio
 pnpm test
 pnpm dev:cn
 ```

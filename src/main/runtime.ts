@@ -220,7 +220,9 @@ export class RuntimeManager {
       TORCH_HOME: path.join(settings.modelRoot, '.torch-cache'),
       PYTHONUTF8: '1',
       PYTHONIOENCODING: 'utf-8',
-      PYTHONNOUSERSITE: '1'
+      PYTHONNOUSERSITE: '1',
+      // Imported worker modules live inside the sealed, signed macOS app bundle.
+      PYTHONDONTWRITEBYTECODE: '1'
     }
     const packagedBin = this.paths.packagedResource('bin')
     const developmentBin = path.join(process.cwd(), 'resources', 'bin')

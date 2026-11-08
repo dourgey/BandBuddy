@@ -57,9 +57,9 @@ describe('library card overflow text', () => {
       onMenu={vi.fn()}
     />)
 
-    const title = screen.getByTitle(song.title)
-    expect(screen.getByTitle(song.artist).classList.contains('card-scroll-text')).toBe(true)
-    expect(screen.getByTitle(song.phase).classList.contains('card-scroll-text')).toBe(true)
+    const title = document.querySelector('.song-card')!.querySelector(`[title="${song.title}"]`) as HTMLElement
+    expect(screen.getAllByTitle(song.artist)[0]!.classList.contains('card-scroll-text')).toBe(true)
+    expect(screen.getAllByTitle(song.phase)[0]!.classList.contains('card-scroll-text')).toBe(true)
     const content = title.querySelector('span')!
     Object.defineProperty(title, 'clientWidth', { configurable: true, value: 100 })
     Object.defineProperty(content, 'scrollWidth', { configurable: true, value: 260 })

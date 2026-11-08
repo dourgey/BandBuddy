@@ -18,7 +18,12 @@ async function smokeApp(app, directory) {
   })
   const line = stdout.split(/\r?\n/).find(line => line.startsWith('BAND_BUDDY_SMOKE '))
   const result = line ? JSON.parse(line.slice('BAND_BUDDY_SMOKE '.length)) : null
-  if (result?.apiType !== 'object' || !result.ffmpegReady) throw new Error('MAC_PACKAGED_SMOKE_FAILED')
+  if (result?.apiType !== 'object' || !['unchecked', 'verified'].includes(result.ffmpegVerification)) throw new Error('MAC_PACKAGED_SMOKE_FAILED')
+  for (const tool of ['ffmpeg', 'ffprobe']) {
+    const { stdout: version } = await run(path.join(app, 'Contents/Resources/bin', tool), ['-version'])
+    if (!version.startsWith(tool + ' version ')) throw new Error('MAC_PACKAGED_TOOL_FAILED:' + tool)
+  }
+  result.packagedFfmpegExecution = true
   return result
 }
 
@@ -43,6 +48,10 @@ async function verifyRelease(context) {
         if (file.endsWith('.dmg')) {
           await run('/usr/bin/codesign', ['--verify', '--strict', '-R', publisherRequirement, file])
           await run('/usr/bin/hdiutil', ['verify', file])
+          if (notarized) {
+            await run('/usr/bin/xcrun', ['stapler', 'validate', file])
+            await run('/usr/sbin/spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', file])
+          }
           await run('/usr/bin/hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', directory, file])
           mounted = true
         } else {
@@ -54,6 +63,8 @@ async function verifyRelease(context) {
           const smokeRoot = path.join(temporary, 'smoke')
           await mkdir(smokeRoot, { recursive: true })
           report.smoke = await smokeApp(app, smokeRoot)
+          await verifyApp(app, { notarized })
+          report.smoke.signatureValidAfterStartup = true
         }
         report.artifacts.push({ file: path.basename(file), sha256: await sha256(file), binaries: verified.binaries.length })
       } finally {

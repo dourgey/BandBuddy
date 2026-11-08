@@ -1,5 +1,6 @@
 // Run after building the native effects-test target and scripts/build-effects.mjs.
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -10,7 +11,12 @@ const root = process.cwd()
 const ampCabOnly = process.argv.includes('--amp-cab-only')
 const pedalsOnly = process.argv.includes('--pedals-only')
 const platform = `${process.platform}-${process.arch}`
-const native = process.env.BB_EFFECTS_TEST || path.join(root, 'native/audio-host/build', platform, 'effects', ...(process.platform === 'win32' ? ['Release'] : []), `bandbuddy-effects-test${process.platform === 'win32' ? '.exe' : ''}`)
+const nativeRoot = path.join(root, 'native/audio-host/build', platform)
+const suffix = process.platform === 'win32' ? '.exe' : ''
+const nativeExecutable = (directory, name) => [path.join(directory, 'Release', name + suffix), path.join(directory, name + suffix)].find(file => existsSync(file)) ?? path.join(directory, name + suffix)
+const native = process.env.BB_EFFECTS_TEST || nativeExecutable(path.join(nativeRoot, 'effects'), 'bandbuddy-effects-test')
+const host = process.env.BB_AUDIO_HOST || nativeExecutable(nativeRoot, 'bandbuddy-audio-host')
+
 const m = await createModule({ wasmBinary: await readFile(path.join(root, 'src/renderer/src/arsenal/dsp/arsenal-dsp.wasm')) })
 const dir = await mkdtemp(path.join(tmpdir(), 'bb-whitebox-'))
 const frames = 8192
@@ -92,7 +98,7 @@ try {
       const wavIn=path.join(dir,'dry.wav'),wavOut=path.join(dir,'wet.wav'),job=path.join(dir,'job.json')
       await writeFile(wavIn,Buffer.concat([header,Buffer.from(source.buffer)]))
       await writeFile(job,JSON.stringify({input:wavIn,output:wavOut,prepared,tailSeconds:.1}))
-      const host=process.env.BB_AUDIO_HOST || path.join(root,'native/audio-host/build',platform,...(process.platform==='win32'?['Release']:[]),`bandbuddy-audio-host${process.platform==='win32'?'.exe':''}`)
+
       const result=spawnSync(host,['--render-effects',job],{encoding:'utf8'})
       if(result.error||result.status)throw new Error(result.error?.message||result.stderr)
       const wave=await readFile(wavOut);let data
