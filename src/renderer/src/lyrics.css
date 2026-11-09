@@ -115,7 +115,8 @@ header i {
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 #lyrics-card, :root[data-theme] #lyrics-card { background: color-mix(in srgb, var(--lyric-background-color, #171410) calc(var(--lyric-background-opacity) * 100%), transparent); }
-#lyrics-card #current-lyric, #lyrics-card #current-lyric.has-word-timing { background: none; color: var(--lyric-text-color, #fff0a8); -webkit-text-fill-color: var(--lyric-text-color, #fff0a8); font-weight: var(--lyric-font-weight, 750); }
+#lyrics-card #current-lyric { font-weight: var(--lyric-font-weight, 750); }
+#lyrics-card #current-lyric.has-word-timing { background: none; color: var(--lyric-text-color, #fff0a8); -webkit-text-fill-color: var(--lyric-text-color, #fff0a8); font-weight: var(--lyric-font-weight, 750); }
 #lyrics-card .lyric-word { color: color-mix(in srgb, var(--lyric-text-color, #fff0a8) 45%, transparent); -webkit-text-fill-color: currentColor; }
 #lyrics-card .lyric-word-highlight { color: var(--lyric-text-color, #fff0a8); -webkit-text-fill-color: currentColor; }
 #lyrics-card .lyric-outgoing { color: var(--lyric-text-color, #fff0a8); font-weight: var(--lyric-font-weight, 750); }

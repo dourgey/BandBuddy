@@ -186,7 +186,48 @@ export class ArsenalService {
     this.workspace.takes.unshift({...this.currentTake,durationMs:result.durationMs,sampleRate:result.sampleRate,channels:result.channels,pluginFaults:result.pluginFaults})
     this.currentTake=null;this.workspace.quick={recording:false,looping:false,durationMs:result.durationMs};await this.persistWorkspace()
   }
-  command(input:ArsenalCommand):Promise<ArsenalWorkspace> {
+  async command(input:ArsenalCommand):Promise<ArsenalWorkspace> {
+    if(input.action==='exportTake'){
+      const take=this.workspace.takes.find(t=>t.id===input.id);if(!take)throw new Error('录音不存在')
+      const result=await dialog.showSaveDialog({title:input.wet?'导出效果声音':'导出原始 DI',defaultPath:`${take.name}${input.wet?'-wet':'-DI'}.wav`,filters:[{name:'WAV',extensions:['wav']}]})
+      if(result.canceled||!result.filePath)return structuredClone(this.workspace)
+      const savePath=result.filePath
+      const next=this.busy.catch(()=>undefined).then(async()=>{
+        const source=input.wet?await this.render(this.takeFile(take.id),{enabled:true,presetId:null,monitorMode:'wet',chain:effectChainSchema.parse(input.chain??take.chain)},new AbortController().signal,5):this.takeFile(take.id)
+        await copyFile(source,savePath)
+        return structuredClone(this.workspace)
+      })
+      this.busy=next;return next
+    }
+    if(input.action==='exportPreset'){
+      const result=await dialog.showSaveDialog({title:'导出预设',defaultPath:`${input.preset.name}.bbtone`,filters:[{name:'BandBuddy 音色',extensions:['bbtone']}]})
+      if(result.canceled||!result.filePath)return structuredClone(this.workspace)
+      const savePath=result.filePath
+      const next=this.busy.catch(()=>undefined).then(async()=>{
+        const hashes=(input.preset.chain.plugins??[]).flatMap(p=>p.stateHash?[p.stateHash]:[])
+        const pluginStates=hashes.length?await this.host.plugins.exportStates(hashes):undefined
+        await writeFile(savePath,JSON.stringify({format:'bandbuddy-tone',version:pluginStates?2:1,name:input.preset.name,tags:input.preset.tags??[],chain:storeEffectChain(input.preset.chain),pluginStates},null,2))
+        return structuredClone(this.workspace)
+      })
+      this.busy=next;return next
+    }
+    if(input.action==='importPreset'){
+      const result=await dialog.showOpenDialog({title:'导入预设',properties:['openFile'],filters:[{name:'BandBuddy 音色',extensions:['bbtone','json']}]})
+      if(result.canceled||!result.filePaths[0])return structuredClone(this.workspace)
+      const filePath=result.filePaths[0]
+      if((await stat(filePath)).size>180*1024*1024)throw new Error('预设文件超过 180 MB')
+      const data=z.object({format:z.literal('bandbuddy-tone'),version:z.union([z.literal(1),z.literal(2)]),name:z.string().max(100),tags:z.array(z.string().max(30)).max(20).optional(),chain:effectChainSchema,pluginStates:z.record(z.string(),z.string()).optional()}).parse(JSON.parse(await readFile(filePath,'utf8')))
+      const next=this.busy.catch(()=>undefined).then(async()=>{
+        if(data.version===2) {
+          const states=data.pluginStates??{}
+          for(const plugin of data.chain.plugins??[]) if(plugin.stateHash&&!states[plugin.stateHash])throw new Error(`预设缺少插件状态：${plugin.name}`)
+          await this.host.plugins.importStates(states)
+        }
+        this.savePreset(data)
+        return structuredClone(this.workspace)
+      })
+      this.busy=next;return next
+    }
     const next=this.busy.catch(()=>undefined).then(async()=>{
       switch(input.action){
         case 'favorite':this.workspace.favorites=[...(this.workspace.favorites??[]).filter(id=>id!==input.id),...(input.value?[z.string().uuid().parse(input.id)]:[])];await this.persistWorkspace();break
@@ -214,35 +255,9 @@ export class ArsenalService {
           if(result.code)throw new Error(result.stderr)
           this.workspace.quick=await this.host.arsenalQuick({action:'loop',path:output});break
         }
-        case 'exportTake':{
-          const take=this.workspace.takes.find(t=>t.id===input.id);if(!take)throw new Error('录音不存在')
-          const result=await dialog.showSaveDialog({title:input.wet?'导出效果声音':'导出原始 DI',defaultPath:`${take.name}${input.wet?'-wet':'-DI'}.wav`,filters:[{name:'WAV',extensions:['wav']}]});if(result.canceled||!result.filePath)break
-          const source=input.wet?await this.render(this.takeFile(take.id),{enabled:true,presetId:null,monitorMode:'wet',chain:effectChainSchema.parse(input.chain??take.chain)},new AbortController().signal,5):this.takeFile(take.id)
-          await copyFile(source,result.filePath);break
-        }
         case 'deleteTake':{
           if(this.workspace.quick.looping)throw new Error('请先停止 DI 循环')
           const file=this.takeFile(input.id);this.workspace.takes=this.workspace.takes.filter(t=>t.id!==input.id);await this.persistWorkspace();await rm(file,{force:true});break
-        }
-        case 'exportPreset':{
-          const result=await dialog.showSaveDialog({title:'导出预设',defaultPath:`${input.preset.name}.bbtone`,filters:[{name:'BandBuddy 音色',extensions:['bbtone']}]})
-          if(!result.canceled&&result.filePath) {
-            const hashes=(input.preset.chain.plugins??[]).flatMap(p=>p.stateHash?[p.stateHash]:[])
-            const pluginStates=hashes.length?await this.host.plugins.exportStates(hashes):undefined
-            await writeFile(result.filePath,JSON.stringify({format:'bandbuddy-tone',version:pluginStates?2:1,name:input.preset.name,tags:input.preset.tags??[],chain:storeEffectChain(input.preset.chain),pluginStates},null,2))
-          }
-          break
-        }
-        case 'importPreset':{
-          const result=await dialog.showOpenDialog({title:'导入预设',properties:['openFile'],filters:[{name:'BandBuddy 音色',extensions:['bbtone','json']}]});if(result.canceled||!result.filePaths[0])break
-          if((await stat(result.filePaths[0])).size>180*1024*1024)throw new Error('预设文件超过 180 MB')
-          const data=z.object({format:z.literal('bandbuddy-tone'),version:z.union([z.literal(1),z.literal(2)]),name:z.string().max(100),tags:z.array(z.string().max(30)).max(20).optional(),chain:effectChainSchema,pluginStates:z.record(z.string(),z.string()).optional()}).parse(JSON.parse(await readFile(result.filePaths[0],'utf8')))
-          if(data.version===2) {
-            const states=data.pluginStates??{}
-            for(const plugin of data.chain.plugins??[]) if(plugin.stateHash&&!states[plugin.stateHash])throw new Error(`预设缺少插件状态：${plugin.name}`)
-            await this.host.plugins.importStates(states)
-          }
-          this.savePreset(data);break
         }
         case 'assetLink':{
           const link=z.enum(['source','license']).parse(input.link)

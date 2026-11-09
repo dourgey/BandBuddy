@@ -172,7 +172,13 @@ export default function AiChat({ open, onOpenChange }: { open: boolean; onOpenCh
     } catch (reason) { setError(toUserErrorMessage(reason, '删除失败')) }
   }
   const copy = async (message: AiMessage): Promise<void> => {
-    try { await navigator.clipboard.writeText(message.text); setCopied(message.id) } catch { setError('无法复制，请选中文字后手动复制。') }
+    try {
+      await navigator.clipboard.writeText(message.text)
+      setCopied(message.id)
+      setTimeout(() => setCopied(id => id === message.id ? null : id), 2000)
+    } catch {
+      setError('无法复制，请选中文字后手动复制。')
+    }
   }
   return <>
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}><Dialog.Portal>
@@ -207,7 +213,7 @@ export default function AiChat({ open, onOpenChange }: { open: boolean; onOpenCh
               {error && <div className="ai-composer-error" role="alert"><span>{error}</span><button className="ai-icon-button" aria-label="重新读取 AI 数据" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RotateCcw size={14} /></button><button className="ai-icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={14} /></button></div>}
               {!!draft.images.length && <div className="ai-attachments">{draft.images.map(item => <div key={item.id}><button className="ai-attachment-preview" onClick={() => setPreview(item)} title={item.name}><img src={item.dataUrl} alt={item.name} /></button><button className="ai-remove-image" aria-label={`移除图片 ${item.name}`} onClick={() => patchDraft({ images: draft.images.filter(image => image.id !== item.id) })}><X size={12} /></button></div>)}</div>}
               <textarea ref={input} aria-label="消息内容" placeholder="输入消息，也可以粘贴或拖入图片…" value={draft.text} maxLength={AI_MAX_TEXT} disabled={pending || initialLoading} onChange={event => patchDraft({ text: event.target.value })} onPaste={event => { const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (images.length) { event.preventDefault(); void addImages(images) } }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void send() } }} />
-              <div className="ai-composer-toolbar"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="选择图片" onChange={event => void addImages(Array.from(event.target.files ?? []))} /><button className="ai-icon-button" aria-label="添加图片" title="添加图片（最多 4 张，单张 5 MB）" disabled={readingImages || pending || draft.images.length >= AI_MAX_IMAGES} onClick={() => fileInput.current?.click()}>{readingImages ? <LoaderCircle className="ai-spin" size={18} /> : <ImagePlus size={18} />}</button><span>Enter 发送 · Shift + Enter 换行</span>{busy ? <button className="ai-send-button stop" disabled={pending} onClick={() => { if (api && selected) void api.cancel(selected).catch(reason => setError(toUserErrorMessage(reason, '停止失败'))) }}><Square size={13} />停止生成</button> : <button className="ai-send-button" aria-label="发送消息" disabled={!ready || pending || readingImages || loading || initialLoading || (!draft.text.trim() && !draft.images.length)} onClick={() => void send()}>{pending ? <LoaderCircle className="ai-spin" size={16} /> : <Send size={16} />}发送</button>}</div>
+              <div className="ai-composer-toolbar"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="选择图片" onChange={event => void addImages(Array.from(event.target.files ?? []))} /><button className="ai-icon-button" aria-label="添加图片" title="添加图片（最多 4 张，单张 5 MB）" disabled={readingImages || pending || draft.images.length >= AI_MAX_IMAGES} onClick={() => fileInput.current?.click()}>{readingImages ? <LoaderCircle className="ai-spin" size={18} /> : <ImagePlus size={18} />}</button><span>Enter 发送 · Shift + Enter 换行</span>{busy ? <button className="ai-send-button stop" disabled={!selected} onClick={() => { if (api && selected) void api.cancel(selected).catch(reason => setError(toUserErrorMessage(reason, '停止失败'))) }}><Square size={13} />停止生成</button> : <button className="ai-send-button" aria-label="发送消息" disabled={!ready || pending || readingImages || loading || initialLoading || (!draft.text.trim() && !draft.images.length)} onClick={() => void send()}>{pending ? <LoaderCircle className="ai-spin" size={16} /> : <Send size={16} />}发送</button>}</div>
               {!ready && messages.length > 0 && <button className="ai-configure-link" onClick={() => setSettingsOpen(true)}>先配置 AI 接口，再继续对话</button>}
             </div>
           </section>

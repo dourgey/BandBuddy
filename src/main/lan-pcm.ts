@@ -58,7 +58,7 @@ export class LanPcmRenderer {
     signal.addEventListener('abort', this.disposeParent, { once: true })
     this.total = Math.max(0, Math.ceil((duration - position) * LAN_PCM_RATE / rate - 1e-7))
     const inputs = sources.flatMap(source => ['-ss', position.toFixed(9), '-i', source.path])
-    const filters = sources.map((_, index) => `[${index}:a]aresample=${LAN_PCM_RATE},aformat=sample_fmts=flt:channel_layouts=stereo,apad,atrim=duration=${Math.max(.001, duration - position).toFixed(9)}[s${index}]`)
+    const filters = sources.map((_, index) => `[${index}:a]aresample=${LAN_PCM_RATE},aformat=sample_fmts=flt:channel_layouts=stereo,apad,atrim=duration=${Math.max(.001, duration - position + 32768 / LAN_PCM_RATE).toFixed(9)}[s${index}]`)
     filters.push(`${sources.map((_, index) => `[s${index}]`).join('')}${sources.length === 1 ? 'anull' : `amerge=inputs=${sources.length}`}[pcm]`)
     this.decoder = spawnSafe(ffmpeg, ['-nostdin', '-v', 'error', '-filter_complex_threads', '1', ...inputs,
       '-filter_complex', filters.join(';'), '-map', '[pcm]', '-threads', '1', '-c:a', 'pcm_f32le', '-f', 'f32le', 'pipe:1'], { signal: this.controller.signal })

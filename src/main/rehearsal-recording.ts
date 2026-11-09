@@ -13,6 +13,7 @@ import {
   type SongDetail,
   type TrackState
 } from '@shared/domain.js'
+import { practiceMix, recordingPitch, recordingPlaybackRate } from '@shared/practice-mix.js'
 import {
   buildRehearsalTimeline,
   createRehearsalRevisionSnapshot,
@@ -23,6 +24,7 @@ import {
   type RehearsalRecordingTrackState,
   type RehearsalTimeline
 } from '@shared/rehearsal.js'
+import type { ArsenalService } from './arsenal.js'
 import type {
   AudioHostClient,
   AudioHostEvent,
@@ -36,6 +38,7 @@ import type { AppPaths } from './paths.js'
 import { renderPitchedStemBus } from './pitch-shift.js'
 import { runProcess } from './process.js'
 import { buildClockCorrectionFilters, calculateTakeAlignmentOffset, repairWaveHeader } from './recording.js'
+import type { RecordingPlaybackService } from './recording-playback.js'
 
 interface ResolvedDeviceConfiguration {
   settings: RecordingAudioSettings
@@ -43,6 +46,7 @@ interface ResolvedDeviceConfiguration {
   input: RecordingDeviceInfo
   output: RecordingDeviceInfo
   sampleRate: number
+  inputSampleRate?: number
   bufferFrames: number
   splitDevices: boolean
   deviceAlignmentOffsetMs: number
@@ -94,6 +98,8 @@ const idleState = (): RehearsalRecordingState => ({
 const wait = async (milliseconds: number): Promise<void> => await new Promise((resolve) => setTimeout(resolve, milliseconds))
 
 export class RehearsalRecordingService {
+  playback?: RecordingPlaybackService
+  arsenal?: ArsenalService
   private state = idleState()
   private active: ActiveRehearsalSession | null = null
   private preparingId: string | null = null
@@ -264,6 +270,7 @@ export class RehearsalRecordingService {
 
   async start(request: RehearsalRecordingStartRequest): Promise<{ sessionId: string }> {
     if (this.isActive() || this.otherRecordingActive()) throw new Error('RECORDING_SESSION_BUSY')
+    await this.arsenal?.stopMonitor()
     const rehearsal = this.database.getRehearsal(request.rehearsalId, false)
     if (!rehearsal) throw new Error('REHEARSAL_NOT_FOUND')
     const track = this.database.getRehearsalRecordingTrack(request.recordingTrackId)
@@ -577,10 +584,7 @@ export class RehearsalRecordingService {
     const files = this.database.getActiveStemFiles(song.id)
     const activeRecordings = song.recordingTracks.flatMap((track) => {
       const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
-      return take && Math.abs(take.playbackRate - song.practice.playbackRate) <= 0.0001
-        && (take.pitchSemitones ?? 0) === (song.practice.pitchSemitones ?? 0)
-        ? [{ track, take }]
-        : []
+      return take ? [{ track, take }] : []
     })
     const hasSolo = song.practice.tracks.some((track) =>
       (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)) && track.solo && !track.muted
@@ -649,14 +653,38 @@ export class RehearsalRecordingService {
       labels.push(`[${label}]`)
       inputIndex += 1
     })
-    audibleRecordings.forEach(({ track, file }, index) => {
+    const wetRecordings = await Promise.all(audibleRecordings.map(async ({ track, take, file }) => this.playback
+      ? this.playback.renderRange(
+          take,
+          song.durationMs,
+          song.practice,
+          track.effects,
+          sampleRate,
+          startPositionMs,
+          endPositionMs,
+          path.join(path.dirname(output), `backing-recording-${song.id}-${take.id}.wav`),
+          signal
+        )
+      : this.arsenal?.render(
+          this.paths.resolveLibraryPath(settings.libraryRoot, file.previewRelPath),
+          track.effects,
+          signal,
+          0,
+          {
+            tempo: song.practice.metronomeBpm * take.playbackRate,
+            beatOffsetMs: song.practice.metronomeOffsetMs / take.playbackRate,
+            pitchSemitones: recordingPitch(take, song.practice)
+          }
+        ) ?? this.paths.resolveLibraryPath(settings.libraryRoot, file.previewRelPath)))
+
+    audibleRecordings.forEach(({ track, take }, index) => {
       const label = `take${index}`
-      inputs.push('-i', this.paths.resolveLibraryPath(settings.libraryRoot, file.previewRelPath))
+      const relativeTempo = this.playback ? '' : atempoFilters(recordingPlaybackRate(take, song.practice))
+      inputs.push('-i', wetRecordings[index]!)
+      const trim = this.playback ? '' : `atrim=start=${(startPositionMs / take.playbackRate / 1000).toFixed(6)}:end=${(endPositionMs / take.playbackRate / 1000).toFixed(6)},asetpts=PTS-STARTPTS,`
       filters.push(
-        `[${inputIndex}:a]atrim=start=${(startPositionMs / song.practice.playbackRate / 1000).toFixed(6)}:` +
-        `end=${(endPositionMs / song.practice.playbackRate / 1000).toFixed(6)},asetpts=PTS-STARTPTS,` +
-        `aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,` +
-        `volume=${dbToGain(track.gainDb).toFixed(8)}[${label}]`
+        `[${inputIndex}:a]${trim}aresample=${sampleRate},aformat=sample_fmts=fltp:channel_layouts=stereo,` +
+        `volume=${dbToGain(track.gainDb).toFixed(8)}${relativeTempo ? `,${relativeTempo}` : ''}[${label}]`
       )
       labels.push(`[${label}]`)
       inputIndex += 1
@@ -722,6 +750,7 @@ export class RehearsalRecordingService {
   ): Promise<RehearsalRecordingTake | null> {
     if (session.cancelled) return null
     this.patchState({ phase: 'finalizing', message: '正在生成整场录音与对齐预览' })
+    let preparedRoot: string | null = null
     try {
       if (!existsSync(session.capturePath) || result.frames <= 0) throw new Error('RECORDING_CAPTURE_EMPTY')
       const ffmpeg = await this.media.tool('ffmpeg')
@@ -731,7 +760,7 @@ export class RehearsalRecordingService {
       if (!revision) throw new Error('REHEARSAL_REVISION_NOT_FOUND')
       const takeId = randomUUID()
       const rehearsalRoot = this.paths.rehearsalDirectory(settings.libraryRoot, session.rehearsalId)
-      const preparedRoot = path.join(rehearsalRoot, '.recording-finalize', takeId)
+      preparedRoot = path.join(rehearsalRoot, '.recording-finalize', takeId)
       const finalRoot = path.join(rehearsalRoot, 'recordings', takeId)
       mkdirSync(preparedRoot, { recursive: true })
       const source = path.join(preparedRoot, 'source.flac')
@@ -753,7 +782,7 @@ export class RehearsalRecordingService {
         session.host?.latencyMs ?? 0,
         session.device.splitDevices,
         result.inputStartOutputFrames ?? 0,
-        result.sampleRate
+        result.outputSampleRate ?? result.sampleRate
       )
       const preview = path.join(preparedRoot, 'preview.flac')
       await this.renderPreviewFile(
@@ -765,6 +794,7 @@ export class RehearsalRecordingService {
       )
       mkdirSync(path.dirname(finalRoot), { recursive: true })
       await rename(preparedRoot, finalRoot)
+      preparedRoot = null
       const take = this.database.createRehearsalRecordingTake({
         id: takeId,
         rehearsalId: session.rehearsalId,
@@ -806,6 +836,7 @@ export class RehearsalRecordingService {
       this.changed()
       return take
     } catch (error) {
+      if (preparedRoot) await rm(preparedRoot, { recursive: true, force: true }).catch(() => undefined)
       this.active = null
       this.fail(error)
       throw error
@@ -896,25 +927,31 @@ export class RehearsalRecordingService {
     if (channels.length !== (settings.inputChannelMode === 'mono' ? 1 : 2)) throw new Error('INPUT_CHANNEL_CONFIGURATION_INVALID')
     if (channels.some((channel) => channel < 0 || channel >= input.inputChannels)) throw new Error('INPUT_CHANNEL_UNAVAILABLE')
     if (channels.length === 2 && channels[1] !== channels[0]! + 1) throw new Error('STEREO_INPUT_CHANNELS_MUST_BE_ADJACENT')
+    const independent = backend.startsWith('wasapi') || input.id !== output.id
     const commonRates = input.sampleRates.filter((rate) => output.sampleRates.includes(rate))
-    const ratesUnknown = input.sampleRates.length === 0 || output.sampleRates.length === 0
-    if (!ratesUnknown && commonRates.length === 0) throw new Error('NO_COMMON_SAMPLE_RATE')
+    const rates = independent ? output.sampleRates : commonRates
+    const ratesUnknown = !output.sampleRates.length || (!independent && !input.sampleRates.length)
+    if (!ratesUnknown && rates.length === 0) throw new Error('NO_COMMON_SAMPLE_RATE')
     const sampleRate = settings.sampleRate
       || [output.preferredSampleRate, input.preferredSampleRate, 48_000, 44_100]
-        .find((rate) => rate > 0 && (ratesUnknown || commonRates.includes(rate)))
-      || commonRates[0]
+        .find((rate) => rate > 0 && (ratesUnknown || rates.includes(rate)))
+      || rates[0]
     if (!sampleRate) throw new Error('NO_COMMON_SAMPLE_RATE')
-    if (settings.sampleRate && !ratesUnknown && !commonRates.includes(settings.sampleRate)) {
+    if (settings.sampleRate && !ratesUnknown && !rates.includes(settings.sampleRate)) {
       throw new Error('SELECTED_SAMPLE_RATE_UNAVAILABLE')
     }
+    const inputSampleRate = !independent || !input.sampleRates.length || input.sampleRates.includes(sampleRate)
+      ? sampleRate
+      : input.preferredSampleRate || input.sampleRates[0]!
     return {
       settings,
       backend,
       input,
       output,
       sampleRate,
+      inputSampleRate,
       bufferFrames: settings.bufferFrames,
-      splitDevices: input.id !== output.id,
+      splitDevices: independent,
       deviceAlignmentOffsetMs: settings.deviceAlignmentOffsets[
         `${backend}|${settings.inputDeviceId || 'default'}|${settings.outputDeviceId || 'default'}`
       ] ?? settings.alignmentOffsetMs
@@ -928,6 +965,7 @@ export class RehearsalRecordingService {
       outputDeviceId: device.output.id,
       inputChannels: device.settings.inputChannels,
       sampleRate: device.sampleRate,
+      inputSampleRate: device.inputSampleRate ?? device.sampleRate,
       bufferFrames: device.bufferFrames,
       softwareMonitoring: false
     }

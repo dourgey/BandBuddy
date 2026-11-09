@@ -235,7 +235,7 @@ export class LanPlayer {
       if (this.ended) { this.pause(); this.seek(0); return }
       this.priming = true; this.onBuffering(true)
     }
-    if (performance.now() - this.lastPacketAt > 15_000) { this.fail('音频传输中断，请检查网络后重试'); return }
+    if (!this.ended && performance.now() - this.lastPacketAt > 15_000) { this.fail('音频传输中断，请检查网络后重试'); return }
     if (this.video && hasAudio) {
       const audible = this.scheduled.find(entry => this.context.currentTime >= entry.start && this.context.currentTime < entry.end)
       this.video.playbackRate = audible?.rate ?? this.rate

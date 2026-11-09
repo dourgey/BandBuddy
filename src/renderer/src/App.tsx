@@ -1124,7 +1124,7 @@ function useKeyboardShortcuts({
     const listener = (event: KeyboardEvent): void => {
       if (!enabled || !song || !practice || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
       const target = event.target instanceof HTMLElement ? event.target : null
-      if (target?.matches('input, textarea, select, [contenteditable="true"]') || target?.closest('[data-dialog-open="true"], [role="menu"], [role="combobox"], [role="listbox"]')) return
+      if (target?.matches('input, textarea, select, button, [contenteditable="true"]') || target?.closest('[data-dialog-open="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="combobox"], [role="listbox"]')) return
       const currentMs = usePlayerStore.getState().currentMs
       const selected = practice.tracks.find((track) => track.stemType === selectedStem)
       const stemOrder = normalizeTrackOrder(practice.trackOrder, song.recordingTracks.map((track) => track.id))

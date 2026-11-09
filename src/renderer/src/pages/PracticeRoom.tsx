@@ -1,5 +1,7 @@
 import { RecordingEffects } from '../arsenal/RecordingEffects.js'
 import { TrackMeter } from '../components/TrackMeter.js'
+import { Select } from '../components/ui/Select.js'
+import { promptAction } from '../components/ui/confirm.js'
 import {
   ArrowLeft,
   Circle,
@@ -13,6 +15,7 @@ import {
   Plus,
   Sparkles,
   Square,
+  Trash2,
   Upload
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
@@ -323,6 +326,13 @@ export function PracticeRoom(props: PracticeRoomProps): React.JSX.Element {
                 {...sharedDragProps}
                 type={type}
                 name={stem?.name ?? undefined}
+                vocalActions={song.sourceFormat !== 'existing-stems' && song.vocalSplitStatus === 'ready' && ['vocals', 'lead_vocals', 'backing_vocals'].includes(type) ? <details className="vocal-actions" onClick={event => { event.stopPropagation(); if (locked) event.preventDefault() }}>
+                  <summary aria-label="人声选项" title="人声选项">···</summary>
+                  <div role="menu" onClick={event => { const details = event.currentTarget.closest('details'); if (details) details.open = false }}>
+                    <button role="menuitem" disabled={locked} onClick={() => props.onVocalAction?.('removeLead')}>去主唱，保留和声</button>
+                    <button role="menuitem" disabled={locked} onClick={() => props.onVocalAction?.('soloBacking')}>仅听和声</button>
+                  </div>
+                </details> : undefined}
                 state={state}
                 exists={Boolean(stem)}
                 showWaveform={true}
@@ -450,6 +460,7 @@ function TrackGainControl({ label, value, disabled, onChange }: {
 }
 
 interface TrackRowProps extends TrackDragProps {
+  vocalActions?: React.ReactNode
   name?: string
   type: StemType
   state: TrackState
@@ -473,7 +484,7 @@ interface TrackRowProps extends TrackDragProps {
 
 function TrackRow(props: TrackRowProps): React.JSX.Element {
   const {
-    type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs,
+    type, name, state, exists, showWaveform, selected, soloActive, locked, availableOutputChannelPairs, vocalActions,
     peaksUrl, durationMs, currentMs, practice,
     onSeek, onRange, onPatch, onToggleMute, onSelected, onViewChange, ...dragProps
   } = props
@@ -492,7 +503,7 @@ function TrackRow(props: TrackRowProps): React.JSX.Element {
     onClick={onSelected}
   >
     <span className="track-identity" style={{ '--track': STEM_META[type].color } as React.CSSProperties}>
-      <i><Icon size={22} /></i><TrackName name={state.name || name || STEM_META[type].shortLabel} disabled={locked} onChange={name => onPatch({ name })} />{!exists && <small>未导入</small>}
+      <i><Icon size={22} /></i><TrackName name={state.name || name || STEM_META[type].shortLabel} disabled={locked} onChange={name => onPatch({ name })} />{!exists && <small>未导入</small>}{vocalActions}
     </span>
     <div className="track-controls"><span className="ms-buttons">
       <button title="静音 (M)" aria-label={`${name || STEM_META[type].label}静音`} className={isSilenced(state) ? 'active' : isImpliedMuted(state, soloActive && exists) ? 'is-implied-muted' : ''} disabled={!exists || locked} onClick={(event) => { event.stopPropagation(); onToggleMute() }}>M</button>
@@ -550,8 +561,17 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   const liveMeter = useRecordingMeterStore((store) => state.recordingTrackId === track.id ? store.meter : null)
   const meter = suppliedMeter ?? liveMeter ?? useRecordingMeterStore.getState().meter
   const activeTake = takes.find((take) => take.id === track.activeTakeId) ?? null
+  const practiceMatches = !activeTake || (
+    Math.abs(activeTake.playbackRate - practice.playbackRate) < 0.0001
+    && (activeTake.pitchSemitones ?? 0) === practice.pitchSemitones
+  )
   const running = !['idle', 'failed'].includes(state.phase)
   const activeRunning = running && state.recordingTrackId === track.id
+  const peak = activeRunning ? Math.max(...meter.peak, 0) : 0
+  const renameTake = async (take: RecordingTake): Promise<void> => {
+    const name = (await promptAction({ title: '录音名称', defaultValue: take.name }))?.trim()
+    if (name && name !== take.name) onUpdateTake(take.id, { name })
+  }
 
   return <SortableTrackRow
     {...dragProps}
@@ -561,6 +581,8 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
   >
     <span className="track-identity recording-identity" style={{ '--track': '#b84f45' } as React.CSSProperties}>
       <i><Mic2 size={21} /></i><TrackName name={track.name} disabled={locked} onChange={name => onTrack({ name })} />
+      <span className="input-meter" title={`输入峰值 ${Math.round(peak * 100)}%`}><i style={{ width: `${Math.min(100, peak * 100)}%` }} /></span>
+      {meter.clipped && <small className="clip-warning">CLIP</small>}
     </span>
     <RecordingEffects track={track} busy={locked && (!activeRunning || !['armed', 'countIn', 'recording'].includes(state.phase))} recording={activeRunning} inputPeak={activeRunning ? Math.max(...meter.peak, 0) : undefined} onChanged={running ? undefined : onEffectsChanged} onDelete={onDeleteTrack} deleteDisabled={running || locked} controls={<>
       <button title="静音 (M)" aria-label={`${track.name}静音`} className={isSilenced(track) ? 'active' : isImpliedMuted(track, soloActive && Boolean(activeTake)) ? 'is-implied-muted' : ''} disabled={locked || !activeTake} onClick={onToggleMute}>M</button>
@@ -575,7 +597,7 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
           : <button className="record-button" aria-label="其他录音轨正在录音" disabled><Circle size={16} /></button>}
     </span>
     <div className="recording-wave-wrap">
-      {<div className="meter-wave"><Waveform
+      <div className="meter-wave"><Waveform
         stemType="recording"
         peaksUrl={activeTake?.peaksUrl ?? null}
         color="#b84f45"
@@ -590,7 +612,21 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
         onSeek={onSeek}
         onRange={onRange}
         onViewChange={onViewChange}
-      /></div>}
+      /></div>
+      <div className="take-toolbar">
+        <Select aria-label={`${track.name} 的 Take`} value={activeTake?.id ?? ''} disabled={running || takes.length === 0} onChange={(event) => onSelectTake(event.target.value || null)}>
+          <option value="">无活动 Take</option>
+          {takes.map((take) => <option key={take.id} value={take.id}>{take.name} · {take.playbackRate.toFixed(2)}× · {(take.pitchSemitones ?? 0) === 0 ? '原调' : `${(take.pitchSemitones ?? 0) > 0 ? '+' : '−'}${Math.abs(take.pitchSemitones ?? 0)} 半音`}{take.interrupted ? ' · 中断恢复' : ''}</option>)}
+        </Select>
+        {activeTake && <>
+          <button disabled={running} title="重命名" onClick={() => renameTake(activeTake)}><Pencil size={13} /></button>
+          <button disabled={running} title="删除" onClick={() => onDeleteTake(activeTake.id)}><Trash2 size={13} /></button>
+          {([-10, -1, 1, 10] as const).map((delta) => <button key={delta} disabled={running} onClick={() => onUpdateTake(activeTake.id, { alignmentOffsetMs: clamp(activeTake.alignmentOffsetMs + delta, -1000, 1000) })}>{delta > 0 ? '+' : ''}{delta} ms</button>)}
+          <small>{activeTake.alignmentOffsetMs >= 0 ? '+' : ''}{activeTake.alignmentOffsetMs.toFixed(1)} ms</small>
+        </>}
+        {!practiceMatches && activeTake && <button className="speed-mismatch" onClick={() => onUseTakePractice(activeTake.playbackRate, activeTake.pitchSemitones ?? 0)}>切回 {activeTake.playbackRate.toFixed(2)}× · {(activeTake.pitchSemitones ?? 0) === 0 ? '原调' : `${(activeTake.pitchSemitones ?? 0) > 0 ? '+' : '−'}${Math.abs(activeTake.pitchSemitones ?? 0)} 半音`}</button>}
+        {activeRunning && <small className="recording-status">{state.message}{state.sampleRate > 0 ? ` · ${state.sampleRate} Hz · ${state.bufferFrames} f · ${state.latencyMs.toFixed(1)} ms` : ''}{state.xruns > 0 ? ` · xrun ${state.xruns}（可增大 buffer）` : ''}</small>}
+      </div>
     </div>
   </SortableTrackRow>
 }

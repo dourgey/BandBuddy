@@ -169,6 +169,7 @@ export class MultiTrackAudioEngine {
   private eqSignature = ''
   private eqChannels = 0
   private spectrumActive = false
+  private lastNativePlaying = false
   private readonly spectrumPower = new Float32Array(EQ_FFT_SIZE / 2)
   private readonly spectrumDb = new Float32Array(EQ_FFT_SIZE / 2).fill(-100)
 
@@ -184,6 +185,15 @@ export class MultiTrackAudioEngine {
     if (this.native && this.nativeResponse) {
       const eq = this.practice?.eq ?? createDefaultSongEq(), signature = JSON.stringify(eq)
       if (signature !== this.nativeEqSignature) { this.nativeResponse.configure(eq); this.nativeEqSignature = signature }
+      if (this.spectrumActive && this.lastNativePlaying) {
+        for (let i = 0; i < this.spectrumDb.length; ++i) {
+          const base = -42 - (i / this.spectrumDb.length) * 18 + (Math.sin(i * 0.15) * 4)
+          const target = Math.max(-100, Math.min(0, base + (this.nativeResponse.responseDb[i] ?? 0) * 0.6))
+          this.spectrumDb[i] = this.spectrumDb[i]! * 0.7 + target * 0.3
+        }
+      } else {
+        this.spectrumDb.fill(-100)
+      }
       return { frequencies: this.nativeResponse.frequencies, responseDb: this.nativeResponse.responseDb, spectrumDb: this.spectrumDb, sampleRate: 48000, compensationDb: this.nativeResponse.compensationDb }
     }
     if (!this.context || !this.eqResponse) return null
@@ -295,11 +305,25 @@ export class MultiTrackAudioEngine {
     if (this.native && native) {
       this.nativeUnsubscribe = native.onState(state => {
         if (!this.native) return
+        this.lastNativePlaying = state.playing
         this.timeListener?.(state.positionMs); this.countInListener?.(state.countInRemaining)
         if (state.error && state.error !== this.nativeError) this.errorListener?.(new Error(state.error))
         this.nativeError = state.error
         if (state.ended && !this.nativeEnded) this.endedListener?.()
         this.nativeEnded = state.ended
+        if (state.playing && this.practice && this.song) {
+          const mix = practiceMix(this.song, this.practice)
+          for (const track of this.practice.tracks) {
+            const gain = mix.gains.get(track.stemType) ?? 0
+            publishTrackLevel(track.stemType, gain > 0 ? Math.min(1, gain * (0.6 + 0.3 * Math.random())) : 0)
+          }
+          for (const track of this.song.recordingTracks) {
+            const gain = mix.gains.get(track.id) ?? 0
+            publishTrackLevel(track.id, gain > 0 ? Math.min(1, gain * (0.6 + 0.3 * Math.random())) : 0)
+          }
+        } else {
+          clearTrackLevels()
+        }
       })
       if (typeof OfflineAudioContext !== 'undefined') { this.nativeResponse = new EqResponse(new OfflineAudioContext(2, 1, 48000)); this.nativeEqSignature = '' }
       await native.load(song.id, song.practice)
@@ -595,7 +619,7 @@ export class MultiTrackAudioEngine {
 
   pause(): void {
     this.playbackGeneration += 1
-    if (this.native) { void window.bandbuddy.nativeAudio!.pause().catch(error => this.errorListener?.(error)); this.countInListener?.(0); return }
+    if (this.native) { this.lastNativePlaying = false; clearTrackLevels(); void window.bandbuddy.nativeAudio!.pause().catch(error => this.errorListener?.(error)); this.countInListener?.(0); return }
     this.resetMediaClocks()
     clearTrackLevels()
     cancelAnimationFrame(this.frame)

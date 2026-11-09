@@ -786,18 +786,13 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .master-volume-popover.volume-floating { position: fixed; bottom: auto; transform: translateY(5px); z-index: 100; }
 .master-volume-popover.volume-floating.is-open { visibility: visible; opacity: 1; transform: translateY(0); pointer-events: auto; }
 
-}
-
-.meter-wave { display:flex; align-items:stretch; gap:8px; min-width:0; flex:1 }
-.meter-wave > :last-child { flex:1; min-width:0 }
-.track-level-meter { display:block; flex:0 0 6px; width:6px; min-height:40px; background:#19251c; border-radius:3px; overflow:hidden; position:relative }
-.track-level-meter > span { display:block; position:absolute; inset:0; transform:scaleY(0); transform-origin:bottom; background:linear-gradient(to top,#49aa70 65%,#dfbd49 86%,#db5446 98%); transition:transform 70ms linear }
-.track-level-meter > span[data-clip="true"] { background:#e7463c }
-.recording-effects { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:7px 0; font-size:11px }
-.recording-effects label { display:flex; gap:5px; align-items:center }
-.recording-effects select { max-width:180px; background:var(--surface); color:inherit; border:1px solid var(--border); border-radius:5px; padding:4px }
-.recording-effects button { border:1px solid var(--border); padding:4px 7px; border-radius:5px }
-.recording-effect-editor { flex-basis:100%; padding:8px; border:1px solid var(--border); border-radius:8px }
+.meter-wave { display:flex; align-items:stretch; gap:8px; min-width:0; flex:1; }
+.meter-wave > :last-child { flex:1; min-width:0; }
+.recording-effects { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:7px 0; font-size:11px; }
+.recording-effects label { display:flex; gap:5px; align-items:center; }
+.recording-effects select { max-width:180px; background:var(--surface); color:inherit; border:1px solid var(--border); border-radius:5px; padding:4px; }
+.recording-effects button { border:1px solid var(--border); padding:4px 7px; border-radius:5px; }
+.recording-effect-editor { flex-basis:100%; padding:8px; border:1px solid var(--border); border-radius:8px; }
 
 .track-output-route small { flex:0 0 auto; }
 .track-output-route button { min-width:68px; }
@@ -805,7 +800,7 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 /* Shared mixer columns keep every waveform on the same time axis. */
 .practice-workspace .waveform-navigator { margin-left: 476px; }
 .track-list { --wave-start: 476px; position: relative; min-width: 736px; }
-.track-list .track-row { grid-template-columns: 24px 125px 145px 36px 86px minmax(0, 1fr); height: 108px; min-height: 108px; }
+.track-list .track-row:not(.recording-track) { grid-template-columns: 24px 125px 145px 36px 86px minmax(0, 1fr); height: 108px; min-height: 108px; }
 .track-list .track-row > * { min-width: 0; }
 .practice-workspace .mixer-card { overflow-x: auto; }
 .track-list .track-output-route { gap: 3px; }
@@ -815,8 +810,9 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .track-controls, .recording-controls { min-width: 0; display: flex; flex-direction: column; gap: 7px; align-items: stretch; position: relative; }
 .track-controls .ms-buttons, .recording-controls .ms-buttons { gap: 5px; }
 .track-controls .track-level-meter { width: 73px; }
-.track-level-meter { flex: none; width: 100%; height: 5px; min-height: 5px; border-radius: 3px; }
-.track-level-meter > span { transform: scaleX(0); transform-origin: left; background: linear-gradient(to right,#49aa70 65%,#dfbd49 86%,#db5446 98%); }
+.track-level-meter { display: block; flex: none; width: 100%; height: 5px; min-height: 5px; background: #19251c; border-radius: 3px; overflow: hidden; position: relative; }
+.track-level-meter > span { display: block; position: absolute; inset: 0; transform: scaleX(0); transform-origin: left; background: linear-gradient(to right,#49aa70 65%,#dfbd49 86%,#db5446 98%); transition: transform 70ms linear; }
+.track-level-meter > span[data-clip="true"] { background: #e7463c; }
 .recording-tone-actions { display: flex; gap: 5px; min-width: 0; }
 .recording-tone-actions select { width: 0; min-width: 0; flex: 1; font-size: 11px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 4px; }
 .recording-tone-actions button { display: grid; place-items: center; width: 27px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
@@ -844,3 +840,5 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .storage-usage { display: grid; gap: 9px; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: var(--surface-muted); font-size: 12px; }
 .storage-usage > div, .storage-usage > span { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .storage-usage small { color: var(--muted); }
+
+}

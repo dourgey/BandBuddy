@@ -433,6 +433,8 @@ else {
       (meter) => emit(IPC.eventRehearsalRecordingMeter, meter),
       emitRehearsals
     )
+    rehearsalRecording.playback = recordingPlayback
+    rehearsalRecording.arsenal = arsenal
 
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     environmentManager = new EnvironmentManager(paths, runtime, media, applicationLogger, app.getVersion(),

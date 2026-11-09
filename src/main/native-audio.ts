@@ -159,7 +159,17 @@ export class NativeAudioService {
   }
   private controls(): Record<string, unknown> {
     const p = this.practice!, loop = activeLoopRange(p)
-    return { tracks: [...p.tracks.map(t => t.stemType), ...(this.song?.recordingTracks.map(t => t.id) ?? [])].map(id => ({ id, gain: this.trackGain(id) })), masterGain: dbToGain(p.masterGainDb), bpm: p.metronomeBpm, beatOffsetMs: p.metronomeOffsetMs, metronome: p.metronomeEnabled, loopStartMs: loop?.startMs ?? 0, loopEndMs: loop?.endMs ?? 0, eq: p.eq }
+    return {
+      tracks: [...p.tracks.map(t => t.stemType), ...(this.song?.recordingTracks.map(t => t.id) ?? [])].map(id => ({ id, gain: this.trackGain(id) })),
+      masterGain: dbToGain(p.masterGainDb),
+      bpm: p.metronomeBpm,
+      beatOffsetMs: p.metronomeOffsetMs,
+      metronome: p.metronomeEnabled,
+      metronomeGainDb: p.metronomeGainDb ?? 0,
+      loopStartMs: loop?.startMs ?? 0,
+      loopEndMs: loop?.endMs ?? 0,
+      eq: p.eq
+    }
   }
   update(practice: PracticeState): Promise<void> {
     if (this.preparingSources && this.practice && practice.playbackRate === this.practice.playbackRate && practice.pitchSemitones === this.practice.pitchSemitones) {
