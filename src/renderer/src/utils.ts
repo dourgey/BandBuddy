@@ -25,7 +25,7 @@ export function gainLabel(db: number): string {
 export function statusLabel(status: string): string {
   return ({
     ready: '已完成', queued: '等待中', blockedRuntime: '等待环境', processing: '处理中',
-    preparing: '准备中', separating: '分离中', postprocessing: '处理中', cancelling: '取消中',
+    preparing: '准备中', separating: '分离中', transcribing: '转谱中', postprocessing: '处理中', cancelling: '取消中',
     cancelled: '已取消', interrupted: '已中断', completed: '已完成', failed: '失败',
     missing: '未安装', detecting: '检测中', installing: '安装中', downloadingModel: '准备资源', verifying: '校验中'
   } as Record<string, string>)[status] ?? status

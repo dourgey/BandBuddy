@@ -208,13 +208,18 @@ describe('practice transport interaction', () => {
   })
 
   it('keeps video songs in the same waveform layout and opens their picture separately', async () => {
-    const song = fixtureDetail(fixtureSongs[0]!)
-    vi.spyOn(window.bandbuddy.library, 'get').mockResolvedValue({ ...song, videoUrl: '/fixture-video.webm' })
-    usePlayerStore.getState().loadSong({ ...song, videoUrl: '/fixture-video.webm' })
+    const song = { ...fixtureDetail(fixtureSongs[0]!), videoUrl: '/fixture-video.webm' }
+    const getSong = window.bandbuddy.library.get.bind(window.bandbuddy.library)
+    vi.spyOn(window.bandbuddy.library, 'get').mockImplementation(async (id) => id === song.id ? song : getSong(id))
+    usePlayerStore.getState().loadSong(song)
     await openPractice()
     expect(document.querySelectorAll('video')).toHaveLength(0)
     await waitFor(() => expect(document.querySelectorAll('.waveform')).toHaveLength(6))
-    expect(screen.getAllByRole('button', { name: 'M', exact: true })).toHaveLength(6)
+    for (const track of ['人声', '鼓组', '贝斯', '吉他', '钢琴', '其他']) {
+      expect(screen.getByRole('button', { name: `${track}静音`, exact: true })).toBeTruthy()
+    }
+    fireEvent.click(screen.getByRole('button', { name: '人声静音' }))
+    expect(usePlayerStore.getState().practice!.tracks.find(track => track.stemType === 'vocals')?.muted).toBe(true)
     const child = { closed: false, close: vi.fn(), focus: vi.fn(), postMessage: vi.fn() }
     const popup = vi.spyOn(window, 'open').mockReturnValue(child as unknown as Window)
     fireEvent.click(screen.getByRole('button', { name: '打开视频窗口' }))

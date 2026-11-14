@@ -156,7 +156,7 @@ class VstNode final : public Node, public U::Implements<U::Directly<IComponentHa
     return kResultOk;
   }
   tresult PLUGIN_API resizeView(IPlugView* view, ViewRect* rect) override {
-    if (!rect || !window_ || rect->getWidth() < 1 || rect->getWidth() > 8192 || rect->getHeight() < 1 || rect->getHeight() > 8192) return kInvalidArgument;
+    if (!rect || view != view_ || !window_ || rect->getWidth() < 1 || rect->getWidth() > 8192 || rect->getHeight() < 1 || rect->getHeight() > 8192) return kInvalidArgument;
     resizeEditorWindow(window_, rect->getWidth(), rect->getHeight()); return view->onSize(rect);
   }
   void editor(bool open) override {
@@ -164,7 +164,7 @@ class VstNode final : public Node, public U::Implements<U::Directly<IComponentHa
     if (window_) { showEditorWindow(window_); return; }
     view_ = controller_ ? owned(controller_->createView(ViewType::kEditor)) : nullptr;
     if (!view_) throw std::runtime_error("PLUGIN_EDITOR_UNAVAILABLE");
-    view_->setFrame(this); window_ = openEditorWindow(view_, definition_.value("name", "Plugin"));
+    view_->setFrame(this); window_ = openEditorWindow(view_, definition_.value("name", "Plugin"), &window_);
     if (!window_) { view_->setFrame(nullptr); view_ = nullptr; throw std::runtime_error("PLUGIN_EDITOR_OPEN_FAILED"); }
   }
   void save(const std::string& path) override {

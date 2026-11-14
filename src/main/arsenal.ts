@@ -1,4 +1,4 @@
-import { linkedAmpLoad } from '@shared/arsenal.js'
+import { linkedAmpLoad, requiresBrowserOutputHandoff } from '@shared/arsenal.js'
 import { recoverFloatCapture } from './wave-recovery.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile, rename, rm, stat, copyFile } from 'node:fs/promises'
@@ -8,6 +8,8 @@ import { dialog, shell } from 'electron'
 import { z } from 'zod'
 import { createEffectModule, moduleChain, storeEffectChain, effectChainSchema, effectStructureKey, trackEffectsSchema, type ArsenalCommand, type ArsenalWorkspace, type ArsenalTake, type ArsenalMonitorState, type ArsenalPreset, type ArsenalState, type EffectChainSnapshot, type MonitorMode, type PreparedEffects, type ToneAsset, type TrackEffects } from '@shared/arsenal.js'
 import { factoryPresets } from '@shared/effect-catalog.js'
+import { recordingMonitorGain } from '@shared/practice-mix.js'
+import type { AudioBackend, PracticeState } from '@shared/domain.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
 import type { MediaService } from './media.js'
@@ -162,11 +164,21 @@ export class ArsenalService {
     }
     this.db.sqlite.prepare('UPDATE recording_tracks SET effects_json=?,updated_at=? WHERE id=?').run(JSON.stringify({...effects,chain:storeEffectChain(effects.chain)}),new Date().toISOString(),trackId);this.changed()
   }
+  private monitorGain(trackId?: string, practice?: PracticeState): number {
+    if (!trackId) return 1
+    const track = this.db.getRecordingTrack(trackId)
+    const song = track ? this.db.getSong(track.songId) : null
+    return song ? recordingMonitorGain(song, trackId, practice?.songId === song.id ? practice : song.practice) : 0
+  }
+  async refreshMonitorMix(practice?: PracticeState): Promise<void> {
+    const trackId = this.recording.isActive() ? this.recording.getState().recordingTrackId : this.state.active ? this.state.trackId : null
+    if (trackId && this.host.activeSampleRate()) await this.host.setEffects({ monitorGain: this.monitorGain(trackId, practice) })
+  }
   private async updateLive(params:Record<string,unknown>):Promise<void>{
     for(let attempt=0;;attempt++){try{await this.host.setEffects(params);return}catch(e){if(attempt>=5||!String(e).includes('EFFECT_CHAIN_LOADING'))throw e;await new Promise(resolve=>setTimeout(resolve,20))}}
   }
   monitorState():ArsenalMonitorState{return this.state}
-  async feed(input:{bus:number;sampleRate:number;samples:number[];reset?:boolean}):Promise<boolean>{if(!this.state.active)return false;return this.host.arsenalPcm(input)}
+  async feed(input:{bus:number;sampleRate:number;samples:number[];reset?:boolean}):Promise<boolean>{if(!this.state.active||!this.state.redirectBrowserOutput)return false;return this.host.arsenalPcm(input)}
   private recoverTake(t:ArsenalTake):ArsenalTake {
     const { durationMs } = recoverFloatCapture(this.takeFile(t.id))
     return {...t,chain:effectChainSchema.parse(t.chain),durationMs,recovered:true}
@@ -274,8 +286,8 @@ export class ArsenalService {
       if(this.recording.isActive()||this.occupied())throw new Error('录音或设备测试进行中，请使用录音轨监听控制')
       chain=effectChainSchema.parse(chain);this.validateReferences(chain)
       const structure=effectStructureKey(chain)
-      if(this.state.active) {await this.updateLive({mode:mode==='dry'?1:2,...(structure===this.structure?{chain}:{prepared:await this.prepare(chain)})});this.state={...this.state,mode}}
-      else {const config=await this.recording.arsenalDeviceConfiguration();const result=await this.host.startTest({...config,monitorMode:mode==='dry'?1:2,monitorGainDb:0,effects:await this.prepare(chain)});this.state={...this.state,...result,active:true,mode,error:null}}
+      if(this.state.active) {await this.updateLive({mode:mode==='dry'?1:2,monitorGain:this.monitorGain(trackId),...(structure===this.structure?{chain}:{prepared:await this.prepare(chain)})});this.state={...this.state,mode}}
+      else {const config=await this.recording.arsenalDeviceConfiguration();const result=await this.host.startTest({...config,monitorMode:mode==='dry'?1:2,monitorGain:this.monitorGain(trackId),effects:await this.prepare(chain)});this.state={...this.state,...result,active:true,mode,redirectBrowserOutput:requiresBrowserOutputHandoff(config.backend as AudioBackend),error:null}}
       this.state={...this.state,trackId:trackId??null};this.structure=structure;this.emit(this.state);return this.state
     });this.busy=next;return next
   }

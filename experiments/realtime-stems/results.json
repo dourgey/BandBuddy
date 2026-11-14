@@ -1,0 +1,556 @@
+{
+  "benchmark-cuda": {
+    "device": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "torch": "2.11.0+cu130",
+    "track_seconds": 5.0,
+    "offline": {
+      "drum_projection_db": -4.090424242623206,
+      "bed_projection_db": -0.05111879485165939,
+      "error_improvement_db": 2.715653050457151
+    },
+    "profiles": {
+      "fast": {
+        "drum_projection_db": -2.4905187985463977,
+        "bed_projection_db": -0.10344892064719602,
+        "error_improvement_db": 1.434423744498532,
+        "timed_blocks": 500,
+        "timed_audio_s": 30.0,
+        "p50_ms": 39.68789998907596,
+        "p95_ms": 57.92115996591739,
+        "max_ms": 86.9563000742346,
+        "over_hop": 23,
+        "rtf": 0.7008343231709053
+      },
+      "balanced": {
+        "drum_projection_db": -3.7619009992632506,
+        "bed_projection_db": -0.09158654774641647,
+        "error_improvement_db": 2.2884419358701242,
+        "timed_blocks": 250,
+        "timed_audio_s": 30.0,
+        "p50_ms": 42.26324998307973,
+        "p95_ms": 53.96349000511691,
+        "max_ms": 71.27249985933304,
+        "over_hop": 0,
+        "rtf": 0.365889066682818
+      },
+      "quality": {
+        "drum_projection_db": -3.4412211973136904,
+        "bed_projection_db": -0.051267132392320336,
+        "error_improvement_db": 2.2976776965315002,
+        "timed_blocks": 125,
+        "timed_audio_s": 30.0,
+        "p50_ms": 54.61589992046356,
+        "p95_ms": 67.68700000829993,
+        "max_ms": 82.85239990800619,
+        "over_hop": 0,
+        "rtf": 0.23516587998407582
+      }
+    }
+  },
+  "benchmark-cpu": {
+    "device": "CPU (4 threads)",
+    "torch": "2.11.0+cu130",
+    "track_seconds": 5.0,
+    "offline": {
+      "drum_projection_db": -4.08858835288007,
+      "bed_projection_db": -0.05108439231067853,
+      "error_improvement_db": 2.714736243895482
+    },
+    "profiles": {
+      "fast": {
+        "drum_projection_db": -2.4898468476616884,
+        "bed_projection_db": -0.1034158571884654,
+        "error_improvement_db": 1.434151831874864,
+        "timed_blocks": 84,
+        "timed_audio_s": 5.0,
+        "p50_ms": 152.91259996592999,
+        "p95_ms": 204.88289006752893,
+        "max_ms": 259.0998001396656,
+        "over_hop": 84,
+        "rtf": 2.696131230405872
+      },
+      "balanced": {
+        "drum_projection_db": -3.7623969103909998,
+        "bed_projection_db": -0.09159297594800955,
+        "error_improvement_db": 2.2887424815442974,
+        "timed_blocks": 42,
+        "timed_audio_s": 5.0,
+        "p50_ms": 381.6887999419123,
+        "p95_ms": 415.8599301590584,
+        "max_ms": 443.6198999173939,
+        "over_hop": 42,
+        "rtf": 3.2012098214759064
+      },
+      "quality": {
+        "drum_projection_db": -3.442060395392113,
+        "bed_projection_db": -0.0512858840458235,
+        "error_improvement_db": 2.298275657260192,
+        "timed_blocks": 21,
+        "timed_audio_s": 5.0,
+        "p50_ms": 776.4948999974877,
+        "p95_ms": 854.0399000048637,
+        "max_ms": 963.4508001618087,
+        "over_hop": 21,
+        "rtf": 3.284954920638397
+      }
+    }
+  },
+  "wasapi-balanced": {
+    "profile": "balanced",
+    "stem": "drums",
+    "fixture_seconds": 20.0,
+    "blocks": 190,
+    "source_device": "扬声器 (UU远程虚拟音频设备)",
+    "monitor_device": "扬声器 (Realtek(R) Audio)",
+    "step_p95_ms": 55.3,
+    "portaudio_latency_s": {
+      "source_capture": 0.022,
+      "monitor_render": 0.023458333333333335,
+      "monitor_capture": 0.023458333333333335
+    },
+    "callback_counters": {
+      "monitor_starved_frames": 22
+    },
+    "lag_ms": [
+      490.7,
+      504.5,
+      499.9,
+      493.3,
+      495.6,
+      497.3
+    ],
+    "input_correlations": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "output_correlations": [
+      0.578,
+      0.571,
+      0.548,
+      0.489,
+      0.582,
+      0.578
+    ],
+    "render_correlations": [
+      0.494,
+      0.566,
+      0.548,
+      0.61,
+      0.547,
+      0.495
+    ]
+  },
+  "wasapi-fast": {
+    "profile": "fast",
+    "stem": "drums",
+    "fixture_seconds": 20.0,
+    "blocks": 382,
+    "source_device": "扬声器 (UU远程虚拟音频设备)",
+    "monitor_device": "扬声器 (Realtek(R) Audio)",
+    "step_p95_ms": 51.5,
+    "portaudio_latency_s": {
+      "source_capture": 0.022,
+      "monitor_render": 0.023458333333333335,
+      "monitor_capture": 0.023458333333333335
+    },
+    "callback_counters": {},
+    "lag_ms": [
+      368.6,
+      370.9,
+      380.9,
+      371.3,
+      375.4,
+      367.8
+    ],
+    "input_correlations": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "output_correlations": [
+      0.579,
+      0.572,
+      0.546,
+      0.492,
+      0.58,
+      0.579
+    ],
+    "render_correlations": [
+      0.483,
+      0.549,
+      0.56,
+      0.619,
+      0.552,
+      0.484
+    ]
+  },
+  "wasapi-bypass": {
+    "profile": "bypass",
+    "fixture_seconds": 20.0,
+    "blocks": 2299,
+    "source_device": "扬声器 (UU远程虚拟音频设备)",
+    "monitor_device": "扬声器 (Realtek(R) Audio)",
+    "step_p95_ms": 0.1,
+    "portaudio_latency_s": {
+      "source_capture": 0.022,
+      "monitor_capture": 0.023458333333333335,
+      "monitor_render": 0.023458333333333335
+    },
+    "callback_counters": {},
+    "lag_ms": [
+      223.6,
+      239.3,
+      237.3,
+      228.7,
+      232.1,
+      234.4
+    ],
+    "input_correlations": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "output_correlations": [
+      0.578,
+      0.578,
+      0.55,
+      0.498,
+      0.582,
+      0.578
+    ],
+    "render_correlations": [
+      0.497,
+      0.58,
+      0.561,
+      0.585,
+      0.553,
+      0.498
+    ]
+  },
+  "musdb": {
+    "medians": {
+      "offline": {
+        "drum_projection_db": -19.79,
+        "bed_projection_db": -0.28,
+        "error_improvement_db": 8.78
+      },
+      "fast": {
+        "drum_projection_db": -19.38,
+        "bed_projection_db": -0.89,
+        "error_improvement_db": 6.14
+      },
+      "balanced": {
+        "drum_projection_db": -18.33,
+        "bed_projection_db": -0.49,
+        "error_improvement_db": 7.87
+      },
+      "quality": {
+        "drum_projection_db": -18.76,
+        "bed_projection_db": -0.35,
+        "error_improvement_db": 8.23
+      }
+    },
+    "tracks": {
+      "Arise - Run Run Run.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -21.486085284144792,
+          "bed_projection_db": -0.38220694140632483,
+          "error_improvement_db": 7.466448451027504
+        },
+        "fast": {
+          "drum_projection_db": -19.86409013370974,
+          "bed_projection_db": -1.1476789886200351,
+          "error_improvement_db": 2.3319850688601975
+        },
+        "balanced": {
+          "drum_projection_db": -18.587519402652465,
+          "bed_projection_db": -0.9360078901949209,
+          "error_improvement_db": 2.6992656283374314
+        },
+        "quality": {
+          "drum_projection_db": -20.22901770221892,
+          "bed_projection_db": -0.6418775372513003,
+          "error_improvement_db": 3.822356036410822
+        }
+      },
+      "Cristina Vane - So Easy.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -25.928162923971485,
+          "bed_projection_db": -0.18303746362238474,
+          "error_improvement_db": 14.278098065628182
+        },
+        "fast": {
+          "drum_projection_db": -26.749502844401288,
+          "bed_projection_db": -1.0770620023144892,
+          "error_improvement_db": 10.527331540503358
+        },
+        "balanced": {
+          "drum_projection_db": -25.193708177807412,
+          "bed_projection_db": -0.387047373831611,
+          "error_improvement_db": 12.780222023379007
+        },
+        "quality": {
+          "drum_projection_db": -24.927937437057377,
+          "bed_projection_db": -0.2993894856470707,
+          "error_improvement_db": 13.307592885469997
+        }
+      },
+      "Georgia Wonder - Siren.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -21.47899035464899,
+          "bed_projection_db": -0.3988022911274729,
+          "error_improvement_db": 10.010809291189982
+        },
+        "fast": {
+          "drum_projection_db": -18.900447818668,
+          "bed_projection_db": -0.986223313041767,
+          "error_improvement_db": 6.62373290602101
+        },
+        "balanced": {
+          "drum_projection_db": -19.05442756419166,
+          "bed_projection_db": -0.5710429522088063,
+          "error_improvement_db": 8.441540240568413
+        },
+        "quality": {
+          "drum_projection_db": -19.925383834399664,
+          "bed_projection_db": -0.48279150896418543,
+          "error_improvement_db": 8.878229905352255
+        }
+      },
+      "Girls Under Glass - We Feel Alright.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -16.352502183328145,
+          "bed_projection_db": -0.37631832310005114,
+          "error_improvement_db": 7.787604189206048
+        },
+        "fast": {
+          "drum_projection_db": -20.18962265523291,
+          "bed_projection_db": -1.3022705551120437,
+          "error_improvement_db": 6.084925314261302
+        },
+        "balanced": {
+          "drum_projection_db": -16.172273543788492,
+          "bed_projection_db": -0.6843610652372931,
+          "error_improvement_db": 6.882052988810095
+        },
+        "quality": {
+          "drum_projection_db": -16.044801046824475,
+          "bed_projection_db": -0.5114532070809436,
+          "error_improvement_db": 7.154374717666235
+        }
+      },
+      "James Elder & Mark M Thompson - The English Actor.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -13.320852812946477,
+          "bed_projection_db": -0.1382248877308778,
+          "error_improvement_db": 6.732493994065912
+        },
+        "fast": {
+          "drum_projection_db": -11.921834525573829,
+          "bed_projection_db": -0.5374471471337829,
+          "error_improvement_db": 3.42667217921935
+        },
+        "balanced": {
+          "drum_projection_db": -12.698350481613083,
+          "bed_projection_db": -0.26640820218618166,
+          "error_improvement_db": 5.345022300021325
+        },
+        "quality": {
+          "drum_projection_db": -12.855404829369775,
+          "bed_projection_db": -0.2387602013943713,
+          "error_improvement_db": 5.661870768977558
+        }
+      },
+      "Louis Cressy Band - Good Time.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -15.578719300221744,
+          "bed_projection_db": -0.35974776931092584,
+          "error_improvement_db": 7.8773317402263565
+        },
+        "fast": {
+          "drum_projection_db": -16.012067333047455,
+          "bed_projection_db": -0.8541824810385528,
+          "error_improvement_db": 6.2440922854986844
+        },
+        "balanced": {
+          "drum_projection_db": -16.373775673609153,
+          "bed_projection_db": -0.49157537870820195,
+          "error_improvement_db": 7.602457593672792
+        },
+        "quality": {
+          "drum_projection_db": -15.764771096586257,
+          "bed_projection_db": -0.43970244379721585,
+          "error_improvement_db": 7.597078145910591
+        }
+      },
+      "M.E.R.C. Music - Knockout.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -18.101510220526002,
+          "bed_projection_db": -0.26856773694299074,
+          "error_improvement_db": 9.491877574431577
+        },
+        "fast": {
+          "drum_projection_db": -16.000341023349968,
+          "bed_projection_db": -0.8697095657455338,
+          "error_improvement_db": 6.203564648773977
+        },
+        "balanced": {
+          "drum_projection_db": -18.07425265620632,
+          "bed_projection_db": -0.48277289888633734,
+          "error_improvement_db": 8.500380355040328
+        },
+        "quality": {
+          "drum_projection_db": -17.59468335362999,
+          "bed_projection_db": -0.35465203256167477,
+          "error_improvement_db": 8.864330554484825
+        }
+      },
+      "Mu - Too Bright.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -32.383531471558456,
+          "bed_projection_db": -0.19822777045588655,
+          "error_improvement_db": 16.313262260552793
+        },
+        "fast": {
+          "drum_projection_db": -20.281012224904472,
+          "bed_projection_db": -0.6147345315514989,
+          "error_improvement_db": 8.898056713856064
+        },
+        "balanced": {
+          "drum_projection_db": -32.25279038445147,
+          "bed_projection_db": -0.31466955970848354,
+          "error_improvement_db": 14.72289429002033
+        },
+        "quality": {
+          "drum_projection_db": -30.77636754201233,
+          "bed_projection_db": -0.2840423000578164,
+          "error_improvement_db": 14.95339169503267
+        }
+      },
+      "Nerve 9 - Pray For The Rain.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -25.016661058524875,
+          "bed_projection_db": -0.09760574160830092,
+          "error_improvement_db": 12.618807791951593
+        },
+        "fast": {
+          "drum_projection_db": -24.01198590500162,
+          "bed_projection_db": -0.22853443187426828,
+          "error_improvement_db": 9.609654285049777
+        },
+        "balanced": {
+          "drum_projection_db": -23.940608796409037,
+          "bed_projection_db": -0.13234118367729547,
+          "error_improvement_db": 11.52583570099016
+        },
+        "quality": {
+          "drum_projection_db": -22.85642079879715,
+          "bed_projection_db": -0.11903007004611972,
+          "error_improvement_db": 11.86697442248416
+        }
+      },
+      "Secretariat - Borderline.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -10.280566726164096,
+          "bed_projection_db": -0.2461610924068823,
+          "error_improvement_db": 4.892085277853814
+        },
+        "fast": {
+          "drum_projection_db": -11.300944702741106,
+          "bed_projection_db": -0.6924766196988403,
+          "error_improvement_db": 1.996905502656905
+        },
+        "balanced": {
+          "drum_projection_db": -10.625800638603017,
+          "bed_projection_db": -0.38702414244142175,
+          "error_improvement_db": 3.817413963500199
+        },
+        "quality": {
+          "drum_projection_db": -9.709223423845991,
+          "bed_projection_db": -0.28315266537519734,
+          "error_improvement_db": 4.484364269726145
+        }
+      },
+      "The Doppler Shift - Atrophy.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -25.374536149051906,
+          "bed_projection_db": -0.6338110013793691,
+          "error_improvement_db": 10.44144414751116
+        },
+        "fast": {
+          "drum_projection_db": -21.74728926040064,
+          "bed_projection_db": -2.0896132067380098,
+          "error_improvement_db": 5.52966786477294
+        },
+        "balanced": {
+          "drum_projection_db": -22.016002172814332,
+          "bed_projection_db": -1.03810064811724,
+          "error_improvement_db": 8.135106496853455
+        },
+        "quality": {
+          "drum_projection_db": -23.44707337487481,
+          "bed_projection_db": -0.8248066439162914,
+          "error_improvement_db": 9.11509230800753
+        }
+      },
+      "The Long Wait - Dark Horses.stem.mp4": {
+        "offline": {
+          "drum_projection_db": -17.544386575425158,
+          "bed_projection_db": -0.28991931184804526,
+          "error_improvement_db": 8.06795475228317
+        },
+        "fast": {
+          "drum_projection_db": -18.668368241645407,
+          "bed_projection_db": -0.9007019422852435,
+          "error_improvement_db": 4.196802510372267
+        },
+        "balanced": {
+          "drum_projection_db": -15.86594733403295,
+          "bed_projection_db": -0.5170092254281531,
+          "error_improvement_db": 5.996484894748622
+        },
+        "quality": {
+          "drum_projection_db": -16.370202875053014,
+          "bed_projection_db": -0.35217099386802625,
+          "error_improvement_db": 6.9724522665076005
+        }
+      }
+    }
+  },
+  "earlier_wasapi_runs_40ms_guard": {
+    "balanced": {
+      "lag_ms": [
+        628.8,
+        632.9,
+        627.7,
+        618.7,
+        633.7,
+        627.3
+      ],
+      "callback_counters": {}
+    },
+    "fast": {
+      "lag_ms": [
+        351.0,
+        363.6,
+        373.9,
+        366.5,
+        370.0,
+        361.5
+      ],
+      "callback_counters": {
+        "monitor_starved_frames": 502
+      }
+    }
+  }
+}

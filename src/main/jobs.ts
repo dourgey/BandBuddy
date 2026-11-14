@@ -53,6 +53,13 @@ interface ExportPayload {
 }
 
 export class JobScheduler {
+  isBusy(): boolean { return this.active !== null || this.running }
+  private scores: import('./scores.js').ScoreService | null = null
+  setScores(scores: import('./scores.js').ScoreService): void { this.scores = scores }
+  async cancelAndWait(jobId: string): Promise<void> {
+    await this.cancel(jobId)
+    while (this.active?.id === jobId) await new Promise(resolve => setTimeout(resolve, 30))
+  }
   private running = false
   private stopping = false
   private drainTask: Promise<void> | null = null
@@ -116,7 +123,7 @@ export class JobScheduler {
         const job = this.database.nextQueuedJob()
         if (!job) break
         // Detection can itself launch probes; defer it before live capture too.
-        if (['separate', 'guitarSplit', 'vocalSplit'].includes(job.type) && this.liveAudioActive()) break
+        if (['separate', 'guitarSplit', 'vocalSplit', 'transcribe'].includes(job.type) && this.liveAudioActive()) break
         if (job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit') {
           try { await this.runtime.ensureDetected() }
           catch (error) {
@@ -136,7 +143,7 @@ export class JobScheduler {
           this.changed()
           continue
         }
-        if (['separate', 'guitarSplit', 'vocalSplit'].includes(job.type) && this.liveAudioActive()) break
+        if (['separate', 'guitarSplit', 'vocalSplit', 'transcribe'].includes(job.type) && this.liveAudioActive()) break
         const controller = new AbortController()
         this.active = { id: job.id, songId: job.songId, controller }
         try {
@@ -157,6 +164,14 @@ export class JobScheduler {
   }
 
   private async runJob(job: JobRecord & { payload: unknown }, signal: AbortSignal): Promise<void> {
+    if (job.type === 'transcribe') {
+      if (!this.scores) throw new Error('SCORE_SERVICE_NOT_READY')
+      await this.scores.run(job, signal, (status, phase, progress) => {
+        if (status === 'completed') this.setJobState(job.id, status, phase, progress)
+        else this.reportProgress(job.id, status, phase, progress)
+      })
+      return
+    }
     if (!job.songId && job.type !== 'runtimeInstall') throw new Error('JOB_SONG_MISSING')
     if (job.type === 'separate') await this.runSeparation(job.id, job.songId!, job.payload as SeparationPayload, signal)
     else if (job.type === 'vocalSplit') await this.runVocalSplit(job.id, job.songId!, job.payload as VocalSplitJobPayload, signal)
@@ -575,7 +590,7 @@ export class JobScheduler {
     const isCancelled = classified.cancelled
     const code = classified.code
     const issue = isCancelled ? null : diagnostics.report(error, job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit' ? 'separation' : 'media', { component: 'task', stage: job.phase, jobId: job.id })
-    this.setJobState(job.id, isCancelled ? 'cancelled' : 'failed', isCancelled ? '已取消' : issue?.message ?? this.humanError(code), 0, code, issue ? `诊断编号：${issue.diagnosticId}；${issue.message}` : text.slice(0, 1200))
+    this.setJobState(job.id, isCancelled ? 'cancelled' : 'failed', isCancelled ? '已取消' : job.type === 'transcribe' ? '转谱未完成，可重试；已有乐谱仍可使用' : issue?.message ?? this.humanError(code), 0, code, job.type === 'transcribe' ? text.slice(0, 1200) : issue ? `诊断编号：${issue.diagnosticId}；${issue.message}` : text.slice(0, 1200))
     if (job.songId) {
       const settings = this.database.getSettings()
       const taskRoot = path.join(this.paths.songDirectory(settings.libraryRoot, job.songId), '.tasks', job.id)
@@ -634,6 +649,7 @@ export class JobScheduler {
   retry(jobId: string, useCpu = false): void {
     const job = this.database.getJob(jobId)
     if (!job) return
+    if (job.type === 'transcribe') { this.scores?.retry(job, useCpu); return }
     if (useCpu && (job.type === 'separate' || job.type === 'guitarSplit' || job.type === 'vocalSplit')) {
       const payload = job.payload as SeparationPayload | GuitarSplitJobPayload
       this.database.updateJobPayload(jobId, { ...payload, deviceOverride: 'cpu', retry: 0 })

@@ -17,7 +17,8 @@ import type { Logger } from './logger.js'
 import type { MediaService } from './media.js'
 import type { AppPaths } from './paths.js'
 import { runProcess } from './process.js'
-import { buildMixFilter } from './export-filter.js'
+import { buildAtempoChain, buildMixFilter } from './export-filter.js'
+import type { SongDetail } from '@shared/domain.js'
 import { renderPitchedStemBus } from './pitch-shift.js'
 
 export { buildMixFilter } from './export-filter.js'
@@ -34,6 +35,16 @@ function safeName(value: string): string {
 
 export function exportedStemPitchSemitones(request: Pick<ExportRequest, 'applyPitchShift' | 'pitchSemitones'>, stemType: string): number {
   return request.applyPitchShift && stemType !== 'drums' ? request.pitchSemitones : 0
+}
+
+export function exportRecordings(song: SongDetail, request: ExportRequest) {
+  const ids = request.recordingTrackIds ?? (request.includeActiveTake ? song.recordingTracks.filter(track => track.activeTakeId).map(track => track.id) : [])
+  return ids.map(id => {
+    const track = song.recordingTracks.find(track => track.id === id)
+    const take = song.recordingTakes.find(take => take.id === track?.activeTakeId && take.recordingTrackId === id)
+    if (!track || !take) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
+    return { track, take }
+  })
 }
 
 export class ExportService {
@@ -63,7 +74,7 @@ export class ExportService {
 
   async start(request: ExportRequest): Promise<ExportResult> {
     const song = this.database.getSong(request.songId)
-    if (!song || !song.stems.length) throw new Error('NO_STEMS_TO_EXPORT')
+    if (!song) throw new Error('SONG_NOT_FOUND')
     if (!request.outputPath) throw new Error('EXPORT_PATH_REQUIRED')
     const effectiveRequest: ExportRequest = request.kind === 'mix'
       ? {
@@ -72,12 +83,12 @@ export class ExportService {
             (song.sourceFormat === 'existing-stems' || isStemVisible(type, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled))
           )
         }
-      : request
+      : { ...request }
+    const activeRecordings = exportRecordings(song, effectiveRequest)
+    if (!effectiveRequest.stemTypes.length && !activeRecordings.length) throw new Error('NO_STEMS_TO_EXPORT')
+    if (effectiveRequest.stemTypes.some(type => !song.stems.some(stem => stem.type === type))) throw new Error('NO_STEMS_TO_EXPORT')
+    effectiveRequest.includeActiveTake = activeRecordings.length > 0
     if (effectiveRequest.kind === 'mix') {
-      const activeRecordings = song.recordingTracks.flatMap((track) => {
-        const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
-        return take ? [{ track, take }] : []
-      })
       if (effectiveRequest.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
       const hasSolo = song.practice.tracks.some((track) =>
         (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)) && track.solo && !track.muted
@@ -87,11 +98,11 @@ export class ExportService {
       const audibleRecordings = effectiveRequest.includeActiveTake
         ? activeRecordings.filter(({ track }) => !track.muted && (!hasSolo || track.solo))
         : []
-      if (audibleRecordings.some(({ take }) => !effectiveRequest.applyPlaybackRate || Math.abs(effectiveRequest.playbackRate - take.playbackRate) > 0.0001)) {
+      if (!this.recordingPlayback && audibleRecordings.some(({ take }) => Math.abs((effectiveRequest.applyPlaybackRate ? effectiveRequest.playbackRate : 1) - take.playbackRate) > 0.0001)) {
         throw new Error('RECORDING_TAKE_SPEED_MISMATCH')
       }
       const effectivePitch = effectiveRequest.applyPitchShift ? effectiveRequest.pitchSemitones : 0
-      if (audibleRecordings.some(({ take }) => (take.pitchSemitones ?? 0) !== effectivePitch)) {
+      if (!this.recordingPlayback && audibleRecordings.some(({ take }) => (take.pitchSemitones ?? 0) !== effectivePitch)) {
         throw new Error('RECORDING_TAKE_PITCH_MISMATCH')
       }
       if (!audibleStems && audibleRecordings.length === 0) throw new Error('NO_AUDIBLE_TRACKS')
@@ -105,14 +116,16 @@ export class ExportService {
 
   private async planOutputPaths(request: ExportRequest, title: string): Promise<string[]> {
     if (!request.outputPath) return []
-    const names = this.database.getSong(request.songId)?.stems ?? []
+    const song = this.database.getSong(request.songId)!
+    const names = song.stems
     const proposed = request.kind === 'mix'
       ? [path.resolve(request.outputPath)]
-      : request.stemTypes.map((stem, index) => {
+      : [...request.stemTypes.map((stem, index) => {
           const name = names.find((item) => item.type === stem)?.name
           const label = name ? `${String(index + 1).padStart(2, '0')} ${safeName(name)}` : STEM_META[stem].shortLabel
           return path.join(path.resolve(request.outputPath!), `${safeName(title)} - ${label}.${request.format}`)
-        })
+        }), ...exportRecordings(song, request).map(({ track }, index) =>
+          path.join(path.resolve(request.outputPath!), `${safeName(title)} - REC ${String(index + 1).padStart(2, '0')} ${safeName(track.name)}.${request.format}`))]
     const outputs: string[] = []
     for (const file of proposed) {
       let output = file
@@ -157,13 +170,15 @@ export class ExportService {
       ? request.stemTypes.filter((type) => (song.sourceFormat === 'existing-stems' || isStemVisible(type, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)))
       : request.stemTypes
     const files = requestedStemTypes.map((type) => allFiles.find((file) => file.type === type)).filter((file) => file !== undefined)
-    if (!files.length && request.kind === 'stems') throw new Error('NO_STEMS_TO_EXPORT')
+    const activeRecordings = exportRecordings(song, request)
+    if (files.length !== requestedStemTypes.length) throw new Error('NO_STEMS_TO_EXPORT')
+    if (!files.length && !activeRecordings.length) throw new Error('NO_STEMS_TO_EXPORT')
 
     if (request.kind === 'stems') {
       const effectivePitch = request.applyPitchShift ? request.pitchSemitones : 0
       let stemPitchRoot: string | null = null
       try {
-        if (effectivePitch !== 0 && files.some((file) => file.type !== 'drums')) {
+        if (activeRecordings.length || (effectivePitch !== 0 && files.some((file) => file.type !== 'drums'))) {
           stemPitchRoot = await mkdtemp(path.join(this.paths.cacheRoot, 'export-stems-pitch-'))
         }
         for (let index = 0; index < files.length; index += 1) {
@@ -174,7 +189,7 @@ export class ExportService {
           const source = this.paths.resolveLibraryPath(settings.libraryRoot, file.relPath)
           let input = source
           if (stemPitchRoot && exportedStemPitchSemitones(request, file.type) !== 0) {
-            onProgress(index / files.length, `正在为 ${STEM_META[file.type].shortLabel} 应用 Signalsmith 升降调`)
+            onProgress(index / (files.length + activeRecordings.length), `正在为 ${STEM_META[file.type].shortLabel} 应用 Signalsmith 升降调`)
             input = await renderPitchedStemBus({
               paths: this.paths,
               ffmpeg,
@@ -191,26 +206,38 @@ export class ExportService {
           }
           const result = await runProcess(ffmpeg, [
             '-y', '-v', 'error', '-i', input,
-            '-map_metadata', '-1', '-vn', '-af', "volume=${stemPlaybackGain(file)}", ...outputArgs(request.format), temporary
+            '-map_metadata', '-1', '-vn', '-af', [`volume=${stemPlaybackGain(file)}`, ...(request.applyPlaybackRate ? buildAtempoChain(request.playbackRate) : [])].join(','), ...outputArgs(request.format), temporary
           ], { signal })
           if (signal.aborted) throw new Error('EXPORT_CANCELLED')
           if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
           await rename(temporary, output)
-          onProgress((index + 1) / files.length, `已导出 ${STEM_META[file.type].shortLabel}`)
+          onProgress((index + 1) / (files.length + activeRecordings.length), `已导出 ${STEM_META[file.type].shortLabel}`)
         }
-        this.logger.info('stems exported', { songId: request.songId, count: files.length, format: request.format, pitchSemitones: effectivePitch })
+        for (let index = 0; index < activeRecordings.length; index++) {
+          const { track, take } = activeRecordings[index]!
+          if (!this.recordingPlayback) throw new Error('RECORDING_PLAYBACK_UNAVAILABLE')
+          const source = await this.recordingPlayback.renderRange(take, song.durationMs,
+            { ...song.practice, playbackRate: request.applyPlaybackRate ? request.playbackRate : 1, pitchSemitones: effectivePitch },
+            track.effects, 44100, 0, song.durationMs, path.join(stemPitchRoot!, `${take.id}.wav`), signal)
+          const output = outputPaths[files.length + index]!
+          mkdirSync(path.dirname(output), { recursive: true })
+          const temporary = path.join(path.dirname(output), `${path.basename(output, path.extname(output))}.part${path.extname(output)}`)
+          try {
+            const result = await runProcess(ffmpeg, ['-y', '-v', 'error', '-i', source, '-map_metadata', '-1', '-vn',
+              '-af', `volume=${track.gainDb}dB`, ...outputArgs(request.format), temporary], { signal })
+            if (signal.aborted) throw new Error('EXPORT_CANCELLED')
+            if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
+            await rename(temporary, output)
+          } finally { await rm(temporary, { force: true }) }
+          onProgress((files.length + index + 1) / (files.length + activeRecordings.length), `已导出 ${track.name}`)
+        }
+        this.logger.info('stems exported', { songId: request.songId, count: files.length + activeRecordings.length, format: request.format, pitchSemitones: effectivePitch })
       } finally {
         if (stemPitchRoot) await rm(stemPitchRoot, { recursive: true, force: true })
       }
       return
     }
 
-    const activeRecordings = request.includeActiveTake
-      ? song.recordingTracks.flatMap((track) => {
-        const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
-        return take ? [{ track, take }] : []
-      })
-      : []
     if (request.includeActiveTake && activeRecordings.length === 0) throw new Error('ACTIVE_RECORDING_TAKE_MISSING')
     const hasSolo = song.practice.tracks.some((track) =>
       (song.sourceFormat === 'existing-stems' || isStemVisible(track.stemType, song.practice.guitarSplitEnabled, song.practice.vocalSplitEnabled)) && track.solo && !track.muted
@@ -223,11 +250,11 @@ export class ExportService {
       && (!hasSolo || state.solo)
     )
     const audibleRecordings = activeRecordings.filter(({ track }) => !track.muted && (!hasSolo || track.solo))
-    if (audibleRecordings.some(({ take }) => !request.applyPlaybackRate || Math.abs(request.playbackRate - take.playbackRate) > 0.0001)) {
+    if (!this.recordingPlayback && audibleRecordings.some(({ take }) => Math.abs((request.applyPlaybackRate ? request.playbackRate : 1) - take.playbackRate) > 0.0001)) {
       throw new Error('RECORDING_TAKE_SPEED_MISMATCH')
     }
     const effectivePitch = request.applyPitchShift ? request.pitchSemitones : 0
-    if (audibleRecordings.some(({ take }) => (take.pitchSemitones ?? 0) !== effectivePitch)) {
+    if (!this.recordingPlayback && audibleRecordings.some(({ take }) => (take.pitchSemitones ?? 0) !== effectivePitch)) {
       throw new Error('RECORDING_TAKE_PITCH_MISMATCH')
     }
     if (!audibleStates.length && !audibleRecordings.length) throw new Error('NO_AUDIBLE_TRACKS')

@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
-Sitemap: https://bandbuddy.lonelyme.cn/sitemap.xml
+Sitemap: https://bandbuddy.cn/sitemap.xml

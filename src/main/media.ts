@@ -7,6 +7,7 @@ import { app, protocol } from 'electron'
 import { type BpmDetectionResult, type MediaCapabilities, type MusicalKeyAnalysis, type StemStorageFormat, type StemType } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
 import type { BpmAnalysis } from './bpm-detection.js'
+import type { BpmAudioInput } from './beat-this.js'
 import { runMediaAnalysis } from './media-analysis.js'
 import type { BandBuddyDatabase } from './database.js'
 import type { AppPaths } from './paths.js'
@@ -57,6 +58,8 @@ const FFMPEG_FILE_HASHES: Record<string, string> = Object.fromEntries(
 )
 
 export class MediaService {
+  bpmPredictor: ((ffmpeg: string, inputs: BpmAudioInput[]) => Promise<BpmAnalysis>) | null = null
+  private readonly bpmTasks = new Map<string, Promise<BpmDetectionResult>>()
   private readonly network = new RuntimeNetwork()
   private integrityEvidence: unknown[] = []
   private launchVerified = false
@@ -416,61 +419,44 @@ export class MediaService {
     await writeFile(output, JSON.stringify(peaks), 'utf8')
   }
 
-  async detectBpm(songId: string): Promise<BpmDetectionResult> {
+  isModelBusy(): boolean { return this.bpmTasks.size > 0 }
+
+  detectBpm(songId: string): Promise<BpmDetectionResult> {
+    const pending = this.bpmTasks.get(songId)
+    if (pending) return pending
+    const task = this.detectSongBpm(songId).finally(() => this.bpmTasks.delete(songId))
+    this.bpmTasks.set(songId, task)
+    return task
+  }
+
+  private async detectSongBpm(songId: string): Promise<BpmDetectionResult> {
     const ffmpeg = await this.tool('ffmpeg')
     if (!ffmpeg) throw new Error('FFMPEG_MISSING')
     const song = this.database.getSong(songId)
     if (!song) throw new Error('SONG_NOT_FOUND')
-    const preference: StemType[] = ['drums', 'bass', 'other', 'guitar', 'piano', 'vocals']
-    const stems = preference
-      .map((type) => song.stems.find((candidate) => candidate.type === type))
-      .filter((stem): stem is NonNullable<typeof stem> => Boolean(stem))
-      .slice(0, 3)
-    if (!stems.length) throw new Error('BPM_DETECTION_NO_AUDIO')
-
-    const results: Array<{ stem: StemType; analysis: BpmAnalysis }> = []
-    let decodeError = ''
-    for (const stem of stems) {
-      const input = this.resolveProtocolPath(new URL(stem.mediaUrl))
-      if (!input) continue
-      try {
-        const analysis = await this.analyzeBpmInput(ffmpeg, input)
-        if (analysis) results.push({ stem: stem.type, analysis })
-      } catch (error) {
-        decodeError = String(error)
-        this.logger.warn('BPM stem analysis failed', { songId, stem: stem.type, error: decodeError.slice(-500) })
-      }
+    if (song.durationMs > 1800_000) throw new Error('BPM_AUDIO_LIMIT')
+    const settings = this.database.getSettings()
+    const row = this.database.getSongRow(songId)
+    const source = row?.source_rel_path ? this.paths.resolveLibraryPath(settings.libraryRoot, row.source_rel_path) : null
+    let inputs: BpmAudioInput[] = source && existsSync(source) ? [{ path: source, gain: 1 }] : []
+    if (!inputs.length) {
+      const stems = this.database.getActiveStemFiles(songId)
+      // Use either the parent stem or its refinements, never both.
+      const hasVocals = stems.some(stem => stem.type === 'vocals')
+      const hasGuitar = stems.some(stem => stem.type === 'guitar')
+      inputs = stems.filter(stem => !(hasVocals && ['lead_vocals', 'backing_vocals'].includes(stem.type))
+        && !(hasGuitar && ['acoustic_guitar', 'lead_guitar', 'rhythm_guitar'].includes(stem.type)))
+        .map(stem => ({ path: this.paths.resolveLibraryPath(settings.libraryRoot, stem.relPath),
+          gain: Number.isFinite(stem.encodingGain) && stem.encodingGain > 0 && stem.encodingGain <= 1 ? 1 / stem.encodingGain : 1 }))
     }
-    if (!results.length) {
-      if (decodeError) throw new Error(`BPM_DETECTION_DECODE_FAILED:${decodeError.slice(-500)}`)
-      throw new Error('BPM_DETECTION_UNSTABLE')
-    }
-
-    const ranked = results.map((result) => {
-      const supporters = results.filter((candidate) => Math.abs(candidate.analysis.bpm - result.analysis.bpm) / result.analysis.bpm <= 0.018)
-      return { ...result, supporters, rank: result.analysis.confidence + (supporters.length - 1) * 0.1 }
-    }).sort((left, right) => right.rank - left.rank)
-    const selected = ranked[0]!
-    const totalWeight = selected.supporters.reduce((sum, result) => sum + Math.max(0.05, result.analysis.confidence ** 2), 0)
-    const bpm = Math.round(selected.supporters.reduce((sum, result) => sum + result.analysis.bpm * Math.max(0.05, result.analysis.confidence ** 2), 0) / totalWeight * 10) / 10
-    const beatDurationMs = 60_000 / bpm
-    const phaseVector = selected.supporters.reduce((vector, result) => {
-      const angle = result.analysis.beatOffsetMs / beatDurationMs * Math.PI * 2
-      const weight = Math.max(0.05, result.analysis.confidence ** 2)
-      return { x: vector.x + Math.cos(angle) * weight, y: vector.y + Math.sin(angle) * weight }
-    }, { x: 0, y: 0 })
-    const beatOffsetMs = Math.round(Math.atan2(phaseVector.y, phaseVector.x) / (Math.PI * 2) * beatDurationMs)
-    const confidence = Math.min(1, selected.analysis.confidence + (selected.supporters.length - 1) * 0.07)
-    this.database.updateSong(songId, { bpm, beatOffsetMs })
-    this.logger.info('BPM and beat grid detected and saved', { songId, stem: selected.stem, bpm, beatOffsetMs, confidence, analyzedStems: results.map((result) => result.stem) })
-    return { bpm, beatOffsetMs, confidence, analyzedStem: selected.stem }
-  }
-
-  private async analyzeBpmInput(ffmpeg: string, input: string): Promise<BpmAnalysis | null> {
-    const sampleRate = 8000
-    return await runMediaAnalysis({ kind: 'bpm', ffmpeg, sampleRate,
-      args: ['-v', 'error', '-i', input, '-t', '180', '-map', '0:a:0', '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 'f32le', 'pipe:1']
-    })
+    if (!inputs.length) throw new Error('BPM_DETECTION_NO_AUDIO')
+    if (!this.bpmPredictor) throw new Error('BPM_MODEL_UNAVAILABLE')
+    const analysis = await this.bpmPredictor(ffmpeg, inputs)
+    // Do not recreate a song deleted while inference was running.
+    if (!this.database.getSong(songId)) throw new Error('SONG_NOT_FOUND')
+    this.database.updateSong(songId, { bpm: analysis.bpm, beatOffsetMs: analysis.beatOffsetMs })
+    this.logger.info('Beat This tempo and beat grid detected and saved', { songId, ...analysis, input: source && existsSync(source) ? 'source' : 'stem-mix' })
+    return { ...analysis, analyzedStem: 'mix', model: 'beat-this-final0' }
   }
 
   async detectKey(songId: string): Promise<MusicalKeyAnalysis> {

@@ -1,317 +1,75 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="BandBuddy 音乐练习伴侣。下载 Windows / macOS 桌面端与 iOS 版，查看各平台版本更新；Android 敬请期待。">
-  <meta name="theme-color" content="#f5f1ea">
-  <meta name="color-scheme" content="light">
-  <link rel="canonical" href="https://bandbuddy.lonelyme.cn/">
-  <link rel="icon" type="image/png" href="assets/icon.png">
-  <link rel="apple-touch-icon" href="assets/icon.png">
-  <link rel="stylesheet" href="styles.css">
-  <meta property="og:type" content="website">
-  <meta property="og:locale" content="zh_CN">
-  <meta property="og:title" content="BandBuddy · 把一首歌，拆开练">
-  <meta property="og:description" content="本地分轨、逐轨播放与吉他细分。查看 Windows / macOS、iOS、Android 平台及版本更新。">
-  <meta property="og:url" content="https://bandbuddy.lonelyme.cn/">
-  <meta property="og:image" content="https://bandbuddy.lonelyme.cn/assets/practice-room.png">
-  <title>BandBuddy · 把一首歌，拆开练</title>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BandBuddy · 把音乐拆开，把自己练进去</title>
+  <meta name="description" content="BandBuddy 音乐练习伴侣：本地 AI 分轨、变速循环、系统学习、音色效果链与多轨录音。了解 3.0.0 更新，阅读 Wiki，下载 PC、Android 与 iOS 版。">
+  <meta name="theme-color" content="#0b1424"><meta name="color-scheme" content="dark light">
+  <link rel="canonical" href="https://bandbuddy.cn/"><link rel="icon" href="assets/icon.png" type="image/png"><link rel="apple-touch-icon" href="assets/icon.png">
+  <meta property="og:type" content="website"><meta property="og:locale" content="zh_CN"><meta property="og:title" content="BandBuddy · 把音乐拆开，把自己练进去"><meta property="og:description" content="由 AI 分轨开始，走进你的练琴工作台。练习、学习、音色、录音，在这里接上。"><meta property="og:url" content="https://bandbuddy.cn/"><meta property="og:image" content="https://bandbuddy.cn/assets/practice-room.png">
+  <script src="theme.js"></script><link rel="stylesheet" href="styles.css"><script src="main.js" defer></script><script src="home.js" defer></script><script src="privacy.js" defer></script><link rel="stylesheet" href="home.css">
 </head>
-<body>
+<body class="home-page" data-scene="intro">
   <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header"><div class="shell header-inner">
+    <a class="brand" href="./" aria-label="BandBuddy 首页"><img class="brand-logo" src="assets/icon.png" width="40" height="40" alt=""><span>Band<b>Buddy</b></span></a>
+    <nav class="site-nav" aria-label="主要导航"><a href="#features">功能</a><a href="#updates">版本更新</a><a href="wiki.html">Wiki 说明书</a><a href="#downloads">社群与下载</a></nav>
+    <div class="header-controls"><button class="theme-toggle" aria-label="切换到浅色模式" title="切换明暗主题"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15A8.5 8.5 0 0 1 9 4a8.5 8.5 0 1 0 11 11Z"/></svg></button><button class="menu-toggle" aria-label="打开导航" aria-expanded="false" aria-controls="mobile-nav"><span></span><span></span></button></div>
+  </div><nav id="mobile-nav" class="mobile-nav" aria-label="手机导航" hidden><a href="#features">功能</a><a href="#updates">版本更新</a><a href="wiki.html">Wiki 说明书</a><a href="#downloads">社群与下载</a></nav></header>
 
-  <header class="site-header">
-    <div class="shell header-inner">
-      <a class="brand" href="./" aria-label="BandBuddy 首页">
-        <img src="assets/icon.png" width="54" height="54" alt="">
-        <span>
-          <strong>BandBuddy</strong>
-          <small>音乐练习伴侣</small>
-        </span>
-      </a>
-      <nav class="site-nav" aria-label="主要导航">
-        <a href="#downloads">各端下载</a>
-        <a href="#updates">版本更新</a>
-        <a href="privacy.html">隐私</a>
-        <a href="https://github.com/dourgey/BandBuddy" rel="noreferrer">GitHub</a>
-      </nav>
+<main id="main" class="home-deck" aria-label="BandBuddy 功能介绍">
+  <section id="intro" class="home-panel" data-scene="intro" data-title="首页" aria-labelledby="hero-title">
+    <div class="panel-inner shell hero-panel">
+      <div class="panel-copy hero-copy"><h1 id="hero-title">把音乐拆开，<br>把自己练进去。</h1><p class="panel-lead">由 AI 分轨开始，走进你的练琴工作台。</p><p class="panel-description">听清一个声部，反复一个小节。<br>让喜欢的音乐，慢慢变成自己的演奏。</p><div class="actions"><a class="button primary" href="#downloads">下载 BandBuddy <span aria-hidden="true">↗</span></a><a class="button secondary" href="wiki.html">阅读说明书 <span aria-hidden="true">↗</span></a></div><p class="hero-edition">音乐练习伴侣 · 本地优先</p></div>
+      <div class="panel-art hero-art instrument-art" aria-hidden="true"><img hidden class="instrument-source" src="assets/crossed-instruments.webp" width="640" height="640" alt="" fetchpriority="high" decoding="async"><canvas id="instrument-particles"></canvas></div>
     </div>
-  </header>
-
-  <main id="main">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="shell hero-grid">
-        <div class="hero-copy">
-          <h1 id="hero-title">把一首歌，<br>拆开练。</h1>
-          <p>在电脑上拆开声部、放慢难点、循环练习。六轨完成就能开始练琴，木吉他、主音吉他与节奏吉他在后台继续生成。</p>
-
-          <div class="hero-actions">
-            <a class="button button-primary" href="#downloads">
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
-              下载 BandBuddy
-            </a>
-            <a class="text-link" href="https://github.com/dourgey/BandBuddy" rel="noreferrer">
-              查看源码
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5"/></svg>
-            </a>
-          </div>
-
-          <p class="platforms">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8m-4-4v4"/></svg>
-            <span>Windows 10/11 x64 · macOS Apple Silicon</span>
-          </p>
-        </div>
-
-        <figure class="product-shot">
-          <img src="assets/practice-room.png" width="1280" height="720" alt="BandBuddy 练习室，显示可单独控制的同步音轨" fetchpriority="high">
-          <figcaption class="sr-only">BandBuddy 2.0 的同步分轨播放与练习界面。</figcaption>
-        </figure>
-      </div>
-
-      <svg class="audio-cable" aria-hidden="true" viewBox="0 0 620 90" preserveAspectRatio="none">
-        <path class="cable-line" d="M-12 76C106 47 170 87 278 70C350 59 392 59 447 61"/>
-        <g transform="translate(445 46)">
-          <path class="plug-body" d="M0 9h70v30H0z"/>
-          <path class="plug-ring" d="M70 11h15v26H70zM85 14h15v20H85z"/>
-          <path class="plug-tip" d="M100 17h55l14 7v2l-14 7h-55z"/>
-          <path class="plug-mark" d="M20 12v24M30 12v24"/>
-        </g>
-      </svg>
-    </section>
-
-    <section class="feature-section" aria-label="主要功能">
-      <div class="record-grooves" aria-hidden="true"></div>
-      <div class="shell feature-strip">
-        <article class="feature">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 28 28"><path d="M4 14h2m3-6v12m4-16v20m4-15v10m4-7v4m3-2h1"/></svg>
-          </span>
-          <div>
-            <h2>本地分轨</h2>
-            <p>音频在本机处理，无需上传。</p>
-          </div>
-        </article>
-
-        <article class="feature">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 28 28"><path d="M4 7h20M4 14h20M4 21h20"/><circle cx="10" cy="7" r="2.5"/><circle cx="19" cy="14" r="2.5"/><circle cx="13" cy="21" r="2.5"/></svg>
-          </span>
-          <div>
-            <h2>逐轨播放</h2>
-            <p>单独听、静音或调节每条音轨。</p>
-          </div>
-        </article>
-
-        <article class="feature">
-          <span class="feature-icon" aria-hidden="true">
-            <svg viewBox="0 0 28 28"><rect x="7" y="3" width="14" height="22" rx="2.5"/><path d="M11 6h6M13 21.5h2"/></svg>
-          </span>
-          <div>
-            <h2>反复练习</h2>
-            <p>变速、升降调、循环，练会每个难点。</p>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="shell platform-section" id="downloads" aria-labelledby="downloads-title">
-      <div class="section-heading">
-        <p class="eyebrow">选择你的设备</p>
-        <h2 id="downloads-title">让练习，随手开始。</h2>
-        <p>桌面端与 iOS 现已上线，Android 敬请期待。</p>
-      </div>
-      <div class="platform-grid">
-        <article class="platform-card desktop-card">
-          <span class="status-badge">现已发布 · v2.0.1</span>
-          <h3>桌面端</h3>
-          <p class="platform-name">Windows / macOS</p>
-          <p>从本地分轨到多轨录音，在电脑上完成一次完整练习。</p>
-          <div class="download-links">
-            <a class="button button-primary" href="https://github.com/dourgey/BandBuddy/releases/download/v2.0.1/BandBuddy-2.0.1-x64.exe">下载 Windows 版</a>
-            <a class="button button-secondary" href="https://github.com/dourgey/BandBuddy/releases/download/v2.0.1/BandBuddy-2.0.1-macos-arm64.dmg">下载 macOS 版</a>
-          </div>
-          <p class="platform-note">Windows 10/11 x64 · macOS Apple Silicon（M 系列）</p>
-          <p class="platform-note">Windows 包未签名；macOS 包已签名并通过 Apple 公证。</p>
-          <a class="text-link" href="#desktop-updates">查看桌面端更新 ↓</a>
-        </article>
-        <article class="platform-card">
-          <span class="status-badge">App Store 已上线</span>
-          <h3>iOS</h3>
-          <p class="platform-name">iPhone / iPad</p>
-          <p>六轨分离与轻量吉他细分，搭配 LiveHouse 空间音频演练、升降调与混音导出。</p>
-          <div class="download-links">
-            <a class="button button-primary" href="https://apps.apple.com/cn/app/bandbuddy/id6797524442" rel="noreferrer">在 App Store 下载</a>
-          </div>
-          <a class="text-link" href="#ios-updates">查看 iOS 更新 ↓</a>
-        </article>
-        <article class="platform-card">
-          <span class="status-badge pending">敬请期待</span>
-          <h3>Android</h3>
-          <p class="platform-name">Android 手机 / 平板</p>
-          <p>移动端发布后，将在这里提供下载入口。</p>
-          <a class="text-link" href="#android-updates">查看 Android 更新 ↓</a>
-        </article>
-      </div>
-    </section>
-
-    <section class="updates-section" id="updates" aria-labelledby="updates-title">
-      <div class="shell">
-        <div class="section-heading">
-          <p class="eyebrow">每一步，都为练习</p>
-          <h2 id="updates-title">版本更新</h2>
-          <p>按平台查看新增功能与改进。</p>
-        </div>
-        <div class="update-platform" id="desktop-updates">
-          <h3>桌面端 <span>Windows / macOS</span></h3>
-          <p class="release-note">桌面端共用版本记录。1.2.0、1.3.0、2.0.0 为开发版本，功能已纳入 2.0.1 正式版；平台支持以对应版本为准。</p>
-          <details class="release-entry" open>
-            <summary><span class="release-version">v2.0.2</span><span class="release-title">歌词字号设置与拖拽导入</span><span class="release-meta">Windows 便携包已打包 · <time datetime="2026-09-15">2026-09-15</time></span></summary>
-            <div class="release-body"><ul>
-              <li>新增桌面歌词字号设置，支持 16–64 px 调节和预览，保存后生效；练习室与排练室共用设置。</li>
-              <li>歌词窗口随字号与当前歌词行数调整高度，改善大字号和多行歌词的显示。</li>
-              <li>导入窗口支持从文件管理器拖入单个音频或视频文件，提供拖入高亮、格式检查与错误提示，也可拖入新文件替换选择。</li>
-              <li>导入区域支持 Enter / 空格键操作；补充 AAC 文件导入、重复检测和解码的回归验证，覆盖大写 .AAC 扩展名。</li>
-            </ul><p class="release-note">Windows x64 未签名便携包已完成打包；170 项应用测试、类型检查、原生音频自检和打包应用启动检查通过。此版本尚未发布到 GitHub Release，下载入口仍提供 2.0.1 正式版。</p></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v2.0.1</span><span class="release-title">质量选择与分轨提速</span><span class="release-meta">正式发布 · <time datetime="2026-09-13">2026-09-13</time></span></summary>
-            <div class="release-body"><ul>
-              <li>新增 fast / balanced / high 三档吉他分轨策略，可按练习需求选择速度与质量。</li>
-              <li>优化高质量吉他分轨的共享计算，减少重复推理；快速档使用轻量模型。</li>
-              <li>修复模型下载 404 与完整性校验问题，补齐模型资源。</li>
-              <li>macOS Apple Silicon 安装包完成签名与 Apple 公证；补齐 Windows 安装版与便携版。</li>
-            </ul><a class="text-link" href="https://github.com/dourgey/BandBuddy/releases/tag/v2.0.1">查看发布详情 ↗</a></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v2.0.0</span><span class="release-title">木吉他、主音与节奏吉他细分</span><span class="release-meta">开发版本 · <time datetime="2026-09-04">2026-09-04</time></span></summary>
-            <div class="release-body"><ul>
-              <li>新增木吉他、主音吉他和节奏吉他三条细分轨，支持与原六轨模式切换。</li>
-              <li>先完成基础六轨并开放练习室，再在后台生成吉他细分轨；失败或取消仍保留基础结果。</li>
-              <li>支持以 320 kbps MP3 或 24-bit FLAC 保存分轨，完善模型断点续传与完整性校验。</li>
-              <li>移除“导入已有分轨”入口；该版本支持 Windows x64 与 macOS Apple Silicon。</li>
-            </ul></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v1.3.0</span><span class="release-title">视频跟练与更顺手的循环</span><span class="release-meta">开发版本 · <time datetime="2026-09-01">2026-09-01</time></span></summary>
-            <div class="release-body"><ul>
-              <li>支持导入视频、提取音频分轨，画面随播放、跳转、循环和变速同步，并提供全屏控制。</li>
-              <li>新增单键 A–B 循环和“跳回并播放”，快速重练困难片段。</li>
-              <li>每条分轨可路由至独立立体声通道对；底部播放栏可直接升降半音和恢复原调。</li>
-            </ul></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v1.2.0</span><span class="release-title">升降调与歌曲调性识别</span><span class="release-meta">开发版本 · <time datetime="2026-08-24">2026-08-24</time></span></summary>
-            <div class="release-body"><ul>
-              <li>新增实时升降调，支持上下各 12 个半音，鼓轨保持原音并补偿同步延迟。</li>
-              <li>新增本地歌曲调性识别、置信度和候选调性，支持手动纠正。</li>
-              <li>混音导出保留当前升降调；完善音频设备恢复与 Debug 日志。</li>
-            </ul></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v1.1.0</span><span class="release-title">录下练习，编排整场排练</span><span class="release-meta">正式发布 · <time datetime="2026-08-04">2026-08-04</time></span></summary>
-            <div class="release-body"><ul>
-              <li>新增多轨录音与多 Take 管理，支持设备、输入通道、采样率和录音对齐设置。</li>
-              <li>新增排练编排单、歌曲衔接与整场录音，录音轨可一起导出到练习混音。</li>
-              <li>支持 LRC 歌词导入和置顶桌面歌词窗口。</li>
-              <li>增加 macOS 支持，以及中国大陆环境下载镜像和网络设置。</li>
-            </ul><a class="text-link" href="https://github.com/dourgey/BandBuddy/releases/tag/v1.1.0">查看发布详情 ↗</a></div>
-          </details>
-          <details class="release-entry">
-            <summary><span class="release-version">v1.0.0</span><span class="release-title">本地分轨练琴，从这里开始</span><span class="release-meta">正式发布 · <time datetime="2026-07-18">2026-07-18</time></span></summary>
-            <div class="release-body"><ul>
-              <li>Windows 首发：本地分离人声、鼓、贝斯、吉他、钢琴与其他六轨，支持导入已有分轨。</li>
-              <li>同步波形、逐轨静音与独奏、音量调节、保持音高变速及 A–B 循环。</li>
-              <li>自动 BPM 检测、节拍器与预备拍，曲库搜索、收藏和练习状态自动保存。</li>
-              <li>支持导出分轨或当前混音，提供 WAV、FLAC 和 MP3 格式。</li>
-            </ul><a class="text-link" href="https://github.com/dourgey/BandBuddy/releases/tag/v1.0.0">查看发布详情 ↗</a></div>
-          </details>
-        </div>
-        <div class="mobile-updates">
-          <div class="update-platform" id="ios-updates">
-            <h3>iOS <span>iPhone / iPad</span></h3>
-            <p class="release-note">以下按开发记录的时间顺序整理；TestFlight 测试版本与正式发布版本分别标注。</p>
-            <details class="release-entry">
-              <summary><span class="release-version">v1.0</span><span class="release-title">iOS 首版核心功能</span><span class="release-meta">开发基线 · <time datetime="2026-07-26">2026-07-26</time></span></summary>
-              <div class="release-body"><ul>
-                <li>将 Android 版本能力移植到 iOS，建立可运行的核心功能骨架。</li>
-                <li>打通六轨分离相关主链路，提供基础播放与交互。</li>
-              </ul><p class="release-note">开发记录：4a1f582 · Import BandBuddy iOS app。</p></div>
-            </details>
-            <details class="release-entry">
-              <summary><span class="release-version">v1.1</span><span class="release-title">LiveHouse 与 Core ML 推理</span><span class="release-meta">TestFlight Build 3 · <time datetime="2026-08-08">2026-08-08</time> 前后</span></summary>
-              <div class="release-body"><ul>
-                <li>新增自适应 LiveHouse 空间音频演练体验。</li>
-                <li>引入原生 Core ML HTDemucs 实验路径，随后将生产推理迁移至 Core ML CPU-only，提升稳定性与确定性。</li>
-                <li>修复 iPad 上的 Core ML 发布稳定性、模型安装状态同步问题；模型通过完整性校验后才启用分离。</li>
-                <li>修复锁屏下曲库访问问题，简化导航。</li>
-              </ul><p class="release-note">开发记录：ab4d4ff；8954e96、76757fe、fd49a0c、0c166a9、9729634、12ff8c4、b6914ce。</p></div>
-            </details>
-            <details class="release-entry">
-              <summary><span class="release-version">v1.4.1</span><span class="release-title">主调识别、升降调与 MP3 导出</span><span class="release-meta">正式发布 · <time datetime="2026-08-28">2026-08-28</time></span></summary>
-              <div class="release-body"><ul>
-                <li>新增歌曲主调识别和变调（转调 / 升降调）。</li>
-                <li>新增 MP3 混音导出，完成发版收敛与最终打磨。</li>
-              </ul><p class="release-note">开发记录：66c1f9b；2026-08-24 合并 95a4ec7，2026-08-28 发布提交 22366b0（Release BandBuddy 1.4.1）。</p></div>
-            </details>
-            <details class="release-entry" open>
-              <summary><span class="release-version">v2.0.0</span><span class="release-title">轻量吉他细分与两阶段练习流程</span><span class="release-meta">正式发布</span></summary>
-              <div class="release-body">
-                <h4>功能更新</h4>
-                <ul>
-                  <li>新增轻量吉他细分：基础六轨完成后继续生成木吉他、主音吉他和节奏吉他，细分模式下最多同时使用八路音轨。</li>
-                  <li>原六轨模式与吉他细分模式互斥展示；细分模式以三条吉他轨替代原 Guitar，避免重复发声。</li>
-                  <li>练习页新增吉他分轨开关和轨道可见性切换。混音与播放按当前可见轨道工作，完善独奏、静音及轨道切换。</li>
-                </ul>
-                <h4>处理流程与体验</h4>
-                <ul>
-                  <li>采用两阶段分离：先生成基础六轨，再处理吉他细分。吉他处理期间即可开始六轨练习。</li>
-                  <li>吉他细分失败后可重试，不阻塞已完成的六轨结果；失败任务支持回滚并清理临时文件。</li>
-                  <li>播放过程中动态更新可见轨道与吉他可用状态，避免无效状态影响播放。</li>
-                </ul>
-                <h4>模型与安装</h4>
-                <ul>
-                  <li>新增独立吉他模型环境，与基础模型分别下载并协调安装。</li>
-                  <li>支持断点续传、安装空间预检、SHA-256 完整性校验，以及模型来源与版本校验。</li>
-                  <li>设置页新增吉他分轨环境状态卡片，展示空间占用、安装进度、继续下载、重试和错误信息。</li>
-                  <li>卸载模型时同步释放基础模型与吉他模型占用的空间。</li>
-                </ul>
-                <h4>界面与交付质量</h4>
-                <ul>
-                  <li>调整导航和页面布局，完善练习页、LiveHouse 交互及宽窄屏适配。</li>
-                  <li>新增吉他细分、全屏旋转测试与验证文档，补充真实音频回归测试，便于追溯与复现验收结果。</li>
-                </ul>
-                <details class="technical-notes">
-                  <summary>技术与开发记录</summary>
-                  <ul>
-                    <li>发布提交：8eaf178；MARKETING_VERSION = 2.0.0；独立吉他模型标签：gtr-v1.0.0。</li>
-                    <li>SongRecord、AppModel 与播放状态新增吉他任务状态、guitarSplitEnabled 和可见轨道集合及其状态流转。</li>
-                    <li>新增 GuitarModelSpec、GuitarModelStore、GuitarModelRuntime，严格定义模型文件清单与 ABI，并加入运行时安全校验。</li>
-                    <li>新增 GuitarSongSeparator：采用双 MDX + Lead 三模型链路，支持分块重叠重建与 AAC 输出。</li>
-                    <li>调整 TabView 结构，新增 GuitarSeparationTests 真实音频回归测试。</li>
-                  </ul>
-                </details>
-              </div>
-            </details>
-          </div>
-          <div class="update-platform" id="android-updates">
-            <h3>Android</h3>
-            <p class="empty-update">暂无版本更新</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="shell footer-inner">
-      <nav aria-label="页脚导航">
-        <a href="https://github.com/dourgey/BandBuddy" rel="noreferrer">GitHub</a>
-        <a href="privacy.html">隐私说明</a>
-        <a href="https://github.com/dourgey/BandBuddy/blob/main/LICENSE" rel="noreferrer">Apache-2.0</a>
-      </nav>
-      <p>BandBuddy · Local-first practice workstation for musicians.</p>
+  </section>
+  <section id="features" class="home-panel" data-scene="practice" data-title="分轨练习" aria-labelledby="features-title">
+    <div class="panel-inner shell">
+      <div class="panel-copy"><h2 id="features-title">先听清，<br>再弹出自己的声音。</h2><p class="panel-lead">把一首歌，拆成你的练习伙伴。</p><p class="panel-description">在本机分离人声、鼓、贝斯、吉他、钢琴与其他声部，继续细分主唱与和声、木吉他与主音。独奏听清细节，静音后接过自己的声部。</p><p class="panel-description">变速、移调、A–B 循环，让每次练习只专注一个难点。</p><a class="text-link" href="wiki.html#practice">了解分轨与练习 <span aria-hidden="true">↗</span></a></div>
+      <figure class="panel-media"><img src="assets/practice-room.webp" width="1280" height="720" alt="练习室的六条同步波形、静音独奏与播放控制" loading="lazy" decoding="async"><figcaption>练习室 · 分轨、混音与循环练习</figcaption></figure>
     </div>
-  </footer>
+  </section>
+  <section id="woodshed" class="home-panel" data-scene="woodshed" data-title="练功房" aria-labelledby="woodshed-title">
+    <div class="panel-inner shell">
+      <div class="panel-copy"><h2 id="woodshed-title">让每一天的练习，<br>有一条路可循。</h2><p class="panel-lead">练功房，把知识接到手上。</p><p class="panel-description">从离线教材与体系路线图开始，读懂谱例，再走进专项与合奏。指板实验室、节拍器、调音器和鼓机，陪你把一个问题练明白。</p><a class="text-link" href="wiki.html#woodshed">走进练功房 <span aria-hidden="true">↗</span></a></div>
+      <div class="learning-path"><div><span>读谱</span><p>五线谱、TAB、打击乐与钢琴大谱表，统一阅读。</p></div><div><span>专项</span><p>跟着体系路线图，找到当下要练的一个动作。</p></div><div><span>合奏</span><p>把节奏、音阶与乐句，放回真实的音乐关系里。</p></div></div>
+    </div>
+  </section>
+  <section id="arsenal" class="home-panel" data-scene="arsenal" data-title="军火库" aria-labelledby="arsenal-title">
+    <div class="panel-inner shell">
+      <div class="panel-copy"><h2 id="arsenal-title">接上琴，<br>找到自己的声音。</h2><p class="panel-lead">军火库，从箱头到整条效果链。</p><p class="panel-description">5 款原生箱头、7 款物理箱体，搭配内置箱体 IR。也可以导入自己的 NAM 与 IR，连接单块、均衡、调制和空间效果，保存属于你的音色。</p><p class="panel-description">监听、A/B 对比与快录循环，让调整有据可听。</p><a class="text-link" href="wiki.html#amp-models">认识箱头与箱体 <span aria-hidden="true">↗</span></a></div>
+      <figure class="panel-media"><img src="assets/arsenal.webp" width="1280" height="720" alt="军火库效果链与箱头、箱体面板" loading="lazy" decoding="async"><figcaption>军火库 · 连接、塑形、保存</figcaption></figure>
+    </div>
+  </section>
+  <section id="recording" class="home-panel" data-scene="recording" data-title="录音与排练" aria-labelledby="recording-title">
+    <div class="panel-inner shell">
+      <div class="panel-copy"><h2 id="recording-title">留住这一次，<br>听见下一次的进步。</h2><p class="panel-lead">多轨录音与整场排练。</p><p class="panel-description">把演奏录成多个 Take，回听节拍、音准和衔接。编排曲目与间隔，跟着整场歌单练习，再把启用的录音轨混入导出。</p><a class="text-link" href="wiki.html#recording">了解录音与排练 <span aria-hidden="true">↗</span></a></div>
+      <div class="recording-panel-art"><div class="recording-art" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="recording-steps"><span>录下演奏</span><span>比较 Take</span><span>带进排练</span></div></div>
+    </div>
+  </section>
+  <section id="updates" class="home-panel" data-scene="updates" data-title="版本更新" aria-labelledby="updates-title">
+    <div class="panel-inner shell update-panel">
+      <div class="panel-copy"><h2 id="updates-title">版本更新</h2><p class="release-number">3.0.0</p><p class="panel-lead">从分轨练歌，走向完整练琴工作台。</p><p class="panel-description">本次桌面端发布<br>对比上一公开版本 2.0.3</p><a class="text-link" href="wiki.html#whats-new">阅读完整更新说明 <span aria-hidden="true">↗</span></a></div>
+      <div class="screen-release-list"><div><h3>人声细分</h3><p>主唱与和声分开练，基础六轨就绪即可开始。</p></div><div><h3>练功房</h3><p>体系教材、读谱、专项练习与音乐工具箱。</p></div><div><h3>军火库</h3><p>原生箱头与箱体、NAM / IR、音色链和快录。</p></div><div><h3>播放与录音</h3><p>流式回放与局域网练琴，继续完善既有录音、排练。</p></div><div><h3>邦邦 AI 与环境准备</h3><p>图文对话、后台下载、校验恢复与已分轨数据导入。</p></div></div>
+    </div>
+  </section>
+  <section id="downloads" class="home-panel" data-scene="downloads" data-title="下载" aria-labelledby="downloads-title">
+    <div class="panel-inner shell">
+      <div class="panel-copy"><h2 id="downloads-title">让练习，<br>随手开始。</h2><p class="panel-lead">选择你的设备，把音乐带在身边。</p><p class="panel-description">PC 与 Android 安装包在 QQ 群内下载。iPhone 与 iPad 通过 App Store 获取。</p><p class="panel-description">各平台独立迭代，具体功能与版本可能不同。</p><a class="text-link" href="wiki.html#platforms">查看平台与安装说明 <span aria-hidden="true">↗</span></a></div>
+      <div class="screen-downloads"><a href="https://qm.qq.com/q/QLjkTrNNeg" target="_blank" rel="noopener noreferrer"><span>PC 桌面端<small>Windows / macOS · 进 QQ 群下载</small></span><span aria-hidden="true">↗</span></a><a href="https://qm.qq.com/q/QLjkTrNNeg" target="_blank" rel="noopener noreferrer"><span>Android<small>手机与平板 · 进 QQ 群下载</small></span><span aria-hidden="true">↗</span></a><a href="https://apps.apple.com/cn/app/bandbuddy/id6797524442" target="_blank" rel="noopener noreferrer"><span>iPhone / iPad<small>在 App Store 获取</small></span><span aria-hidden="true">↗</span></a><p>QQ 群号 <strong>398245265</strong> · <a href="#community">查看二维码</a></p></div>
+    </div>
+  </section>
+  <section id="community" class="home-panel" data-scene="community" data-title="社群" aria-labelledby="community-title">
+    <div class="panel-inner shell community-panel">
+      <div class="panel-copy"><h2 id="community-title">一起，把喜欢的<br>音乐练好。</h2><p class="panel-lead">分享一次练习，交换一个音色。</p><p class="panel-description">也把你的想法，带给下一个版本。</p><div class="actions"><a class="button primary" href="https://qm.qq.com/q/QLjkTrNNeg" target="_blank" rel="noopener noreferrer">一键加入 QQ 群 <span aria-hidden="true">↗</span></a><button class="button secondary copy-group" data-copy="398245265">复制群号</button></div><p class="group-number">QQ 398245265</p><div class="community-links"><a href="https://github.com/dourgey/BandBuddy" target="_blank" rel="noopener noreferrer">GitHub · PC ↗</a><a href="https://github.com/dourgey/BandBuddy-Android" target="_blank" rel="noopener noreferrer">GitHub · Android ↗</a></div></div>
+      <figure class="community-code"><a href="assets/community-qr.webp" target="_blank" aria-label="打开 QQ 加群二维码大图"><img src="assets/community-qr.webp" width="810" height="1440" alt="BandBuddy QQ 群加群二维码，群号 398245265" loading="lazy" decoding="async"></a><figcaption>用 QQ 扫码，和乐手们碰个面。<br>无法唤起 QQ 时，可复制群号搜索。</figcaption></figure>
+      <footer class="panel-footer"><span>© 2026 BandBuddy · 热爱音乐，也热爱练习。</span><button class="privacy-open">责任与隐私说明 ↗</button><button class="motion-toggle" aria-pressed="false">暂停背景动画</button></footer>
+    </div>
+  </section>
+</main>
+<nav class="screen-dots" aria-label="主页各屏导航"><a href="#intro" aria-label="第 1 屏：首页" aria-current="step"><span></span></a><a href="#features" aria-label="第 2 屏：分轨练习"><span></span></a><a href="#woodshed" aria-label="第 3 屏：练功房"><span></span></a><a href="#arsenal" aria-label="第 4 屏：军火库"><span></span></a><a href="#recording" aria-label="第 5 屏：录音与排练"><span></span></a><a href="#updates" aria-label="第 6 屏：版本更新"><span></span></a><a href="#downloads" aria-label="第 7 屏：下载"><span></span></a><a href="#community" aria-label="第 8 屏：社群"><span></span></a></nav>
+<div class="deck-controls"><p class="screen-progress" aria-live="polite"><span id="screen-number">01 / 08</span><span id="screen-title">首页</span></p><div class="screen-arrows"><button class="screen-prev" aria-label="上一屏" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><button class="screen-next" aria-label="下一屏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div>
+<p id="toast" class="toast" role="status" aria-live="polite"></p>
 </body>
 </html>

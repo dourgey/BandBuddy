@@ -23,7 +23,7 @@ it('monitors a recording track without recording, switches its tone live and pro
   const host = { onEvent: vi.fn(), startTest: vi.fn(async () => ({ sampleRate: 48000 })), stopTest: vi.fn(async () => undefined), setEffects: vi.fn(async () => undefined) }
   const recording = { isActive: () => active, getState: () => ({ recordingTrackId: 'one' }), arsenalDeviceConfiguration: async () => ({ inputChannel: 1 }) }
   const write = vi.fn()
-  const db = { getRecordingTrack: () => ({}), sqlite: { prepare: () => ({ run: write }) } }
+  const db = { getRecordingTrack: () => ({}), getSong: () => null, sqlite: { prepare: () => ({ run: write }) } }
   const service = new ArsenalService({ dataRoot: '.' } as never, db as never, {} as never, host as never, recording as never, vi.fn(), vi.fn(), () => false)
   const chain = { ...defaultEffectChain(), modules: [] }
   await service.setTrack('one', { enabled: false, presetId: null, chain, monitorMode: 'dry' })
@@ -40,4 +40,15 @@ it('monitors a recording track without recording, switches its tone live and pro
   expect(host.setEffects).toHaveBeenLastCalledWith(expect.objectContaining({ mode: 0 }))
   expect(host.startTest).toHaveBeenCalledOnce()
   expect(write).toHaveBeenCalledTimes(3)
+})
+
+it.each(['wasapi-shared', 'coreaudio', 'wasapi-exclusive', 'asio'])('accepts redirected accompaniment only when %s needs device handoff', async backend => {
+  const host = { onEvent: vi.fn(), startTest: vi.fn(async () => ({ sampleRate: 48000 })), stopTest: vi.fn(async () => undefined), arsenalPcm: vi.fn(async () => true) }
+  const recording = { isActive: () => false, arsenalDeviceConfiguration: async () => ({ backend }) }
+  const service = new ArsenalService({ dataRoot: '.' } as never, {} as never, {} as never, host as never, recording as never, vi.fn(), vi.fn(), () => false)
+  const state = await service.monitor('dry', { ...defaultEffectChain(), modules: [] })
+  const redirects = backend === 'asio' || backend === 'wasapi-exclusive'
+  expect(state.redirectBrowserOutput).toBe(redirects)
+  expect(await service.feed({ bus: 0, sampleRate: 48000, samples: [.2, .2] })).toBe(redirects)
+  expect(host.arsenalPcm).toHaveBeenCalledTimes(redirects ? 1 : 0)
 })

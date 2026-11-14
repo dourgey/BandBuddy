@@ -1,4 +1,5 @@
 #include "../../audio-ipc/worker-wait.h"
+#include "../../audio-ipc/denormal-scope.h"
 #include <RtAudio.h>
 #include <nlohmann/json.hpp>
 #include <signalsmith-stretch/signalsmith-stretch.h>
@@ -148,9 +149,22 @@ class FloatRing {
 
 class WaveStream {
  public:
-  explicit WaveStream(const fs::path& path) {
+  explicit WaveStream(const fs::path& path, unsigned rawRate = 0, std::uint64_t rawFrames = 0) {
     stream_.open(path, std::ios::binary);
     if (!stream_) throw std::runtime_error("BACKING_OPEN_FAILED");
+    if (rawRate) {
+      if (rawRate < 8000 || rawRate > 192000 || !rawFrames || rawFrames > std::uint64_t(rawRate) * 86400) throw std::runtime_error("BACKING_PCM_CONFIG");
+      growing_ = true; sourcePath_ = path; sampleRate_ = rawRate; channels_ = 2;
+      totalFrames_ = rawFrames; totalSamples_ = rawFrames * channels_; bufferFrames_ = rawRate;
+      ring_ = std::make_unique<FloatRing>(bufferFrames_ * channels_);
+      const auto count = std::min<std::uint64_t>(totalSamples_, std::uint64_t((rawRate + 3) / 4) * channels_);
+      std::vector<float> prime(count);
+      stream_.read(reinterpret_cast<char*>(prime.data()), count * sizeof(float));
+      if (stream_.gcount() != std::streamsize(count * sizeof(float)) || !ring_->push(prime.data(), count)) throw std::runtime_error("BACKING_STREAM_PRIME_FAILED");
+      loadedSamples_ = count;
+      worker_ = std::thread([this] { run(); });
+      return;
+    }
     char header[12]{};
     stream_.read(header, sizeof(header));
     if ((std::memcmp(header, "RIFF", 4) != 0 && std::memcmp(header, "RF64", 4) != 0) || std::memcmp(header + 8, "WAVE", 4) != 0) {
@@ -251,9 +265,20 @@ class WaveStream {
   void run() {
     std::vector<float> block(16384);
     while (!closed_.load() && loadedSamples_ < totalSamples_) {
-      const auto requested = static_cast<std::size_t>(
+      auto requested = static_cast<std::size_t>(
         std::min<std::uint64_t>(block.size(), totalSamples_ - loadedSamples_)
       );
+      if (growing_) {
+        std::error_code error; const auto bytes = fs::file_size(sourcePath_, error);
+        if (error) { failed_.store(true); break; }
+        // A producer may be between partial writes. Read only complete frames.
+        const auto available = bytes / (channels_ * sizeof(float)) * channels_;
+        if (available <= loadedSamples_) {
+          std::unique_lock lock(waitMutex_); cv_.wait_for(lock, std::chrono::milliseconds(2)); continue;
+        }
+        requested = std::min<std::uint64_t>(requested, available - loadedSamples_);
+        stream_.clear(); stream_.seekg(loadedSamples_ * sizeof(float));
+      }
       stream_.read(
         reinterpret_cast<char*>(block.data()),
         static_cast<std::streamsize>(requested * sizeof(float))
@@ -269,6 +294,8 @@ class WaveStream {
   }
 
   std::ifstream stream_;
+  fs::path sourcePath_;
+  bool growing_ = false;
   std::unique_ptr<FloatRing> ring_;
   std::thread worker_;
   std::condition_variable cv_;
@@ -551,9 +578,12 @@ struct Session {
   std::array<PcmBus,8> pcmBuses;
   std::vector<float> pcmScratch=std::vector<float>(524288);std::atomic<unsigned> pcmUnderruns{0};
   std::atomic<float> outputPeak{0};
-  float monitorGain = 0;
+  std::atomic<float> monitorGain{0};
+  float currentMonitorGain = 0;
   bool testing = false;
   bool splitDevices = false;
+  bool asioCallback = false;
+  std::atomic<bool> callbackRealtimePriority{false};
   std::atomic<std::uint64_t> callbackFrames{0};
   std::atomic<std::uint64_t> outputClockFrames{0};
   std::atomic<std::uint64_t> transportFrames{0};
@@ -603,8 +633,19 @@ struct Session {
   }
 };
 
+void prepareCallbackThread(Session& session) {
+  if (!session.asioCallback) return;
+  // RtAudio 6's ASIO backend ignores RTAUDIO_SCHEDULE_REALTIME. Register
+  // the actual driver callback thread, not the control thread opening it.
+  // Keep the registration for this thread's lifetime, never once per block.
+  thread_local bb::AudioThreadPriority scheduling;
+  session.callbackRealtimePriority.store(scheduling.active(), std::memory_order_relaxed);
+}
+
 int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, double, RtAudioStreamStatus status, void* userData) {
   auto& s = *static_cast<Session*>(userData);
+  prepareCallbackThread(s);
+  bb::DenormalScope denormals;
   auto* output = static_cast<float*>(outputBuffer);
   auto* input = static_cast<float*>(inputBuffer);
   bb::OutputCallbackScope safety{s.diagnostics, output, nFrames, s.outputChannels, s.sampleRate};
@@ -643,7 +684,11 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
     else for(unsigned i=0;i<nFrames;++i) for(unsigned c=0;c<2;++c) s.effectsScratch[i*2+c]=effectInput[i*effectChannels+std::min(c,effectChannels-1)];
     s.pluginReaders.fetch_sub(1);
     if(s.fadingEffects){if(mode==2&&!plugin)s.fadingEffects->process(effectInput,s.fadeScratch.data(),nFrames,effectChannels);for(unsigned i=0;i<nFrames;++i){float blend=1.f-float(s.fadeRemaining)/std::max(1u,s.sampleRate/50);for(unsigned c=0;c<2;++c)if(mode==2&&!plugin)s.effectsScratch[i*2+c]=s.effectsScratch[i*2+c]*blend+s.fadeScratch[i*2+c]*(1-blend);if(s.fadeRemaining)--s.fadeRemaining;}if(!s.fadeRemaining){s.retiredEffects.store(s.fadingEffects);s.fadingEffects=nullptr;}}
-    for(unsigned i=0;i<nFrames*2;++i) { output[i]=s.tunerEnabled.load()?0:s.effectsScratch[i]*s.monitorGain; storeMaximum(s.outputPeak,std::abs(output[i])); }
+    const auto targetGain = s.monitorGain.load();
+    for(unsigned i=0;i<nFrames;++i) {
+      s.currentMonitorGain += std::clamp(targetGain - s.currentMonitorGain, -1.f / (s.sampleRate * .01f), 1.f / (s.sampleRate * .01f));
+      for (unsigned c=0;c<2;++c) { const auto at=i*2+c; output[at]=s.tunerEnabled.load()?0:s.effectsScratch[at]*s.currentMonitorGain; storeMaximum(s.outputPeak,std::abs(output[at])); }
+    }
   }
   s.dspLoad.store(float(std::chrono::duration<double>(std::chrono::steady_clock::now()-dspStart).count()*s.sampleRate/std::max(1u,nFrames)));
   if(s.testing&&output&&nFrames*2<=s.pcmScratch.size())for(auto& bus:s.pcmBuses){if(bus.clear.exchange(false)||!bus.enabled.load()){bus.ring.pop(s.pcmScratch.data(),s.pcmScratch.size());bus.started=false;continue;}if(!bus.started){if(bus.ring.available()<4096)continue;bus.started=true;}const auto count=bus.ring.pop(s.pcmScratch.data(),nFrames*2);if(count<nFrames*2){bus.started=false;s.pcmUnderruns.fetch_add(1);}for(size_t i=0;i<count;++i){output[i]+=s.pcmScratch[i];storeMaximum(s.outputPeak,std::abs(output[i]));}}
@@ -794,6 +839,8 @@ int audioCallback(void* outputBuffer, void* inputBuffer, unsigned nFrames, doubl
 
 int splitInputCallback(void*, void* inputBuffer, unsigned nFrames, double, RtAudioStreamStatus status, void* userData) {
   auto& s = *static_cast<Session*>(userData);
+  prepareCallbackThread(s);
+  bb::DenormalScope denormals;
   auto* input = static_cast<float*>(inputBuffer);
   if (status & RTAUDIO_INPUT_OVERFLOW) s.diagnostics.inputOverflows.fetch_add(1);
   if (s.inputClock) s.inputClock->push(input, nFrames, s.inputAdcSeconds.load());
@@ -914,14 +961,7 @@ std::string portAudioError(const char* operation, PaError error) {
 
 class Host {
  public:
-  explicit Host(bool simulate = false, const std::string& probeBackend = "") : simulate_(simulate) {
-#ifdef BANDBUDDY_PORTAUDIO_WASAPI
-    if (!simulate_ && probeBackend != "asio") {
-      const auto error = Pa_Initialize();
-      if (error != paNoError) throw std::runtime_error(portAudioError("PORTAUDIO_INITIALIZE_FAILED", error));
-      portAudioInitialized_ = true;
-    }
-#endif
+  explicit Host(bool simulate = false) : simulate_(simulate) {
     eventThread_ = std::thread([this] { eventLoop(); });
   }
   ~Host() {
@@ -934,6 +974,7 @@ class Host {
   }
 
   json devices(const std::string& backendFilter = "") {
+    std::lock_guard lifecycleLock(lifecycleMutex_);
     json devices = json::array();
     if (simulate_) {
 #ifdef _WIN32
@@ -956,13 +997,10 @@ class Host {
       return devices;
     }
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
-    if (portAudioInitialized_) {
-      bool canRefresh = false;
-      { std::lock_guard lock(sessionMutex_); canRefresh = !session_; }
-      if (canRefresh) {
-        const auto refreshed = PaWasapi_UpdateDeviceList();
-        if (refreshed != paNoError) throw std::runtime_error(portAudioError("AUDIO_DEVICE_REFRESH_FAILED", refreshed));
-      }
+    if (backendFilter.empty() || backendFilter == "wasapi") {
+      // Inventories run in fresh probe processes. Rebuilding the list directly
+      // after Pa_Initialize needlessly unloads/reopens every endpoint driver.
+      ensurePortAudio();
       const auto hostApi = Pa_HostApiTypeIdToHostApiIndex(paWASAPI);
       const auto* hostInfo = hostApi >= 0 ? Pa_GetHostApiInfo(hostApi) : nullptr;
       const auto count = Pa_GetDeviceCount();
@@ -1034,6 +1072,7 @@ class Host {
               {"id", deviceId(backend, id, info.name)}, {"backend", backend}, {"name", info.name},
               {"inputChannels", info.inputChannels}, {"outputChannels", info.outputChannels}, {"duplexChannels", info.duplexChannels},
               {"sampleRates", info.sampleRates}, {"preferredSampleRate", info.preferredSampleRate ? info.preferredSampleRate : info.currentSampleRate},
+              {"currentSampleRate", info.currentSampleRate},
               {"defaultInput", info.isDefaultInput}, {"defaultOutput", info.isDefaultOutput}
             });
           }
@@ -1044,13 +1083,16 @@ class Host {
   }
 
   json start(const json& params, bool testing) {
+    std::lock_guard lifecycleLock(lifecycleMutex_);
     stopSession(false);
     auto session = std::make_unique<Session>();
     const bool outputOnly = params.value("outputOnly", false);
     const auto backend = params.value("backend", "auto");
+    session->asioCallback = backend == "asio";
     const auto api = backendApi(backend);
 #ifdef BANDBUDDY_PORTAUDIO_WASAPI
     const bool usePortAudio = !simulate_ && (backend == "wasapi-shared" || backend == "wasapi-exclusive");
+    if (usePortAudio) ensurePortAudio();
     session->portAudio = usePortAudio;
 #else
     const bool usePortAudio = false;
@@ -1105,7 +1147,8 @@ class Host {
 #endif
       else {
         const auto outputInfo = session->audio->getDeviceInfo(outputId);
-        session->sampleRate = outputInfo.preferredSampleRate ? outputInfo.preferredSampleRate : 48000;
+        session->sampleRate = backend == "asio" && outputInfo.currentSampleRate
+          ? outputInfo.currentSampleRate : outputInfo.preferredSampleRate ? outputInfo.preferredSampleRate : 48000;
       }
     }
     session->inputSampleRate = session->splitDevices ? params.value("inputSampleRate", session->sampleRate) : session->sampleRate;
@@ -1134,7 +1177,8 @@ class Host {
       session->plugin = std::make_unique<bb::ipc::Client>(pathFromUtf8(params.at("pluginMapping")), session->bufferFrames ? session->bufferFrames : 2048);
       session->activePlugin.store(session->plugin.get());
     }
-    session->monitorGain = std::pow(10.0f, params.value("monitorGainDb", -6.0f) / 20.0f);
+    session->monitorGain = params.value("monitorGain", std::pow(10.0f, params.value("monitorGainDb", -6.0f) / 20.0f));
+    session->currentMonitorGain = session->monitorGain.load();
     session->playbackRate = params.value("playbackRate", 1.0);
     session->startPositionMs = params.value("startPositionMs", 0.0);
     session->endPositionMs = params.value("endPositionMs", session->startPositionMs);
@@ -1146,7 +1190,8 @@ class Host {
     session->simulateInputClockPpm = params.value("simulateInputClockPpm", 0.0);
     session->simulateTimeScale = std::clamp(params.value("simulateTimeScale", 1.0), 0.01, 10.0);
     if (!testing) {
-      session->backingStream = std::make_unique<WaveStream>(pathFromUtf8(params.at("backingPath").get<std::string>()));
+      session->backingStream = std::make_unique<WaveStream>(pathFromUtf8(params.at("backingPath").get<std::string>()),
+        params.contains("backingFrames") ? session->sampleRate : 0, params.value("backingFrames", std::uint64_t(0)));
       if (session->backingStream->sampleRate() != session->sampleRate) throw std::runtime_error("BACKING_SAMPLE_RATE_MISMATCH");
       session->backingScratch.resize(
         static_cast<std::size_t>(262144) * session->backingStream->channels()
@@ -1339,6 +1384,7 @@ class Host {
   }
 
   json stopSession(bool emitFinished) {
+    std::lock_guard lifecycleLock(lifecycleMutex_);
     std::unique_ptr<Session> session;
     { std::lock_guard lock(sessionMutex_); session = std::move(session_); }
     if (!session) return nullptr;
@@ -1350,16 +1396,17 @@ class Host {
         if (!stream) return;
         const auto active = Pa_IsStreamActive(stream);
         if (active > 0) {
-          const auto error = Pa_StopStream(stream);
-          if (error != paNoError) Pa_AbortStream(stream);
+          Pa_AbortStream(stream);
         } else if (active < 0) Pa_AbortStream(stream);
       };
       stopPortAudio(session->paInputAudio);
       stopPortAudio(session->paAudio);
     }
 #endif
-    try { if (session->inputAudio && session->inputAudio->isStreamRunning()) session->inputAudio->stopStream(); } catch (...) { try { session->inputAudio->abortStream(); } catch (...) {} }
-    try { if (session->audio && session->audio->isStreamRunning()) session->audio->stopStream(); } catch (...) { try { session->audio->abortStream(); } catch (...) {} }
+    // Stop the device clock immediately. Only the capture writer's already
+    // accepted samples are drained; queued speaker buffers need not play out.
+    try { if (session->inputAudio && session->inputAudio->isStreamRunning()) session->inputAudio->abortStream(); } catch (...) {}
+    try { if (session->audio && session->audio->isStreamRunning()) session->audio->abortStream(); } catch (...) {}
     if (session->simulator.joinable()) session->simulator.join();
     if (session->writer) session->writer->close();
     const auto frames = session->writer ? session->writer->framesWritten() : 0;
@@ -1390,6 +1437,11 @@ class Host {
     std::lock_guard lock(sessionMutex_);
     if(!session_) throw std::runtime_error("NO_AUDIO_SESSION");
     auto& s=*session_;
+    if (params.contains("monitorGain")) {
+      const auto gain = params.at("monitorGain").get<float>();
+      if (!std::isfinite(gain) || gain < 0 || gain > 16) throw std::runtime_error("MONITOR_GAIN_INVALID");
+      s.monitorGain.store(gain);
+    }
     if (params.contains("pluginMapping")) {
       std::unique_ptr<bb::ipc::Client> next;
       if (!params["pluginMapping"].is_null()) next = std::make_unique<bb::ipc::Client>(pathFromUtf8(params["pluginMapping"]), s.bufferFrames);
@@ -1472,9 +1524,22 @@ class Host {
   }
 
  private:
+#ifdef BANDBUDDY_PORTAUDIO_WASAPI
+  void ensurePortAudio() {
+    if (portAudioInitialized_) return;
+    std::cerr << "{\"stage\":\"wasapi-initialize\",\"backend\":\"wasapi\"}" << std::endl;
+    const auto error = Pa_Initialize();
+    if (error != paNoError) throw std::runtime_error(portAudioError("PORTAUDIO_INITIALIZE_FAILED", error));
+    portAudioInitialized_ = true;
+  }
+#endif
   void eventLoop() {
     while (!shuttingDown_.load()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(33));
+      // Hold across inspection and teardown: a finished/error flag must never
+      // stop a replacement session, or close its driver's global state while
+      // start() is opening the next stream. Audio callbacks do not take this lock.
+      std::lock_guard lifecycleLock(lifecycleMutex_);
       json event;
       bool finished = false;
       int errorType = RTAUDIO_NO_ERROR;
@@ -1490,6 +1555,7 @@ class Host {
           const auto beatFrames = static_cast<std::uint64_t>(std::max(1.0, 60.0 / session_->bpm / session_->playbackRate * session_->sampleRate));
           event = {{"event", "meter"}, {"data", {
             {"diagnostics", session_->diagnostics.snapshot()},
+            {"callbackRealtimePriority", session_->callbackRealtimePriority.load()},
             {"timeline", session_->timeline ? session_->timeline->state() : json(nullptr)},
             {"plugin", session_->plugin ? json{{"deadlineMisses", session_->plugin->misses.load()},
               {"queueOverflows", session_->plugin->overflows.load()}, {"invalidSamples", session_->plugin->invalid.load()},
@@ -1532,6 +1598,7 @@ class Host {
     }
   }
   std::mutex sessionMutex_;
+  std::recursive_mutex lifecycleMutex_;
   std::unique_ptr<Session> session_;
   std::atomic<bool> shuttingDown_{false};
   std::thread eventThread_;
@@ -1646,7 +1713,13 @@ int runMain(int argc, char** argv) {
   }
   const bool simulate = argc > 1 && std::string(argv[1]) == "--simulate";
   const std::string probeBackend = argc == 3 && std::string(argv[1]) == "--probe-backend" ? argv[2] : "";
-  Host host(simulate, probeBackend);
+  std::cerr << encodeMessage({{"stage", "host-ready"}, {"protocol", 2}, {"build", __DATE__ " " __TIME__},
+    {"rtaudio", RtAudio::getVersion()}, {"probeBackend", probeBackend}
+#ifdef BANDBUDDY_PORTAUDIO_WASAPI
+    , {"portaudio", Pa_GetVersionText()}
+#endif
+  }) << std::endl;
+  Host host(simulate);
   std::string line;
   while (std::getline(std::cin, line)) {
     if (line.empty()) continue;
@@ -1656,6 +1729,11 @@ int runMain(int argc, char** argv) {
       const auto id = request.value("id", 0);
       const auto method = request.value("method", "");
       const auto params = request.value("params", json::object());
+      if (method == "devices" || method == "start" || method == "startTest" || method == "stop" || method == "stopTest" || method == "shutdown") {
+        std::cerr << encodeMessage({{"stage", method}, {"backend", params.value("backend", probeBackend)},
+          {"sampleRate", params.value("sampleRate", 0)}, {"inputDeviceId", params.value("inputDeviceId", "")},
+          {"outputDeviceId", params.value("outputDeviceId", "")}}) << std::endl;
+      }
       json result;
       if (method == "devices") result = host.devices(params.value("backend", probeBackend));
       else if (method == "start") result = host.start(params, false);

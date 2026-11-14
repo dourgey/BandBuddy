@@ -16,6 +16,8 @@ minimumReleaseAgeExclude:
   - lucide-react@1.25.0
   - wavesurfer.js@7.12.11
   - opensheetmusicdisplay@2.2.0
+  - spessasynth_core@4.4.7
+  - spessasynth_lib@4.4.5
 
 onlyBuiltDependencies:
   - better-sqlite3

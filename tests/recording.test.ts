@@ -7,6 +7,26 @@ import { buildMixFilter } from '../src/main/export-filter.js'
 import { RecordingService, buildClockCorrectionFilters, calculateTakeAlignmentOffset, resolveRecordingRange } from '../src/main/recording.js'
 
 describe('recording range and device configuration', () => {
+  it.each([
+    { current: 44_100, requested: 0, expected: 44_100 },
+    { current: 96_000, requested: 0, expected: 96_000 },
+    { current: 44_100, requested: 48_000, expected: 48_000 },
+    { current: 0, requested: 0, expected: 48_000 },
+    { current: 12_345, requested: 0, expected: 48_000 }
+  ])('keeps the current ASIO clock unless explicitly overridden: $current / $requested', async ({ current, requested, expected }) => {
+    const service = Object.create(RecordingService.prototype) as RecordingService
+    const recordingAudio = recordingAudioSettingsSchema.parse({ backend: 'asio', sampleRate: requested,
+      inputDeviceId: '', outputDeviceId: '', inputChannelMode: 'mono', inputChannels: [0], bufferFrames: 0, alignmentOffsetMs: 0 })
+    const device = { id: 'asio:0', backend: 'asio', name: 'Focusrite USB ASIO', inputChannels: 2, outputChannels: 2,
+      duplexChannels: 2, defaultInput: true, defaultOutput: true, sampleRates: [44_100, 48_000, 96_000],
+      preferredSampleRate: 48_000, currentSampleRate: current }
+    Object.assign(service, { database: { getSettings: () => ({ recordingAudio }) },
+      host: { devicesForSession: vi.fn(async () => [device]) } })
+    await expect(service.arsenalDeviceConfiguration()).resolves.toMatchObject({
+      backend: 'asio', sampleRate: expected, inputSampleRate: expected, bufferFrames: 0
+    })
+  })
+
   it('records once from A to B, otherwise from the current position to the song end', () => {
     const practice = createDefaultPracticeState('00000000-0000-4000-8000-000000000000')
     practice.loopEnabled = true
@@ -172,9 +192,27 @@ it('releases the recording lock when stop has no capture result and preserves re
   const service = Object.create(RecordingService.prototype) as RecordingService
   const session = { id: 'session', finalizing: null, sessionRoot: 'preserved-recovery-directory' }
   const emitState = vi.fn()
-  Object.assign(service, { state: { phase: 'recording' }, active: session, host: { stop: vi.fn(async () => null) }, emitState, logger: { error: vi.fn() } })
+  Object.assign(service, { state: { phase: 'recording' }, active: session, host: { stop: vi.fn(async () => null) }, emitState, logger: { error: vi.fn(), info: vi.fn() } })
   await expect(service.stop()).rejects.toThrow('原始录音已保留')
   expect(service.isActive()).toBe(false)
   expect(emitState).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'failed' }))
   expect(session.sessionRoot).toBe('preserved-recovery-directory')
+})
+
+it('shares one stop request and never changes a stopping session back to recording on a late meter', async () => {
+  const service = Object.create(RecordingService.prototype) as RecordingService
+  let finish!: (value: null) => void
+  const stop = vi.fn(() => new Promise<null>(resolve => { finish = resolve }))
+  const emitState = vi.fn(), backing = { advance: vi.fn(), dispose: vi.fn(async () => {}) }
+  Object.assign(service, { state: { phase: 'recording' }, active: { id: 'session', finalizing: null, backing },
+    host: { stop }, emitState, emitMeter: vi.fn(), logger: { error: vi.fn(), info: vi.fn() } })
+  const one = service.stop(), two = service.stop()
+  void one.catch(() => {}); void two.catch(() => {})
+  ;(service as unknown as { handleHostEvent(event: unknown): void }).handleHostEvent({ event: 'meter', data: { recording: true, sourcePositionMs: 1000, countInRemaining: 0 } })
+  expect(service.getState().phase).toBe('stopping')
+  expect(stop).toHaveBeenCalledOnce()
+  finish(null)
+  await expect(one).rejects.toThrow('原始录音已保留')
+  await expect(two).rejects.toThrow('原始录音已保留')
+  expect(backing.dispose).toHaveBeenCalledOnce()
 })

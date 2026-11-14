@@ -13,14 +13,16 @@ void pumpPlatform() {
   }
 }
 void resizeEditorWindow(void* window, int width, int height) { [(NSWindow*)window setContentSize:NSMakeSize(width, height)]; }
-void* openEditorWindow(void* pointer, const std::string& title) {
+void* openEditorWindow(void* pointer, const std::string& title, void** publishedWindow) {
   auto* view = static_cast<IPlugView*>(pointer);
   if (view->isPlatformTypeSupported(kPlatformTypeNSView) != kResultTrue) return nullptr;
   ViewRect rect{0, 0, 640, 480}; view->getSize(&rect);
   NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, rect.getWidth(), rect.getHeight())
     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable backing:NSBackingStoreBuffered defer:NO];
   [window setReleasedWhenClosed:NO]; [window setTitle:[NSString stringWithUTF8String:title.c_str()]];
-  if (view->attached([window contentView], kPlatformTypeNSView) != kResultTrue) { [window release]; return nullptr; }
+  if (publishedWindow) *publishedWindow = window;
+  if (view->attached([window contentView], kPlatformTypeNSView) != kResultTrue) { if (publishedWindow) *publishedWindow = nullptr; [window release]; return nullptr; }
+  if (view->getSize(&rect) == kResultTrue) { resizeEditorWindow(window, rect.getWidth(), rect.getHeight()); view->onSize(&rect); }
   [window center]; [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; return window;
 }
 void showEditorWindow(void* window) { [(NSWindow*)window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }

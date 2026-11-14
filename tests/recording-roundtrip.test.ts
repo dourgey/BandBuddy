@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,6 +13,7 @@ import { NativeAudioService } from '../src/main/native-audio.js'
 import { ArsenalService } from '../src/main/arsenal.js'
 import { MediaService } from '../src/main/media.js'
 import { RecordingPlaybackService } from '../src/main/recording-playback.js'
+import { RecordingBacking } from '../src/main/recording-backing.js'
 import { defaultEffectChain } from '../packages/shared/src/arsenal.js'
 import { runProcess } from '../src/main/process.js'
 
@@ -73,14 +74,41 @@ it.skipIf(!process.versions.electron || !existsSync('out/main/analysis-worker.js
     // Persist a selected wet tone and monitoring preference without opening it yet.
     db.sqlite.prepare('UPDATE recording_tracks SET effects_json=? WHERE id=?').run(JSON.stringify({ enabled: true, presetId: null, monitorMode: 'wet', chain }), track.id)
     let song = db.getSong(songId)!
+    // Live input must obey the same faders as playback, and M must silence it.
+    const nominalPractice = song.practice
+    db.savePractice({ ...nominalPractice, masterGainDb: -12 })
+    db.updateRecordingTrackState(track.id, { gainDb: -6 })
+    let monitorPeak = -1
+    const offMonitor = host.onEvent(e => { if (e.event === 'meter') monitorPeak = e.data.diagnostics?.finalPeak ?? -1 })
+    await arsenal.monitor('dry', chain, track.id)
+    await vi.waitFor(() => { expect(monitorPeak).toBeGreaterThan(.030); expect(monitorPeak).toBeLessThan(.033) })
+    recording.updateTrack(track.id, { muted: true })
+    await vi.waitFor(() => expect(monitorPeak).toBe(0))
+    recording.updateTrack(track.id, { muted: false, gainDb: -12 })
+    await vi.waitFor(() => { expect(monitorPeak).toBeGreaterThan(.015); expect(monitorPeak).toBeLessThan(.017) })
+    await arsenal.refreshMonitorMix({ ...nominalPractice, masterGainDb: -6 })
+    await vi.waitFor(() => { expect(monitorPeak).toBeGreaterThan(.030); expect(monitorPeak).toBeLessThan(.033) })
+    await arsenal.stopMonitor(); offMonitor()
+    db.savePractice(nominalPractice); db.updateRecordingTrackState(track.id, { gainDb: 0 })
+    song = db.getSong(songId)!
     await playback.load(songId, song.practice)
     await playback.command('pause')
     for (const order of ['refresh-first', 'monitor-first']) {
+      // The source is four seconds but the song timeline is thirty minutes.
+      // Recording must not prerender its silence or wait for its full length.
+      db.sqlite.prepare('UPDATE songs SET duration_ms=? WHERE id=?').run(1_800_000, songId)
+      const startAt = performance.now()
       await recording.start({ songId, recordingTrackId: track.id, positionMs: 0, practice: song.practice })
-      await vi.waitFor(() => expect(recording.getState().sourcePositionMs).toBeGreaterThan(200), { timeout: 5000 })
+      const startMs = performance.now() - startAt
+      expect(startMs).toBeLessThan(1500)
+      const active = (recording as unknown as { active: { backingPath: string } }).active
+      expect((await stat(active.backingPath)).size).toBeLessThan(48000 * 8 * 2)
+      // Cross several producer-buffer boundaries in the first recording.
+      await vi.waitFor(() => expect(recording.getState().sourcePositionMs).toBeGreaterThan(order === 'refresh-first' ? 2300 : 200), { timeout: 5000 })
       const stopStart = performance.now(), take = await recording.stop(), stopMs = performance.now() - stopStart
       expect(stopMs).toBeLessThan(1000)
       expect(take?.durationMs).toBeGreaterThan(100)
+      expect(take?.deviceSnapshot.audioDiagnostics?.outputUnderflows).toBe(0)
       expect(recording.getState().phase).toBe('idle')
       song = db.getSong(songId)!
       expect(song.recordingTracks.find(t => t.id === track.id)?.activeTakeId).toBe(take!.id)
@@ -132,7 +160,7 @@ it.skipIf(!process.versions.electron || !existsSync('out/main/analysis-worker.js
       await playback.command('play')
       await vi.waitFor(() => expect(peak).toBeGreaterThan(.001), { timeout: 5000 })
       off(); await playback.command('pause')
-      timings.push({ order, stopMs, streamMs, wetPeak, durationMs: take!.durationMs, waveformPeak: Math.max(...peaks.max), playbackPeak: peak })
+      timings.push({ order, startMs, stopMs, streamMs, wetPeak, durationMs: take!.durationMs, waveformPeak: Math.max(...peaks.max), playbackPeak: peak })
     }
     expect(phases).toContain('finalizing')
     expect(phases).not.toContain('failed')
@@ -147,20 +175,37 @@ it.skipIf(!process.versions.electron || !existsSync('out/main/analysis-worker.js
     await playback.command('play')
     await vi.waitFor(() => expect(transformedPeak).toBeGreaterThan(.001), { timeout: 5000 })
     off(); await playback.command('pause')
-    const overdub = db.createRecordingTrack(songId), backingOutput = path.join(root, 'overdub.wav')
-    await (recording as unknown as { renderBacking(...args: unknown[]): Promise<void> }).renderBacking(
-      { songId, recordingTrackId: overdub.id, practice: changedPractice }, 0, 4000, 48000, backingOutput, new AbortController().signal)
-    const volume = await runProcess(path.resolve('resources/bin/ffmpeg.exe'), ['-hide_banner', '-i', backingOutput, '-af', 'volumedetect', '-f', 'null', '-'])
+    const overdub = db.createRecordingTrack(songId), backingOutput = path.join(root, 'overdub.pcm')
+    const overdubBacking = await RecordingBacking.create({ songId, recordingTrackId: overdub.id, positionMs: 0, practice: changedPractice },
+      0, 4000, 48000, backingOutput, paths, db, media, sourcePlayback, new AbortController().signal)
+    overdubBacking.advance(4000); await overdubBacking.done
+    const volume = await runProcess(path.resolve('resources/bin/ffmpeg.exe'), ['-hide_banner', '-f', 'f32le', '-ar', '48000', '-ac', '2', '-i', backingOutput, '-af', 'volumedetect', '-f', 'null', '-'])
     expect(volume.code).toBe(0)
     expect(volume.stderr).toMatch(/max_volume: -?\d+(?:\.\d+)? dB/)
-    expect((await media.probe(backingOutput)).durationMs).toBeCloseTo(4000 / .75, -1)
+    expect((await stat(backingOutput)).size / 8 / 48000 * 1000).toBeCloseTo(4000 / .75, -1)
     expect(offlineRender).not.toHaveBeenCalled()
     await writeFile(path.join(tmpdir(), 'bandbuddy-recording-latency.json'), JSON.stringify(timings, null, 2))
+    // Count-in cancellation drains no input into a take. A short transformed
+    // A/B range also completes automatically, even if it is shorter than prefetch.
+    const shortPractice = { ...changedPractice, loopEnabled: true, loopStartMs: 500, loopEndMs: 950,
+      metronomeEnabled: true, metronomeBpm: 120, countInBeats: 4 as const }
+    await recording.start({ songId, recordingTrackId: overdub.id, positionMs: 0, practice: shortPractice })
+    expect(await recording.stop()).toBeNull()
+    expect(recording.getState().phase).toBe('idle')
+    expect(db.getSong(songId)!.recordingTakes).toHaveLength(2)
+    await recording.start({ songId, recordingTrackId: overdub.id, positionMs: 0, practice: { ...shortPractice, countInBeats: 0 } })
+    await vi.waitFor(() => expect(recording.getState().phase).toBe('idle'), { timeout: 5000 })
+    expect(db.getSong(songId)!.recordingTakes).toHaveLength(3)
+    const loopTake = db.getSong(songId)!.recordingTakes.find(t => t.recordingTrackId === overdub.id)!
+    expect(loopTake.startPositionMs).toBe(500)
+    expect(loopTake.endPositionMs).toBe(950)
+    expect(loopTake.interrupted).toBe(false)
     // Emulate a process exit after the WAV rename but before SQLite commit.
     await recording.start({ songId, recordingTrackId: overdub.id, positionMs: 0, practice: song.practice })
     await vi.waitFor(() => expect(recording.getState().sourcePositionMs).toBeGreaterThan(100), { timeout: 5000 })
-    const session = (recording as unknown as { active: { sessionRoot: string; capturePath: string } }).active
+    const session = (recording as unknown as { active: { sessionRoot: string; capturePath: string; backing: RecordingBacking } }).active
     const captured = await host.stop(), publishedId = randomUUID()
+    await session.backing.dispose()
     const metadata = await readFile(path.join(session.sessionRoot, 'session.json'), 'utf8')
     const published = path.join(paths.songDirectory(settings.libraryRoot, songId), 'recordings', publishedId, 'source.wav')
     await mkdir(path.dirname(published), { recursive: true })
@@ -172,13 +217,13 @@ it.skipIf(!process.versions.electron || !existsSync('out/main/analysis-worker.js
     try {
       await recovered.recoverInterruptedSessions()
       expect(db.getRecordingTake(publishedId)?.interrupted).toBe(true)
-      expect(db.getSong(songId)!.recordingTakes).toHaveLength(3)
+      expect(db.getSong(songId)!.recordingTakes).toHaveLength(4)
       expect(existsSync(published)).toBe(true)
       // A crash after the commit must not create a duplicate on restart.
       const stale = path.join(paths.songDirectory(settings.libraryRoot, songId), '.recording-sessions', 'committed')
       await mkdir(stale, { recursive: true }); await writeFile(path.join(stale, 'session.json'), metadata); await writeFile(path.join(stale, 'publish.json'), publication)
       await recovered.recoverInterruptedSessions()
-      expect(db.getSong(songId)!.recordingTakes).toHaveLength(3)
+      expect(db.getSong(songId)!.recordingTakes).toHaveLength(4)
       expect(existsSync(stale)).toBe(false)
     } finally { await recovered.shutdown() }
   } finally {

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-export type AudioSessionOwner = 'practice' | 'rehearsal' | 'woodshed'
+export type AudioSessionOwner = 'practice' | 'rehearsal' | 'woodshed' | 'scores'
 export interface AudioSession { id: number; owner: AudioSessionOwner; label: string; pause(): void }
 let current: AudioSession | null = null
 let sequence = 0

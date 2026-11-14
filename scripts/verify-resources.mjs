@@ -1,3 +1,4 @@
+import { verifyScoreResources } from './verify-score-resources.mjs'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -9,10 +10,24 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'resources', 'tool-mani
 const targetPlatform = process.env.BANDBUDDY_TOOL_PLATFORM ?? process.platform
 const targetArch = process.env.BANDBUDDY_TOOL_ARCH ?? process.arch
 const targetKey = `${targetPlatform}-${targetArch}`
+const realtimeLibrary = targetPlatform === 'win32' ? 'bandbuddy-realtime-audio.dll' : 'libbandbuddy-realtime-audio.dylib'
+if (['win32', 'darwin'].includes(targetPlatform) && !existsSync(path.join(root, 'resources', 'audio-host', targetKey, realtimeLibrary))) {
+  throw new Error(`Realtime audio component missing for ${targetKey}; run pnpm native:audio on the target platform`)
+}
+if (!existsSync(path.join(root, 'python', 'worker', 'realtime_worker.py'))) throw new Error('Realtime inference worker missing')
 const target = manifest.targets[targetKey]
 const bin = path.join(root, 'resources', 'bin')
 const failures = []
 verifyBundledIrs()
+verifyScoreResources()
+
+const beatThis = JSON.parse(readFileSync(path.join(root, 'resources/beat-this/manifest.json'), 'utf8'))
+const beatWheel = path.join(root, 'resources/beat-this', beatThis.package.filename)
+if (!existsSync(beatWheel) || createHash('sha256').update(readFileSync(beatWheel)).digest('hex') !== beatThis.package.sha256) failures.push('Beat This wheel: missing or sha256 mismatch')
+if (!existsSync(path.join(root, 'resources/beat-this/LICENSE')) || beatThis.version !== 1
+  || beatThis.model.id !== 'beat-this-final0' || beatThis.model.filename !== 'final0.ckpt'
+  || !/^[a-f0-9]{64}$/.test(beatThis.model.sha256) || beatThis.model.size !== 81058141
+  || beatThis.model.urls?.[0] !== 'https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt') failures.push('Beat This catalog/license: invalid')
 
 if (!target) {
   console.error(`Unsupported desktop tool target: ${targetKey}`)

@@ -1,0 +1,31 @@
+.realtime-page { max-width: 1160px; margin: 0 auto; width: 100%; padding: 24px; overflow: auto; }
+.realtime-heading, .realtime-section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.realtime-heading h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 24px; }
+.realtime-heading p, .realtime-note, .realtime-help { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.realtime-backend { font-size: 12px; color: var(--muted); }
+.realtime-panel { margin-top: 20px; padding: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.realtime-panel h2 { font-size: 16px; margin: 0 0 16px; }
+.realtime-panel .realtime-profile-title { margin-top: 22px; }
+.realtime-panel button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 14px; border-radius: 8px; }
+.realtime-section-head h2 { margin-bottom: 0; }
+.realtime-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+.realtime-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; min-width: 0; }
+.realtime-fields select { width: 100%; min-width: 0; padding: 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-raised); }
+.realtime-help { margin-top: 16px; }
+.realtime-help button { margin: 0 8px 6px 0; font-size: 12px; }
+.realtime-modes, .realtime-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.realtime-modes button[aria-pressed=true], .realtime-profiles button[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.realtime-stems { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-top: 18px; }
+.realtime-stems label { display: flex; align-items: center; gap: 10px; padding: 14px; border: 1px solid var(--border, rgba(128,128,128,.2)); border-radius: 8px; cursor: pointer; }
+.realtime-stems label.selected { border-color: var(--accent); background: var(--accent-soft); }
+.realtime-profiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.realtime-profiles button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 16px; }
+.realtime-profiles span { font-size: 12px; color: var(--muted); }
+.realtime-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin: 20px 0; }
+.realtime-metrics dt { font-size: 12px; color: var(--muted); }
+.realtime-metrics dd { font-size: 21px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+.realtime-status, .realtime-warning { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: 13px; }
+.realtime-warning { color: var(--warning, #d59345); }
+.realtime-panel progress { width: 100%; height: 6px; margin-bottom: 15px; }
+@media(max-width: 900px) { .realtime-stems { grid-template-columns: repeat(3,1fr); } .realtime-metrics { grid-template-columns: repeat(2,1fr); } }
+@media(max-width: 600px) { .realtime-page { padding: 14px; } .realtime-panel { padding: 16px; } .realtime-fields, .realtime-profiles { grid-template-columns: 1fr; } }

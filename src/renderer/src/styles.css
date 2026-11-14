@@ -64,9 +64,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .brand > span:last-child { display: grid; }
 .brand b { font-size: 15px; line-height: 17px; letter-spacing: -.3px; }
 .brand small { color: var(--muted); font-size: 12px; }
-.top-nav { display: flex; align-self: stretch; gap: 32px; }
+.top-nav { display: flex; align-self: stretch; gap: 32px; overflow-x: auto; flex-shrink: 1; min-width: 0; }
 .top-nav button {
-  position: relative; display: flex; align-items: center; gap: 9px; padding: 0 12px;
+  position: relative; display: flex; align-items: center; gap: 9px; padding: 0 12px; flex-shrink: 0;
   background: transparent; font-weight: 600; color: var(--muted); font-size: 14px;
 }
 .top-nav button.active { color: var(--ink); }
@@ -110,18 +110,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .section-heading > span { display: flex; gap: 8px; }
 .section-heading > span button { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: transparent; border: 1px solid var(--border); color: var(--muted); }
 .recent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.song-card { min-width: 0; height: 210px; padding: 15px; display: grid; grid-template-columns: minmax(118px, 142px) minmax(0, 1fr); align-items: center; gap: 14px; background: rgba(var(--surface-rgb), .57); border: 1px solid rgba(219,211,201,.77); border-radius: 15px; box-shadow: 0 8px 23px rgba(56,43,30,.08); overflow: hidden; }
+.song-card { min-width: 0; min-height: 210px; padding: 15px; display: grid; grid-template-columns: minmax(118px, 142px) minmax(0, 1fr); align-items: center; gap: 14px; background: rgba(var(--surface-rgb), .57); border: 1px solid rgba(219,211,201,.77); border-radius: 15px; box-shadow: 0 8px 23px rgba(56,43,30,.08); overflow: hidden; }
 .song-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.song-card-info { min-width: 0; height: 100%; overflow: hidden; position: relative; align-self: stretch; padding: 10px 0 2px; display: flex; flex-direction: column; }
+.song-card-info { min-width: 0; overflow: hidden; position: relative; align-self: stretch; padding: 10px 0 2px; display: flex; flex-direction: column; }
 .song-card-info h3 { margin: 0 25px 4px 0; line-height: 1.15; font-size: 16px; }
 .song-card-info > p { margin: 0; color: var(--muted); font-size: 12px; }
-.card-scroll-text { --card-scroll-distance: 0px; --card-scroll-duration: 2.8s; min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-scroll-text > span { max-width: 100%; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-.card-scroll-text[data-overflow="true"]:hover > span { max-width: none; overflow: visible; text-overflow: clip; animation: card-text-scroll var(--card-scroll-duration) ease-in-out .3s infinite alternate; }
-@keyframes card-text-scroll { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(calc(-1 * var(--card-scroll-distance))); } }
-@media (prefers-reduced-motion: reduce) {
-  .card-scroll-text[data-overflow="true"]:hover > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; animation: none; transform: none; }
-}
+.card-metadata { min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-more { position: absolute; right: -3px; top: -4px; background: transparent; color: var(--muted); }
 .duration { margin: 10px 0; display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
 .stem-pills { max-height: 38px; overflow: hidden; display: flex; gap: 4px; flex-wrap: wrap; }
@@ -821,7 +815,12 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .recording-tone-actions select { width: 0; min-width: 0; flex: 1; font-size: 11px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 4px; }
 .recording-tone-actions button { display: grid; place-items: center; width: 27px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
 .recording-control-error { position: absolute; z-index: 9; top: 100%; padding: 6px; color: var(--danger); background: var(--surface); font-size: 11px; }
-.track-list .recording-wave-wrap { display: flex; align-self: center; height: 76%; }
+.track-list .recording-wave-wrap { display: flex; flex-direction: column; align-self: stretch; gap: 3px; padding-block: 4px; }
+.recording-take-actions { display: flex; align-items: center; gap: 8px; height: 23px; flex: none; }
+.recording-take-actions select { max-width: 180px; min-width: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 11px; padding: 2px 4px; }
+.recording-take-actions button { color: var(--muted); background: transparent; border: 0; font-size: 11px; white-space: nowrap; }
+.recording-take-actions button:hover:not(:disabled) { color: var(--danger); }
+.track-list .recording-wave-wrap .meter-wave { flex: 1; min-height: 0; }
 .track-list .meter-wave { height: 76%; }
 .track-list .recording-wave-wrap .meter-wave { height: 100%; }
 .track-list .waveform { height: 100%; }
@@ -834,13 +833,11 @@ input[type="range"].beat-alignment-slider::-webkit-slider-thumb { background: va
 .stem-pills.compact { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stem-pills.compact i { display: inline-block; max-width: 80px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; margin-right: 4px; }
 .stem-pills i { min-width: 0; max-width: 85px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-scroll-text:hover > span { animation: none !important; transform: none !important; }
 
 .inline-gain-control { display: flex; align-items: center; position: relative; gap: 8px; margin: 8px 0; }
 .inline-gain-control input { flex: 1; min-width: 0; }
 .inline-gain-control .volume-db-feedback { left: auto; right: 0; top: -12px; }
 
-.card-scroll-text[data-overflow="true"]:hover > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .storage-usage { display: grid; gap: 9px; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: var(--surface-muted); font-size: 12px; }
 .storage-usage > div, .storage-usage > span { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .storage-usage small { color: var(--muted); }

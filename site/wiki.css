@@ -1,0 +1,21 @@
+/* Platform selection stays separate from chapter navigation. */
+.wiki-heading { padding-bottom: 32px; }
+.wiki-platform-bar { margin-bottom: 42px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+.wiki-platform-switch { display: inline-flex; gap: 6px; padding: 5px; border: 1px solid var(--line); background: var(--surface); }
+.wiki-platform-switch button { min-height: 46px; min-width: 120px; padding: 11px 24px; background: transparent; color: var(--muted); font-size: 15px; }
+.wiki-platform-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.wiki-platform-switch button:hover { color: var(--fg); }
+.wiki-platform-switch button[aria-pressed="true"]:hover { color: var(--accent-ink); }
+.wiki-platform-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wiki-platform-bar p { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.wiki-sidebar a[hidden], .wiki-article[hidden] { display: none; }
+@media (max-width: 760px) {
+  .wiki-platform-bar { margin-bottom: 24px; padding-bottom: 24px; }
+  .wiki-platform-switch { display: flex; width: 100%; }
+  .wiki-platform-switch button { flex: 1; min-width: 0; padding-inline: 10px; font-size: 14px; }
+}
+@media print {
+  .wiki-platform-switch { display: none; }
+  .wiki-article[hidden] { display: none !important; }
+  .wiki-platform-bar { margin-bottom: 20px; }
+}

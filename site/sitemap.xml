@@ -1,11 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://bandbuddy.lonelyme.cn/</loc>
-    <lastmod>2026-09-03</lastmod>
-  </url>
-  <url>
-    <loc>https://bandbuddy.lonelyme.cn/privacy.html</loc>
-    <lastmod>2026-09-03</lastmod>
-  </url>
-</urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://bandbuddy.cn/</loc><lastmod>2026-10-27</lastmod></url><url><loc>https://bandbuddy.cn/wiki.html</loc><lastmod>2026-10-27</lastmod></url><url><loc>https://bandbuddy.cn/privacy.html</loc><lastmod>2026-10-27</lastmod></url></urlset>

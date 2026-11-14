@@ -55,6 +55,21 @@ it('bounds worklet messages during a UI stall and ignores acknowledgments from a
   for (let i = 0; i < 1000; i++) tap.process([[]])
   expect(packets).toHaveLength(9)
 })
+it('keeps the PCM tap silent at the browser destination while forwarding unchanged samples', () => {
+  let Processor: any
+  const packets: any[] = []
+  runInNewContext(readFileSync('src/renderer/src/arsenal/native-output.worklet.js', 'utf8'), {
+    AudioWorkletProcessor: class { port = { postMessage: (packet: unknown) => packets.push(packet), onmessage: (_event: unknown) => {} } },
+    registerProcessor: (_name: string, ctor: unknown) => { Processor = ctor }, currentTime: 1, Float32Array
+  })
+  const tap = new Processor(), outputs = [[new Float32Array(128), new Float32Array(128)]]
+  tap.port.onmessage({ data: { enabled: true, epoch: 1 } })
+  for (let i = 0; i < 8; i++) tap.process([[new Float32Array(128).fill(.2), new Float32Array(128).fill(-.3)]], outputs)
+  expect(outputs.flatMap(bus => bus.flatMap(channel => [...channel])).every(value => value === 0)).toBe(true)
+  expect(packets).toHaveLength(1)
+  expect(packets[0].samples[0]).toBeCloseTo(.2)
+  expect(packets[0].samples[1]).toBeCloseTo(-.3)
+})
 it('does not stop monitoring for a temporarily slow transfer or stale queued audio', async () => {
   let complete!: (ok: boolean) => void
   feed.mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))

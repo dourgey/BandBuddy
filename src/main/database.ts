@@ -110,6 +110,7 @@ interface StemRow {
 }
 
 interface JobRow {
+  score_project_id?: string | null
   id: string
   song_id: string | null
   type: JobRecord['type']
@@ -586,7 +587,11 @@ export const DATABASE_MIGRATIONS = [
      manifest_json TEXT NOT NULL,
      created_at TEXT NOT NULL
    );
-   CREATE INDEX stem_refinements_base_idx ON stem_refinements(base_separation_id, stem_group);`
+   CREATE INDEX stem_refinements_base_idx ON stem_refinements(base_separation_id, stem_group);`,
+  `CREATE TABLE score_projects (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL);
+   CREATE TABLE score_config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+   ALTER TABLE jobs ADD COLUMN score_project_id TEXT;
+   CREATE INDEX jobs_score_project_idx ON jobs(score_project_id);`
 
 ]
 
@@ -720,7 +725,7 @@ export class BandBuddyDatabase {
     this.sqlite.prepare(`
       UPDATE jobs SET status = 'interrupted', phase = '应用异常退出，可重新尝试',
         error_code = 'APP_INTERRUPTED', error_message = '应用在任务完成前退出', finished_at = ?
-      WHERE status IN ('preparing', 'separating', 'postprocessing', 'cancelling')
+      WHERE status IN ('preparing', 'separating', 'transcribing', 'postprocessing', 'cancelling')
     `).run(now)
     this.sqlite.prepare(`
       UPDATE songs SET status = 'ready', progress = 1,
@@ -731,7 +736,7 @@ export class BandBuddyDatabase {
     this.sqlite.prepare(`
       UPDATE songs SET status = 'failed', phase = '任务已中断', updated_at = ?
       WHERE active_separation_id IS NULL
-        AND id IN (SELECT song_id FROM jobs WHERE status = 'interrupted' AND song_id IS NOT NULL)
+        AND id IN (SELECT song_id FROM jobs WHERE status = 'interrupted' AND type != 'transcribe' AND song_id IS NOT NULL)
     `).run(now)
   }
 
@@ -970,7 +975,7 @@ export class BandBuddyDatabase {
     const file = this.getActiveStemFiles(songId).find(stem => stem.type === 'vocals')
     if (!vocal || !file) throw new Error('VOCAL_SOURCE_NOT_AVAILABLE')
     if (song.vocalSplitStatus === 'ready') return null
-    const existing = this.sqlite.prepare("SELECT id, payload_json FROM jobs WHERE song_id = ? AND type = 'vocalSplit' AND status IN ('queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling') ORDER BY created_at DESC").all(songId) as Array<{ id: string; payload_json: string }>
+    const existing = this.sqlite.prepare("SELECT id, payload_json FROM jobs WHERE song_id = ? AND type = 'vocalSplit' AND status IN ('queued', 'blockedRuntime', 'preparing', 'separating', 'transcribing', 'postprocessing', 'cancelling') ORDER BY created_at DESC").all(songId) as Array<{ id: string; payload_json: string }>
     const matching = existing.find(row => { const payload = JSON.parse(row.payload_json) as VocalSplitJobPayload; return payload.inputStemId === vocal.id && payload.inputSha256 === inputSha256 })
     if (matching) {
       if (enableVocalSplitOnSuccess) this.updateJobPayload(matching.id, { ...JSON.parse(matching.payload_json), enableVocalSplitOnSuccess: true })
@@ -1023,7 +1028,7 @@ export class BandBuddyDatabase {
       SELECT status FROM jobs WHERE song_id = ? AND type = 'guitarSplit' ORDER BY created_at DESC LIMIT 1
     `).get(songId) as { status: JobStatus } | undefined : suppliedStatus ? { status: suppliedStatus } : undefined
     if (!latest) return 'missing'
-    if (['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(latest.status)) return 'pending'
+    if (['queued', 'blockedRuntime', 'preparing', 'separating', 'transcribing', 'postprocessing', 'cancelling'].includes(latest.status)) return 'pending'
     if (['failed', 'cancelled', 'interrupted'].includes(latest.status)) return 'failed'
     return 'missing'
   }
@@ -1158,7 +1163,7 @@ export class BandBuddyDatabase {
 
   setJobState(id: string, status: JobStatus, phase: string, progress: number, errorCode: string | null = null, errorMessage: string | null = null): void {
     const now = new Date().toISOString()
-    const started = ['preparing', 'separating', 'postprocessing'].includes(status) ? now : null
+    const started = ['preparing', 'separating', 'transcribing', 'postprocessing'].includes(status) ? now : null
     const finished = ['completed', 'failed', 'cancelled', 'interrupted'].includes(status) ? now : null
     this.sqlite.prepare(`
       UPDATE jobs SET status = ?, phase = ?, progress = ?, error_code = ?, error_message = ?,
@@ -1175,12 +1180,12 @@ export class BandBuddyDatabase {
       this.sqlite.prepare("UPDATE songs SET status = 'ready', progress = 1, phase = ?, updated_at = ? WHERE id = ?")
         .run(songPhase, now, row.song_id)
     }
-    if (row?.song_id && row.type !== 'export' && !['guitarSplit', 'vocalSplit'].includes(row.type)) {
+    if (row?.song_id && row.type !== 'export' && row.type !== 'transcribe' && !['guitarSplit', 'vocalSplit'].includes(row.type)) {
       const preservedPreviousSeparation = Boolean(row.active_separation_id)
       const songStatus: SongStatus = preservedPreviousSeparation ? 'ready'
         : status === 'blockedRuntime' ? 'blockedRuntime'
           : status === 'queued' ? 'queued'
-            : ['preparing', 'separating', 'postprocessing', 'cancelling'].includes(status) ? 'processing'
+            : ['preparing', 'separating', 'transcribing', 'postprocessing', 'cancelling'].includes(status) ? 'processing'
               : status === 'completed' ? 'ready' : 'failed'
       const songProgress = preservedPreviousSeparation ? 1 : progress
       const songPhase = preservedPreviousSeparation ? '已保留原分轨' : phase
@@ -1190,7 +1195,7 @@ export class BandBuddyDatabase {
   }
 
   unblockRuntimeJobs(): number {
-    const result = this.sqlite.prepare("UPDATE jobs SET status = 'queued', phase = '等待分离' WHERE status = 'blockedRuntime'").run()
+    const result = this.sqlite.prepare("UPDATE jobs SET status = 'queued', phase = '等待分离' WHERE status = 'blockedRuntime' AND type != 'transcribe'").run()
     this.sqlite.prepare("UPDATE songs SET status = 'queued', phase = '等待分离' WHERE status = 'blockedRuntime' AND active_separation_id IS NULL").run()
     return result.changes
   }
@@ -1206,7 +1211,7 @@ export class BandBuddyDatabase {
       SELECT jobs.song_id, jobs.type, songs.active_separation_id
       FROM jobs LEFT JOIN songs ON songs.id = jobs.song_id WHERE jobs.id = ?
     `).get(id) as { song_id: string | null; type: JobRecord['type']; active_separation_id: string | null } | undefined
-    if (row?.song_id && row.type !== 'export' && !['guitarSplit', 'vocalSplit'].includes(row.type) && !row.active_separation_id) {
+    if (row?.song_id && row.type !== 'export' && row.type !== 'transcribe' && !['guitarSplit', 'vocalSplit'].includes(row.type) && !row.active_separation_id) {
       this.sqlite.prepare("UPDATE songs SET status = 'queued', phase = '等待重试', progress = 0 WHERE id = ?").run(row.song_id)
     } else if (row?.song_id && ['guitarSplit', 'vocalSplit'].includes(row.type) && row.active_separation_id) {
       this.sqlite.prepare("UPDATE songs SET status = 'ready', phase = '基础分轨可练习，细分处理中', progress = 1 WHERE id = ?").run(row.song_id)
@@ -1988,11 +1993,12 @@ export class BandBuddyDatabase {
   }
 
   hasActiveJobs(): boolean {
-    const row = this.sqlite.prepare(`SELECT COUNT(*) AS count FROM jobs WHERE status IN ('queued','preparing','separating','postprocessing','cancelling')`).get() as { count: number }
+    const row = this.sqlite.prepare(`SELECT COUNT(*) AS count FROM jobs WHERE status IN ('queued','preparing','separating','transcribing','postprocessing','cancelling')`).get() as { count: number }
     return row.count > 0
   }
 
   private jobRowToRecord = (row: JobRow): JobRecord => ({
+    scoreProjectId: row.score_project_id ?? null,
     id: row.id,
     songId: row.song_id,
     type: row.type,

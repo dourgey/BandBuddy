@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Download, Pause, Play, Wrench } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, Download, Pause, Play, Wrench, X } from 'lucide-react'
 import type { EnvironmentState, EnvironmentAction } from '@shared/environment.js'
 import './environment-status.css'
 import { DiagnosticDetails, IssueDetails } from './DiagnosticDetails.js'
@@ -8,10 +8,25 @@ export const ENVIRONMENT_SETTINGS_EVENT = 'bandbuddy:environment-settings'
 const labels: Record<EnvironmentAction, string> = { retry: '重试并继续', repair: '修复并继续', storage: '打开存储设置', network: '打开网络设置', audio: '检查音频设备', microphone: '打开麦克风设置', driver: '查看官方驱动', time: '打开日期与时间设置', security: '打开安全设置', restart: '请重启电脑后继续', repairApplication: '打开官方修复下载' }
 const capabilities = { startup: '软件启动', media: '导入与导出', recording: '录音与监听', separation: '本地分轨', acceleration: '硬件加速' }
 function size(bytes: number): string { return bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB` }
-export function EnvironmentStatus({ compact = false, start = false }: { compact?: boolean; start?: boolean }): React.JSX.Element | null {
+export function EnvironmentStatus({ compact = false, start = false, onNotify }: { compact?: boolean; start?: boolean; onNotify?(message: string): void }): React.JSX.Element | null {
   const api = window.bandbuddy.environment
   const [state, setState] = useState<EnvironmentState | null>(null)
   const [error, setError] = useState('')
+  const [dismissed, setDismissed] = useState(false)
+  const lastNotification = useRef('')
+  useEffect(() => {
+    if (!compact || !dismissed || !state) return
+    if (['checking', 'preparing', 'waitingIdle'].includes(state.phase)) {
+      lastNotification.current = ''
+      return
+    }
+    const summary = state.issues.map(issue => `${capabilities[issue.capability]}：${issue.message}`).join('；')
+    const message = `系统检测${state.phase === 'ready' ? '完成' : state.phase === 'needsAction' ? '完成，需处理' : state.phase === 'paused' ? '已暂停' : '等待网络'}：${summary || state.message}。详情可在设置的运行状态中查看。`
+    if (message !== lastNotification.current && onNotify) {
+      lastNotification.current = message
+      onNotify(message)
+    }
+  }, [compact, dismissed, state, onNotify])
   useEffect(() => {
     if (!api) return
     let mounted = true, changed = false
@@ -24,7 +39,7 @@ export function EnvironmentStatus({ compact = false, start = false }: { compact?
     if (start) navigator.mediaDevices?.addEventListener?.('devicechange', devicesChanged)
     return () => { mounted = false; off(); window.removeEventListener('online', online); if (start) navigator.mediaDevices?.removeEventListener?.('devicechange', devicesChanged) }
   }, [api, start])
-  if (!api || !state || (compact && state.phase === 'ready')) return null
+  if (!api || !state || (compact && dismissed)) return null
   const preparing = ['checking', 'preparing', 'waitingIdle'].includes(state.phase)
   const act = async (work: () => Promise<unknown>): Promise<void> => { setError(''); try { await work() } catch { setError('操作未完成，请重试或导出诊断信息。') } }
   const openAction = (action: EnvironmentAction, diagnosticId?: string): Promise<void> => {
@@ -35,6 +50,7 @@ export function EnvironmentStatus({ compact = false, start = false }: { compact?
     return api.openAction(action, diagnosticId)
   }
   return <section className={`environment-status ${compact ? 'compact' : ''}`} aria-label="运行状态">
+    {compact && <button className="environment-dismiss" aria-label="关闭系统状态检测" title="关闭窗口，检测会在后台继续，结果通过消息通知" onClick={() => setDismissed(true)}><X size={16} /></button>}
     <header>{state.phase === 'ready' ? <CheckCircle2 size={17} /> : preparing ? <Download size={17} /> : <AlertTriangle size={17} />}<strong>{state.phase === 'ready' ? '已就绪' : preparing ? '正在准备' : state.phase === 'paused' ? '已暂停' : '需要你处理'}</strong><span role="status">{state.message}</span></header>
     {state.totalBytes !== null && <small>{size(state.receivedBytes)} / {size(state.totalBytes)}</small>}
     {preparing && state.progress !== null && <progress aria-label="组件准备进度" max={1} value={state.progress} />}

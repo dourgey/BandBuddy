@@ -1,4 +1,6 @@
 import { StartupCoordinator, readStartupAppearance } from './startup.js'
+import { RealtimeSeparationService } from './realtime-separation.js'
+import { REALTIME_EVENT } from '@shared/realtime-separation.js'
 import { databaseNeedsPreparation, startDatabasePreparation } from './database-preparation.js'
 import { normalizeAppearance, resolveTheme, themeBackground, type Appearance } from '@shared/appearance.js'
 import { ArsenalService } from './arsenal.js'
@@ -36,6 +38,7 @@ import { registerIpc } from './ipc.js'
 import { JobScheduler } from './jobs.js'
 import { Logger } from './logger.js'
 import { MediaService } from './media.js'
+import { BeatThisService } from './beat-this.js'
 import { AppPaths } from './paths.js'
 import { AudioHostClient } from './audio-host.js'
 import { RecordingService } from './recording.js'
@@ -52,6 +55,8 @@ import { checkEnvironmentStorage } from './environment-storage.js'
 import { applyDatabaseRecovery } from './database-recovery.js'
 import { ensureSystemRuntime } from './system-runtime-recovery.js'
 import { shutdownProcesses } from './process.js'
+import { ScoreService } from './scores.js'
+import { SCORES_CHANGED } from '@shared/scores.js'
 import { shutdownMediaAnalysis } from './media-analysis.js'
 import { isTrustedRendererUrl } from './security.js'
 import { WindowState, type WindowSize } from './window-state.js'
@@ -89,13 +94,16 @@ let quitting = false
 let database: BandBuddyDatabase | null = null
 let logger: Logger | null = null
 let scheduler: JobScheduler | null = null
+let beatThis: BeatThisService | null = null
 let runtimeManager: RuntimeManager | null = null
+let realtimeSeparation: RealtimeSeparationService | null = null
 let environmentManager: EnvironmentManager | null = null
 let recording: RecordingService | null = null
 let rehearsalRecording: RehearsalRecordingService | null = null
 let desktopLyrics: DesktopLyricsWindow | null = null
 let shutdownTask: Promise<void> | null = null
 let ai: AiService | null = null
+let scores: ScoreService | null = null
 let shutdownComplete = false
 let startupRecoveries: Promise<unknown> = Promise.resolve()
 let applicationIcon: NativeImage | null = null
@@ -200,10 +208,16 @@ function createWindow(paths: AppPaths): BrowserWindow {
     if (smokeMode) process.stdout.write(`BAND_BUDDY_METRIC ${JSON.stringify({ phase: 'window-visible' })}\n`)
   })
   window.on('hide', () => emit(IPC.eventWindowHidden))
+  window.webContents.on('render-process-gone', () => { void realtimeSeparation?.stop() })
   window.on('maximize', () => emit(IPC.eventWindowMaximizedChanged, true))
   window.on('unmaximize', () => emit(IPC.eventWindowMaximizedChanged, false))
   window.on('close', (event) => {
     if (quitting) return
+    if (realtimeSeparation?.active) {
+      event.preventDefault()
+      void realtimeSeparation.stop().then(() => window.close()).catch(() => window.show())
+      return
+    }
     if (recording?.isActive() || rehearsalRecording?.isActive()) {
       event.preventDefault()
       const finish = rehearsalRecording?.isActive()
@@ -221,7 +235,8 @@ function createWindow(paths: AppPaths): BrowserWindow {
   })
   window.on('closed', () => { mainWindow = null })
   void loadApplication(window)
-  if (smokeMode) {
+  // Interactive smoke runs use the same isolated storage, with the test driver controlling shutdown.
+  if (smokeMode && process.env.BANDBUDDY_SMOKE_INTERACTIVE !== '1') {
     window.webContents.on('preload-error', (_event, preloadPath, error) => {
       process.stderr.write(`BAND_BUDDY_PRELOAD_ERROR ${preloadPath} ${String(error)}\n`)
     })
@@ -360,6 +375,8 @@ else {
     mediaService = media
     const runtime = new RuntimeManager(paths, database, applicationLogger)
     runtimeManager = runtime
+    beatThis = new BeatThisService(paths, database, runtime)
+    media.bpmPredictor = (ffmpeg, inputs) => beatThis!.detect(ffmpeg, inputs)
     const developmentLyricsUrl = process.env.ELECTRON_RENDERER_URL
       ? new URL('lyrics.html', process.env.ELECTRON_RENDERER_URL.endsWith('/') ? process.env.ELECTRON_RENDERER_URL : `${process.env.ELECTRON_RENDERER_URL}/`).href
       : null
@@ -374,6 +391,7 @@ else {
     const emitLibrary = (): void => emit(IPC.eventLibraryChanged)
     const emitGuitarSplitCompleted = (songId: string): void => emit(IPC.eventGuitarSplitCompleted, songId)
     const emitTasks = (jobId?: string): void => {
+      emit(SCORES_CHANGED)
       const row = jobId ? database?.getJob(jobId) : null
       if (row) {
         const { payload: _payload, ...job } = row
@@ -392,7 +410,7 @@ else {
     const emitRehearsals = (): void => emit(IPC.eventRehearsalsChanged)
     let liveMonitor = false
     scheduler = new JobScheduler(paths, database, runtime, media, applicationLogger, emitTasks, emitLibrary, emitGuitarSplitCompleted,
-      result => emit(IPC.eventVocalSplitCompleted, result), () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || liveMonitor))
+      result => emit(IPC.eventVocalSplitCompleted, result), () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || liveMonitor || realtimeSeparation?.active))
     const kickJobs = (): void => {
       scheduler?.kick()
       if (database?.listJobs().some(job => job.status === 'blockedRuntime')) {
@@ -400,6 +418,10 @@ else {
       }
     }
     const exporter = new ExportService(paths, database, media, applicationLogger, emitTasks, () => scheduler?.kick())
+    scores = new ScoreService(paths, database, media, runtime, () => { emit(SCORES_CHANGED); emitTasks() }, () => scheduler?.kick())
+    scheduler.setScores(scores)
+    scores.unblock()
+    scores.setCancel(id => scheduler!.cancelAndWait(id))
     scheduler.setExporter(exporter)
     const imports = new ImportService(paths, database, media, runtime, applicationLogger, () => { emitLibrary(); emitTasks() }, kickJobs)
     const audioHost = new AudioHostClient(paths, applicationLogger)
@@ -436,7 +458,7 @@ else {
 
     lan = new LanService(database, media, paths, applicationLogger, join(currentDirectory, '../renderer'))
     environmentManager = new EnvironmentManager(paths, runtime, media, applicationLogger, app.getVersion(),
-      () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active),
+      () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active || realtimeSeparation?.active),
       startupRecovery.safeMode, smokeMode || benchmarkMode, { inspectAudio: signal => audioHost.inspect(database!.getSettings().recordingAudio, signal) })
     environmentManager.onChanged(state => emit(ENVIRONMENT_CHANGED, state))
     audioHost.onEvent(event => {
@@ -452,6 +474,7 @@ else {
     }
     let topologyCheck: Promise<void> | null = null
     const devicesChanged = (): Promise<void> => {
+      void realtimeSeparation?.invalidate('音频设备已变化，请重新测试')
       if (topologyCheck) return topologyCheck
       if (startupRecovery.safeMode || !(recording?.isActive() || rehearsalRecording?.isActive() || arsenal.monitorState().active)) return Promise.resolve()
       topologyCheck = (async () => {
@@ -476,14 +499,23 @@ else {
       diagnostics: () => diagnostics.snapshot(), logsRoot: paths.logsRoot,
       flushLogs: () => applicationLogger.flush()
     }))
+    const nativeAudio = new NativeAudioService(paths, database, media, audioHost, arsenal, state => emit(NATIVE_AUDIO_EVENT, state))
+    realtimeSeparation = new RealtimeSeparationService(paths, database, runtime,
+      state => { emit(REALTIME_EVENT, state); if (state.phase !== 'idle' && state.phase !== 'failed') environmentManager?.deferForLiveAudio() },
+      () => Boolean(recording?.isActive() || rehearsalRecording?.isActive() || liveMonitor || audioHost.isTestSession()),
+      () => Boolean(scheduler?.isBusy() || media.isModelBusy()), () => scheduler?.kick())
+    powerMonitor.on('suspend', () => { void realtimeSeparation?.invalidate('系统已休眠，请重新测试') })
+    recording.beforeDeleteTake = takeId => nativeAudio.releaseRecording(takeId)
     registerIpc({
+      realtimeSeparation,
+      scores,
       ai,
       environment: environmentManager,
       devicesChanged,
       windowControlsRegistered: true,
       arsenal,
       audioPlugins: audioHost.plugins,
-      nativeAudio: new NativeAudioService(paths, database, media, audioHost, arsenal, state => emit(NATIVE_AUDIO_EVENT, state)),
+      nativeAudio,
       lan,
       getWindow: () => mainWindow,
       database,
@@ -546,6 +578,7 @@ app.on('before-quit', (event) => {
   scheduler?.interruptForExit()
   runtimeManager?.cancelInstall()
   shutdownTask = (async () => {
+    await realtimeSeparation?.shutdown()
     await databasePreparation?.cancel().catch(error => logger?.error('database preparation cancellation failed', error))
     databasePreparation = null
     // Finalize recordings before disabling subprocess creation. Recovery also
@@ -557,8 +590,8 @@ app.on('before-quit', (event) => {
       try { await stop() } catch (error) { logger?.error('recording shutdown failed', error) }
     }
     const workers = await Promise.allSettled([
-      lan?.setEnabled(false), environmentManager?.shutdown(), runtimeManager?.shutdown(), scheduler?.shutdown(),
-      shutdownMediaAnalysis(), shutdownProcesses(), ai?.shutdown()
+      lan?.setEnabled(false), environmentManager?.shutdown(), runtimeManager?.shutdown(), scheduler?.shutdown(), scores?.runtime.shutdown(),
+      Promise.resolve(beatThis?.shutdown()), shutdownMediaAnalysis(), shutdownProcesses(), ai?.shutdown()
     ])
     for (const result of workers) if (result.status === 'rejected') logger?.error('worker shutdown failed', result.reason)
     await logger?.flush()

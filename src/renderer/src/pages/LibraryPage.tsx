@@ -19,28 +19,6 @@ import { STEM_META, STEM_ORDER, type SongSummary } from '@shared/domain.js'
 import { formatDate, formatTime, statusLabel } from '../utils.js'
 import { Vinyl } from '../components/Vinyl.js'
 
-const CARD_TEXT_SCROLL_SPEED = 32
-const CARD_TEXT_SCROLL_HOLD_SECONDS = 1.6
-
-function prepareCardTextScroll(event: React.MouseEvent<HTMLElement>): void {
-  const container = event.currentTarget
-  const content = container.firstElementChild
-  if (!(content instanceof HTMLElement)) return
-
-  const distance = Math.ceil(content.scrollWidth - container.clientWidth)
-  if (distance <= 1) {
-    container.dataset.overflow = 'false'
-    container.style.removeProperty('--card-scroll-distance')
-    container.style.removeProperty('--card-scroll-duration')
-    return
-  }
-
-  const duration = Math.min(14, Math.max(2.8, distance / CARD_TEXT_SCROLL_SPEED + CARD_TEXT_SCROLL_HOLD_SECONDS))
-  container.dataset.overflow = 'true'
-  container.style.setProperty('--card-scroll-distance', `${distance}px`)
-  container.style.setProperty('--card-scroll-duration', `${duration.toFixed(2)}s`)
-}
-
 export function LibraryPage({
   songs,
   loading,
@@ -153,13 +131,13 @@ function SongCard({ song, onOpen, onPlay, onMenu }: { song: SongSummary; onOpen(
     <Vinyl artworkUrl={song.artworkUrl} size="medium" spinning={song.status === 'processing'} showFallbackText={false} />
     <div className="song-card-info">
       <button className="card-more" aria-label="歌曲菜单" onClick={(event) => { event.stopPropagation(); onMenu() }}><MoreHorizontal size={20} /></button>
-      <h3 className="card-scroll-text" title={song.title} onMouseEnter={prepareCardTextScroll}><span>{song.title}</span></h3>
-      <p className="card-scroll-text" title={artist} onMouseEnter={prepareCardTextScroll}><span>{artist}</span></p>
+      <h3 className="card-metadata" title={song.title}>{song.title}</h3>
+      <p className="card-metadata" title={artist}>{artist}</p>
       <span className="duration"><Clock3 size={14} />{formatTime(song.durationMs)}</span>
       {processing ? <div className="card-progress">
         <b>{statusLabel(song.status)} <em>{Math.round(song.progress * 100)}%</em></b>
         <span><i style={{ width: `${song.progress * 100}%` }} /></span>
-        <small className="card-scroll-text" title={phase} onMouseEnter={prepareCardTextScroll}><span>{phase}</span></small>
+        <small className="card-metadata" title={phase}>{phase}</small>
       </div> : <>
         <div className="stem-pills">{song.stemTypes.slice(0, 4).map((stem) => <i key={stem} title={song.stemNames?.[stem] || STEM_META[stem].label} style={{ '--pill': STEM_META[stem].color } as React.CSSProperties}>{song.stemNames?.[stem] || STEM_META[stem].shortLabel}</i>)}</div>
         <button className="continue-button" onClick={onPlay}><Play size={15} fill="currentColor" />继续练习</button>

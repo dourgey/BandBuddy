@@ -67,6 +67,8 @@ if (process.env.BANDBUDDY_SKIP_AUDIO_HOST !== '1') {
     '--component', 'BandBuddyAudioHost'
   ])
   if (!existsSync(executable)) throw new Error(`Audio host was not installed at ${executable}`)
+  const realtime = path.join(outputRoot, process.platform === 'win32' ? 'bandbuddy-realtime-audio.dll' : 'libbandbuddy-realtime-audio.dylib')
+  if (!existsSync(realtime)) throw new Error(`Realtime audio backend was not installed at ${realtime}`)
   const pluginHost = path.join(outputRoot, process.platform === 'win32' ? 'bandbuddy-plugin-host.exe' : 'bandbuddy-plugin-host')
   if (!existsSync(pluginHost) || !existsSync(path.join(outputRoot, 'licenses', 'VST3-SDK-LICENSE.txt'))) throw new Error('Plugin host or its license was not installed')
   run(executable, ['--self-test'])

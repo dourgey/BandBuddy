@@ -14,7 +14,7 @@
 
 BandBuddy 的核心不是“把人声去掉”，而是让一首歌真正变得**可练**：听清目标声部、放慢困难小节、循环到肌肉记住、跟着准确节拍进入，再在下一次打开时从原来的位置继续。
 
-> [项目主页](https://bandbuddy.lonelyme.cn/) · [下载已发布版本](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.lonelyme.cn/privacy.html) · 当前源码版本 `3.0.0` · Windows x64 / macOS Apple Silicon
+> [项目主页](https://bandbuddy.cn/) · [Wiki 说明书](https://bandbuddy.cn/wiki.html) · [下载已发布版本](https://github.com/dourgey/BandBuddy/releases/latest) · [隐私说明](https://bandbuddy.cn/privacy.html) · 当前源码版本 `3.0.0` · Windows x64 / macOS Apple Silicon
 
 本文对应当前源码；GitHub Release 的版本与安装文件以发布页为准。主要入口包括曲库与练习室、排练、练功房和军火库。
 
@@ -110,7 +110,7 @@ BandBuddy 把一次有效练习整理成一条很短的路径：**选歌 → 分
 
 ### 跟上节拍再进入
 
-- 可优先分析鼓轨自动检测 BPM，也可以手动修改。
+- 使用 [Beat This!](https://github.com/CPJKU/beat_this) `final0` 模型预测整曲拍点，计算并保存 BPM 与节拍偏移，也可以手动修改。需先准备软件内的 AI 运行环境；首次检测自动下载约 81 MB 模型并校验 SHA-256，后续可离线检测。优先使用原曲，只有分轨时自动合成完整混音；支持 30 分钟以内歌曲，变速歌曲仅保存代表性的固定 BPM。
 - 可在本机识别歌曲主调与大小调，显示置信度；低置信度时给出前三候选，并按片段提示可能转调的位置。识别结果支持手动纠正，重新分析不会覆盖手动选择。
 - 内置节拍器支持拍点提前/延后微调，并随播放速度同步。
 - 支持关闭、4 拍或 8 拍预备拍，让手和乐器先准备好再进入歌曲。
@@ -348,3 +348,8 @@ BandBuddy 源码使用 [Apache License 2.0](./LICENSE)。分轨运行时使用 D
   <img src="./docs/images/wechat-pay.jpg" alt="微信收款码" width="280">
   <img src="./docs/images/alipay-pay.jpg" alt="支付宝收款码" width="280">
 </p>
+
+
+### 藏经阁：歌曲转 MIDI 谱
+
+桌面版新增“藏经阁”：整曲或指定分离轨本地转为多轨 MIDI，支持钢琴卷帘、五线谱、吉他/贝斯 TAB、分轨试听与 AB 练习，以及 MIDI / MusicXML 导出。首次使用需准备独立运行组件并获得 Muscriptor 模型授权；权重为 CC BY-NC 4.0，仅限许可允许的非商业用途。完整说明与验证方法见 [藏经阁文档](docs/SCORES.md)。

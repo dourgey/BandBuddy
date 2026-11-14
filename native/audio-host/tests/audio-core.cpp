@@ -1,13 +1,52 @@
 #include "../src/realtime-safety.h"
+#include "../src/realtime-audio.h"
 #include "../src/input-clock.h"
 #include "../src/timeline.h"
 #include "../../audio-ipc/shared-audio.h"
 #include "../../audio-ipc/worker-wait.h"
+#include "../../audio-ipc/denormal-scope.h"
 #include <fstream>
 #include <iostream>
 #include <limits>
 
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+void testRealtimeSeparationBuffer() {
+  auto engine = std::make_unique<bb::realtime::Engine>();
+  for (unsigned i = 0; i < 5760; ++i) require(engine->output.push({.2f, .3f, 9.8 + i / 48000.0}), "enqueue realtime hop");
+  engine->render(10.0);
+  engine->render(10.039);
+  require(engine->rendered == 0 && engine->output.size() == 5760, "first complete hop reserves 40ms before playback");
+  engine->render(10.041);
+  require(engine->rendered == 1 && engine->underruns == 0, "start after prebuffer delay");
+  for (unsigned i = 0; i < 5760; ++i) engine->render(10.042 + i / 48000.0);
+  require(engine->underruns == 1, "one starvation episode counted once");
+  engine->render(10.3);
+  require(engine->underruns == 1, "continued starvation is one episode");
+  require(engine->maxLatency.load() > 0, "capture timestamps reach render metrics");
+}
+void testDenormals() {
+#ifdef BB_AUDIO_SSE2
+  const auto original = _mm_getcsr();
+  _mm_setcsr(original & ~0x8040u);
+  const auto callerMode = _mm_getcsr();
+  bool flushedFloat = false, flushedDouble = false, normalUnchanged = false;
+  {
+    bb::DenormalScope scope;
+    volatile float tiny = std::numeric_limits<float>::min(), half = .5f;
+    volatile double tail = std::numeric_limits<double>::min(), decay = .5;
+    volatile float normal = .25f;
+    flushedFloat = tiny * half == 0.f;
+    flushedDouble = tail * decay == 0.;
+    normalUnchanged = normal * half == .125f;
+    { bb::DenormalScope nested; }
+    require((_mm_getcsr() & 0x8040u) == 0x8040u, "nested DSP scope retains denormal protection");
+  }
+  const bool restored = _mm_getcsr() == callerMode;
+  _mm_setcsr(original);
+  require(flushedFloat && flushedDouble, "float and double filter tails flush to silence");
+  require(normalUnchanged && restored, "DSP scope preserves audible samples and driver's floating-point state");
+#endif
+}
 void testPlaybackEq() {
   const auto config = [](double hz, double gain) { return nlohmann::json{{"enabled", true}, {"mode", "parametric"}, {"nodes", {{{"frequency", hz}, {"gainDb", gain}, {"q", 12}}}}}; };
   // A control update must not replace the audible blend mid-transition.
@@ -88,6 +127,8 @@ int run(int argc, char** argv) {
   const auto root = std::filesystem::temp_directory_path() / ("bb-core-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   std::filesystem::create_directories(root);
   try {
+    testDenormals();
+      testRealtimeSeparationBuffer();
     testPlaybackEq();
     bb::OutputSafety safety;
     float samples[] = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN(), 2, -4, .4f, -.4f};

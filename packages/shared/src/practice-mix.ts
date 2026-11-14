@@ -1,10 +1,10 @@
 import { dbToGain, isStemVisible, stemPlaybackGain, type PracticeState, type RecordingTake, type SongDetail } from './domain.js'
 
 /** A selected take is a mixer track even while its replacement audio is loading. */
-export function practiceMix(song: SongDetail, practice: PracticeState): { solo: boolean; gains: Map<string, number> } {
+export function practiceMix(song: SongDetail, practice: PracticeState, liveTrackId?: string): { solo: boolean; gains: Map<string, number> } {
   const stems = practice.tracks.filter(t => song.stems.some(s => s.type === t.stemType)
     && (song.sourceFormat === 'existing-stems' || isStemVisible(t.stemType, practice.guitarSplitEnabled, practice.vocalSplitEnabled)))
-  const recordings = song.recordingTracks.filter(t => song.recordingTakes.some(take => take.id === t.activeTakeId))
+  const recordings = song.recordingTracks.filter(t => t.id === liveTrackId || song.recordingTakes.some(take => take.id === t.activeTakeId))
   const solo = [...stems, ...recordings].some(t => t.solo && !t.muted)
   const gains = new Map<string, number>()
   for (const track of [...stems, ...recordings]) {
@@ -13,6 +13,10 @@ export function practiceMix(song: SongDetail, practice: PracticeState): { solo: 
       ? dbToGain(track.gainDb) * ('stemType' in track ? stemPlaybackGain(song.stems.find(s => s.type === id)) : 1) : 0)
   }
   return { solo, gains }
+}
+
+export function recordingMonitorGain(song: SongDetail, trackId: string, practice = song.practice): number {
+  return (practiceMix(song, practice, trackId).gains.get(trackId) ?? 0) * dbToGain(practice.masterGainDb)
 }
 
 export function recordingPlaybackRate(take: RecordingTake, practice: PracticeState): number {

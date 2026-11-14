@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LibraryPage } from '../src/renderer/src/pages/LibraryPage.js'
 import { fixtureSongs } from '../src/renderer/src/fixtures.js'
@@ -33,10 +33,10 @@ describe('library card overflow text', () => {
     expect(onPlay).toHaveBeenCalledWith(fixtureSongs[0])
   })
 
-  it('measures long card metadata on hover and enables scrolling only when needed', () => {
+  it('exposes full long metadata on the recent card even when the song is also listed below', () => {
     const song = {
       ...fixtureSongs[0]!,
-      title: '这是一首标题特别特别长并且需要在卡片内自动滚动展示的歌曲',
+      title: '这是一首标题特别特别长并且在卡片中需要省略显示的歌曲',
       artist: '一位名字同样非常非常长的艺术家与他的乐队',
       status: 'processing' as const,
       phase: '正在执行一个名称很长很长的本地音频分轨处理阶段'
@@ -57,21 +57,13 @@ describe('library card overflow text', () => {
       onMenu={vi.fn()}
     />)
 
-    const title = screen.getByTitle(song.title)
-    expect(screen.getByTitle(song.artist).classList.contains('card-scroll-text')).toBe(true)
-    expect(screen.getByTitle(song.phase).classList.contains('card-scroll-text')).toBe(true)
-    const content = title.querySelector('span')!
-    Object.defineProperty(title, 'clientWidth', { configurable: true, value: 100 })
-    Object.defineProperty(content, 'scrollWidth', { configurable: true, value: 260 })
-    fireEvent.mouseEnter(title)
-
-    expect(title.dataset.overflow).toBe('true')
-    expect(title.style.getPropertyValue('--card-scroll-distance')).toBe('160px')
-    expect(title.style.getPropertyValue('--card-scroll-duration')).toBe('6.60s')
-
-    Object.defineProperty(content, 'scrollWidth', { configurable: true, value: 100 })
-    fireEvent.mouseEnter(title)
-    expect(title.dataset.overflow).toBe('false')
-    expect(title.style.getPropertyValue('--card-scroll-distance')).toBe('')
+    const card = within(screen.getByRole('article'))
+    expect(card.getByTitle(song.title)).toBe(card.getByRole('heading', { name: song.title }))
+    for (const text of [song.title, song.artist, song.phase]) {
+      const metadata = card.getByTitle(text)
+      expect(metadata.textContent).toBe(text)
+      expect(metadata.classList.contains('card-metadata')).toBe(true)
+    }
+    expect(within(screen.getByRole('table', { name: '曲库歌曲' })).getByTitle(song.title)).toBeTruthy()
   })
 })

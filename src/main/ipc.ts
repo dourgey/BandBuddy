@@ -1,4 +1,8 @@
 import { readStorageUsage } from './storage-usage.js'
+import { REALTIME_CHANNEL } from '@shared/realtime-separation.js'
+import type { RealtimeSeparationService } from './realtime-separation.js'
+import { SCORES_CHANNEL, scoreCreateSchema, scoreSettingsSchema, scorePracticeSchema } from '@shared/scores.js'
+import type { ScoreService } from './scores.js'
 import { normalizeAppearance } from '@shared/appearance.js'
 import { isDeepStrictEqual } from 'node:util'
 import { appearanceSchema } from '@shared/appearance-schema.js'
@@ -57,6 +61,8 @@ import type { LanService } from './lan.js'
 import type { Logger } from './logger.js'
 
 interface IpcServices {
+  realtimeSeparation?: RealtimeSeparationService
+  scores?: ScoreService
   ai?: AiService
   devicesChanged?: () => Promise<void>
   windowControlsRegistered?: boolean
@@ -86,6 +92,25 @@ interface IpcServices {
 }
 
 export function registerIpc(services: IpcServices): void {
+  const requireAudioAvailable = (): void => {
+    if (services.realtimeSeparation?.active) throw new Error('请先停止实时分轨测试或播放')
+  }
+  ipcMain.handle(REALTIME_CHANNEL, async (event, input: unknown) => {
+    assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
+    const value = z.object({ op: z.enum(['capabilities', 'state', 'configure', 'test', 'start', 'stop', 'mix', 'openSetup']), input: z.unknown().optional() }).parse(input)
+    const service = services.realtimeSeparation
+    if (!service) throw new Error('实时分轨服务不可用')
+    switch (value.op) {
+      case 'capabilities': return service.capabilities()
+      case 'state': return service.state()
+      case 'configure': return service.configure(value.input)
+      case 'test': return service.begin(true)
+      case 'start': return service.begin(false)
+      case 'stop': return service.stop()
+      case 'mix': return service.mix(value.input)
+      case 'openSetup': return service.openSetup(z.enum(['routing', 'driver', 'permission', 'macDriver']).parse(value.input))
+    }
+  })
   // Chat content and credentials never enter the generic IPC diagnostics logger.
   ipcMain.handle(AI_CHANNEL, async (event, input: unknown) => {
     assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
@@ -152,6 +177,43 @@ export function registerIpc(services: IpcServices): void {
     })
   }
 
+  // Model credentials never enter generic IPC diagnostics. Mutations still participate in storage migration locking.
+  ipcMain.handle(SCORES_CHANNEL, async (event, input: unknown) => {
+    assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
+    const value = z.object({ op: z.enum(['list', 'get', 'create', 'transcribe', 'render', 'practice', 'notation', 'export', 'delete', 'runtime', 'prepare', 'cancelPreparation', 'soundfont']), id: uuidSchema.optional(), input: z.unknown().optional() }).parse(input)
+    const service = services.scores
+    if (!service) throw new Error('藏经阁服务尚未就绪')
+    if (migrating) throw new Error('数据目录正在迁移，请稍后重试')
+    activeMutations++
+    try {
+      const id = (): string => uuidSchema.parse(value.id)
+      switch (value.op) {
+        case 'list': return await service.list()
+        case 'get': return await service.get(id(), true)
+        case 'create': return await service.create(scoreCreateSchema.parse(value.input))
+        case 'transcribe': {
+          const options = z.object({ model: z.enum(['small', 'medium', 'large']), device: z.enum(['auto', 'cpu', 'cuda', 'mps']).default('auto') }).parse(value.input)
+          return await service.transcribe(id(), options.model, options.device)
+        }
+        case 'render': return await service.render(id(), scoreSettingsSchema.parse(value.input))
+        case 'practice': return await service.savePractice(id(), scorePracticeSchema.parse(value.input))
+        case 'notation': {
+          const options = z.object({ trackIds: z.array(z.string().regex(/^[\w-]+$/)).max(128), tab: z.boolean(), startBar: z.number().int().min(0).max(12000) }).parse(value.input)
+          return await service.notation(id(), options.trackIds, options.tab, options.startBar)
+        }
+        case 'export': {
+          const options = z.object({ trackIds: z.array(z.string().regex(/^[\w-]+$/)).max(128), format: z.enum(['midi', 'musicxml']), quantized: z.boolean(), tab: z.boolean() }).parse(value.input)
+          return await service.export(id(), options.trackIds, options.format, options.quantized, options.tab)
+        }
+        case 'delete': return await service.delete(id())
+        case 'runtime': return await service.runtime.get()
+        case 'prepare': return await service.runtime.prepare(z.object({ acceptLicense: z.boolean(), token: z.string().max(500).optional(), model: z.enum(['small', 'medium', 'large']), importLocal: z.boolean().optional() }).parse(value.input))
+        case 'cancelPreparation': return await service.runtime.cancel()
+        case 'soundfont': return await service.soundfont()
+      }
+    } finally { activeMutations-- }
+  })
+
   // High-rate PCM uses a dedicated trusted channel; never put audio packets in diagnostics.
   ipcMain.handle(`${ARSENAL_CHANNEL}:output`, (event, bus) => {
     assertTrustedSender(event, services.getWindow(), services.isTrustedUrl)
@@ -164,6 +226,7 @@ export function registerIpc(services: IpcServices): void {
   handle(NATIVE_AUDIO_CHANNEL, async (_event, input) => {
     const service = services.nativeAudio; if (!service) throw new Error('NATIVE_AUDIO_UNAVAILABLE')
     const value = z.object({ op: z.enum(['enabled', 'load', 'refresh', 'update', 'play', 'pause', 'seek', 'unload']), songId: uuidSchema.optional(), practice: practiceStateSchema.optional(), countInBeats: z.union([z.literal(0), z.literal(4), z.literal(8)]).optional(), positionMs: z.number().finite().nonnegative().optional() }).parse(input)
+    if (value.op === 'play') requireAudioAvailable()
     if (value.op === 'enabled') return service.enabled()
     if (value.op === 'load') return service.load(uuidSchema.parse(value.songId), practiceStateSchema.parse(value.practice))
     if (value.op === 'refresh') return service.refresh(uuidSchema.parse(value.songId))
@@ -201,7 +264,10 @@ export function registerIpc(services: IpcServices): void {
       case 'deleteAsset': return arsenal.deleteAsset(z.string().regex(/^[a-f0-9]{64}$/).parse(i.id))
       case 'prepare': return arsenal.prepare(effectChainSchema.parse(i.chain))
       case 'track': return arsenal.setTrack(uuidSchema.parse(i.trackId),trackEffectsSchema.parse(i.effects))
-      case 'monitor': return arsenal.monitor(z.enum(['off','dry','wet']).parse(i.mode),effectChainSchema.parse(i.chain),z.string().uuid().optional().parse(i.trackId))
+      case 'monitor': {
+        if (i.mode !== 'off') requireAudioAvailable()
+        return arsenal.monitor(z.enum(['off','dry','wet']).parse(i.mode),effectChainSchema.parse(i.chain),z.string().uuid().optional().parse(i.trackId))
+      }
       default: throw new Error('UNKNOWN_ARSENAL_OPERATION')
     }
   })
@@ -233,6 +299,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.libraryGet, async (_event, input) => {
     const id = uuidSchema.parse(input)
     await recoverRecording()
+    requireAudioAvailable()
     return services.database.getSong(id)
   })
   handle(IPC.lanStatus, () => services.lan.status())
@@ -257,9 +324,10 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.libraryReseparate, (_event, input) => services.imports.reSeparate(uuidSchema.parse(input)))
   handle(IPC.libraryRequestGuitarSplit, (_event, input) => services.imports.requestGuitarSplit(uuidSchema.parse(input)))
   handle(IPC.libraryRequestVocalSplit, (_event, input) => services.imports.requestVocalSplit(uuidSchema.parse(input)))
-  handle(IPC.practiceSave, (_event, input) => {
+  handle(IPC.practiceSave, async (_event, input) => {
     const practice = practiceStateSchema.parse(input)
     services.database.savePractice(practice)
+    await services.arsenal.refreshMonitorMix(practice)
     const song = services.database.getSongSummary(practice.songId)
     if (song) services.emitLibraryUpdate({ songId: practice.songId, song, kind: 'updated' })
   })
@@ -280,8 +348,8 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.runtimeInstall, async () => { if (services.environment) { await services.environment.resume(); return services.runtime.getInfo() }; return services.runtime.install() })
   handle(IPC.runtimeCancel, async () => { if (services.environment) await services.environment.pause(); else services.runtime.cancelInstall() })
   handle(IPC.runtimeRepair, async () => { if (services.environment) { await services.environment.repair(); return services.runtime.getInfo() }; return services.runtime.repair() })
-  handle(IPC.runtimeRemove, async (_event, input) => { const includeModels = z.boolean().default(false).parse(input); await services.environment?.pause(); return services.runtime.removeEnvironment(includeModels) })
-  handle(IPC.runtimeClearModel, async () => { await services.environment?.pause(); return services.runtime.clearModelCache() })
+  handle(IPC.runtimeRemove, async (_event, input) => { requireAudioAvailable(); const includeModels = z.boolean().default(false).parse(input); await services.environment?.pause(); return services.runtime.removeEnvironment(includeModels) })
+  handle(IPC.runtimeClearModel, async () => { requireAudioAvailable(); await services.environment?.pause(); return services.runtime.clearModelCache() })
 
   handle(ENVIRONMENT_CHANNEL, async (_event, input) => {
     const request = z.object({ op: z.enum(['get', 'check', 'prepare', 'pause', 'resume', 'repair', 'export', 'diagnostics', 'copy', 'systemInformation', 'copySystemInformation', 'action', 'networkRestored', 'devicesChanged']), reportId: z.string().uuid().optional(), diagnosticId: z.string().uuid().optional(), scope: z.object({ diagnosticId: z.string().uuid().optional(), jobId: z.string().max(100).optional() }).optional(), action: z.enum(['retry', 'repair', 'storage', 'network', 'audio', 'microphone', 'driver', 'time', 'security', 'restart', 'repairApplication']).optional() }).parse(input)
@@ -361,7 +429,7 @@ export function registerIpc(services: IpcServices): void {
     const previous = services.database.getSettings()
     const rootsChanged = ['libraryRoot', 'runtimeRoot', 'modelRoot'].some(key => previous[key as keyof typeof previous] !== settings[key as keyof typeof settings])
     if (rootsChanged && (activeMutations > 1 || services.database.hasActiveJobs() || services.recording.isActive()
-      || services.rehearsalRecording.isActive() || services.runtime.isInstalling() || services.environment?.isBusy())) {
+      || services.rehearsalRecording.isActive() || services.runtime.isInstalling() || services.environment?.isBusy() || services.scores?.runtime.get().busy)) {
       throw new Error('请先完成或取消正在进行的导入、分轨、导出和录音，再更换数据目录。')
     }
     if (rootsChanged) migrating = true
@@ -394,7 +462,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.mediaCapabilities, () => services.media.capabilities())
   handle(IPC.mediaPrepareOutputDevice, (_event, input) =>
     services.recording.prepareOutputDevice(z.string().min(1).max(500).nullable().parse(input)))
-  handle(IPC.mediaDetectBpm, (_event, input) => services.media.detectBpm(uuidSchema.parse(input)))
+  handle(IPC.mediaDetectBpm, (_event, input) => { requireAudioAvailable(); return services.media.detectBpm(uuidSchema.parse(input)) })
   handle(IPC.mediaDetectKey, async (_event, input) => {
     const result = await services.media.detectKey(uuidSchema.parse(input))
     services.emitLibrary()
@@ -413,9 +481,10 @@ export function registerIpc(services: IpcServices): void {
 
   handle(IPC.recordingGetState, () => services.recording.getState())
   handle(IPC.recordingDevices, () => services.recording.devices())
-  handle(IPC.recordingStartTest, () => services.recording.startTest())
+  handle(IPC.recordingStartTest, () => { requireAudioAvailable(); return services.recording.startTest() })
   handle(IPC.recordingStopTest, () => services.recording.stopTest())
   handle(IPC.recordingStart, async (_event, input) => {
+    requireAudioAvailable()
     await recoverRecording()
     if (services.rehearsalRecording.isActive()) throw new Error('RECORDING_SESSION_BUSY')
     return services.recording.start(recordingStartSchema.parse(input))
@@ -439,6 +508,7 @@ export function registerIpc(services: IpcServices): void {
   handle(IPC.rehearsalGet, async (_event, input) => {
     const id = uuidSchema.parse(input)
     await recoverRehearsal()
+    requireAudioAvailable()
     return services.rehearsals.get(id)
   })
   handle(IPC.rehearsalCreate, (_event, input) => {
@@ -476,6 +546,7 @@ export function registerIpc(services: IpcServices): void {
   })
   handle(IPC.rehearsalRecordingGetState, () => services.rehearsalRecording.getState())
   handle(IPC.rehearsalRecordingStart, async (_event, input) => {
+    requireAudioAvailable()
     await recoverRehearsal()
     return services.rehearsalRecording.start(rehearsalRecordingStartSchema.parse(input))
   })

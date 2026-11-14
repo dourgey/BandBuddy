@@ -48,6 +48,8 @@ import type {
 export type Unsubscribe = () => void
 
 export interface BandBuddyApi {
+  realtimeSeparation: import('./realtime-separation.js').RealtimeSeparationApi
+  scores: import('./scores.js').ScoreApi
   ai?: AiApi
   environment?: EnvironmentApi
   startup?: StartupApi

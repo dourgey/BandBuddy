@@ -1,3 +1,5 @@
+import { DEFAULT_REALTIME_CONFIG, type RealtimeState } from '@shared/realtime-separation.js'
+import { createScoreFixtureApi } from './scores/fixtures.js'
 import { DEFAULT_APPEARANCE, normalizeAppearance, type Appearance } from '@shared/appearance.js'
 import type { AppSettings, PracticeState } from '@shared/domain.js'
 import { SOURCE_MEDIA_EXTENSIONS } from '@shared/media-formats.js'
@@ -58,7 +60,17 @@ export function installFixtureBridge(): void {
   let arsenalMonitor:ArsenalMonitorState={active:false,mode:'off',sampleRate:0,bufferFrames:0,latencyMs:0,peak:[],outputPeak:0,xruns:0,error:null}
   const arsenalListeners=new Set<(s:ArsenalMonitorState)=>void>()
   try{const saved=localStorage.getItem('bb.fixture.arsenal');if(saved)arsenalWorkspace={...JSON.parse(saved),quick:{recording:false,looping:false,durationMs:0}}}catch{}
+  let realtime: RealtimeState = { phase: 'idle', config: DEFAULT_REALTIME_CONFIG, eligible: false, message: '浏览器预览，请在桌面软件中测试音频设备', progress: 0, metrics: null, lastTest: null }
   const api: BandBuddyApi = {
+    realtimeSeparation: {
+      capabilities: async () => ({ supported: true, platform: 'win32', ready: false, device: 'cpu', devices: [], error: '请在桌面软件中配置音频设备' }),
+      state: async () => realtime, configure: async config => (realtime = { ...realtime, config }),
+      test: async () => { throw new Error('请使用桌面软件进行性能测试') },
+      start: async () => { throw new Error('请先通过性能测试') }, stop: async () => realtime,
+      mix: async mix => (realtime = { ...realtime, config: { ...realtime.config, ...mix } }),
+      openSetup: async () => {}, onChanged: () => () => {}
+    },
+    scores: createScoreFixtureApi(),
     appearance: {
       get: async () => settings.appearance,
       set: async (value) => { settings.appearance = normalizeAppearance(value); appearanceListeners.forEach(listener => listener(settings.appearance)); return settings.appearance },
@@ -77,7 +89,7 @@ export function installFixtureBridge(): void {
         arsenalListeners.forEach(fn=>fn(arsenalMonitor))
       },
       prepare: async (chain) => ({ chain, model: null, modelRate: 48000, ir: null, irRate: 48000 }),
-      monitor: async ({mode,trackId}) => {if(mode==='off'&&trackId&&arsenalMonitor.trackId!==trackId)return arsenalMonitor;arsenalMonitor={...arsenalMonitor,trackId,mode,active:mode!=='off'};arsenalListeners.forEach(fn=>fn(arsenalMonitor));return arsenalMonitor},
+      monitor: async ({mode,trackId}) => {if(mode==='off'&&trackId&&arsenalMonitor.trackId!==trackId)return arsenalMonitor;arsenalMonitor={...arsenalMonitor,trackId,mode,active:mode!=='off',redirectBrowserOutput:false};arsenalListeners.forEach(fn=>fn(arsenalMonitor));return arsenalMonitor},
       monitorState: async () => arsenalMonitor,
       onMonitor: callback => {arsenalListeners.add(callback);return()=>arsenalListeners.delete(callback)}
     } satisfies ArsenalApi,
@@ -123,7 +135,7 @@ export function installFixtureBridge(): void {
     media: {
       prepareOutputDevice: async () => false,
       capabilities: async () => ({ ffmpegReady: true, ffmpegVerification: 'verified', ffmpegVersion: '8.1.2', protocolVersion: 1, supportedInputFormats: [...SOURCE_MEDIA_EXTENSIONS].map(extension => extension.slice(1)), supportedExportFormats: ['wav', 'flac', 'mp3'], internalSampleRate: 44100, internalChannels: 2, internalBitDepth: 24 }),
-      detectBpm: async () => ({ bpm: 124, confidence: 0.9, beatOffsetMs: 0, analyzedStem: 'drums' }),
+      detectBpm: async () => ({ bpm: 124, confidence: 0.9, beatOffsetMs: 0, analyzedStem: 'mix', model: 'beat-this-final0' }),
       detectKey: async () => ({
         tonic: 'G', mode: 'major', label: 'G major', confidence: 0.62, lowConfidence: true,
         candidates: [

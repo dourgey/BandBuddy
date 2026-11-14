@@ -1,0 +1,7 @@
+{
+  "revision": "8a1ef88672cc23c26619adaff37ec48d82c0b906",
+  "license": "CC-BY-NC-4.0",
+  "small": {"revision":"8c127f603b807520fa465c838e9bfee8a91ada4e","size":411888600,"sha256":"bbd482c786b895cf7d8f44185073d951adae2ebb8a66f82ca84cd1f84569549c","config":{"dim":768,"num_heads":12,"num_layers":14,"card":1393}},
+  "medium": {"revision":"f32236969308476e01fd3aae67357de5feb05a2d","size":1228144472,"sha256":"ac80adbdf85d87231735fd948af7013441c0afced316c4e9067fd5d8a7fb97ec","config":{"dim":1024,"num_heads":16,"num_layers":24,"card":1395}},
+  "large": {"revision":"8809fdfbed2affa7ade94a7059e746e3880720e7","size":5465642136,"sha256":"ac4eb6ea87dfc26b6ca6b954c6b967ab87ad4c7d08e078b25214f13ed051f397","config":{"dim":1536,"num_heads":24,"num_layers":48,"card":1395}}
+}

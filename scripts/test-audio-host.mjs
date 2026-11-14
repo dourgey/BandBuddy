@@ -154,6 +154,19 @@ try {
   if (!Array.isArray(meter.peak) || meter.peak[0] <= meter.peak[1] || meter.peak[1] <= 0) throw new Error('Simulated channel meter failed')
   await rpc('stopTest')
 
+  // Exercise scheduling on the callback thread (the simulator uses a distinct
+  // thread just as an ASIO driver does), including restart and split capture.
+  for (const split of [false, true, false]) {
+    const asioMeterEvent = nextEvent('meter')
+    await rpc('startTest', { ...base, backend: 'asio', outputDeviceId: split ? devices[1].id : device.id, monitorMode: 2 })
+    const asioMeter = await asioMeterEvent
+    if (process.platform === 'win32' && asioMeter.callbackRealtimePriority !== true) {
+      throw new Error('ASIO callback thread did not acquire MMCSS audio scheduling')
+    }
+    if (!asioMeter.diagnostics?.callbacks || !Number.isFinite(asioMeter.outputPeak)) throw new Error('ASIO callback failed to process audio')
+    await rpc('stopTest')
+  }
+
   const finishedEvent = nextEvent('finished', 15_000, 'duplex finished')
   await rpc('start', {
     ...base,

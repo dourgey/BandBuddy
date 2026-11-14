@@ -37,7 +37,11 @@ export function environmentIssue(error: unknown, capability: EnvironmentCapabili
   if (/APPLICATION_COMPONENT_MISSING|RUNTIME_PROFILE_|SYSTEM_HELPER_MISSING|AUDIO_HOST_MISSING|FFMPEG_MISSING|UNSUPPORTED_TOOL|ABI|NODE_MODULE_VERSION|MANIFEST_INVALID|CATALOG_INVALID/.test(text)) return issue('APPLICATION_COMPONENT_MISSING', '应用组件缺失、损坏或与当前系统不匹配。', 'repairApplication', ['查看具体组件及完整性证据。', '媒体工具可定向修复；其他包内组件使用官方同版本安装包修复。'])
   if (/CPU_OUT_OF_MEMORY|CPU_OOM|MemoryError|DefaultCPUAllocator|bad_alloc/.test(text)) return issue('CPU_OUT_OF_MEMORY', '系统内存不足，当前任务未能完成。', 'retry', ['关闭占用内存较多的程序。', '确认系统可用内存后重试；重装环境不能解决内存不足。'])
   if (/ACCELERATOR_OOM|CUDA_OOM/.test(text)) return issue('ACCELERATOR_OOM', '加速设备内存不足。', 'retry', ['软件会尝试使用已验证的 CPU 环境继续原任务。', '若 CPU 也失败，查看后续独立原因。'])
-  if (/ILLEGAL_INSTRUCTION|3221225501|-1073741795|3221225477|-1073741819|NATIVE_CRASH/.test(text)) return issue('NATIVE_PROCESS_FAILED', '原生进程异常退出，硬件或驱动原因尚未确认。', 'driver', ['查看退出码、组件版本和实际使用设备。', '验证兼容 CPU 环境；仍失败时携带诊断信息排查。'], 'unknown')
+  if (/ACCESS_VIOLATION|0xC0000005|3221225477|-1073741819/i.test(text)) return issue('NATIVE_ACCESS_VIOLATION', '原生进程发生内存访问冲突（0xC0000005），软件组件或驱动中的具体原因尚未确认。', capability === 'recording' ? 'audio' : 'retry', capability === 'recording'
+    ? ['查看实际音频后端、输入输出设备、出错阶段和组件版本。', '更新 BandBuddy 后，在音频设置中检查所选设备并手动测试；若仍失败，导出诊断并附上 Windows 事件查看器中的故障模块信息。']
+    : ['查看出错组件、阶段和组件版本。', '更新应用后重试；若仍失败，导出诊断并附上 Windows 事件查看器中的故障模块信息。'], 'unknown')
+  if (/ILLEGAL_INSTRUCTION|0xC000001D|3221225501|-1073741795/i.test(text)) return issue('NATIVE_ILLEGAL_INSTRUCTION', '原生进程执行了无效指令（0xC000001D），需核对组件与 CPU 的兼容性。', 'repairApplication', ['查看 CPU 型号、组件版本和系统架构。', '安装兼容当前 CPU 的应用版本；若仍失败，携带诊断信息排查。'], 'suspected')
+  if (/NATIVE_CRASH|AUDIO_HOST_EXITED/.test(text)) return issue('NATIVE_PROCESS_FAILED', '原生进程异常退出，具体原因尚未确认。', capability === 'recording' ? 'audio' : 'retry', ['查看退出码、出错阶段、组件版本和实际使用设备。', '重新测试；若仍失败，导出诊断信息排查。'], 'unknown')
   if (/CUDA_NOT_AVAILABLE|MPS_NOT_AVAILABLE|GPU_PROBE_FAILED|DRIVER_PROBLEM|ACCELERATION_FAILED/.test(text)) return issue('ACCELERATION_UNAVAILABLE', '硬件加速未通过检测，使用兼容处理。', 'driver', ['查看实际设备、驱动版本和运算验证结果。', '按设备厂商官方说明更新驱动后重新检测。'], 'suspected')
   if (/DEVICE_CHANGED|DEVICE_DISCONNECTED/.test(text)) return issue('AUDIO_DEVICE_CHANGED', '音频设备连接发生变化，相关采集已停止。', 'audio', ['检查所选设备及连接。', '确认后手动开始测试、录音或监听。'])
   if (/DECODE|INVALID_INPUT|NO_AUDIO_STREAM|NO_VIDEO_STREAM|AUDIO_PROBE_FAILED|VIDEO_AUDIO_EXTRACTION_FAILED/.test(text)) return issue('SOURCE_MEDIA_INVALID', '源媒体未通过解码或内容检查。', 'retry', ['检查源文件是否完整、是否包含可用音频。', '更换有效源文件后重试，无需重装分轨环境。'])

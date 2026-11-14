@@ -41,6 +41,17 @@ export class NativeAudioService {
     })
   }
   enabled(): boolean { return this.database.getSettings().recordingAudio.desktopEngine === 'native' }
+  releaseRecording(takeId: string): Promise<void> {
+    this.preparation?.abort()
+    return this.enqueue(async () => {
+      if (!this.song?.recordingTracks.some(track => track.activeTakeId === takeId)) return
+      if (this.practice && this.lastState) this.practice = { ...this.practice, positionMs: this.lastState.positionMs }
+      if (this.host.hasActiveTimeline()) await this.host.timeline({ action: 'unload' })
+      this.host.clearTimeline()
+      await Promise.allSettled([...this.recordingNodes.values()].map(node => node.source.dispose()))
+      this.recordingNodes.clear(); this.releaseRetired(); this.loadedSourcesKey = ''
+    })
+  }
   private releaseRetired(revision = Infinity): void {
     const ready = this.retiredNodes.filter(node => node.revision <= revision)
     this.retiredNodes = this.retiredNodes.filter(node => node.revision > revision)
@@ -162,6 +173,7 @@ export class NativeAudioService {
     return { tracks: [...p.tracks.map(t => t.stemType), ...(this.song?.recordingTracks.map(t => t.id) ?? [])].map(id => ({ id, gain: this.trackGain(id) })), masterGain: dbToGain(p.masterGainDb), bpm: p.metronomeBpm, beatOffsetMs: p.metronomeOffsetMs, metronome: p.metronomeEnabled, loopStartMs: loop?.startMs ?? 0, loopEndMs: loop?.endMs ?? 0, eq: p.eq }
   }
   update(practice: PracticeState): Promise<void> {
+    void this.arsenal.refreshMonitorMix(practice).catch(() => undefined)
     if (this.preparingSources && this.practice && practice.playbackRate === this.practice.playbackRate && practice.pitchSemitones === this.practice.pitchSemitones) {
       // M/S, master and EQ remain live while the replacement source is built.
       this.practice = practice

@@ -98,6 +98,7 @@ export type JobStatus =
   | 'blockedRuntime'
   | 'preparing'
   | 'separating'
+  | 'transcribing'
   | 'postprocessing'
   | 'cancelling'
   | 'cancelled'
@@ -477,6 +478,7 @@ export interface RecordingDeviceInfo {
   duplexChannels: number
   sampleRates: number[]
   preferredSampleRate: number
+  currentSampleRate?: number
   defaultInput: boolean
   defaultOutput: boolean
 }
@@ -527,9 +529,10 @@ export interface RecordingStartRequest {
 }
 
 export interface JobRecord {
+  scoreProjectId?: string | null
   id: string
   songId: string | null
-  type: 'separate' | 'guitarSplit' | 'vocalSplit' | 'normalizeStems' | 'export' | 'runtimeInstall'
+  type: 'separate' | 'guitarSplit' | 'vocalSplit' | 'normalizeStems' | 'export' | 'runtimeInstall' | 'transcribe'
   status: JobStatus
   phase: string
   progress: number
@@ -585,7 +588,8 @@ export interface BpmDetectionResult {
   bpm: number
   confidence: number
   beatOffsetMs: number
-  analyzedStem: StemType
+  analyzedStem: StemType | 'mix'
+  model: 'beat-this-final0'
 }
 
 export interface NetworkSettings {
@@ -676,6 +680,7 @@ export interface ExportRequest {
   loopEndMs: number | null
   overwriteMode: 'ask' | 'overwrite' | 'rename'
   includeActiveTake: boolean
+  recordingTrackIds?: string[]
 }
 
 export interface ExportResult {

@@ -575,6 +575,13 @@ function RecordingTrackRow(props: RecordingTrackRowProps): React.JSX.Element {
           : <button className="record-button" aria-label="其他录音轨正在录音" disabled><Circle size={16} /></button>}
     </span>
     <div className="recording-wave-wrap">
+      <div className="recording-take-actions">
+        <select aria-label={`${track.name} Take`} value={track.activeTakeId ?? ''} disabled={running || locked || !takes.length} onChange={event => onSelectTake(event.target.value || null)}>
+          <option value="">未选择 Take</option>
+          {takes.map(take => <option key={take.id} value={take.id}>{take.name}</option>)}
+        </select>
+        <button disabled={running || locked || !activeTake} title="仅删除当前 Take，保留录音轨和音色设置" onClick={() => { if (activeTake) onDeleteTake(activeTake.id) }}>删除 Take</button>
+      </div>
       {<div className="meter-wave"><Waveform
         stemType="recording"
         peaksUrl={activeTake?.peaksUrl ?? null}

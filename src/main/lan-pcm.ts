@@ -1,44 +1,9 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
-import type { Readable } from 'node:stream'
+import { AudioPipeReader as PipeReader } from './audio-pipe.js'
 import { LAN_PCM_FRAMES, LAN_PCM_RATE } from '@shared/lan.js'
 import { spawnSafe } from './process.js'
 
 export interface LanPcmSource { path: string; drums: boolean; gain: number }
-
-/** Reads exact PCM frame boundaries without collecting the whole decoder output. */
-class PipeReader {
-  private wake: (() => void) | null = null
-  constructor(private stream: Readable, private readonly exit: Promise<number>) {
-    // A readable listener also prevents ChildProcess.flushStdio() from draining
-    // short decoder outputs before the DSP has finished its startup handshake.
-    const wake = (): void => { this.wake?.(); this.wake = null }
-    stream.on('readable', wake); stream.on('end', wake); stream.on('error', wake); stream.on('close', wake)
-  }
-  async read(length: number, pad = false): Promise<Buffer> {
-    const output = Buffer.alloc(length)
-    let offset = 0
-    while (offset < length) {
-      const chunk = this.stream.read(Math.min(65536, length - offset)) as Buffer | null
-      if (chunk) { chunk.copy(output, offset); offset += chunk.length; continue }
-      if (this.stream.errored) throw this.stream.errored
-      if (this.stream.readableEnded || this.stream.destroyed) {
-        if (pad && await this.exit === 0) return output
-        throw new Error('LAN_PCM_PIPE_CLOSED')
-      }
-      await new Promise<void>(resolve => { this.wake = resolve })
-    }
-    return output
-  }
-  async line(): Promise<string> {
-    let value = ''
-    while (value.length < 4096) {
-      const byte = (await this.read(1))[0]!
-      if (byte === 10) return value
-      value += String.fromCharCode(byte)
-    }
-    throw new Error('LAN_PCM_INVALID_HEADER')
-  }
-}
 
 /** One bounded decoder/DSP pair per remote session. Pulling drives both pipes. */
 export class LanPcmRenderer {
@@ -52,13 +17,13 @@ export class LanPcmRenderer {
   private total: number
   private disposeParent: () => void
   private constructor(ffmpeg: string, executable: string, private sources: LanPcmSource[],
-    private position: number, duration: number, private rate: number, pitch: number, signal: AbortSignal) {
+    private position: number, duration: number, private rate: number, pitch: number, signal: AbortSignal, private sampleRate: number) {
     signal.throwIfAborted()
     this.disposeParent = () => this.dispose()
     signal.addEventListener('abort', this.disposeParent, { once: true })
-    this.total = Math.max(0, Math.ceil((duration - position) * LAN_PCM_RATE / rate - 1e-7))
+    this.total = Math.max(0, Math.ceil((duration - position) * sampleRate / rate - 1e-7))
     const inputs = sources.flatMap(source => ['-ss', position.toFixed(9), '-i', source.path])
-    const filters = sources.map((_, index) => `[${index}:a]aresample=${LAN_PCM_RATE},aformat=sample_fmts=flt:channel_layouts=stereo,apad,atrim=duration=${Math.max(.001, duration - position).toFixed(9)}[s${index}]`)
+    const filters = sources.map((_, index) => `[${index}:a]aresample=${sampleRate},aformat=sample_fmts=flt:channel_layouts=stereo,apad,atrim=duration=${Math.max(.001, duration - position).toFixed(9)}[s${index}]`)
     filters.push(`${sources.map((_, index) => `[s${index}]`).join('')}${sources.length === 1 ? 'anull' : `amerge=inputs=${sources.length}`}[pcm]`)
     this.decoder = spawnSafe(ffmpeg, ['-nostdin', '-v', 'error', '-filter_complex_threads', '1', ...inputs,
       '-filter_complex', filters.join(';'), '-map', '[pcm]', '-threads', '1', '-c:a', 'pcm_f32le', '-f', 'f32le', 'pipe:1'], { signal: this.controller.signal })
@@ -74,14 +39,14 @@ export class LanPcmRenderer {
       return new PipeReader(child.stdout, exited)
     }
     this.decoded = reader(this.decoder); this.rendered = reader(this.dsp)
-    this.dsp.stdin.write(JSON.stringify({ drums: sources.map(source => source.drums), rate, pitch }) + '\n')
+    this.dsp.stdin.write(JSON.stringify({ drums: sources.map(source => source.drums), rate, pitch, sampleRate }) + '\n')
     this.detach = () => signal.removeEventListener('abort', this.disposeParent)
   }
   private detach: () => void
   static async create(ffmpeg: string, executable: string, sources: LanPcmSource[], position: number, duration: number,
-    rate: number, pitch: number, signal: AbortSignal): Promise<LanPcmRenderer> {
+    rate: number, pitch: number, signal: AbortSignal, sampleRate = LAN_PCM_RATE): Promise<LanPcmRenderer> {
     if (!sources.length || sources.length > 16) throw new Error('LAN_PCM_TRACK_LIMIT')
-    const renderer = new LanPcmRenderer(ffmpeg, executable, sources, position, duration, rate, pitch, signal)
+    const renderer = new LanPcmRenderer(ffmpeg, executable, sources, position, duration, rate, pitch, signal, sampleRate)
     const timeout = setTimeout(() => renderer.dispose(), 15_000)
     try {
       const { primeFrames } = JSON.parse(await renderer.rendered.line())
@@ -106,7 +71,7 @@ export class LanPcmRenderer {
     const target = Math.round((this.produced + frames) * this.rate)
     const inputFrames = target - this.consumed
     const pcm = await this.process(inputFrames, frames)
-    const position = this.position + this.produced * this.rate / LAN_PCM_RATE
+    const position = this.position + this.produced * this.rate / this.sampleRate
     this.consumed = target; this.produced += frames
     return { pcm, frames, position, ended: this.produced >= this.total }
   }

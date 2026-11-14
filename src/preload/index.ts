@@ -1,4 +1,6 @@
 import { normalizeAppearance, resolveTheme } from '@shared/appearance.js'
+import { REALTIME_CHANNEL, REALTIME_EVENT } from '@shared/realtime-separation.js'
+import { SCORES_CHANNEL, SCORES_CHANGED } from '@shared/scores.js'
 import type { StartupState } from '@shared/startup.js'
 import { ARSENAL_CHANNEL, ARSENAL_MONITOR_EVENT } from '@shared/arsenal.js'
 import { PLUGINS_CHANNEL } from '@shared/audio-plugins.js'
@@ -58,6 +60,33 @@ async function invoke(channel: string, ...args: unknown[]): Promise<any> {
 }
 
 const api: BandBuddyApi = {
+  realtimeSeparation: {
+    capabilities: () => invoke(REALTIME_CHANNEL, { op: 'capabilities' }),
+    state: () => invoke(REALTIME_CHANNEL, { op: 'state' }),
+    configure: input => invoke(REALTIME_CHANNEL, { op: 'configure', input }),
+    test: () => invoke(REALTIME_CHANNEL, { op: 'test' }),
+    start: () => invoke(REALTIME_CHANNEL, { op: 'start' }),
+    stop: () => invoke(REALTIME_CHANNEL, { op: 'stop' }),
+    mix: input => invoke(REALTIME_CHANNEL, { op: 'mix', input }),
+    openSetup: target => invoke(REALTIME_CHANNEL, { op: 'openSetup', input: target }),
+    onChanged: callback => subscribe(REALTIME_EVENT, callback)
+  },
+  scores: {
+    list: () => invoke(SCORES_CHANNEL, { op: 'list' }),
+    get: id => invoke(SCORES_CHANNEL, { op: 'get', id }),
+    create: input => invoke(SCORES_CHANNEL, { op: 'create', input }),
+    transcribe: (id, model, device) => invoke(SCORES_CHANNEL, { op: 'transcribe', id, input: { model, device } }),
+    render: (id, input) => invoke(SCORES_CHANNEL, { op: 'render', id, input }),
+    savePractice: (id, input) => invoke(SCORES_CHANNEL, { op: 'practice', id, input }),
+    notation: (id, trackIds, tab, startBar) => invoke(SCORES_CHANNEL, { op: 'notation', id, input: { trackIds, tab, startBar } }),
+    export: (id, trackIds, format, quantized, tab) => invoke(SCORES_CHANNEL, { op: 'export', id, input: { trackIds, format, quantized, tab } }),
+    delete: id => invoke(SCORES_CHANNEL, { op: 'delete', id }),
+    runtime: () => invoke(SCORES_CHANNEL, { op: 'runtime' }),
+    prepare: input => invoke(SCORES_CHANNEL, { op: 'prepare', input }),
+    cancelPreparation: () => invoke(SCORES_CHANNEL, { op: 'cancelPreparation' }),
+    soundfont: () => invoke(SCORES_CHANNEL, { op: 'soundfont' }),
+    onChanged: callback => subscribe(SCORES_CHANGED, callback)
+  },
   ai: {
     getSettings: () => invoke(AI_CHANNEL, { op: 'settings' }),
     saveSettings: input => invoke(AI_CHANNEL, { op: 'saveSettings', input }),

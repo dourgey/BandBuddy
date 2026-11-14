@@ -77,6 +77,10 @@ else()
   FetchContent_MakeAvailable(rtaudio nlohmann_json)
 endif()
 
+if(WIN32)
+  include(cmake/asio-current-rate.cmake)
+endif()
+
 if(APPLE)
   # RtAudio's CoreAudio backend otherwise converts device names using the
   # system encoding, which is not necessarily UTF-8 as required by JSON.
@@ -96,6 +100,20 @@ if(BANDBUDDY_AUDIO_CORE_TESTS)
   endif()
 endif()
 add_executable(bandbuddy-audio-host src/main.cpp)
+add_library(bandbuddy-realtime-audio SHARED src/realtime-audio.cpp)
+target_link_libraries(bandbuddy-realtime-audio PRIVATE nlohmann_json::nlohmann_json)
+target_compile_definitions(bandbuddy-realtime-audio PRIVATE NOMINMAX)
+if(WIN32)
+  target_link_libraries(bandbuddy-realtime-audio PRIVATE ole32 uuid avrt winmm)
+elseif(APPLE)
+  enable_language(OBJCXX)
+  target_sources(bandbuddy-realtime-audio PRIVATE src/realtime-audio-mac.mm)
+  target_compile_options(bandbuddy-realtime-audio PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+  target_link_libraries(bandbuddy-realtime-audio PRIVATE "-framework CoreAudio" "-framework Foundation")
+endif()
+install(TARGETS bandbuddy-realtime-audio
+  RUNTIME DESTINATION . COMPONENT BandBuddyAudioHost
+  LIBRARY DESTINATION . COMPONENT BandBuddyAudioHost)
 target_link_libraries(bandbuddy-audio-host PRIVATE bandbuddy_effects)
 target_link_libraries(bandbuddy-audio-host PRIVATE rtaudio nlohmann_json::nlohmann_json signalsmith-stretch)
 target_compile_definitions(bandbuddy-audio-host PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)

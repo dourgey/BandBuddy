@@ -37,6 +37,11 @@ export function proxyFromPac(result: string): string | null {
 
 /** One network policy for Electron downloads and managed Python/uv processes. */
 export class RuntimeNetwork {
+  /** Authenticated metadata/download requests use the same explicit proxy policy. */
+  async fetch(url: string, network: NetworkSettings, options: RequestInit = {}): Promise<Response> {
+    if (new URL(url).protocol !== 'https:') throw new Error('INSECURE_DOWNLOAD_URL')
+    return (await this.configured(network)).fetch(url, options)
+  }
   private downloader: ArtifactDownloader | null = null
   private readonly failedUrls = new Set<string>()
   diagnostics(): ReturnType<ArtifactDownloader['diagnostics']> { return this.downloader?.diagnostics() ?? [] }

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "package": {
+    "filename": "beat_this-1.1.0-py3-none-any.whl",
+    "sha256": "3f2b2d1e027c6dac380bf80c71555e3c28a4036a7f1af20129a945915a72a645",
+    "url": "https://files.pythonhosted.org/packages/ce/0e/e23cbbe6e3efcd54e84dec22b6d88954655036a993cc3843ab741bc24de4/beat_this-1.1.0-py3-none-any.whl"
+  },
+  "model": {
+    "id": "beat-this-final0",
+    "filename": "final0.ckpt",
+    "size": 81058141,
+    "sha256": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
+    "urls": ["https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt"]
+  }
+}

@@ -1,4 +1,4 @@
-import { Dumbbell, AudioLines, ClipboardList, Copy as RestoreIcon, Library, ListMusic, Minus, Music2, Settings, Square, X, PackageOpen } from 'lucide-react'
+import { BookOpen, Dumbbell, AudioLines, ClipboardList, Copy as RestoreIcon, Library, ListMusic, Minus, Music2, Settings, Square, X, PackageOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export function Header({
@@ -11,8 +11,8 @@ export function Header({
   recording = false,
   onClose
 }: {
-  view: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'
-  onView(view: 'library' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal'): void
+  view: 'library' | 'scores' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal' | 'realtime'
+  onView(view: 'library' | 'scores' | 'practice' | 'woodshed' | 'rehearsal' | 'arsenal' | 'realtime'): void
   taskCount: number
   onTasks(): void
   onSettings(): void
@@ -36,10 +36,12 @@ export function Header({
     </div>
     <nav className="top-nav no-drag" aria-label="主导航" title={locked ? '录音进行中，请先停止并保存录音后切换页面' : undefined}>
       <button disabled={locked} className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}><Library size={19} />曲库</button>
+      <button disabled={locked} className={view === 'scores' ? 'active' : ''} onClick={() => onView('scores')}><BookOpen size={19} />藏经阁</button>
       <button disabled={locked} className={view === 'practice' ? 'active' : ''} onClick={() => onView('practice')}><Music2 size={20} />练习室</button>
       <button disabled={locked} className={view === 'woodshed' ? 'active' : ''} onClick={() => onView('woodshed')}><Dumbbell size={19} />练功房</button>
       <button disabled={locked} className={view === 'rehearsal' ? 'active' : ''} onClick={() => onView('rehearsal')}><ListMusic size={20} />排练房</button>
       <button disabled={locked} className={view === 'arsenal' ? 'active' : ''} onClick={() => onView('arsenal')}><PackageOpen size={19} />军火库</button>
+      <button disabled={locked} className={view === 'realtime' ? 'active' : ''} onClick={() => onView('realtime')}><AudioLines size={19} />实时分轨</button>
     </nav>
     {recording && <span className="recording-navigation-note" role="status">录音中 · 可切页浏览</span>}
     <div className="title-actions no-drag">

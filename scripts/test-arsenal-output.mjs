@@ -14,6 +14,11 @@ if (!process.versions.electron) {
   const { build } = await import('vite')
   await build({ configFile: false, logLevel: 'error', build: { ssr: path.join(root, 'src/main/arsenal-output.ts'), outDir: directory,
     emptyOutDir: false, rollupOptions: { output: { entryFileNames: 'transport.mjs' } } } })
+  const routingEntry = path.join(directory, 'routing-entry.ts')
+  await writeFile(routingEntry, ['native-output.ts', 'output-coordinator.ts'].map(name =>
+    `export * from ${JSON.stringify(path.join(root, 'src/renderer/src/arsenal', name).replaceAll('\\', '/'))}`).join('\n'))
+  await build({ configFile: false, base: './', logLevel: 'error', resolve: { alias: { '@shared': path.join(root, 'packages/shared/src') } },
+    build: { outDir: path.join(directory, 'routing'), rollupOptions: { input: routingEntry, preserveEntrySignatures: 'strict', output: { entryFileNames: 'routing.mjs' } } } })
   const env = { ...process.env, ARSENAL_OUTPUT_TEST_ROOT: directory }
   delete env.ELECTRON_RUN_AS_NODE
   const child = spawn(electron, [fileURLToPath(import.meta.url)], { cwd: root, env, stdio: 'inherit', windowsHide: true })
@@ -151,8 +156,10 @@ async function verifyWorklet() {
     if (moduleUrl.startsWith('data:')) throw new Error('Arsenal output must be emitted as a separate script asset')
     const native = receiver.diagnostics()
     if (native.pcmUnderruns || native.invalidSamples) throw new Error(`Native output starvation: ${JSON.stringify(native)}`)
-    console.log(JSON.stringify({ ...result, moduleUrl, workerUrl, continuity, native }))
+    const routing = await verifyOutputRoutes(window, directory, endpoint, receiver, segments)
+    console.log(JSON.stringify({ ...result, moduleUrl, workerUrl, continuity, native, routing }))
     console.log('PASS: built audio worker preserves PCM through 10 UI stalls, monitor restart and bus reset under production CSP')
+    console.log('PASS: monitor off/on preserves accompaniment amplitude and exactly one output path in shared and exclusive modes')
   } catch (error) {
     console.error(error)
     exitCode = 1
@@ -161,6 +168,66 @@ async function verifyWorklet() {
     await receiver.close()
     app.exit(exitCode)
   }
+}
+
+async function verifyOutputRoutes(window, directory, endpoint, receiver, segments) {
+  const routingUrl = pathToFileURL(path.join(directory, 'routing/routing.mjs')).href
+  await window.webContents.executeJavaScript(`(async () => {
+    const routing = await import(${JSON.stringify(routingUrl)});
+    // Observe the actual browser output graph, with a silent hardware sink.
+    const context = new AudioContext({ sinkId: { type: 'none' } });
+    const probe = context.createAnalyser(); probe.fftSize = 2048;
+    probe.connect(context.destination);
+    Object.defineProperty(context, 'destination', { value: probe });
+    const sinkSwitches = [];
+    context.setSinkId = async value => { sinkSwitches.push(value); };
+    let backend = 'auto', state = { active: false, redirectBrowserOutput: false };
+    const listeners = new Set(), errors = [];
+    const emit = next => { state = next; listeners.forEach(fn => fn(state)); };
+    window.addEventListener('arsenal-output-error', event => errors.push(event.detail));
+    window.bandbuddy = {
+      settings: { get: async () => ({ recordingAudio: { backend } }) },
+      arsenal: { feed: async () => { throw new Error('Expected the real PCM worker'); },
+        outputTransport: async () => ${JSON.stringify(endpoint)}, monitorState: async () => state,
+        onMonitor: fn => { listeners.add(fn); return () => listeners.delete(fn); },
+        monitor: async () => { emit({ active: false, redirectBrowserOutput: false }); return state; }
+      }
+    };
+    const source = context.createConstantSource(); source.offset.value = .125;
+    source.connect(routing.arsenalDestination(context)); source.start(); await context.resume();
+    window.monitorOutputTest = {
+      async set(nextBackend, active) {
+        backend = nextBackend;
+        if (active) await routing.prepareNativeOutput();
+        emit({ active, redirectBrowserOutput: active && (backend === 'asio' || backend === 'wasapi-exclusive') });
+        if (!active) await routing.restoreBrowserOutput();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (errors.length) throw new Error(errors.join('; '));
+        const samples = new Float32Array(probe.fftSize); probe.getFloatTimeDomainData(samples);
+        return { browserPeak: Math.max(...samples.map(Math.abs)), sinkSwitches: sinkSwitches.length };
+      },
+      async close() { source.stop(); await context.close(); }
+    };
+  })()`)
+  const results = []
+  try {
+    for (const backend of ['auto', 'wasapi-shared', 'coreaudio', 'asio', 'wasapi-exclusive']) {
+      for (const active of [false, true, false]) {
+        const before = segments.flat().length
+        const browser = await window.webContents.executeJavaScript(`window.monitorOutputTest.set(${JSON.stringify(backend)}, ${active})`)
+        const nativePeak = receiver.outputPeak()
+        const totalPeak = browser.browserPeak + nativePeak
+        if (Math.abs(totalPeak - .125) > .0001) throw new Error(`Changed/duplicated accompaniment: ${JSON.stringify({ backend, active, ...browser, nativePeak })}`)
+        const redirects = active && (backend === 'asio' || backend === 'wasapi-exclusive')
+        if (redirects ? browser.browserPeak > .0001 || nativePeak < .1249 : nativePeak > .0001 || browser.browserPeak < .1249)
+          throw new Error(`Wrong output owner: ${JSON.stringify({ backend, active, ...browser, nativePeak })}`)
+        if (!['asio', 'wasapi-exclusive'].includes(backend) && (segments.flat().length !== before || browser.sinkSwitches))
+          throw new Error(`Shared monitoring switched or duplicated the backing route: ${backend}`)
+        results.push({ backend, active, browserPeak: browser.browserPeak, nativePeak, levelChangeDb: 20 * Math.log10(totalPeak / .125) })
+      }
+    }
+  } finally { await window.webContents.executeJavaScript('window.monitorOutputTest.close()') }
+  return results
 }
 
 async function nativeReceiver() {
@@ -187,7 +254,7 @@ async function nativeReceiver() {
   const devices = await rpc('devices'), device = devices[0]
   await rpc('startTest', { backend: device.backend, inputDeviceId: device.id, outputDeviceId: device.id,
     inputChannels: [0], sampleRate: 44100, bufferFrames: 256, monitorMode: 0, outputOnly: true })
-  return { rpc, diagnostics: () => {
+  return { rpc, outputPeak: () => meter?.diagnostics.finalPeak ?? 0, diagnostics: () => {
     if (!meter) throw new Error('Missing native output diagnostics')
     return { outputRate: 44100, pcmUnderruns: meter.pcmUnderruns, invalidSamples: meter.diagnostics.invalidSamples }
   }, close: async () => { try { await rpc('stopTest') } finally { child.kill(); lines.close() } } }

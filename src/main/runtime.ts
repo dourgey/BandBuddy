@@ -264,7 +264,7 @@ export class RuntimeManager {
     }
   }
 
-  private async detectGpuCompatibility(): Promise<{ driverVersion: string; computeCapability: string } | null> {
+  async detectGpuCompatibility(): Promise<{ driverVersion: string; computeCapability: string } | null> {
     if (process.platform !== 'win32') return null
     const executable = path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'nvidia-smi.exe')
     try {
@@ -771,7 +771,7 @@ export class RuntimeManager {
     if (version) this.update({ windowsVcRuntimeVersion: version })
   }
 
-  private async ensureUv(signal: AbortSignal): Promise<string> {
+  async ensureUv(signal: AbortSignal): Promise<string> {
     const packaged = this.paths.packagedResource('bin', UV_FILE.output)
     if (existsSync(packaged)) {
       const actualSha256 = await this.fileSha256(packaged)

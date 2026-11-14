@@ -26,7 +26,7 @@ export function arsenalDestination(context: AudioContext): AudioNode {
   let node: AudioWorkletNode | undefined, initializationError: Error | undefined
   let worker: Worker | undefined, workerRequest = 0
   const workerRequests = new Map<number, { resolve(): void; reject(error: Error): void }>()
-  let desired = false, failed = false, closed = false, prepared = false, epoch = 0, monitorRevision = 0
+  let desired = false, failed = false, closed = false, prepared = false, ownsOutput = false, localConnected = true, epoch = 0, monitorRevision = 0
   let transition = Promise.resolve(), transfers = Promise.resolve()
   const control = (enabled: boolean): void => {
     const message = { enabled, epoch: ++epoch }
@@ -48,6 +48,10 @@ export function arsenalDestination(context: AudioContext): AudioNode {
     route.active = false
     control(false)
   }
+  const disconnectLocal = (): void => {
+    local.gain.setValueAtTime(0, context.currentTime)
+    if (localConnected) { local.disconnect(); localConnected = false }
+  }
   const resetBus = (): Promise<void> => {
     // Wait out old sends before resetting/reusing this bus. Old queued packets
     // check their epoch before sending, and cannot affect a new monitor session.
@@ -59,28 +63,41 @@ export function arsenalDestination(context: AudioContext): AudioNode {
   }
   const restore = async (): Promise<void> => {
     prepared = false
+    if (!ownsOutput) return
     await resetBus()
     if (closed) return
     if (selector.setSinkId) await selector.setSinkId(route.sink)
+    if (closed) return
     local.gain.setValueAtTime(1, context.currentTime)
+    if (!localConnected) { local.connect(context.destination); localConnected = true }
+    ownsOutput = false
   }
   const apply = (): void => {
     void serialize(async () => {
-      if (closed || !node || initializationError) return
+      if (closed) return
       if (desired && !failed) {
+        await ensureReady()
+        if (!node || initializationError) throw initializationError ?? new Error('统一输出模块未就绪')
         if (route.active) return
         await transfers
         if (closed || !desired || failed) return
-        if (selector.setSinkId) await selector.setSinkId({ type: 'none' })
+        if (!ownsOutput) {
+          ownsOutput = true
+          disconnectLocal()
+          if (selector.setSinkId) await selector.setSinkId({ type: 'none' })
+        }
         if (closed || !desired || failed) return
         prepared = false
         local.gain.setValueAtTime(0, context.currentTime)
         route.active = true
         control(true)
       } else if (!prepared) await restore()
-    }).catch(error => {
-      disable(); local.gain.value = 1
+    }).catch(async error => {
+      failed = true; disable()
       reportOutputError(`伴奏输出切换失败：${String(error)}`)
+      // Do not reconnect a local copy while native PCM may still be queued.
+      if (desired) await api.monitor({ mode: 'off', chain: defaultEffectChain() }).catch(() => undefined)
+      await serialize(restore).catch(error => reportOutputError(`恢复播放输出失败：${String(error)}`))
     })
   }
   const failOutput = (reason: string, version: number): void => {
@@ -93,18 +110,20 @@ export function arsenalDestination(context: AudioContext): AudioNode {
   const off = api.onMonitor(state => {
     monitorRevision++
     // Meter events carry the same state; they are not output transitions.
-    if (desired === state.active) return
-    desired = state.active
+    const redirect = state.active && state.redirectBrowserOutput !== false
+    if (desired === redirect && !(prepared && !redirect)) return
+    desired = redirect
     if (!desired) { failed = false; prepared = false; disable() }
     apply()
   })
   const initialRevision = monitorRevision
   void api.monitorState().then(state => {
     if (closed || initialRevision !== monitorRevision) return
-    desired = state.active; apply()
+    desired = state.active && state.redirectBrowserOutput !== false; apply()
   }).catch(error => reportOutputError(String(error)))
   // Small worklets must remain files: the application CSP disallows data: scripts.
-  const ready = context.audioWorklet.addModule(outputWorkletUrl).then(async () => {
+  let ready: Promise<void> | undefined
+  const ensureReady = (): Promise<void> => ready ??= context.audioWorklet.addModule(outputWorkletUrl).then(async () => {
     if (closed) return
     node = new AudioWorkletNode(context, 'bandbuddy-arsenal-output', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit' })
     input.connect(node).connect(context.destination)
@@ -150,18 +169,17 @@ export function arsenalDestination(context: AudioContext): AudioNode {
         if (!closed && version === epoch) node?.port.postMessage({ ack: true, epoch: version })
       })
     }
-    apply()
   }).catch(error => {
     initializationError = new Error(`无法启动统一音频输出：${String(error)}`)
     reportOutputError(initializationError.message)
   })
   const managed = {
     prepare: async (): Promise<void> => {
-      await ready
+      await ensureReady()
       await serialize(async () => {
         if (closed) return
         if (!node || initializationError) throw initializationError ?? new Error('统一输出模块未就绪')
-        prepared = true; local.gain.setValueAtTime(0, context.currentTime)
+        prepared = true; ownsOutput = true; disconnectLocal()
         if (selector.setSinkId) await selector.setSinkId({ type: 'none' })
       })
     },
@@ -172,7 +190,7 @@ export function arsenalDestination(context: AudioContext): AudioNode {
     if (context.state !== 'closed') return
     closed = true; disable(); off(); nativeOutputRoutes.delete(managed); routes.delete(context)
     node?.disconnect(); input.disconnect(); local.disconnect()
-    void resetBus().finally(() => { worker?.terminate(); slots.delete(bus) })
+    void (ownsOutput ? resetBus() : Promise.resolve()).finally(() => { worker?.terminate(); slots.delete(bus) })
     context.removeEventListener('statechange', dispose)
   }
   context.addEventListener('statechange', dispose)

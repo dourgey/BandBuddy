@@ -4,6 +4,7 @@ export { MODELED_AMPS, MODELED_CABS } from './amp-cab-catalog.js'
 import { z } from 'zod'
 import { externalPluginSchema, type ExternalPlugin } from './audio-plugins.js'
 import type { IrAttribution } from './cabinet-ir-library.js'
+import type { AudioBackend } from './domain.js'
 
 export const EFFECT_BLOCKS = ['dynamic', 'drive', 'amp', 'cab', 'eq', 'mod', 'delay', 'reverb'] as const
 export const CLASSIC_AMPS = nameModels('amp', [
@@ -168,7 +169,14 @@ export interface ArsenalDraft { name: string; presetId?: string; chain: EffectCh
 export interface ArsenalWorkspace { favorites?: string[]; draft: ArsenalDraft | null; takes: ArsenalTake[]; quick: { recording: boolean; looping: boolean; durationMs: number }; }
 export type ArsenalCommand = {action:'favorite';id:string;value:boolean} | { action: 'tuner'; enabled: boolean } | { action: 'workspace' | 'stopRecord' | 'stopLoop' } | { action: 'draft'; draft: ArsenalDraft } | { action: 'record'; name: string; chain: EffectChainSnapshot } | { action: 'loop'; id: string; startMs: number; endMs: number } | { action: 'exportTake'; id: string; wet: boolean; chain?: EffectChainSnapshot } | { action: 'deleteTake'; id: string } | { action: 'exportPreset'; preset: ArsenalPreset } | { action: 'importPreset' } | { action: 'assetLink'; id: string; link: 'source' | 'license' } | { action: 'asset'; id: string; name: string; tags: string[]; role: 'amp' | 'pedal' | 'rig' | 'unknown'; favorite: boolean; notes: string }
 export interface ArsenalState { presets: ArsenalPreset[]; assets: ToneAsset[] }
+/** Shared devices can mix browser playback and native input monitoring without
+ * moving accompaniment to another process/audio session (and its OS volume).
+ */
+export function requiresBrowserOutputHandoff(backend: AudioBackend): boolean {
+  return backend === 'asio' || backend === 'wasapi-exclusive'
+}
 export interface ArsenalMonitorState {
+  redirectBrowserOutput?: boolean
   trackId?: string | null
   diagnostics?: import('./audio-plugins.js').AudioDiagnostics
   clock?: import('./audio-plugins.js').ClockDiagnostics

@@ -23,8 +23,39 @@ export interface RecordingPlaybackSource {
 /** File-backed streaming DSP. New takes never enter FFmpeg on this path. */
 export class RecordingPlaybackService {
   private decoding = new Map<string, Promise<string>>()
+  private readers = new Map<string, Set<{ abort: AbortController; done: Promise<void> }>>()
+  private deleting = new Set<string>()
   constructor(private paths: AppPaths, private db: BandBuddyDatabase, private media: MediaService,
     private arsenal: ArsenalService, private host: AudioHostClient) {}
+
+  async withoutReaders<T>(takeId: string, action: () => Promise<T>): Promise<T> {
+    if (this.deleting.has(takeId)) throw new Error('RECORDING_TAKE_DELETING')
+    this.deleting.add(takeId)
+    try {
+      const readers = [...(this.readers.get(takeId) ?? [])]
+      for (const reader of readers) reader.abort.abort()
+      await Promise.all(readers.map(reader => reader.done))
+      return await action()
+    } finally { this.deleting.delete(takeId) }
+  }
+
+  private async takeStream(take: RecordingTake, durationMs: number, practice: PracticeState, effects: TrackEffects | null | undefined,
+    sampleRate: number, options: Record<string, unknown>, signal: AbortSignal): Promise<ReturnType<RecordingPlaybackService['stream']>> {
+    if (this.deleting.has(take.id)) throw new Error('RECORDING_TAKE_DELETING')
+    const abort = new AbortController()
+    let resolve!: () => void
+    const entry = { abort, done: new Promise<void>(done => { resolve = done }) }
+    const readers = this.readers.get(take.id) ?? new Set()
+    this.readers.set(take.id, readers); readers.add(entry)
+    const finish = (): void => { readers.delete(entry); if (!readers.size) this.readers.delete(take.id); resolve() }
+    let source: RecordingPlaybackSource | undefined
+    try {
+      source = await this.open(take, durationMs, practice, effects, sampleRate)
+      const stream = this.stream(source, options, AbortSignal.any([signal, abort.signal]))
+      void stream.done.finally(finish).catch(() => undefined)
+      return stream
+    } catch (error) { try { await source?.dispose() } finally { finish() }; throw error }
+  }
 
   private async source(take: RecordingTake): Promise<string> {
     const file = this.db.getRecordingTakeFile(take.id)
@@ -76,20 +107,27 @@ export class RecordingPlaybackService {
 
   private stream(source: RecordingPlaybackSource, options: Record<string, unknown>, signal: AbortSignal): { audio: Readable; done: Promise<void>; abort(): void } {
     const operation = new AbortController()
-    let child: ReturnType<typeof spawnSafe>
-    try { signal.throwIfAborted(); child = spawnSafe(this.paths.audioHostExecutable(), ['--recording-stream'], { signal: operation.signal }) }
-    catch (error) { void source.dispose(); throw error }
-    const abort = (): void => operation.abort()
+    signal.throwIfAborted()
+    const child = spawnSafe(this.paths.audioHostExecutable(), ['--recording-stream'], { signal: operation.signal })
+    const abort = (): void => {
+      operation.abort()
+      // Chromium may stop reading once its media buffer is full. Closing the
+      // pipe is necessary for ChildProcess.close to arrive after termination.
+      child.stdout.destroy()
+    }
     signal.addEventListener('abort', abort, { once: true })
     let diagnostic = ''
     child.stderr.on('data', data => { diagnostic = (diagnostic + String(data)).slice(-2000) })
     child.stdin.on('error', error => child.stdout.destroy(error))
     const done = new Promise<void>((resolve, reject) => {
-      child.once('error', reject)
+      // Abort emits error before close; wait for close to release Windows file
+      // handles before a take deletion is allowed to continue.
+      let processError: Error | undefined
+      child.once('error', error => { processError = error })
       child.once('close', code => {
         signal.removeEventListener('abort', abort)
         void source.dispose().then(() => {
-          if (code || signal.aborted) reject(new Error(`RECORDING_STREAM_FAILED:${diagnostic || 'cancelled'}`))
+          if (processError || code || signal.aborted) reject(processError ?? new Error(`RECORDING_STREAM_FAILED:${diagnostic || 'cancelled'}`))
           else resolve()
         }, reject)
       })
@@ -103,10 +141,17 @@ export class RecordingPlaybackService {
 
   async renderRange(take: RecordingTake, durationMs: number, practice: PracticeState, effects: TrackEffects | null | undefined,
     sampleRate: number, startMs: number, endMs: number, target: string, signal: AbortSignal): Promise<string> {
-    const source = await this.open(take, durationMs, practice, effects, sampleRate)
-    const stream = this.stream(source, { outputStartMs: startMs / practice.playbackRate, outputDurationMs: (endMs - startMs) / practice.playbackRate }, signal)
+    const stream = await this.takeStream(take, durationMs, practice, effects, sampleRate,
+      { outputStartMs: startMs / practice.playbackRate, outputDurationMs: (endMs - startMs) / practice.playbackRate }, signal)
     try { await Promise.all([pipeline(stream.audio, createWriteStream(target), { signal }), stream.done]); return target }
     finally { stream.abort() }
+  }
+
+  async streamRange(take: RecordingTake, durationMs: number, practice: PracticeState, effects: TrackEffects | null | undefined,
+    sampleRate: number, startMs: number, endMs: number, signal: AbortSignal): Promise<{ audio: Readable; done: Promise<void>; abort(): void }> {
+    // The native stream's 80-byte WAV header is omitted for the backing mixer.
+    return this.takeStream(take, durationMs, practice, effects, sampleRate, { outputStartMs: startMs / practice.playbackRate,
+      outputDurationMs: (endMs - startMs) / practice.playbackRate, startByte: 80 }, signal)
   }
 
   async response(request: Request, takeId: string, pitch: number): Promise<Response> {
@@ -119,8 +164,8 @@ export class RecordingPlaybackService {
     const range = request.headers.get('range'), parsed = range ? parseByteRange(range, size) : { start: 0, end: size - 1 }
     if (!parsed) return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}` } })
     const effects = song.recordingTracks.find(t => t.id === take.recordingTrackId)?.effects
-    const source = await this.open(take, song.durationMs, { ...song.practice, playbackRate: take.playbackRate, pitchSemitones: take.pitchSemitones + pitch }, effects, sampleRate)
-    const stream = this.stream(source, { startByte: parsed.start, endByte: parsed.end }, request.signal)
+    const stream = await this.takeStream(take, song.durationMs, { ...song.practice, playbackRate: take.playbackRate, pitchSemitones: take.pitchSemitones + pitch }, effects, sampleRate,
+      { startByte: parsed.start, endByte: parsed.end }, request.signal)
     return new Response(Readable.toWeb(stream.audio) as BodyInit, { status: range ? 206 : 200,
       headers: { ...mediaResponseHeaders('audio/wav', parsed.end - parsed.start + 1),
         ...(range ? { 'Content-Range': `bytes ${parsed.start}-${parsed.end}/${size}` } : {}) } })

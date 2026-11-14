@@ -103,8 +103,8 @@ export function PlayerBar({
       {practiceMode && <PracticeFooterControls key={song.id} songId={song.id} songDurationMs={song.durationMs} currentMs={currentMs} locked={locked} onCycleLoop={onCycleLoop} onSeek={onSeek} />}
       <div className="footer-volume">
         {practiceMode && <button className={`eq-button ${practice.eq.enabled ? 'active' : ''}`} disabled={locked} aria-label="歌曲均衡器" aria-expanded={eqOpen} title="歌曲 EQ" onClick={onOpenEq}>EQ</button>}
-        <VolumeControl key={song.id} disabled={locked} label="总音量" value={practice.masterGainDb} onChange={masterGainDb => patchPractice({ masterGainDb })} />
-        {practiceMode && song.videoUrl && <VideoWindowButton key={song.id} songId={song.id} src={song.videoUrl} title={song.title} currentMs={currentMs} playing={playing || recordingActive} playbackRate={practice.playbackRate} seekPositionMs={practice.positionMs} outputLatencyMs={outputLatencyMs} />}
+        <VolumeControl key={`volume:${song.id}`} disabled={locked} label="总音量" value={practice.masterGainDb} onChange={masterGainDb => patchPractice({ masterGainDb })} />
+        {practiceMode && song.videoUrl && <VideoWindowButton key={`video:${song.id}`} songId={song.id} src={song.videoUrl} title={song.title} currentMs={currentMs} playing={playing || recordingActive} playbackRate={practice.playbackRate} seekPositionMs={practice.positionMs} outputLatencyMs={outputLatencyMs} />}
         <div className="practice-queue" ref={queuePanel}>
           <button className={`queue-button ${queueOpen ? 'active' : ''}`} aria-label="练习歌曲列表" aria-expanded={queueOpen} onClick={() => setQueueOpen((open) => !open)}><ListMusic size={21} /></button>
           {queueOpen && <div className="practice-queue-popover" role="dialog" aria-label="可练习列表">
@@ -153,8 +153,8 @@ function PracticeFooterControls({
   const [detectingBpm, setDetectingBpm] = useState(false)
   const [bpmMessage, setBpmMessage] = useState('')
   const speedPanel = useRef<HTMLDivElement>(null)
-  const speedOpenTimer = useRef<number | null>(null)
-  const speedCloseTimer = useRef<number | null>(null)
+  const speedToggle = useRef<HTMLButtonElement>(null)
+  const speedDialogId = useId()
   const pitchPanel = useRef<HTMLDivElement>(null)
   const pitchToggle = useRef<HTMLButtonElement>(null)
   const pitchDialogId = useId()
@@ -165,32 +165,6 @@ function PracticeFooterControls({
   const loopEnd = practice.loopEndMs === null || songDurationMs <= 0 ? null : practice.loopEndMs / songDurationMs * 100
   const hasLyrics = Boolean(song.lyrics?.cues.length)
   const pitchDescription = practice.pitchSemitones === 0 ? '原调' : `${formatPitch(practice.pitchSemitones)} 半音`
-
-  const clearSpeedTimers = (): void => {
-    if (speedOpenTimer.current !== null) window.clearTimeout(speedOpenTimer.current)
-    if (speedCloseTimer.current !== null) window.clearTimeout(speedCloseTimer.current)
-    speedOpenTimer.current = null
-    speedCloseTimer.current = null
-  }
-
-  const scheduleSpeedOpen = (): void => {
-    if (speedOpen) return
-    clearSpeedTimers()
-    speedOpenTimer.current = window.setTimeout(() => {
-      speedOpenTimer.current = null
-      setPitchOpen(false)
-      setMetronomeOpen(false)
-      setSpeedOpen(true)
-    }, 500)
-  }
-
-  const scheduleSpeedClose = (): void => {
-    clearSpeedTimers()
-    speedCloseTimer.current = window.setTimeout(() => {
-      speedCloseTimer.current = null
-      setSpeedOpen(false)
-    }, 120)
-  }
 
   const shiftPitch = (direction: -1 | 1): void => {
     if (locked) return
@@ -211,7 +185,6 @@ function PracticeFooterControls({
 
   useEffect(() => () => {
     if (alignmentSaveTimer.current !== null) window.clearTimeout(alignmentSaveTimer.current)
-    clearSpeedTimers()
   }, [])
 
   const saveBpm = (metronomeBpm: number): void => {
@@ -238,14 +211,21 @@ function PracticeFooterControls({
 
   const detectBpm = async (): Promise<void> => {
     setDetectingBpm(true)
-    setBpmMessage('正在分析当前歌曲…')
+    setBpmMessage('Beat This 正在分析歌曲，首次使用需下载约 81 MB 模型…')
     try {
       const result = await window.bandbuddy.media.detectBpm(songId)
+      if (usePlayerStore.getState().song?.id !== songId) return
       patchPractice({ metronomeBpm: result.bpm, metronomeOffsetMs: result.beatOffsetMs })
-      setBpmMessage(`检测到 ${formatBpm(result.bpm)} BPM · ${STEM_META[result.analyzedStem].label}轨 · 拍点 ${result.beatOffsetMs >= 0 ? '+' : ''}${result.beatOffsetMs} ms · 已保存`)
+      setBpmMessage(`检测到 ${formatBpm(result.bpm)} BPM · Beat This · ${result.analyzedStem === 'mix' ? '整曲' : `${STEM_META[result.analyzedStem].label}轨`} · 拍点 ${result.beatOffsetMs >= 0 ? '+' : ''}${result.beatOffsetMs} ms · 已保存`)
     } catch (error) {
       const message = String(error)
-      setBpmMessage(message.includes('FFMPEG_MISSING') ? 'BPM 检测组件不可用' : message.includes('UNSTABLE') ? '未检测到稳定节拍，可手动填写' : 'BPM 检测失败，请重试')
+      setBpmMessage(message.includes('FFMPEG_MISSING') ? 'BPM 检测组件不可用'
+        : message.includes('BPM_RUNTIME_MISSING') ? '请先在设置中准备 AI 运行环境，再检测 BPM'
+        : message.includes('BPM_DETECTION_BUSY') ? '正在检测另一首歌曲，请稍后重试'
+        : message.includes('BPM_AUDIO_LIMIT') ? '目前支持检测 30 分钟以内的歌曲'
+        : message.includes('UNSTABLE') ? '未检测到稳定节拍，可手动填写'
+        : message.includes('DOWNLOAD') || message.includes('NETWORK') ? 'Beat This 模型下载失败，请检查网络设置后重试'
+        : 'Beat This 检测失败，请重试或检查 AI 运行环境')
     } finally {
       setDetectingBpm(false)
     }
@@ -276,9 +256,12 @@ function PracticeFooterControls({
       <LoopButton practice={practice} disabled={locked || songDurationMs <= 0} onClick={onCycleLoop} />
     </div>
 
-    <div className="footer-option speed-option" ref={speedPanel} onMouseEnter={scheduleSpeedOpen} onMouseLeave={scheduleSpeedClose} onFocus={() => { clearSpeedTimers(); setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen(true) }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) scheduleSpeedClose() }}>
-      <button className={`current-speed-button ${speedOpen ? 'active' : ''}`} aria-label={`播放速度 ${practice.playbackRate.toFixed(2)} 倍`} aria-expanded={speedOpen} onClick={() => { clearSpeedTimers(); setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen((open) => !open) }}>{practice.playbackRate.toFixed(2)}×</button>
-      {speedOpen && <div className="speed-popover" role="dialog" aria-label="无级变速滑轨">
+    <div className="footer-option speed-option" ref={speedPanel} onKeyDown={(event) => {
+      event.stopPropagation()
+      if (event.key === 'Escape' && speedOpen) { setSpeedOpen(false); speedToggle.current?.focus() }
+    }}>
+      <button ref={speedToggle} className={`current-speed-button ${speedOpen ? 'active' : ''}`} aria-label={`播放速度 ${practice.playbackRate.toFixed(2)} 倍`} aria-expanded={speedOpen} aria-haspopup="dialog" aria-controls={speedOpen ? speedDialogId : undefined} onClick={() => { setPitchOpen(false); setMetronomeOpen(false); setSpeedOpen((open) => !open) }}>{practice.playbackRate.toFixed(2)}×</button>
+      {speedOpen && <div className="speed-popover" id={speedDialogId} role="dialog" aria-label="无级变速滑轨">
         <div className="speed-continuous-row">
           <span><SlidersHorizontal size={13} />无级变速</span>
           <input aria-label="无级播放速度" type="range" min={PLAYBACK_RATE_MIN} max={PLAYBACK_RATE_MAX} step="0.01" value={practice.playbackRate} onChange={(event) => patchPractice({ playbackRate: Number(event.target.value) })} />
@@ -368,7 +351,7 @@ function PracticeFooterControls({
         </div>
         <InlineGainControl label="节拍器音量滑块" min={-METRONOME_GAIN_LIMIT_DB} max={METRONOME_GAIN_LIMIT_DB} value={practice.metronomeGainDb} onChange={metronomeGainDb => patchPractice({ metronomeGainDb })} />
         <div className="metronome-bpm-row"><span>BPM</span><MetronomeBpmInput value={practice.metronomeBpm} onChange={saveBpm} /></div>
-        <button className="detect-bpm-button" disabled={detectingBpm} onClick={() => void detectBpm()}>{detectingBpm ? <LoaderCircle className="spin" size={15} /> : <MetronomeIcon />}<span><b>{detectingBpm ? '正在检测…' : '检测当前歌曲 BPM'}</b><small>优先分析鼓轨，结果自动保存</small></span></button>
+        <button className="detect-bpm-button" disabled={detectingBpm} onClick={() => void detectBpm()}>{detectingBpm ? <LoaderCircle className="spin" size={15} /> : <MetronomeIcon />}<span><b>{detectingBpm ? '正在检测…' : '检测当前歌曲 BPM'}</b><small>Beat This · 分析整曲，结果自动保存</small></span></button>
         {bpmMessage && <p className={bpmMessage.includes('失败') || bpmMessage.includes('未检测') || bpmMessage.includes('不可用') ? 'error' : ''}>{bpmMessage}</p>}
         <div className="beat-alignment-row">
           <span><b>拍点微调</b><small>负值提前 · 正值延后</small></span>

@@ -8,6 +8,86 @@ vi.mock('../src/main/process.js', () => ({ spawnSafe: mocks.spawn }))
 vi.mock('node:fs', () => ({ existsSync: () => true }))
 
 describe('native audio transport', () => {
+  it('refreshes the ASIO clock before starting, but never probes a driver owned by a live session', async () => {
+    let currentSampleRate = 44_100
+    let probes = 0
+    mocks.spawn.mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString())
+        if (method === 'devices') probes++
+        const result = method === 'devices' ? [{ id: 'asio:0', backend: 'asio', currentSampleRate }] : true
+        child.stdout.write(JSON.stringify({ id, ok: true, result }) + '\n')
+        if (method === 'shutdown') child.emit('exit', 0, null)
+      })
+      return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    expect((await client.devicesForSession('asio'))[0]?.currentSampleRate).toBe(44_100)
+    currentSampleRate = 96_000
+    expect((await client.devicesForSession('asio'))[0]?.currentSampleRate).toBe(96_000)
+    expect(probes).toBe(2)
+    await client.startTest({ backend: 'asio', sampleRate: 96_000 })
+    await client.devicesForSession('asio')
+    expect(probes).toBe(2)
+    await client.shutdown()
+  })
+
+  it('preserves selected devices, native build/stage and the Windows exception code on a crash', async () => {
+    const children: EventEmitter[] = []
+    mocks.spawn.mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      children.push(child)
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString())
+        if (method === 'startTest') {
+          child.stderr.write('{"stage":"host-ready","build":"test-build","portaudio":"19.7"}\n')
+          child.stderr.write('{"stage":"startTest","backend":"asio"}\n')
+          child.emit('exit', 3221225477, null)
+        } else {
+          child.stdout.write(JSON.stringify({ id, ok: true, result: true }) + '\n')
+          if (method === 'shutdown') child.emit('exit', 0, null)
+        }
+      })
+      return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    const event = vi.fn()
+    client.onEvent(event)
+    await expect(client.startTest({ backend: 'asio', inputDeviceId: 'asio:1', outputDeviceId: 'asio:2', sampleRate: 48000, bufferFrames: 256, capturePath: 'private.wav' }))
+      .rejects.toMatchObject({ code: 'AUDIO_HOST_EXITED', details: {
+        backend: 'asio', inputDeviceId: 'asio:1', outputDeviceId: 'asio:2', operation: 'startTest',
+        sampleRate: 48000, bufferFrames: 256, exitCodeHex: '0xC0000005', exception: 'ACCESS_VIOLATION',
+        component: { build: 'test-build', portaudio: '19.7' },
+        stderr: [expect.stringContaining('test-build'), expect.stringContaining('startTest')]
+      } })
+    const evidence = event.mock.calls.find(([value]) => value.event === 'crashed')?.[0].data.evidence
+    expect(JSON.stringify(evidence)).not.toContain('private.wav')
+    expect(evidence.details.backend).toBe('asio')
+    // A subsequent process must not inherit the old device/driver evidence.
+    await client.pause()
+    children[1]!.emit('exit', -1073741819, null)
+    expect(event.mock.calls.at(-1)?.[0].data.evidence.details).toMatchObject({ backend: 'not-selected', component: {}, stderr: [], exitCodeHex: '0xC0000005' })
+  })
+  it('probes only the selected recording backend and reuses a recent device inventory', async () => {
+    const probes: string[] = []
+    mocks.spawn.mockImplementation((_exe, args: string[]) => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), killed: false, kill: vi.fn() })
+      child.stdin.on('data', chunk => {
+        const { id, method } = JSON.parse(chunk.toString())
+        if (method === 'devices') probes.push(args[1]!)
+        child.stdout.write(JSON.stringify({ id, ok: true, result: method === 'devices'
+          ? [{ id: 'wasapi-shared:0', backend: 'wasapi-shared' }, { id: 'wasapi-exclusive:0', backend: 'wasapi-exclusive' }] : true }) + '\n')
+        if (method === 'shutdown') child.emit('exit', 0, null)
+      })
+      return child
+    })
+    const client = new AudioHostClient({ audioHostExecutable: () => 'host' } as never, { warn: vi.fn(), error: vi.fn() } as never)
+    expect(await client.devicesForSession('wasapi-shared')).toEqual([{ id: 'wasapi-shared:0', backend: 'wasapi-shared' }])
+    expect(await client.devicesForSession('wasapi-exclusive')).toEqual([{ id: 'wasapi-exclusive:0', backend: 'wasapi-exclusive' }])
+    await client.devicesForSession('wasapi-shared')
+    expect(probes).toEqual(['wasapi'])
+  })
   it('rejects an incompatible native core before publishing a timeline', async () => {
     const methods: string[] = []
     mocks.spawn.mockImplementation(() => {

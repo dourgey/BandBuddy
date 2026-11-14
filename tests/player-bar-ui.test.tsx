@@ -31,7 +31,7 @@ describe('player bar compact controls', () => {
     vi.clearAllMocks()
   })
 
-  it('shows only the current speed and opens the two-row panel after 500 ms hover', () => {
+  it('stays open after a real click sequence, mouse leave and speed edits until toggled closed', () => {
     vi.useFakeTimers()
     render(<PlayerBar {...baseProps} />)
     const speed = screen.getByRole('button', { name: '播放速度 0.80 倍' })
@@ -39,12 +39,34 @@ describe('player bar compact controls', () => {
     expect(screen.queryByRole('dialog', { name: '无级变速滑轨' })).toBeNull()
 
     fireEvent.mouseEnter(speed.closest('.speed-option')!)
-    act(() => vi.advanceTimersByTime(499))
+    act(() => vi.advanceTimersByTime(500))
     expect(screen.queryByRole('dialog', { name: '无级变速滑轨' })).toBeNull()
-    act(() => vi.advanceTimersByTime(1))
+    fireEvent.pointerDown(speed)
+    fireEvent.focus(speed)
+    fireEvent.click(speed)
+    fireEvent.mouseLeave(speed.closest('.speed-option')!)
+    fireEvent.blur(speed)
+    act(() => vi.advanceTimersByTime(2000))
     expect(screen.getByRole('slider', { name: '无级播放速度' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '1.2×' }))
     expect(usePlayerStore.getState().practice?.playbackRate).toBe(1.2)
+    fireEvent.change(screen.getByRole('slider', { name: '无级播放速度' }), { target: { value: '1.13' } })
+    expect(usePlayerStore.getState().practice?.playbackRate).toBe(1.13)
+    expect(speed.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(speed)
+    expect(screen.queryByRole('dialog', { name: '无级变速滑轨' })).toBeNull()
+  })
+
+  it('closes speed controls with Escape or an outside click and can reopen', () => {
+    render(<PlayerBar {...baseProps} />)
+    const speed = screen.getByRole('button', { name: '播放速度 0.80 倍' })
+    fireEvent.click(speed)
+    fireEvent.keyDown(screen.getByRole('slider', { name: '无级播放速度' }), { key: 'Escape' })
+    expect(document.activeElement).toBe(speed)
+    expect(speed.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(speed)
+    fireEvent.pointerDown(document.body)
+    expect(speed.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('keeps only the master-volume icon visible and toggles mute without losing the level', () => {

@@ -26,11 +26,12 @@ inline int runLanPcm() {
     const auto drums = config.at("drums").get<std::vector<bool>>();
     const unsigned tracks = unsigned(drums.size());
     const double rate = config.at("rate"), pitch = config.at("pitch");
-    if (!tracks || tracks > 16 || !std::isfinite(rate) || rate < .5 || rate > 2 || !std::isfinite(pitch) || std::abs(pitch) > 12) throw std::runtime_error("LAN_PCM_CONFIG");
+    const unsigned sampleRate = config.value("sampleRate", 48000u);
+    if (!tracks || tracks > 16 || sampleRate < 8000 || sampleRate > 192000 || !std::isfinite(rate) || rate < .25 || rate > 4 || !std::isfinite(pitch) || std::abs(pitch) > 12) throw std::runtime_error("LAN_PCM_CONFIG");
     using Stretch = signalsmith::stretch::SignalsmithStretch<float>;
     Stretch harmonic, percussion;
-    harmonic.presetDefault(2, 48000); percussion.presetDefault(2, 48000);
-    harmonic.setTransposeSemitones(pitch, 8000. / 48000);
+    harmonic.presetDefault(2, sampleRate); percussion.presetDefault(2, sampleRate);
+    harmonic.setTransposeSemitones(pitch, 8000. / sampleRate);
     // This bus contains instruments as well as vocals. Voice-formant locking
     // on the entire mix can suppress pitched instrument fundamentals.
     harmonic.setFormantSemitones(0, false);
@@ -54,7 +55,7 @@ inline int runLanPcm() {
       for (unsigned c = 0; c < 2; ++c) { h[c].resize(inFrames); d[c].resize(inFrames); ho[c].resize(outFrames); dout[c].resize(outFrames); }
       for (unsigned f = 0; f < inFrames; ++f) for (unsigned t = 0; t < tracks; ++t) {
         // A gain ramp is continuous across requests, including rapid slider moves.
-        gains[t] += std::clamp(target[t] - gains[t], -1.f / 1680, 1.f / 1680);
+        gains[t] += std::clamp(target[t] - gains[t], -1.f / (sampleRate * .035f), 1.f / (sampleRate * .035f));
         auto& bus = drums[t] ? d : h;
         for (unsigned c = 0; c < 2; ++c) bus[c][f] += input[(std::size_t(f) * tracks + t) * 2 + c] * gains[t];
       }

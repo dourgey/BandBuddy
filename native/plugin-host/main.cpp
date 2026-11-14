@@ -2,6 +2,7 @@
 #include "effects.h"
 #include "wave-file.h"
 #include "worker-wait.h"
+#include "denormal-scope.h"
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -130,7 +131,7 @@ int worker(const std::string& manifest) {
       if (block.generation != shared.generation || block.frames != ipc::quantum || block.channels != 2 || block.sampleRate != rate) continue;
       { std::lock_guard lock(processingMutex);
         if (shared.fault.load()) block.error = 1;
-        else try { chain.process(block); shared.latency.store(chain.latency()); }
+        else try { DenormalScope denormals; chain.process(block); shared.latency.store(chain.latency()); }
         catch (const std::exception& e) { failure = e.what(); shared.fault.store(1); block.error = 1; }
       }
       if (block.error) block.samples.fill(0);

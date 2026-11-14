@@ -41,6 +41,7 @@ export interface AudioHostStopResult {
 }
 
 export interface AudioHostMeterEvent {
+  callbackRealtimePriority?: boolean
   diagnostics?: import('@shared/audio-plugins.js').AudioDiagnostics
   clock?: import('@shared/audio-plugins.js').ClockDiagnostics
   plugin?: import('@shared/audio-plugins.js').PluginDiagnostics | null
@@ -101,8 +102,12 @@ export class AudioHostClient {
   private readonly listeners = new Set<(event: AudioHostEvent) => void>()
   private expectedExit = false
   private deviceSnapshot: RecordingDeviceInfo[] = []
+  private deviceSnapshotAt = 0
   private probeResults: Array<{ backend: string; error?: unknown; count?: number; warnings?: string[] }> = []
   private stderrEvidence: string[] = []
+  private sessionEvidence: Record<string, unknown> = {}
+  private nativeComponent: Record<string, unknown> = {}
+  private lastOperation = 'startup'
 
   constructor(private readonly paths: AppPaths, private readonly logger: Logger, private readonly probeBackend = '') {
     this.plugins = new AudioPluginService(paths, () => this.liveSession)
@@ -131,7 +136,25 @@ export class AudioHostClient {
     }
     if (results.every(result => result.status === 'rejected')) throw new DiagnosticError('AUDIO_DRIVER_PROBE_FAILED', '所有音频后端探测失败', { backends: this.probeResults })
     this.deviceSnapshot = [...new Map(devices.map(device => [device.id, device])).values()]
+    this.deviceSnapshotAt = Date.now()
     return this.deviceSnapshot
+  }
+
+  async devicesForSession(backend: RecordingDeviceInfo['backend']): Promise<RecordingDeviceInfo[]> {
+    const cached = this.deviceSnapshot.filter(device => device.backend === backend)
+    // Another ASIO/WDM client can change the hardware clock after the device
+    // picker was opened. Refresh before a new ASIO session; never re-probe a
+    // driver owned by our live session.
+    if (cached.length && (this.liveSession || (backend !== 'asio' && Date.now() - this.deviceSnapshotAt < 30000))) return cached
+    // Opening WASAPI must never wait for an unrelated ASIO driver to respond.
+    const selected = backend.startsWith('wasapi') ? 'wasapi' : backend
+    const probe = new AudioHostClient(this.paths, this.logger, selected)
+    try {
+      const devices = await probe.request<RecordingDeviceInfo[]>('devices', { backend: selected }, 15000)
+      this.deviceSnapshot = devices
+      this.deviceSnapshotAt = Date.now()
+      return devices.filter(device => device.backend === backend)
+    } finally { await probe.shutdown() }
   }
 
   async inspect(settings: RecordingAudioSettings, signal: AbortSignal): Promise<{ checks: EnvironmentCheck[]; issues: EnvironmentIssue[] }> {
@@ -215,7 +238,7 @@ export class AudioHostClient {
         if (this.timelineState?.playing) await this.request('timeline', { action: 'play' })
       }
       return result
-    } catch (error) { await worker?.stop(); throw error }
+    } catch (error) { this.deviceSnapshotAt = 0; await worker?.stop(); throw error }
   }
   async setEffects(params: Record<string, unknown>): Promise<void> {
     if (!params.prepared) { await this.request('effects', params, 30000); return }
@@ -284,6 +307,10 @@ export class AudioHostClient {
     if (!existsSync(executable)) throw new Error(`AUDIO_HOST_MISSING:${executable}`)
     this.expectedExit = false
     this.nativeCapabilities = null
+    this.stderrEvidence = []
+    this.sessionEvidence = {}
+    this.nativeComponent = {}
+    this.lastOperation = 'startup'
     const child = spawnSafe(executable, this.probeBackend ? ['--probe-backend', this.probeBackend] : [])
     this.child = child
     child.stdout.setEncoding('utf8')
@@ -291,15 +318,30 @@ export class AudioHostClient {
     const lines = createInterface({ input: child.stdout })
     lines.on('line', (line) => this.receive(line))
     child.stderr.on('data', (chunk: string) => { this.stderrEvidence = [...this.stderrEvidence, chunk.slice(-2000)].slice(-12); this.logger.warn('audio host stderr', chunk.slice(-1200)) })
+    const stderrLines = createInterface({ input: child.stderr })
+    stderrLines.on('line', line => {
+      try {
+        const info = JSON.parse(line) as Record<string, unknown>
+        if (info.stage === 'host-ready') this.nativeComponent = Object.fromEntries(['protocol', 'build', 'rtaudio', 'portaudio']
+          .filter(key => typeof info[key] === 'string' || typeof info[key] === 'number').map(key => [key, info[key]]))
+      } catch { /* Native driver messages may be plain text. */ }
+    })
     child.once('error', (error) => this.failAll(error))
     child.once('exit', (code, signal) => {
       lines.close()
+      stderrLines.close()
       if (this.child !== child) return
       this.child = null
       this.nativeCapabilities = null
       this.liveSession = false
       void this.plugins.stop()
-      const error = new DiagnosticError('AUDIO_HOST_EXITED', `AUDIO_HOST_EXITED:${code ?? signal ?? 'unknown'}`, { exitCode: code, signal, backend: this.probeBackend })
+      const exitCodeHex = typeof code === 'number' ? `0x${(code >>> 0).toString(16).toUpperCase().padStart(8, '0')}` : null
+      const error = new DiagnosticError('AUDIO_HOST_EXITED', `AUDIO_HOST_EXITED:${code ?? signal ?? 'unknown'}`, {
+        ...this.sessionEvidence, exitCode: code, exitCodeHex, signal,
+        exception: exitCodeHex === '0xC0000005' ? 'ACCESS_VIOLATION' : exitCodeHex === '0xC000001D' ? 'ILLEGAL_INSTRUCTION' : undefined,
+        backend: this.sessionEvidence.backend ?? (this.probeBackend || 'not-selected'),
+        operation: this.lastOperation, component: { ...this.nativeComponent }, stderr: [...this.stderrEvidence], platform: process.platform, arch: process.arch
+      })
       this.failAll(error)
       if (!this.expectedExit) {
         this.logger.error('audio host exited unexpectedly', { code, signal })
@@ -311,6 +353,14 @@ export class AudioHostClient {
 
   private async request<T = unknown>(method: string, params: Record<string, unknown>, timeoutMs = 10_000): Promise<T> {
     const child = this.ensureStarted()
+    this.lastOperation = method
+    if (['devices', 'start', 'startTest'].includes(method)) {
+      // Keep only device configuration, never backing/capture paths or plugin data.
+      this.sessionEvidence = Object.fromEntries(['backend', 'inputDeviceId', 'outputDeviceId', 'inputChannels', 'sampleRate', 'inputSampleRate', 'bufferFrames', 'outputOnly']
+        .filter(key => params[key] !== undefined).map(key => [key, params[key]]))
+      this.sessionEvidence.devices = this.deviceSnapshot.filter(device => device.id === params.inputDeviceId || device.id === params.outputDeviceId)
+        .map(device => ({ id: device.id, name: device.name, backend: device.backend }))
+    }
     const id = ++this.sequence
     return await new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {

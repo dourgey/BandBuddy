@@ -28,7 +28,7 @@
 .section-heading h2 { font-family: var(--sans); font-size: 18px; font-weight: 650; }
 .section-heading > span button { width: 30px; height: 30px; border-radius: 8px; }
 .recent-grid { gap: 14px; }
-.song-card { height: 134px; padding: 14px; grid-template-columns: 82px minmax(0, 1fr); gap: 15px; border-radius: var(--radius-md); background: var(--surface); border-color: var(--border); box-shadow: none; }
+.song-card { min-height: 134px; padding: 14px; grid-template-columns: 82px minmax(0, 1fr); gap: 15px; border-radius: var(--radius-md); background: var(--surface); border-color: var(--border); box-shadow: none; }
 .song-card:hover { transform: none; border-color: var(--border-strong); box-shadow: var(--shadow); }
 .song-card .vinyl { width: 82px; height: 82px; }
 .song-card-info { padding: 0; }
@@ -132,7 +132,7 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 13px; heigh
 
 :root[data-density="compact"] { --control-height: 32px; }
 :root[data-density="compact"] .page { padding: 18px 24px 104px; }
-:root[data-density="compact"] .song-card { height: 114px; grid-template-columns: 68px minmax(0, 1fr); }
+:root[data-density="compact"] .song-card { min-height: 114px; grid-template-columns: 68px minmax(0, 1fr); }
 :root[data-density="compact"] .song-card .vinyl { width: 68px; height: 68px; }
 :root[data-density="compact"] .song-row { min-height: 48px; }
 :root[data-effects="reduced"] *, :root[data-effects="reduced"] *::before, :root[data-effects="reduced"] *::after { animation: none !important; transition: none !important; backdrop-filter: none !important; scroll-behavior: auto !important; }
@@ -162,7 +162,7 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 13px; heigh
   .title-actions .quiet-button { font-size: 0; gap: 0; width: 32px; justify-content: center; }
   .title-actions .quiet-button .count-badge { font-size: 10px; position: absolute; margin: -18px 0 0 24px; }
   .recent-grid { gap: 8px; }
-  .song-card { height: 124px; grid-template-columns: 1fr; }
+  .song-card { min-height: 124px; grid-template-columns: 1fr; }
   .song-card > .vinyl { display: none; }
   .library-hero p { max-width: 260px; }
   .library-tools { gap: 8px; }
@@ -180,7 +180,7 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 13px; heigh
   .page { padding-top: 16px; }
   .library-hero { margin-bottom: 14px; }
   .library-recent-strip { margin-bottom: 18px; }
-  .song-card { height: 108px; }
+  .song-card { min-height: 108px; }
   .song-card .stem-pills, .song-card .duration { display: none; }
   .page h1 { font-size: 26px; }
   .arsenal-studio { min-height: 120px; }

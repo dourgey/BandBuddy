@@ -198,16 +198,16 @@ export function ImportDialog({
 }
 
 export function TasksDrawer({ open, onOpenChange, jobs, onRefresh }: { open: boolean; onOpenChange(open: boolean): void; jobs: JobRecord[]; onRefresh(): void }): React.JSX.Element {
-  const active = jobs.filter((job) => ['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing', 'cancelling'].includes(job.status))
+  const active = jobs.filter((job) => ['queued', 'blockedRuntime', 'preparing', 'separating', 'transcribing', 'postprocessing', 'cancelling'].includes(job.status))
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" data-dialog-open="true" /><Dialog.Content className="drawer tasks-drawer" data-dialog-open="true" aria-describedby={undefined}>
     <Dialog.Title>任务</Dialog.Title><Dialog.Close className="dialog-close" aria-label="关闭任务"><X /></Dialog.Close>
     <div className="task-summary"><span>{active.length ? `${active.length} 个进行中` : '暂无进行中任务'}</span><span>共 {jobs.length} 条</span></div>
     <div className="task-list">{jobs.length === 0 ? <div className="drawer-empty"><Check /><b>暂无任务</b></div> : jobs.map((job) => <article key={job.id}>
       <span className={`task-dot ${job.status}`} aria-hidden="true" />
-      <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'vocalSplit' ? '主唱／和声' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'export' ? '音频导出' : '环境安装'}</b>
+      <b>{job.type === 'separate' ? '基础分轨' : job.type === 'guitarSplit' ? '吉他细分轨' : job.type === 'vocalSplit' ? '主唱／和声' : job.type === 'normalizeStems' ? '分轨标准化' : job.type === 'transcribe' ? 'MIDI 转谱' : job.type === 'export' ? '音频导出' : '环境安装'}</b>
       <span className={`task-status ${job.status}`} title={job.errorMessage && job.status !== 'cancelled' ? toUserErrorMessage(`${job.errorCode ?? ''} ${job.errorMessage}`, '任务执行失败，请重试') : job.phase}>{statusLabel(job.status)}</span>
       <span className="task-progress" role="progressbar" aria-label="任务进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(job.progress * 100)}>{Math.round(job.progress * 100)}%</span>
-      <footer>{['queued', 'blockedRuntime', 'preparing', 'separating', 'postprocessing'].includes(job.status) && <button onClick={() => void window.bandbuddy.tasks.cancel(job.id).then(onRefresh)}>取消</button>}{['failed', 'cancelled', 'interrupted'].includes(job.status) && <><button onClick={() => void window.bandbuddy.tasks.retry(job.id).then(onRefresh)}>重试</button>{['ACCELERATOR_OOM', 'CUDA_OOM'].includes(job.errorCode ?? '') && <button aria-label="使用 CPU 重试" onClick={() => void window.bandbuddy.tasks.retry(job.id, true).then(onRefresh)}>CPU 重试</button>}</>}</footer>
+      <footer>{['queued', 'blockedRuntime', 'preparing', 'separating', 'transcribing', 'postprocessing'].includes(job.status) && <button onClick={() => void window.bandbuddy.tasks.cancel(job.id).then(onRefresh)}>取消</button>}{['failed', 'cancelled', 'interrupted'].includes(job.status) && <><button onClick={() => void window.bandbuddy.tasks.retry(job.id).then(onRefresh)}>重试</button>{['ACCELERATOR_OOM', 'CUDA_OOM'].includes(job.errorCode ?? '') && <button aria-label="使用 CPU 重试" onClick={() => void window.bandbuddy.tasks.retry(job.id, true).then(onRefresh)}>CPU 重试</button>}</>}</footer>
     </article>)}</div>
     <footer className="drawer-footer"><button className="outline-button" onClick={() => void window.bandbuddy.tasks.clearFinished().then(onRefresh)}><Trash2 size={16} />清除已完成</button><button className="outline-button" onClick={onRefresh}><RefreshCw size={16} />刷新</button></footer>
   </Dialog.Content></Dialog.Portal></Dialog.Root>
@@ -605,24 +605,21 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
   const [includeHiddenAlternatives, setIncludeHiddenAlternatives] = useState(false)
   const [applyRate, setApplyRate] = useState(false)
   const [applyLoop, setApplyLoop] = useState(false)
-  const [includeTake, setIncludeTake] = useState(false)
+  const [selectedRecordings, setSelectedRecordings] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const activeRecordings = useMemo(() => song.recordingTracks.flatMap((track) => {
     const take = song.recordingTakes.find((candidate) => candidate.id === track.activeTakeId)
     return take ? [{ track, take }] : []
   }), [song.recordingTakes, song.recordingTracks])
-  const takePracticeMatches = activeRecordings.length > 0
-    && activeRecordings.every(({ take }) => Math.abs(take.playbackRate - practice.playbackRate) < 0.0001
-      && (take.pitchSemitones ?? 0) === practice.pitchSemitones)
   useEffect(() => {
     if (!open) return
     setSelected(available)
     setIncludeHiddenAlternatives(false)
     setMessage('')
-    setIncludeTake(takePracticeMatches)
-    if (takePracticeMatches) setApplyRate(true)
-  }, [open, available, practice.pitchSemitones, takePracticeMatches])
+    setSelectedRecordings(activeRecordings.map(({ track }) => track.id))
+    setApplyRate(activeRecordings.length > 0)
+  }, [open, available, activeRecordings])
   const start = async (): Promise<void> => {
     setBusy(true); setMessage('')
     try {
@@ -634,11 +631,11 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
         : selected.filter((type) => song.sourceFormat === 'existing-stems' || isStemVisible(type, practice.guitarSplitEnabled, practice.vocalSplitEnabled))
       const result = await window.bandbuddy.export.start({
         songId: song.id, kind, format, stemTypes: requestedStems, outputPath,
-        applyPlaybackRate: kind === 'mix' && (applyRate || includeTake), playbackRate: practice.playbackRate,
+        applyPlaybackRate: applyRate, playbackRate: practice.playbackRate,
         applyPitchShift: practice.pitchSemitones !== 0, pitchSemitones: practice.pitchSemitones,
         applyLoopRange: kind === 'mix' && applyLoop, loopStartMs: practice.loopStartMs, loopEndMs: practice.loopEndMs,
         overwriteMode: 'ask',
-        includeActiveTake: kind === 'mix' && includeTake
+        includeActiveTake: selectedRecordings.length > 0, recordingTrackIds: selectedRecordings
       })
       setMessage(`已加入任务队列 · ${result.outputPaths.length} 个文件`)
     } catch (error) {
@@ -649,11 +646,13 @@ export function ExportDialog({ open, onOpenChange, song, practice, onBeforeStart
     <Dialog.Title>导出音频</Dialog.Title><Dialog.Close className="dialog-close"><X /></Dialog.Close><p className="dialog-lead">导出会保留当前升降调；当前混音还会应用练习室的 Mute、Solo 与增益。</p>
     <div className="dialog-tabs"><button className={kind === 'mix' ? 'active' : ''} onClick={() => setKind('mix')}><SlidersHorizontal />导出当前混音</button><button className={kind === 'stems' ? 'active' : ''} onClick={() => setKind('stems')}><FileAudio />分别导出音轨</button></div>
     <fieldset><legend>选择音轨</legend><div className="export-stems">{available.map((type) => <label key={type} style={{ '--track': STEM_META[type].color } as React.CSSProperties}><input type="checkbox" checked={selected.includes(type)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, type] : current.filter((item) => item !== type))} /><i /><span>{song.stems.find((stem) => stem.type === type)?.name || STEM_META[type].shortLabel}<small>{STEM_META[type].label}</small></span></label>)}</div></fieldset>
+    {activeRecordings.length > 0 && <fieldset><legend>录音轨</legend><div className="export-stems">{activeRecordings.map(({ track, take }) => <label key={track.id} style={{ '--track': '#b84f45' } as React.CSSProperties}><input type="checkbox" checked={selectedRecordings.includes(track.id)} onChange={event => setSelectedRecordings(current => event.target.checked ? [...current, track.id] : current.filter(id => id !== track.id))} /><i /><span>{track.name}<small>{take.name}</small></span></label>)}</div><small>导出所选轨道的当前 Take，保留时间位置、音色与轨道增益；分别导出时忽略 Mute 和 Solo。</small></fieldset>}
     {kind === 'stems' && hiddenAlternatives.length > 0 && <label className="check-line"><input type="checkbox" checked={includeHiddenAlternatives} onChange={(event) => setIncludeHiddenAlternatives(event.target.checked)} /><span>包含隐藏备选轨 <small>{hiddenAlternatives.map((type) => STEM_META[type].shortLabel).join(' / ')}</small></span></label>}
     <fieldset><legend>输出格式</legend><div className="format-options">{(['wav', 'flac', 'mp3'] as const).map((item) => <button className={format === item ? 'active' : ''} onClick={() => setFormat(item)} key={item}><b>{item.toUpperCase()}</b><small>{item === 'mp3' ? '320 kbps' : '44.1 kHz · 24-bit'}</small></button>)}</div></fieldset>
     <div className="export-pitch-note"><AudioLines size={17} /><span><b>{practice.pitchSemitones === 0 ? '按原调导出' : `导出当前 ${practice.pitchSemitones > 0 ? '+' : '−'}${Math.abs(practice.pitchSemitones)} 半音`}</b><small>Signalsmith 处理所有非鼓轨，鼓轨保持原音</small></span></div>
-    {kind === 'mix' && <fieldset><legend>混音范围</legend><label className="check-line"><input type="checkbox" checked={applyRate || includeTake} disabled={includeTake} onChange={(event) => setApplyRate(event.target.checked)} /><span>应用当前速度 <small>{practice.playbackRate.toFixed(2)}×，保持音高</small></span></label><label className="check-line"><input type="checkbox" disabled={practice.loopStartMs === null || practice.loopEndMs === null} checked={applyLoop} onChange={(event) => setApplyLoop(event.target.checked)} /><span>仅导出当前 A–B <small>默认导出整首歌曲</small></span></label>{activeRecordings.length > 0 && <label className="check-line"><input type="checkbox" checked={includeTake} disabled={!takePracticeMatches} onChange={(event) => { setIncludeTake(event.target.checked); if (event.target.checked) setApplyRate(true) }} /><span>包含{activeRecordings.length === 1 ? `“${activeRecordings[0]!.track.name}”` : `${activeRecordings.length} 条录音轨`} <small>{takePracticeMatches ? `绑定 ${practice.playbackRate.toFixed(2)}× · ${practice.pitchSemitones === 0 ? '原调' : `${practice.pitchSemitones > 0 ? '+' : '−'}${Math.abs(practice.pitchSemitones)} 半音`}` : '部分录音轨的速度或调性不匹配，请先切回录制设置'}</small></span></label>}</fieldset>}
-    {message && <p className="export-message"><Check />{message}</p>}<footer className="dialog-footer"><Dialog.Close className="outline-button">关闭</Dialog.Close><button className="primary-button" disabled={busy || selected.length === 0} onClick={() => void start()}>{busy ? <LoaderCircle className="spin" /> : <Upload />}选择位置并导出</button></footer>
+    <label className="check-line"><input type="checkbox" checked={applyRate} onChange={event => setApplyRate(event.target.checked)} /><span>应用当前速度 <small>{practice.playbackRate.toFixed(2)}×，保持音高</small></span></label>
+    {kind === 'mix' && <fieldset><legend>混音范围</legend><label className="check-line"><input type="checkbox" disabled={practice.loopStartMs === null || practice.loopEndMs === null} checked={applyLoop} onChange={event => setApplyLoop(event.target.checked)} /><span>仅导出当前 A–B <small>默认导出整首歌曲</small></span></label></fieldset>}
+    {message && <p className="export-message"><Check />{message}</p>}<footer className="dialog-footer"><Dialog.Close className="outline-button">关闭</Dialog.Close><button className="primary-button" disabled={busy || (selected.length === 0 && selectedRecordings.length === 0 && !(kind === 'stems' && includeHiddenAlternatives && hiddenAlternatives.length))} onClick={() => void start()}>{busy ? <LoaderCircle className="spin" /> : <Upload />}选择位置并导出</button></footer>
   </Dialog.Content></Dialog.Portal></Dialog.Root>
 }
 
@@ -766,7 +765,7 @@ export function MetadataDialog({ open, onOpenChange, song, onSaved }: { open: bo
 }
 
 export function SongActionsDialog({
-  open, onOpenChange, song, onOpen, onEditMetadata, onImportLyrics, onReveal, onReseparate, onDelete
+  open, onOpenChange, song, onOpen, onEditMetadata, onImportLyrics, onReveal, onReseparate, onDelete, onTranscribe
 }: {
   open: boolean
   onOpenChange(open: boolean): void
@@ -777,6 +776,7 @@ export function SongActionsDialog({
   onReveal(): void
   onReseparate(): void
   onDelete(): void
+  onTranscribe?(): void
 }): React.JSX.Element {
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => { if (open) setConfirmDelete(false) }, [open, song?.id])
@@ -785,6 +785,7 @@ export function SongActionsDialog({
     <p className="dialog-lead">管理本地曲目、原始文件与分离版本。</p>
     <div className="song-action-list">
       <button onClick={() => { onOpenChange(false); onOpen() }}><FileAudio /><span><b>打开练习室</b><small>继续当前保存的混音与循环设置</small></span></button>
+      {onTranscribe && <button onClick={() => { onOpenChange(false); onTranscribe() }}><FileText /><span><b>转为 MIDI 谱</b><small>在藏经阁识别整曲或指定分离轨，分轨看谱与练习</small></span></button>}
       <button onClick={() => { onOpenChange(false); onEditMetadata() }}><Pencil /><span><b>编辑歌曲信息</b><small>修改标题、艺术家、BPM、调号和拍号</small></span></button>
       <button onClick={() => { onOpenChange(false); onImportLyrics() }}><FileText /><span><b>导入 / 替换歌词</b><small>支持 LRC、逐字 LRC / KRC / QRC、SRT / VTT、TTML</small></span></button>
       <button onClick={() => { onOpenChange(false); onReveal() }}><FolderOpen /><span><b>在文件管理器中显示</b><small>打开 UUID 管理目录，不暴露给网页内容</small></span></button>

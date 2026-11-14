@@ -417,6 +417,19 @@ export class MultiTrackAudioEngine {
     return this.recordingRefresh
   }
 
+  releaseRecordingTake(takeId: string): void {
+    for (const track of this.song?.recordingTracks ?? []) {
+      if (track.activeTakeId !== takeId) continue
+      this.recordingLoads.get(track.id)?.abort.abort()
+      this.recordingLoads.delete(track.id)
+      const recording = this.recordings.get(track.id)
+      if (recording) this.disposeRecording(recording)
+      this.recordings.delete(track.id)
+      this.meters.get(track.id)?.node.disconnect(); this.meters.delete(track.id)
+      setRecordingPlayback(track.id, null)
+    }
+  }
+
   private async prepareRecording(id: string, take: RecordingTake, key: string, signal: AbortSignal): Promise<void> {
     const context = this.context, generation = this.loadGeneration
     if (!context) return

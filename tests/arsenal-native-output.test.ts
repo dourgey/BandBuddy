@@ -19,7 +19,7 @@ function audioContext(addModule = vi.fn().mockResolvedValue(undefined)) {
   contexts.push(context)
   return context
 }
-const idle = { active: false, mode: 'off' }
+const idle = { active: false, mode: 'off', redirectBrowserOutput: true }
 let listeners: Set<(state: typeof idle) => void>
 let worklet: ReturnType<typeof vi.fn>
 
@@ -68,7 +68,7 @@ describe('Arsenal native output preparation', () => {
     expect(useArsenal.getState().error).toContain('无法启动统一音频输出：AbortError: Blocked by script-src')
     expect(useArsenal.getState().busy).toBe(false)
     expect(window.bandbuddy.arsenal.monitor).not.toHaveBeenCalled()
-    expect(context.setSinkId).toHaveBeenLastCalledWith('usb-output')
+    expect(context.setSinkId).not.toHaveBeenCalled()
   })
 
   it('releases a context closed during worklet loading without blocking other monitor starts', async () => {
@@ -83,5 +83,42 @@ describe('Arsenal native output preparation', () => {
     expect(worklet).not.toHaveBeenCalled()
     expect(context.setSinkId).not.toHaveBeenCalled()
     expect(nativeOutputRoutes.size).toBe(0)
+  })
+
+  it.each(['auto', 'wasapi-shared', 'coreaudio'])('keeps %s accompaniment on one unchanged browser path when monitoring toggles', async backend => {
+    Object.assign(window.bandbuddy, { settings: { get: vi.fn(async () => ({ recordingAudio: { backend } })) } })
+    const context = audioContext(), input = arsenalDestination(context as unknown as AudioContext)
+    await prepareNativeOutput()
+    for (const callback of listeners) callback({ active: true, mode: 'dry', redirectBrowserOutput: false })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(arsenalDestination(context as unknown as AudioContext)).toBe(input)
+    for (const callback of listeners) callback({ active: false, mode: 'off', redirectBrowserOutput: false })
+    await restoreBrowserOutput()
+    expect(context.setSinkId).not.toHaveBeenCalled()
+    expect(context.audioWorklet.addModule).not.toHaveBeenCalled()
+    expect(worklet).not.toHaveBeenCalled()
+    expect(window.bandbuddy.arsenal.feed).not.toHaveBeenCalled()
+  })
+
+  it('disconnects the browser copy before native handoff and waits for the native reset before reconnecting', async () => {
+    const context = audioContext(), nodes: ReturnType<typeof context.createGain>[] = []
+    const createGain = context.createGain
+    context.createGain = () => { const node = createGain(); nodes.push(node); return node }
+    arsenalDestination(context as unknown as AudioContext)
+    const local = nodes[1]!
+    await prepareNativeOutput()
+    expect(local.disconnect).toHaveBeenCalledOnce()
+    expect(local.disconnect.mock.invocationCallOrder[0]).toBeLessThan(context.setSinkId.mock.invocationCallOrder[0]!)
+    for (const callback of listeners) callback({ active: true, mode: 'dry', redirectBrowserOutput: true })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    let finishReset!: (ok: boolean) => void
+    vi.mocked(window.bandbuddy.arsenal.feed).mockImplementationOnce(() => new Promise(resolve => { finishReset = resolve }))
+    const restore = restoreBrowserOutput()
+    await vi.waitFor(() => expect(finishReset).toBeTypeOf('function'))
+    expect(local.connect).toHaveBeenCalledTimes(1)
+    finishReset(true)
+    await restore
+    expect(local.connect).toHaveBeenCalledTimes(2)
+    expect(context.setSinkId).toHaveBeenLastCalledWith('usb-output')
   })
 })

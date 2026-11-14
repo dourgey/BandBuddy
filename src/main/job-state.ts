@@ -4,7 +4,8 @@ import { evidenceText, primaryErrorCode } from './diagnostic-errors.js'
 const transitions: Record<JobStatus, readonly JobStatus[]> = {
   queued: ['blockedRuntime', 'preparing', 'postprocessing', 'cancelled', 'failed'],
   blockedRuntime: ['queued', 'cancelled'],
-  preparing: ['blockedRuntime', 'separating', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
+  preparing: ['blockedRuntime', 'transcribing', 'separating', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
+  transcribing: ['postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
   separating: ['blockedRuntime', 'preparing', 'postprocessing', 'cancelling', 'cancelled', 'failed', 'interrupted'],
   postprocessing: ['completed', 'cancelling', 'cancelled', 'failed', 'interrupted'],
   cancelling: ['cancelled', 'failed', 'interrupted'],

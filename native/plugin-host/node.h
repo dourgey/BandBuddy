@@ -26,7 +26,7 @@ json scanAu(const std::string& id);
 #endif
 void initializePlatform();
 void pumpPlatform();
-void* openEditorWindow(void* view, const std::string& title);
+void* openEditorWindow(void* view, const std::string& title, void** publishedWindow = nullptr);
 void resizeEditorWindow(void* window, int width, int height);
 void closeEditorWindow(void* window);
 void showEditorWindow(void* window);

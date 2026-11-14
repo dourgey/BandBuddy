@@ -12,11 +12,23 @@ function setup() {
     stopTest: vi.fn(async () => { active = false }),
     timeline: vi.fn(async (_params: Record<string, unknown>) => ({ positionMs: 1700, playing: false, ended: false, generation: 1, countInRemaining: 0, underruns: 0, error: '' }))
   }
-  const service = new NativeAudioService({} as never, {} as never, {} as never, host as never, {} as never, emit)
+  const service = new NativeAudioService({} as never, {} as never, {} as never, host as never, { refreshMonitorMix: vi.fn(async () => {}) } as never, emit)
   Object.assign(service, { song, practice: song.practice })
   return { service, host, emit, song }
 }
 describe('native playback lifetime', () => {
+  it('unloads file readers before deleting the active take and retains the song for refresh', async () => {
+    const { service, host, song } = setup()
+    song.recordingTracks = [{ ...createDefaultRecordingTrackState(song.id, 'record'), activeTakeId: 'take' }]
+    const dispose = vi.fn(async () => undefined)
+    Object.assign(service, { recordingNodes: new Map([['record', { key: 'take', source: { dispose } }]]) })
+    await service.releaseRecording('unrelated')
+    expect(host.timeline).not.toHaveBeenCalled()
+    await service.releaseRecording('take')
+    expect(host.timeline).toHaveBeenCalledExactlyOnceWith({ action: 'unload' })
+    expect(dispose).toHaveBeenCalledOnce()
+    expect((service as unknown as { song: unknown }).song).toBe(song)
+  })
   it('updates recording M/S without waiting for or restarting the current tone render', async () => {
     const { service, host, song } = setup()
     song.recordingTracks = [{ ...createDefaultRecordingTrackState(song.id, 'record'), activeTakeId: 'take', solo: true }]

@@ -132,7 +132,7 @@ export const exportRequestSchema = z.object({
   songId: z.string().uuid(),
   kind: z.enum(['stems', 'mix']),
   format: exportFormatSchema,
-  stemTypes: z.array(stemTypeSchema).min(1).max(STEM_ORDER.length),
+  stemTypes: z.array(stemTypeSchema).max(STEM_ORDER.length),
   outputPath: z.string().min(1).optional(),
   applyPlaybackRate: z.boolean(),
   playbackRate: z.number().min(PLAYBACK_RATE_MIN).max(PLAYBACK_RATE_MAX),
@@ -142,8 +142,11 @@ export const exportRequestSchema = z.object({
   loopStartMs: z.number().nonnegative().nullable(),
   loopEndMs: z.number().nonnegative().nullable(),
   overwriteMode: z.enum(['ask', 'overwrite', 'rename']),
-  includeActiveTake: z.boolean().default(false)
+  includeActiveTake: z.boolean().default(false),
+  recordingTrackIds: z.array(z.string().uuid()).max(128).optional()
 }).refine((value) => new Set(value.stemTypes).size === value.stemTypes.length, '导出音轨不能重复')
+  .refine(value => !value.recordingTrackIds || new Set(value.recordingTrackIds).size === value.recordingTrackIds.length, '导出录音轨不能重复')
+  .refine(value => value.stemTypes.length > 0 || (value.recordingTrackIds?.length ?? (value.includeActiveTake ? 1 : 0)) > 0, '请选择导出音轨')
   .refine((value) => !value.applyLoopRange || (value.loopStartMs !== null && value.loopEndMs !== null && value.loopEndMs > value.loopStartMs), 'A–B 导出范围无效')
 
 export const listSongsSchema = z.object({
