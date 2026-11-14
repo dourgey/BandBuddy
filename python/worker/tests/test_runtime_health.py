@@ -3,6 +3,7 @@ import contextlib
 import importlib.metadata
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -15,6 +16,32 @@ import worker
 
 
 class RuntimeHealthTests(unittest.TestCase):
+    def test_worker_sets_mps_budget_before_running_a_probe(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(worker.platform, "system", return_value="Darwin"), patch.object(
+            worker.platform, "machine", return_value="arm64"
+        ), patch.object(sys, "argv", ["worker", "probe", "--model-root", "models"]), patch.object(worker, "command_probe") as probe:
+            observed = []
+            probe.side_effect = lambda _: observed.append((os.environ.get("PYTORCH_MPS_HIGH_WATERMARK_RATIO"), os.environ.get("PYTORCH_MPS_LOW_WATERMARK_RATIO")))
+            self.assertEqual(worker.main(), 0)
+            self.assertEqual(observed, [("0.5", "0.4")])
+
+    def test_mps_budget_keeps_explicit_limits_and_other_platforms_unchanged(self):
+        limits = {"PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.8", "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.6"}
+        with patch.dict(os.environ, limits, clear=True), patch.object(worker.platform, "system", return_value="Darwin"), patch.object(worker.platform, "machine", return_value="arm64"):
+            worker.configure_accelerator_memory()
+            self.assertEqual(dict(os.environ), limits)
+        for system, machine in [("Windows", "AMD64"), ("Darwin", "x86_64"), ("Linux", "aarch64")]:
+            with self.subTest(system=system), patch.dict(os.environ, {}, clear=True), patch.object(worker.platform, "system", return_value=system), patch.object(worker.platform, "machine", return_value=machine):
+                worker.configure_accelerator_memory()
+                self.assertEqual(dict(os.environ), {})
+
+    def test_default_low_watermark_does_not_exceed_an_explicit_high_watermark(self):
+        for high, low in [("0.2", "0.2"), ("0", "0.4")]:
+            with self.subTest(high=high), patch.dict(os.environ, {"PYTORCH_MPS_HIGH_WATERMARK_RATIO": high}, clear=True), patch.object(worker.platform, "system", return_value="Darwin"), patch.object(worker.platform, "machine", return_value="arm64"):
+                worker.configure_accelerator_memory()
+                self.assertEqual(os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"], high)
+                self.assertEqual(os.environ["PYTORCH_MPS_LOW_WATERMARK_RATIO"], low)
+
     def test_quick_probe_uses_recent_verified_capabilities_without_importing_torch(self):
         packages = ("torch", "torchaudio", "demucs", "onnxruntime", "numpy", "librosa", "soundfile", "sphn")
         with tempfile.TemporaryDirectory() as temporary:

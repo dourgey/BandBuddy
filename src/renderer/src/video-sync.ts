@@ -19,6 +19,7 @@ export class VideoSynchronizer {
     video.addEventListener('loadedmetadata', this.ready)
     video.addEventListener('canplay', this.ready)
     video.addEventListener('error', this.mediaError)
+    video.addEventListener('loadstart', this.resetFailed)
   }
 
   update(state: VideoPlaybackState): void {
@@ -46,8 +47,13 @@ export class VideoSynchronizer {
     this.video.removeEventListener('loadedmetadata', this.ready)
     this.video.removeEventListener('canplay', this.ready)
     this.video.removeEventListener('error', this.mediaError)
+    this.video.removeEventListener('loadstart', this.resetFailed)
     this.video.removeAttribute('src')
     this.video.load()
+  }
+
+  private resetFailed = (): void => {
+    this.failed = false
   }
 
   private ready = (): void => { this.synchronize(true) }

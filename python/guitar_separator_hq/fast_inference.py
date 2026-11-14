@@ -199,10 +199,21 @@ def predict_mdx(
                 part = np.pad(part, ((0, 0), (0, chunk_size - actual)))
             spectrum = stft.forward(part[None])
             spectrum[..., :3, :] = 0
-            predicted = session.run(
-                None,
-                {input_name: spectrum.detach().float().cpu().numpy()},
-            )[0]
+            input_spectrum = spectrum.detach().float().cpu().numpy()
+            try:
+                predicted = session.run(None, {input_name: input_spectrum})[0]
+            except Exception:
+                # Some CoreML/CUDA graphs initialize successfully but fail only
+                # when executed. ORT's provider list does not guarantee runtime
+                # fallback for these errors. Retry this same chunk once on CPU;
+                # retain the model, overlap and all completed output unchanged.
+                if active_providers == ("CPUExecutionProvider",):
+                    raise
+                session, _, active_providers = _create_onnx_session(model_path, torch.device("cpu"))
+                input_name = session.get_inputs()[0].name
+                if progress:
+                    progress(index / len(starts), "加速推理未通过，使用相同模型在 CPU 上继续")
+                predicted = session.run(None, {input_name: input_spectrum})[0]
             waveform = stft.inverse(predicted)[0, :, :actual]
             window = np.hanning(actual).astype(np.float32, copy=False)
             result[:, start:end] += waveform * window[None]

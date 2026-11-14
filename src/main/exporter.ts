@@ -204,14 +204,22 @@ export class ExportService {
               signal
             }) ?? source
           }
-          const result = await runProcess(ffmpeg, [
-            '-y', '-v', 'error', '-i', input,
-            '-map_metadata', '-1', '-vn', '-af', [`volume=${stemPlaybackGain(file)}`, ...(request.applyPlaybackRate ? buildAtempoChain(request.playbackRate) : [])].join(','), ...outputArgs(request.format), temporary
-          ], { signal })
-          if (signal.aborted) throw new Error('EXPORT_CANCELLED')
-          if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
-          await rename(temporary, output)
-          onProgress((index + 1) / (files.length + activeRecordings.length), `已导出 ${STEM_META[file.type].shortLabel}`)
+          let completed = false
+          try {
+            const result = await runProcess(ffmpeg, [
+              '-y', '-v', 'error', '-i', input,
+              '-map_metadata', '-1', '-vn',
+              '-af', [`volume=${stemPlaybackGain(file)}`, ...(request.applyPlaybackRate ? buildAtempoChain(request.playbackRate) : [])].join(','),
+              ...outputArgs(request.format), temporary
+            ], { signal })
+            if (signal.aborted) throw new Error('EXPORT_CANCELLED')
+            if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
+            await rename(temporary, output)
+            completed = true
+            onProgress((index + 1) / (files.length + activeRecordings.length), `已导出 ${STEM_META[file.type].shortLabel}`)
+          } finally {
+            if (!completed) await rm(temporary, { force: true }).catch(() => undefined)
+          }
         }
         for (let index = 0; index < activeRecordings.length; index++) {
           const { track, take } = activeRecordings[index]!
@@ -348,21 +356,27 @@ export class ExportService {
         loopEndMs: request.applyLoopRange ? request.loopEndMs : null,
         sourceDurationMs: song.durationMs
       })
-      const result = await runProcess(ffmpeg, [
-        '-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-map_metadata', '-1',
-        ...outputArgs(request.format), '-progress', 'pipe:1', '-nostats', temporary
-      ], {
-        signal,
-        onStdoutLine: (line) => {
-          const match = /^out_time_us=(\d+)$/.exec(line)
-          if (match && expectedMs > 0) onProgress(Math.min(0.99, Number(match[1]) / 1000 / expectedMs), '正在混合与限制峰值')
-        }
-      })
-      if (signal.aborted) throw new Error('EXPORT_CANCELLED')
-      if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
-      await rename(temporary, output)
-      onProgress(1, '导出完成')
-      this.logger.info('mix exported', { songId: request.songId, output, format: request.format, pitchSemitones: effectivePitch })
+      let completed = false
+      try {
+        const result = await runProcess(ffmpeg, [
+          '-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-map_metadata', '-1',
+          ...outputArgs(request.format), '-progress', 'pipe:1', '-nostats', temporary
+        ], {
+          signal,
+          onStdoutLine: (line) => {
+            const match = /^out_time_us=(\d+)$/.exec(line)
+            if (match && expectedMs > 0) onProgress(Math.min(0.99, Number(match[1]) / 1000 / expectedMs), '正在混合与限制峰值')
+          }
+        })
+        if (signal.aborted) throw new Error('EXPORT_CANCELLED')
+        if (result.code !== 0) throw new Error(`EXPORT_FAILED:${result.stderr.slice(-800)}`)
+        await rename(temporary, output)
+        completed = true
+        onProgress(1, '导出完成')
+        this.logger.info('mix exported', { songId: request.songId, output, format: request.format, pitchSemitones: effectivePitch })
+      } finally {
+        if (!completed) await rm(temporary, { force: true }).catch(() => undefined)
+      }
     } finally {
       if (pitchRoot) await rm(pitchRoot, { recursive: true, force: true })
     }

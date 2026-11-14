@@ -1,6 +1,6 @@
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
-const { open, readdir } = require('node:fs/promises')
+const { open, readdir, mkdtemp, symlink, rm } = require('node:fs/promises')
 const path = require('node:path')
 const policy = require('../resources/macos-signing.json')
 const execute = promisify(execFile)
@@ -63,7 +63,12 @@ function assertRequiredCode(appPath, inventory) {
 
 function deploymentTargets(commands) {
   return commands.split('Load command').filter(block => /LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/.test(block))
-    .flatMap(block => [...block.matchAll(/\b(?:minos|version)\s+(\d+\.\d+(?:\.\d+)?)/g)].map(match => match[1]))
+    .flatMap(block => {
+      // LC_BUILD_VERSION also contains the linker tool version, not an OS target.
+      const field = /LC_BUILD_VERSION/.test(block) ? /^\s*minos\s+(\d+\.\d+(?:\.\d+)?)/m : /^\s*version\s+(\d+\.\d+(?:\.\d+)?)/m
+      const match = block.match(field)
+      return match ? [match[1]] : []
+    })
 }
 
 async function verifyArchitecture(appPath, architecture = process.arch, inventory = null) {
@@ -80,7 +85,14 @@ async function verifyArchitecture(appPath, architecture = process.arch, inventor
   for (const binary of code.binaries) {
     const { stdout: slices } = await run('/usr/bin/lipo', ['-archs', binary])
     if (!slices.trim().split(/\s+/).includes(expected)) throw new Error(`MAC_BINARY_WRONG_ARCHITECTURE:${binary}:${slices.trim()}`)
-    const { stdout: commands } = await run('/usr/bin/otool', ['-arch', expected, '-l', binary])
+    // otool interprets parentheses as archive member syntax; use an alias.
+    const temporary = await mkdtemp(path.join(require('node:os').tmpdir(), 'bb-macho-'))
+    let commands
+    try {
+      const alias = path.join(temporary, 'binary')
+      await symlink(binary, alias)
+      commands = (await run('/usr/bin/otool', ['-arch', expected, '-l', alias])).stdout
+    } finally { await rm(temporary, { recursive: true, force: true }) }
     const versions = deploymentTargets(commands)
     if (!versions.length || versions.some(version => {
       const [major, minor] = version.split('.').map(Number)

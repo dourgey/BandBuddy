@@ -659,8 +659,25 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
+def configure_accelerator_memory() -> None:
+    # MPS's default watermark can exceed the shared physical memory budget.
+    # Large Roformer attention allocations then stall Metal instead of letting
+    # the desktop's existing ACCELERATOR_OOM -> CPU retry finish the same job.
+    # Set these before importing torch; retain explicit operator overrides.
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.5")
+        if "PYTORCH_MPS_LOW_WATERMARK_RATIO" not in os.environ:
+            try:
+                high_ratio = float(high)
+            except ValueError:
+                return  # Let torch report an invalid explicit configuration.
+            low_ratio = min(0.4, high_ratio) if high_ratio > 0 else 0.4
+            os.environ["PYTORCH_MPS_LOW_WATERMARK_RATIO"] = str(low_ratio)
+
+
 def main() -> int:
     args = parser().parse_args()
+    configure_accelerator_memory()
     if hasattr(args, "output"):
         os.environ["BANDBUDDY_MEMORY_DIR"] = str(Path(args.output).resolve() / ".scratch")
     try:

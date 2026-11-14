@@ -14,7 +14,7 @@ const certificate = `Developer ID Application: Jie Zhao (${policy.teamId})`
 
 describe('macOS release signing', () => {
   it('reads both deployment load-command forms without confusing linked library versions', () => {
-    expect(deploymentTargets(`Load command 1\n cmd LC_BUILD_VERSION\n minos 13.0\n sdk 15.0\nLoad command 2\n cmd LC_LOAD_DYLIB\n current version 120.0.0\nLoad command 3\n cmd LC_VERSION_MIN_MACOSX\n version 12.0\n sdk 15.0`)).toEqual(['13.0', '12.0'])
+    expect(deploymentTargets(`Load command 1\n cmd LC_BUILD_VERSION\n minos 13.0\n sdk 15.0\n ntools 1\n tool 4\n version 23.0\nLoad command 2\n cmd LC_LOAD_DYLIB\n current version 120.0.0\nLoad command 3\n cmd LC_VERSION_MIN_MACOSX\n version 12.0\n sdk 15.0`)).toEqual(['13.0', '12.0'])
   })
   it('selects a fingerprint deterministically when names are duplicated', () => {
     const output = `1) ${hashB} "${certificate}"\n2) ${hashA} "${certificate}"`

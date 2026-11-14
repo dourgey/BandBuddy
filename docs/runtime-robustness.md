@@ -56,12 +56,12 @@
 
 ### 清单与传输
 
-- `python/runtime/desktop.in` 固定依赖入口，`scripts/build-runtime-catalog.py` 生成 `resources/runtime-catalog` 内的四份完整 wheel 清单：Windows x64 CPU、CUDA 12.8、CUDA 13.0，以及 Apple Silicon。每个条目固定版本、平台文件名、大小和 SHA-256，包含间接依赖。Windows 每份 58 个 wheel，Apple Silicon 57 个。
+- `python/runtime/desktop.in` 固定依赖入口，`scripts/build-runtime-catalog.py` 生成 `resources/runtime-catalog` 内的四份完整 wheel 清单：Windows x64 CPU、CUDA 12.8、CUDA 13.0，以及 Apple Silicon。每个条目固定版本、平台文件名、大小和 SHA-256，包含间接依赖。Windows 每份 58 个 wheel，Apple Silicon 59 个。
 - 发布清单必须来自实际存在的上游文件。国内 PyPI 镜像条目仅在文件名及上游 SHA-256 一致时加入；Python 镜像检查具体文件，官方文件作为备选。没有虚构项目发布链接，也没有给用户端保留源码编译回退。SoundFile 必须优先选择携带 libsndfile 的平台 wheel，不能误用同版本的纯 Python wheel。
 - `ArtifactDownloader` 对 Python、wheel、模型和修复工具统一流式下载、代理策略、两路并发、SHA-256 校验、文件缓存和续传。连接 10 秒、无数据 60 秒超时；每源最多两次。403/404/429、假 HTML 成功响应、损坏内容和错误 Range 不会被当成完成。服务器忽略 Range 时使用独立临时文件，失败保留原有前缀；已验证文件不重复下载。
 - 先检查实际缓存、运行环境和模型所在卷的可写性及峰值空间，再开始安装。清单的 `expandedSize` 当前是压缩大小五倍的保守预算，Python 使用固定预算，另留每卷 1 GiB；不是声称测得的精确安装体积。
 - 所有 wheel 下载完成后，`uv pip sync --no-index --only-binary :all: --require-hashes` 从本地缓存安装。私有解释器和候选环境使用稳定绝对路径；真实依赖导入、ONNX CPU 运算和六轨短推理通过后才更新活动指针。升级或修复失败继续保留此前可用环境。
-- 本地分轨的 Apple Silicon 清单要求 macOS 14+（ONNX Runtime wheel 的最低系统版本）；应用基础功能仍保留现有 macOS 13 最低版本声明。Intel 路径仍受下文原有发行门禁约束，不包含在本轮新增清单范围内。
+- Apple Silicon 本地分轨清单使用 ONNX Runtime 1.23.2，其 wheel 标记 macOS 13，但两个原生库的 LC_BUILD_VERSION 要求 13.4，因此完整分轨最低系统要求为 macOS 13.4。系统门禁读取产品版本（保留小版本）；生成和读取清单时拒绝更高版本的 wheel，发布时还须在清单环境运行 scripts/verify-macos-python.py 检查真实 Mach-O 架构及最低部署版本。优先选择 ARM64 专用 wheel，避免 lameenc 上游 universal2 包实际只有 x86_64 的问题。Intel 路径仍受下文原有发行门禁约束，不包含在本轮新增清单范围内。
 
 ### 系统、设备与任务恢复
 
@@ -167,3 +167,12 @@ pnpm verify:runtime:install
 - 该机器一次健康缓存命中的 `probe --quick` 测得 63.5 ms（含启动 Python 子进程）；这是状态探测耗时，不是整款应用启动时间。
 - 集成复核增加退出等待、分析队列清理和 LAN 主题 SSE / HTML CSP 测试；相关 5 组共 19 例通过。LAN 仅公开主题、密度与效果三个白名单字段，错误令牌和跨来源请求被拒绝。
 - CPU 参考与发行收尾验证：2 组 TypeScript 门禁测试共 26 例通过，覆盖失效参考、推理代码变化、数值超阈值、缺轨、篡改报告、Intel 显式启用及 macOS 最低版本；新增 Python 参考和 wheel 选择测试共 9 例通过。真实 CPU 两次推理的结果见上述参考记录，合成测试夹具从未写入正式参考或发行清单。
+
+### Apple Silicon 3.0.1 兼容修复构建（2026-11-08）
+
+- 将 ONNX Runtime 固定为 1.23.2，保持 Torch / Torchaudio 2.11.0、NumPy 2.5.2、Demucs 4.1.0，并刷新全部 59 项带 SHA-256 的依赖。选择目标是当前功能可用且兼容较旧系统的组合，并非逐个依赖寻找历史最低版本。
+- 在独立 CPython 3.12.13 环境完成全部 wheel 安装；260 个原生二进制检查通过，完整分轨依赖的最低部署版本为 macOS 13.4。系统版本检查保留小版本，不能从 Darwin 内核主版本推算后丢掉小版本。
+- 清单优先 ARM64 专用 wheel。lameenc 1.9.0 的 universal2 wheel 经实测仅含 x86_64；ARM64 wheel 安装、导入通过。
+- Python worker 禁止写入字节码缓存，避免在签名应用内新增 `__pycache__` 使签名失效。发布校验在启动检查后再次验签。
+- 干净环境通过六轨 CPU 短推理、两个 MDX ONNX CPU 短推理、fast / balanced / high 三档吉他完整链路，以及 CPU / MPS 张量与音频读写测试。测试主机是 macOS 26.6.2 ARM64；没有 macOS 13.4 真机验收，也没有完整人声细分模型推理或外部音频设备全面验收。
+- 最终安装文件、签名报告、测试日志和依赖检查结果保存在兼容构建目录的 `release-macos` 中。本次使用 Developer ID 签名；后续已完成应用与最终 DMG 的 Apple 公证（Accepted），并附加票据。公证后的新文件位于 `release-macos-notarized`；应用与 DMG 的 Gatekeeper 检查、模拟下载隔离标记测试及启动后验签均通过。

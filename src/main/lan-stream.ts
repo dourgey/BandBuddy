@@ -121,11 +121,18 @@ export class LanStreamSession {
     if (this.pumping || !this.renderer || !this.config?.playing || this.closed) return
     this.pumping = true
     const generation = this.generation, signal = this.operation.signal
-    // A decoder stall must not leave either endpoint waiting forever.
-    this.timeout = setTimeout(() => this.fail(generation), 15_000)
+    const resetTimeout = (): void => {
+      clearTimeout(this.timeout)
+      this.timeout = setTimeout(() => this.fail(generation), 15_000)
+    }
+    resetTimeout()
     try {
       while (this.credits > 0 && this.renderer && !signal.aborted && !this.closed) {
-        if (this.socket.bufferedAmount > 256_000) break
+        if (this.socket.bufferedAmount > 256_000) {
+          setTimeout(() => void this.pump(), 20)
+          break
+        }
+        resetTimeout()
         const chunk = await this.renderer.next()
         if (signal.aborted || this.closed) break
         if (!chunk) {

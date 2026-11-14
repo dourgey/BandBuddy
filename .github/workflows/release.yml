@@ -284,7 +284,7 @@ jobs:
             printf '%s\n' 'Windows 10/11 x64; macOS 13+ Apple Silicon. Intel Mac support is pending native runtime and CPU reference validation; this release includes no Intel package.' > "$notes"
           fi
           printf '%s\n' 'macOS artifacts are Developer ID signed; see signature reports and checksum files. Windows signing status is included in SIGNING-STATE-windows.txt.' >> "$notes"
-          printf '%s\n' 'Apple Silicon local separation requires macOS 14 or newer with the pinned ONNX Runtime 1.28 wheels; other application functions retain the macOS 13 minimum. Runtime qualification is synthetic CPU inference; clean-machine permissions, audio devices, minimum macOS version and GPU acceptance must be recorded separately.' >> "$notes"
+          printf '%s\n' 'Apple Silicon local separation requires macOS 13.4 or newer with the pinned ONNX Runtime 1.23.2 libraries; other application functions retain the macOS 13 minimum. Runtime qualification is synthetic CPU inference; clean-machine permissions, audio devices, minimum macOS version and GPU acceptance must be recorded separately.' >> "$notes"
           if test -f "docs/release-notes/$GITHUB_REF_NAME.md"; then cat "docs/release-notes/$GITHUB_REF_NAME.md" >> "$notes"; fi
           assets=(release-complete/*)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

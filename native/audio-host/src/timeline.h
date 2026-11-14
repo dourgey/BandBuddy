@@ -97,9 +97,11 @@ class Timeline {
     if (value.contains("bpm")) bpm_.store(std::clamp(value.at("bpm").get<double>(), 20., 400.));
     if (value.contains("beatOffsetMs")) beatOffset_.store(value.at("beatOffsetMs").get<double>() / 1000 * rate_ / playbackRate_);
     if (value.contains("metronome")) metronome_.store(value.at("metronome"));
+    if (value.contains("metronomeGainDb")) metronomeGain_.store(std::pow(10.f, std::clamp(value.at("metronomeGainDb").get<float>(), -60.f, 12.f) / 20.f));
     if (value.contains("loopStartMs") || value.contains("loopEndMs")) {
       const auto start = frameOf(value.value("loopStartMs", 0.)), end = frameOf(value.value("loopEndMs", 0.));
-      const auto validEnd = end > start && end <= duration_ ? end : 0;
+      const auto clampedEnd = std::min(end, duration_);
+      const auto validEnd = clampedEnd > start ? clampedEnd : 0;
       if (start != loopStart_.load() || validEnd != loopEnd_.load()) {
         loopStart_.store(start); loopEnd_.store(validEnd); seek(positionMs());
       }
@@ -161,9 +163,15 @@ class Timeline {
   struct Block { std::uint64_t generation = 0, position = 0; unsigned frames = 0, trackCount = 0, sourceRevision = 0; std::array<std::array<float, quantum * 2>, trackLimit> samples{}; };
   std::uint64_t frameOf(double ms) const { return std::uint64_t(std::max(0., ms) / 1000 * rate_ / playbackRate_); }
   void addClick(float* output, double position, double beatFrames) const noexcept {
-    if (position < 0) return;
-    const auto phase = std::fmod(position, beatFrames); const auto clickFrames = rate_ / 80.;
-    if (phase < clickFrames) { const auto beat = std::uint64_t(position / beatFrames); const float click = float(std::sin(2 * 3.141592653589793 * (beat % 4 ? 1080 : 1560) * phase / rate_) * (1 - phase / clickFrames) * .18); output[0] += click; output[1] += click; }
+    double phase = std::fmod(position, beatFrames);
+    if (phase < 0) phase += beatFrames;
+    const auto clickFrames = rate_ / 80.;
+    if (phase < clickFrames) {
+      const auto beat = std::int64_t(std::floor(position / beatFrames));
+      const auto beatMod = (beat % 4 + 4) % 4;
+      const float click = float(std::sin(2 * 3.141592653589793 * (beatMod ? 1080 : 1560) * phase / rate_) * (1 - phase / clickFrames) * .18f * metronomeGain_.load());
+      output[0] += click; output[1] += click;
+    }
   }
   void prefetch() noexcept {
     AudioThreadPriority priority;
@@ -174,7 +182,12 @@ class Timeline {
     std::array<float, quantum * 2> oldAudio{};
     try { while (!stop_.load()) {
       const auto desired = generation_.load(std::memory_order_acquire);
-      if (generation != desired) { generation = desired; position = requestedPosition_.load(); eof = false; }
+      if (generation != desired) {
+        generation = desired; position = requestedPosition_.load(); eof = false;
+        read_.store(0, std::memory_order_relaxed);
+        write_.store(0, std::memory_order_release);
+        offset_ = 0;
+      }
       const auto w = write_.load(std::memory_order_relaxed), r = read_.load(std::memory_order_acquire);
       if (w - r == capacity || eof) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); continue; }
       const auto loopEnd = loopEnd_.load(); if (loopEnd && position >= loopEnd) position = loopStart_.load();
@@ -221,7 +234,7 @@ class Timeline {
   std::atomic<unsigned> preparedSourceRevision_{0};
   std::atomic<std::uint64_t> read_{0}, write_{0}, position_{0}, requestedPosition_{0}, generation_{1}, loopStart_{0}, loopEnd_{0}, countIn_{0}, underruns_{0};
   std::atomic<bool> stop_{false}, playing_{false}, ended_{false}, failed_{false}, metronome_{false};
-  std::atomic<float> master_{1}; std::atomic<double> bpm_{120}, beatOffset_{0};
+  std::atomic<float> master_{1}, metronomeGain_{1.f}; std::atomic<double> bpm_{120}, beatOffset_{0};
   unsigned offset_ = 0; std::uint64_t lastGeneration_ = 0; float currentMaster_ = 1, fade_ = 0;
 };
 }

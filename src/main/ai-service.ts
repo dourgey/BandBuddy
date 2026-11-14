@@ -134,7 +134,7 @@ export class AiService {
         try { completion = await request() }
         catch (error) {
           // Never mix answers or replay a user-cancelled request after a partial stream.
-          if (!custom || controller.signal.aborted || error instanceof AiContextCompressionError) throw error
+          if (!custom || controller.signal.aborted || attemptSignal.aborted || error instanceof AiContextCompressionError) throw error
           if (store.setVerified(saved.revision, false)) this.emit({ type: 'settings' })
           if (assistant.text) throw error
           custom = false; config = this.builtin; assistant.model = null; assistant.revision++; publish(true)

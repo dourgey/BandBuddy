@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import soundfile as sf
@@ -102,6 +102,56 @@ class HqPipelineTests(unittest.TestCase):
             fast_inference.select_onnx_providers(torch.device("cpu"), available),
             ("CPUExecutionProvider",),
         )
+
+    def test_mdx_runtime_provider_failure_retries_same_chunk_on_cpu(self) -> None:
+        spec = next(spec for spec in MODEL_SPECS if spec.architecture == "mdx_net")
+        config = {"model": {"dim_f": 9, "dim_t": 17, "n_fft": 16, "hop_length": 4}, "inference": {"overlap": 0.25}}
+        mix = np.random.default_rng(17).normal(0, 0.02, (2, 150)).astype(np.float32)
+        cpu = Mock()
+        cpu.get_inputs.return_value = [Mock(name="input")]
+        cpu.get_inputs.return_value[0].name = "cpu_input"
+        cpu.run.side_effect = lambda _, feed: [feed["cpu_input"].copy()]
+        accelerated = Mock()
+        accelerated.get_inputs.return_value = [Mock()]
+        accelerated.get_inputs.return_value[0].name = "accelerated_input"
+
+        def run_accelerated(_, feed):
+            if accelerated.run.call_count == 2:
+                raise RuntimeError("CoreML graph execution failed")
+            return [feed["accelerated_input"].copy()]
+
+        accelerated.run.side_effect = run_accelerated
+        cpu_session = (cpu, "CPUExecutionProvider", ("CPUExecutionProvider",))
+        with patch.object(fast_inference, "load_config", return_value=config):
+            with patch.object(fast_inference, "_create_onnx_session", return_value=cpu_session):
+                reference, _ = fast_inference.predict_mdx(mix, spec, Path("test.onnx"), torch.device("cpu"))
+            cpu.run.reset_mock()
+            with patch.object(fast_inference, "_create_onnx_session", side_effect=[
+                (accelerated, "CoreMLExecutionProvider", ("CoreMLExecutionProvider", "CPUExecutionProvider")), cpu_session
+            ]) as create:
+                actual, report = fast_inference.predict_mdx(mix, spec, Path("test.onnx"), torch.device("mps"))
+            self.assertEqual(create.call_count, 2)
+            self.assertEqual(create.call_args.args[1], torch.device("cpu"))
+        np.testing.assert_array_equal(actual, reference)
+        np.testing.assert_array_equal(cpu.run.call_args_list[0].args[1]["cpu_input"], accelerated.run.call_args_list[1].args[1]["accelerated_input"])
+        self.assertEqual(accelerated.run.call_count, 2)
+        self.assertEqual(report.provider_requested, "CoreMLExecutionProvider")
+        self.assertEqual(report.providers_active, ("CPUExecutionProvider",))
+
+    def test_mdx_cpu_failure_is_reported_without_retrying_forever(self) -> None:
+        spec = next(spec for spec in MODEL_SPECS if spec.architecture == "mdx_net")
+        config = {"model": {"dim_f": 9, "dim_t": 17, "n_fft": 16, "hop_length": 4}, "inference": {"overlap": 0.25}}
+        session = Mock()
+        session.get_inputs.return_value = [Mock()]
+        session.get_inputs.return_value[0].name = "input"
+        session.run.side_effect = RuntimeError("CPU inference failed")
+        with patch.object(fast_inference, "load_config", return_value=config), patch.object(
+            fast_inference, "_create_onnx_session", return_value=(session, "CPUExecutionProvider", ("CPUExecutionProvider",))
+        ) as create:
+            with self.assertRaisesRegex(RuntimeError, "CPU inference failed"):
+                fast_inference.predict_mdx(np.zeros((2, 150), dtype=np.float32), spec, Path("test.onnx"), torch.device("cpu"))
+        create.assert_called_once()
+        session.run.assert_called_once()
 
     def test_three_outputs_are_float_and_lead_rhythm_are_complementary(self) -> None:
         frames = 8_192

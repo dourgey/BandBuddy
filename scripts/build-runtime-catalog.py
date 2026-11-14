@@ -10,6 +10,7 @@ import hashlib
 from html.parser import HTMLParser
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tomllib
@@ -50,24 +51,33 @@ def main():
     cache = ROOT / '.codex-tmp/runtime-locks'; cache.mkdir(parents=True, exist_ok=True)
     key = args.target + '-' + args.backend
     source = cache / (key + '.in')
-    onnx = 'onnxruntime==1.28.0' if args.backend == 'cpu' else 'onnxruntime-gpu==' + ('1.28.0' if args.backend == 'cu130' else '1.26.0')
+    onnx = ('onnxruntime==1.23.2' if args.target == 'darwin-arm64' else 'onnxruntime==1.28.0') if args.backend == 'cpu' else 'onnxruntime-gpu==' + ('1.28.0' if args.backend == 'cu130' else '1.26.0')
     source.write_text((ROOT / 'python/runtime/desktop.in').read_text(encoding='utf-8') + '\n' + onnx + '\n', encoding='utf-8')
     lock = cache / ('pylock.' + key + '.toml')
     platform = 'x86_64-pc-windows-msvc' if args.target == 'win32-x64' else 'aarch64-apple-darwin'
     command = [args.uv, 'pip', 'compile', str(source), '--python-platform', platform, '--python-version', '3.12', '--format', 'pylock.toml', '--output-file', str(lock), '--only-binary', ':all:', '--quiet']
     if args.target == 'win32-x64': command += ['--torch-backend', args.backend]
     if not args.reuse_resolution:
-        subprocess.run(command, check=True, env={**os.environ, **({'MACOSX_DEPLOYMENT_TARGET': '14.0'} if args.target == 'darwin-arm64' else {})})
+        subprocess.run(command, check=True, env={**os.environ, **({'MACOSX_DEPLOYMENT_TARGET': '13.0'} if args.target == 'darwin-arm64' else {})})
     data = tomllib.loads(lock.read_text(encoding='utf-8'))
     artifacts = []
     for package in data['packages']:
         candidates = package.get('wheels', [])
+        if args.target == 'darwin-arm64':
+            def compatible(wheel):
+                filename = unquote(urlsplit(wheel['url']).path.rsplit('/', 1)[-1])
+                if filename.endswith('-any.whl'): return True
+                tags = re.findall(r'macosx_(\d+)_(\d+)_(?:arm64|universal2)', filename)
+                return any((int(major), int(minor)) <= (13, 0) for major, minor in tags)
+            candidates = [wheel for wheel in candidates if compatible(wheel)]
         if not candidates: raise RuntimeError('CI_WHEEL_BUILD_REQUIRED:' + package['name'])
         def score(wheel):
             filename = unquote(urlsplit(wheel['url']).path.rsplit('/', 1)[-1])
             # A pure fallback (notably SoundFile) omits native DLL/dylib payloads.
             native = filename.endswith('-win_amd64.whl') if args.target == 'win32-x64' else ('macosx_' in filename and ('arm64' in filename or 'universal2' in filename))
-            return (0 if native else 1, 0 if 'cp312' in filename else 1 if 'abi3' in filename else 2, filename)
+            # Prefer the exact architecture over universal2 (some upstream wheels are mislabeled).
+            exact_arch = args.target == 'darwin-arm64' and filename.endswith('_arm64.whl')
+            return (0 if native else 1, 0 if exact_arch else 1, 0 if 'cp312' in filename else 1 if 'abi3' in filename else 2, filename)
         wheel = sorted(candidates, key=score)[0]
         filename = unquote(urlsplit(wheel['url']).path.rsplit('/', 1)[-1])
         if not filename.endswith('.whl'): raise RuntimeError('SOURCE_BUILD_FORBIDDEN')
@@ -120,7 +130,7 @@ def main():
         pass
     interpreter = {'id': 'python', 'version': '3.12.13', 'filename': filename, 'size': archive.stat().st_size, 'expandedSize': 180 * 1024 * 1024, 'sha256': digest, 'urls': mirror_urls + [build['url']]}
     profile = {'schema': 1, 'id': key, 'target': args.target, 'backend': args.backend, 'python': interpreter, 'wheels': artifacts,
-               'minimumSystem': '10.0' if args.target == 'win32-x64' else '14.0',
+               'minimumSystem': '10.0' if args.target == 'win32-x64' else '13.4',
                'minimumDriver': {'cpu': None, 'cu126': '560.76', 'cu128': '572.61', 'cu129': '576.02', 'cu130': '580.88'}[args.backend],
                'minimumComputeCapability': None if args.backend == 'cpu' else '7.5'}
     output = ROOT / 'resources/runtime-catalog'; output.mkdir(exist_ok=True)

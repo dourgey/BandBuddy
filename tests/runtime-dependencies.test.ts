@@ -35,11 +35,12 @@ describe('managed Python runtime dependencies', () => {
     ])
   })
 
-  it('uses a compatible official CPU stack for Intel without changing Apple Silicon', () => {
+  it('uses a compatible official CPU stack for Intel with macOS 13 compatible ONNX Runtime', () => {
     const intel = pythonRuntimeVersions('darwin', 'x64')
     const appleSilicon = pythonRuntimeVersions('darwin', 'arm64')
     expect(pythonRuntimeRequirements(intel).slice(0, 2)).toEqual(['torch==2.2.2', 'torchaudio==2.2.2'])
     expect(pythonRuntimeRequirements(intel)).toEqual(expect.arrayContaining(['numpy==1.26.4', 'librosa==0.11.0', 'onnxruntime==1.23.2', 'numba==0.61.2', 'llvmlite==0.44.0', 'sphn==0.1.12']))
+    expect(pythonRuntimeRequirements(appleSilicon)).toContain('onnxruntime==1.23.2')
     expect(pythonRuntimeRequirements(appleSilicon).slice(0, 2)).toEqual(['torch==2.11.0', 'torchaudio==2.11.0'])
   })
 

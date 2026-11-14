@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, mkdirSync, writeFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, mkdirSync, writeFileSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const source = path.resolve(process.argv[2] ?? path.join(os.homedir(), 'Downloads', 'MODO-DRUM-STUDIO-One-Shots'))
 const target = path.join(root, 'src', 'renderer', 'public', 'woodshed', 'drums')
 const ffmpeg = path.join(root, 'resources', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
+if (!existsSync(path.join(source, 'index.json'))) throw new Error(`Drum source pack is missing: ${source}. Extract MODO-DRUM-STUDIO-One-Shots into Downloads or run pnpm prepare:drums /path/to/MODO-DRUM-STUDIO-One-Shots.`)
+if (!existsSync(ffmpeg)) throw new Error('FFmpeg is missing. Run pnpm tools:fetch before pnpm prepare:drums.')
 const sourceManifest = JSON.parse(readFileSync(path.join(source, 'index.json'), 'utf8'))
 if (sourceManifest.sampleCount !== 34 || sourceManifest.samples.length !== 34) throw new Error('Expected 34 drum samples')
 

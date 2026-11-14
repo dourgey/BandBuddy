@@ -18,7 +18,7 @@ export function pythonRuntimeVersions(platform = process.platform, arch = proces
     torch: '2.11.0',
     torchaudio: '2.11.0',
     demucs: '4.1.0',
-    onnxRuntimeCpu: '1.28.0',
+    onnxRuntimeCpu: platform === 'darwin' ? '1.23.2' : '1.28.0',
     onnxRuntimeCuda12: '1.26.0',
     onnxRuntimeCuda13: '1.28.0'
   }

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
+import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { x as extractTar } from 'tar'
 import type { Artifact } from './artifact-download.js'
@@ -20,6 +21,10 @@ export function validateRuntimeProfile(profile: RuntimeProfile): RuntimeProfile 
   const ids = new Set<string>()
   for (const artifact of [profile.python, ...profile.wheels]) {
     if (!/^[\w.+-]+$/.test(artifact.filename) || !/^[a-f0-9]{64}$/.test(artifact.sha256) || !artifact.size || artifact.size <= 0 || !artifact.expandedSize || !artifact.urls.length || artifact.urls.some(url => new URL(url).protocol !== 'https:') || ids.has(artifact.id)) throw new Error('RUNTIME_PROFILE_ARTIFACT_INVALID')
+    if (profile.target === 'darwin-arm64' && artifact.filename.endsWith('.whl') && artifact.filename.includes('macosx_')) {
+      const tags = [...artifact.filename.matchAll(/macosx_(\d+)_(\d+)_(arm64|universal2)/g)]
+      if (!tags.some(tag => compareRuntimeVersions(`${tag[1]}.${tag[2]}`, profile.minimumSystem) <= 0)) throw new Error('RUNTIME_WHEEL_SYSTEM_MISMATCH:' + artifact.filename)
+    }
     ids.add(artifact.id)
   }
   if (profile.wheels.some(wheel => !wheel.filename.endsWith('.whl'))) throw new Error('RUNTIME_SOURCE_BUILD_FORBIDDEN')
@@ -43,8 +48,11 @@ export function chooseRuntimeProfile(profiles: RuntimeProfile[], preferred: stri
     && compareRuntimeVersions(gpu.driverVersion, profile.minimumDriver) >= 0
     && compareRuntimeVersions(gpu.computeCapability, profile.minimumComputeCapability) >= 0).sort((a, b) => b.backend.localeCompare(a.backend))[0] ?? cpu
 }
-export function assertProfileSystem(profile: RuntimeProfile, release = os.release()): void {
-  const current = profile.target.startsWith('darwin') ? String(Number(release.split('.')[0]) - 9) + '.0' : release
+export function assertProfileSystem(profile: RuntimeProfile, systemVersion?: string): void {
+  // Darwin kernel versions do not preserve macOS minor versions (e.g. 13.4).
+  const current = systemVersion ?? (profile.target.startsWith('darwin')
+    ? (typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 5_000 }).trim())
+    : os.release())
   if (compareRuntimeVersions(current, profile.minimumSystem) < 0) throw new Error(`UNSUPPORTED_SYSTEM:${profile.target}:${profile.minimumSystem}`)
 }
 export async function extractInterpreter(archive: string, root: string, artifact: Artifact, signal: AbortSignal, replacement = false): Promise<string> {
